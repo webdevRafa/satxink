@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+:root {
+    --color-bg-base: #121212;
+    --color-bg-card: #1c1c1c;
+    --color-bg-button: #2c2c2c;
+    --color-bg-button-hover: #3a3a3a;
+    --color-bg-footer: #0e0e0e;
+  
+    --color-text-light: #f5f5f5;
+    --color-text-muted: #9ca3af;
+    --color-primary: #b6382d;
+    --color-primary-hover: #a53228;
+  }
+body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-light);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  h1 {
+    font-size: 2rem;         /* ~32px */
+    font-weight: 600;
+    color: white;
+    line-height: 1.2;
+  }
+  
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 2.5rem;     /* ~40px */
+    }
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 1rem;
+  }
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .text-sm {
+    font-size: 0.875rem;
+    color: #9ca3af; /* Tailwind gray-400 */
+  }
+  p {
+    font-size: 1rem;
+    color: #d1d5db;          /* Tailwind gray-300 */
+    line-height: 1.6;
+  }
+  
+  button {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  button.primary {
+    background-color: #b6382d;
+    color: white;
+  }
+  
+  button.primary:hover {
+    background-color: #a53228;
+  }
+  
+  button.secondary {
+    background-color: #2c2c2c;
+    color: white;
+  }
+  
+  button.secondary:hover {
+    background-color: #3a3a3a;
+  }
+  
