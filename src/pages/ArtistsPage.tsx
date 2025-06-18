@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+
 import {
   collection,
   query,
@@ -46,37 +47,66 @@ export const ArtistsPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
 
-  const fetchArtists = useCallback(async () => {
-    if (loading || !hasMore) return;
+  // ✅ Fetch first page (only once)
+  useEffect(() => {
+    const initialFetch = async () => {
+      setLoading(true);
+      try {
+        const q = query(
+          collection(db, "users"),
+          where("role", "==", "artist"),
+          orderBy("name"),
+          limit(PAGE_SIZE)
+        );
+        const snapshot = await getDocs(q);
+        const docs = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Artist, "id">),
+        }));
+        setArtists(docs);
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+        setHasMore(snapshot.docs.length === PAGE_SIZE);
+        console.log("🔰 Initial fetch:", docs.length, "docs");
+      } catch (err) {
+        console.error("Initial fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialFetch();
+  }, []);
+
+  // ✅ Fetch more when scrolling
+  const fetchMore = useCallback(async () => {
+    if (loading || !hasMore || !lastDoc) return;
 
     setLoading(true);
     try {
-      let q = query(
+      const q = query(
         collection(db, "users"),
         where("role", "==", "artist"),
         orderBy("name"),
+        startAfter(lastDoc),
         limit(PAGE_SIZE)
       );
-
-      if (lastDoc) {
-        q = query(q, startAfter(lastDoc));
-      }
-
       const snapshot = await getDocs(q);
-      const newArtists = snapshot.docs.map((doc) => ({
+      const newDocs = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<Artist, "id">),
       }));
-
-      setArtists((prev) => [...prev, ...newArtists]);
+      setArtists((prev) => [...prev, ...newDocs]);
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
       setHasMore(snapshot.docs.length === PAGE_SIZE);
+      console.log("📦 Fetched more:", newDocs.length, "docs");
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error("Fetch more error:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [lastDoc, loading, hasMore]);
 
+  // ✅ Infinite scroll observer
   const observer = useRef<IntersectionObserver | null>(null);
   const lastArtistRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -84,17 +114,13 @@ export const ArtistsPage = () => {
       if (observer.current) observer.current.disconnect();
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
-          fetchArtists();
+          fetchMore();
         }
       });
       if (node) observer.current.observe(node);
     },
-    [loading, fetchArtists]
+    [fetchMore, loading]
   );
-
-  useEffect(() => {
-    fetchArtists();
-  }, []);
 
   const filteredArtists = specialtyFilter
     ? artists.filter((a) =>
@@ -114,15 +140,12 @@ export const ArtistsPage = () => {
         their work.
       </p>
 
-      <div
-        style={{ backgroundColor: "var(--color-bg-base)" }}
-        className="sticky top-17 py-2"
-      >
+      <div className="sticky top-20 md:top-17 py-1 z-10 bg-[var(--color-bg-base)]">
         <div className="flex flex-wrap gap-2 mb-6">
           {SPECIALTIES.map((tag) => (
             <button
               key={tag}
-              className={`px-2.5 py-0.5 rounded-full border text-xs font-medium transition-all ${
+              className={`px-2.5! py-0.5! rounded-full border text-xs! font-medium! transition-all ${
                 specialtyFilter === tag
                   ? "bg-white text-black border-white"
                   : "text-white border-gray-500 hover:border-white"
