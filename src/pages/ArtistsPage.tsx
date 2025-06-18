@@ -13,6 +13,7 @@ import {
 import type { DocumentData } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import ArtistCard from "../components/ArtistCard";
+import { Link } from "react-router-dom";
 
 interface Artist {
   id: string;
@@ -165,11 +166,13 @@ export const ArtistsPage = () => {
           const isLast = index === filteredArtists.length - 1;
           return (
             <div key={artist.id} ref={isLast ? lastArtistRef : null}>
-              <ArtistCard
-                name={artist.name}
-                avatarUrl={artist.avatarUrl}
-                specialties={artist.specialties}
-              />
+              <Link to={`/artists/${artist.id}`}>
+                <ArtistCard
+                  name={artist.name}
+                  avatarUrl={artist.avatarUrl}
+                  specialties={artist.specialties}
+                />
+              </Link>
             </div>
           );
         })}
