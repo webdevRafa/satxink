@@ -114,15 +114,18 @@ export const ArtistsPage = () => {
         their work.
       </p>
 
-      <div className="sticky top-20">
+      <div
+        style={{ backgroundColor: "var(--color-bg-base)" }}
+        className="sticky top-17 py-2"
+      >
         <div className="flex flex-wrap gap-2 mb-6">
           {SPECIALTIES.map((tag) => (
             <button
               key={tag}
-              className={`px-3 py-1 rounded-full border text-sm ${
+              className={`px-2.5 py-0.5 rounded-full border text-xs font-medium transition-all ${
                 specialtyFilter === tag
-                  ? "bg-white text-color-primary"
-                  : "text-white border-white"
+                  ? "bg-white text-black border-white"
+                  : "text-white border-gray-500 hover:border-white"
               }`}
               onClick={() =>
                 setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
