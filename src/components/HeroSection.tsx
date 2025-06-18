@@ -39,7 +39,7 @@ export const HeroSection = () => {
           <a
             data-aos="fade-left"
             href="/post-idea"
-            className="bg-[#2c2c2c] text-white px-6 py-3 rounded-md font-medium hover:bg-[#3a3a3a] transitio"
+            className="bg-[#2c2c2c] text-white px-6 py-3 rounded-md font-medium hover:bg-[#3a3a3a] transition"
           >
             Post a Tattoo Idea
           </a>

@@ -1,0 +1,401 @@
+[
+    {
+        "role": "artist",
+        "name": "Zane Ink",
+        "email": "zane.ink@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Zane+Ink",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "realism",
+          "micro",
+          "neo-traditional"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Zane+Ink+1",
+          "https://placehold.co/600x800?text=Zane+Ink+2"
+        ],
+        "studioName": "The Mark Lab",
+        "upvotes": 37,
+        "rating": 4.8,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Cleo Sharp",
+        "email": "cleo.sharp@example.com",
+        "bio": "Precision linework is my signature style.",
+        "avatarUrl": "https://placehold.co/400x400?text=Cleo+Sharp",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "dotwork",
+          "realism",
+          "linework"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Cleo+Sharp+1",
+          "https://placehold.co/600x800?text=Cleo+Sharp+2"
+        ],
+        "studioName": "Skin & Soul",
+        "upvotes": 47,
+        "rating": 4.2,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Arlo Pierce",
+        "email": "arlo.pierce@example.com",
+        "bio": "Specializes in modern and minimalistic ink styles.",
+        "avatarUrl": "https://placehold.co/400x400?text=Arlo+Pierce",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "micro",
+          "anime"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Arlo+Pierce+1",
+          "https://placehold.co/600x800?text=Arlo+Pierce+2"
+        ],
+        "studioName": "The Ink Collective",
+        "upvotes": 40,
+        "rating": 4.3,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Nico Shade",
+        "email": "nico.shade@example.com",
+        "bio": "Dedicated to colorful large-scale pieces.",
+        "avatarUrl": "https://placehold.co/400x400?text=Nico+Shade",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "realism",
+          "linework",
+          "geometric"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Nico+Shade+1",
+          "https://placehold.co/600x800?text=Nico+Shade+2"
+        ],
+        "studioName": "Noir Line Studio",
+        "upvotes": 18,
+        "rating": 4.8,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Vera Vane",
+        "email": "vera.vane@example.com",
+        "bio": "Dedicated to colorful large-scale pieces.",
+        "avatarUrl": "https://placehold.co/400x400?text=Vera+Vane",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "dotwork",
+          "neo-traditional",
+          "geometric",
+          "linework"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Vera+Vane+1",
+          "https://placehold.co/600x800?text=Vera+Vane+2"
+        ],
+        "studioName": "The Ink Collective",
+        "upvotes": 45,
+        "rating": 4.9,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Kade Hollow",
+        "email": "kade.hollow@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Kade+Hollow",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "linework",
+          "geometric",
+          "micro"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Kade+Hollow+1",
+          "https://placehold.co/600x800?text=Kade+Hollow+2"
+        ],
+        "studioName": "Needlecraft TX",
+        "upvotes": 29,
+        "rating": 4.7,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Nova Blaze",
+        "email": "nova.blaze@example.com",
+        "bio": "Dedicated to colorful large-scale pieces.",
+        "avatarUrl": "https://placehold.co/400x400?text=Nova+Blaze",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "blackwork",
+          "micro",
+          "linework",
+          "traditional"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Nova+Blaze+1",
+          "https://placehold.co/600x800?text=Nova+Blaze+2"
+        ],
+        "studioName": "Crimson Ink",
+        "upvotes": 31,
+        "rating": 4.6,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Axel Thorn",
+        "email": "axel.thorn@example.com",
+        "bio": "Precision linework is my signature style.",
+        "avatarUrl": "https://placehold.co/400x400?text=Axel+Thorn",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "geometric",
+          "traditional"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Axel+Thorn+1",
+          "https://placehold.co/600x800?text=Axel+Thorn+2"
+        ],
+        "studioName": "The Ink Collective",
+        "upvotes": 40,
+        "rating": 4.5,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Mira Stain",
+        "email": "mira.stain@example.com",
+        "bio": "Specializes in modern and minimalistic ink styles.",
+        "avatarUrl": "https://placehold.co/400x400?text=Mira+Stain",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "geometric",
+          "color"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Mira+Stain+1",
+          "https://placehold.co/600x800?text=Mira+Stain+2"
+        ],
+        "studioName": "Noir Line Studio",
+        "upvotes": 46,
+        "rating": 4.2,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Juno Fade",
+        "email": "juno.fade@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Juno+Fade",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "color",
+          "neo-traditional",
+          "realism"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Juno+Fade+1",
+          "https://placehold.co/600x800?text=Juno+Fade+2"
+        ],
+        "studioName": "Needlecraft TX",
+        "upvotes": 9,
+        "rating": 3.8,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Lex Vex",
+        "email": "lex.vex@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Lex+Vex",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "realism",
+          "geometric"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Lex+Vex+1",
+          "https://placehold.co/600x800?text=Lex+Vex+2"
+        ],
+        "studioName": "The Ink Collective",
+        "upvotes": 6,
+        "rating": 4.6,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Iris Mark",
+        "email": "iris.mark@example.com",
+        "bio": "Loves pushing the boundary between art and skin.",
+        "avatarUrl": "https://placehold.co/400x400?text=Iris+Mark",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "geometric",
+          "blackwork"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Iris+Mark+1",
+          "https://placehold.co/600x800?text=Iris+Mark+2"
+        ],
+        "studioName": "Black Needle Studio",
+        "upvotes": 3,
+        "rating": 4.1,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Talon Drip",
+        "email": "talon.drip@example.com",
+        "bio": "Precision linework is my signature style.",
+        "avatarUrl": "https://placehold.co/400x400?text=Talon+Drip",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "traditional",
+          "blackwork",
+          "linework"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Talon+Drip+1",
+          "https://placehold.co/600x800?text=Talon+Drip+2"
+        ],
+        "studioName": "The Mark Lab",
+        "upvotes": 42,
+        "rating": 3.9,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Zephyr Coil",
+        "email": "zephyr.coil@example.com",
+        "bio": "Dedicated to colorful large-scale pieces.",
+        "avatarUrl": "https://placehold.co/400x400?text=Zephyr+Coil",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "anime",
+          "micro"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Zephyr+Coil+1",
+          "https://placehold.co/600x800?text=Zephyr+Coil+2"
+        ],
+        "studioName": "Sanctum Ink",
+        "upvotes": 33,
+        "rating": 4.4,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Finn Etch",
+        "email": "finn.etch@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Finn+Etch",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "neo-traditional",
+          "blackwork",
+          "color",
+          "micro"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Finn+Etch+1",
+          "https://placehold.co/600x800?text=Finn+Etch+2"
+        ],
+        "studioName": "Color Haven",
+        "upvotes": 7,
+        "rating": 4.4,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Sable Hex",
+        "email": "sable.hex@example.com",
+        "bio": "Loves pushing the boundary between art and skin.",
+        "avatarUrl": "https://placehold.co/400x400?text=Sable+Hex",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "color",
+          "realism",
+          "dotwork"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Sable+Hex+1",
+          "https://placehold.co/600x800?text=Sable+Hex+2"
+        ],
+        "studioName": "Black Needle Studio",
+        "upvotes": 16,
+        "rating": 3.9,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Orion Drop",
+        "email": "orion.drop@example.com",
+        "bio": "Dedicated to colorful large-scale pieces.",
+        "avatarUrl": "https://placehold.co/400x400?text=Orion+Drop",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "anime",
+          "linework",
+          "traditional"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Orion+Drop+1",
+          "https://placehold.co/600x800?text=Orion+Drop+2"
+        ],
+        "studioName": "Needlecraft TX",
+        "upvotes": 36,
+        "rating": 4.2,
+        "isAvailable": true
+      },
+      {
+        "role": "artist",
+        "name": "Lena Flux",
+        "email": "lena.flux@example.com",
+        "bio": "Passionate about clean lines and bold expressions.",
+        "avatarUrl": "https://placehold.co/400x400?text=Lena+Flux",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "neo-traditional",
+          "color",
+          "blackwork",
+          "micro"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Lena+Flux+1",
+          "https://placehold.co/600x800?text=Lena+Flux+2"
+        ],
+        "studioName": "Needlecraft TX",
+        "upvotes": 37,
+        "rating": 4.1,
+        "isAvailable": false
+      },
+      {
+        "role": "artist",
+        "name": "Knox Blade",
+        "email": "knox.blade@example.com",
+        "bio": "Precision linework is my signature style.",
+        "avatarUrl": "https://placehold.co/400x400?text=Knox+Blade",
+        "location": "San Antonio, TX",
+        "specialties": [
+          "realism",
+          "micro",
+          "neo-traditional",
+          "blackwork"
+        ],
+        "portfolioUrls": [
+          "https://placehold.co/600x800?text=Knox+Blade+1",
+          "https://placehold.co/600x800?text=Knox+Blade+2"
+        ],
+        "studioName": "Crimson Ink",
+        "upvotes": 4,
+        "rating": 3.9,
+        "isAvailable": true
+      }
+  ]
+  

@@ -1,75 +1,164 @@
-// src/pages/ArtistsPage.tsx
-import artist from "../assets/images/artist.jpg";
-const artists = [
-  {
-    name: "Michael Rivera",
-    style: "Black & Grey\nRealism",
-    image: artist,
-  },
-  {
-    name: "Jessica Chen",
-    style: "Neo-Traditional\nBlackwork",
-    image: artist,
-  },
-  {
-    name: "Alex Torres",
-    style: "Traditional\nJapanese",
-    image: artist,
-  },
-  {
-    name: "Sarah Martin",
-    style: "Fine Line\nColor",
-    image: artist,
-  },
-  {
-    name: "Ana Lopez",
-    style: "Blackwork\nOrnamental",
-    image: artist,
-  },
-  {
-    name: "Carlos Vega",
-    style: "Color Realism",
-    image: artist,
-  },
+import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  startAfter,
+  limit,
+  orderBy,
+  QueryDocumentSnapshot,
+} from "firebase/firestore";
+import type { DocumentData } from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
+import ArtistCard from "../components/ArtistCard";
+
+interface Artist {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  specialties: string[];
+}
+
+const PAGE_SIZE = 6;
+const SPECIALTIES = [
+  "Blackwork",
+  "Linework",
+  "Dotwork",
+  "Color",
+  "Realism",
+  "Neo-Traditional",
+  "Micro",
+  "Geometric",
+  "Anime",
+  "Traditional",
+  "Japanese",
+  "Ornamental",
+  "Fine Line",
+  "Color Realism",
 ];
 
 export const ArtistsPage = () => {
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [lastDoc, setLastDoc] =
+    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [specialtyFilter, setSpecialtyFilter] = useState("");
+
+  const fetchArtists = useCallback(async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      let q = query(
+        collection(db, "users"),
+        where("role", "==", "artist"),
+        orderBy("name"),
+        limit(PAGE_SIZE)
+      );
+
+      if (lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
+      const snapshot = await getDocs(q);
+      const newArtists = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Artist, "id">),
+      }));
+
+      setArtists((prev) => [...prev, ...newArtists]);
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(snapshot.docs.length === PAGE_SIZE);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+    setLoading(false);
+  }, [lastDoc, loading, hasMore]);
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastArtistRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loading) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+          fetchArtists();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [loading, fetchArtists]
+  );
+
+  useEffect(() => {
+    fetchArtists();
+  }, []);
+
+  const filteredArtists = specialtyFilter
+    ? artists.filter((a) =>
+        a.specialties?.some((tag) =>
+          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
+        )
+      )
+    : artists;
+
   return (
     <main className="px-4 py-12 max-w-6xl mx-auto">
       <h1 className="text-3xl font-semibold text-white mb-2">
         All Tattoo Artists
       </h1>
-      <p className="text-gray-400 mb-8">
+      <p className="text-gray-400 mb-4">
         Discover talented artists from San Antonio, browse by style, and view
         their work.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {artists.map((artist, index) => (
-          <div
-            key={index}
-            className="bg-[#1c1c1c] text-white rounded-xl overflow-hidden shadow-md"
-          >
-            <img
-              src={artist.image}
-              alt={artist.name}
-              className="w-full h-52 object-cover"
-            />
-            <div className="p-4">
-              <h3 className="text-base font-semibold">{artist.name}</h3>
-              <p className="text-sm text-gray-400 whitespace-pre-line leading-tight">
-                {artist.style}
-              </p>
-              <a
-                href="#"
-                className="block mt-4 bg-[#2c2c2c] hover:bg-[#3a3a3a] text-white text-sm py-2 rounded-md text-center transition"
-              >
-                View Portfolio
-              </a>
-            </div>
-          </div>
-        ))}
+      <div className="sticky top-20">
+        <div className="flex flex-wrap gap-2 mb-6">
+          {SPECIALTIES.map((tag) => (
+            <button
+              key={tag}
+              className={`px-3 py-1 rounded-full border text-sm ${
+                specialtyFilter === tag
+                  ? "bg-white text-color-primary"
+                  : "text-white border-white"
+              }`}
+              onClick={() =>
+                setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
+              }
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {filteredArtists.map((artist, index) => {
+          const isLast = index === filteredArtists.length - 1;
+          return (
+            <div key={artist.id} ref={isLast ? lastArtistRef : null}>
+              <ArtistCard
+                name={artist.name}
+                avatarUrl={artist.avatarUrl}
+                specialties={artist.specialties}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {loading && (
+        <p className="text-center text-gray-400 mt-6">
+          Loading more artists...
+        </p>
+      )}
+      {!hasMore && !loading && (
+        <p className="text-center text-gray-500 mt-6">
+          No more artists to show.
+        </p>
+      )}
     </main>
   );
 };

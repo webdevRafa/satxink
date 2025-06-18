@@ -13,6 +13,8 @@ import { ArtistsPage } from "./pages/ArtistsPage";
 import { ClientPostsPage } from "./pages/ClientPostsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { SignupPage } from "./pages/SignupPage";
+import DevAddDocs from "./pages/DevAddDocs";
+import LoginPage from "./pages/LoginPage";
 
 function App() {
   useEffect(() => {
@@ -32,6 +34,8 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />
+        <Route path="/dev-add-docs" element={<DevAddDocs />} />
+        <Route path="/login-page" element={<LoginPage />} />
       </Routes>
 
       <Footer />
