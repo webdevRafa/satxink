@@ -1,6 +1,6 @@
 // src/pages/DevAddDocs.tsx
 import { useState } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { serverTimestamp } from "firebase/firestore";
@@ -11,7 +11,7 @@ const DevAddDocs = () => {
   const [collectionName, setCollectionName] = useState("users");
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState("");
-
+  const [addingAvatars, setAddingAvatars] = useState(false);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -57,7 +57,77 @@ const DevAddDocs = () => {
       setUploading(false);
     }
   };
+  const fixPlaceholderAvatars = async () => {
+    setStatus("Scanning users…");
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      let batch = writeBatch(db);
+      let counter = 0;
 
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const hasPlaceholder =
+          !data.avatarUrl || data.avatarUrl.includes("placehold.co");
+
+        if (hasPlaceholder) {
+          batch.update(docSnap.ref, {
+            avatarUrl: generateAvatarUrl(docSnap.id),
+            updatedAt: serverTimestamp(),
+          });
+          counter++;
+
+          // commit every 500 writes to stay under the limit
+          if (counter % 500 === 0) {
+            batch.commit();
+            batch = writeBatch(db);
+          }
+        }
+      });
+
+      await batch.commit();
+      setStatus(`✅ Replaced ${counter} placeholder avatar(s).`);
+    } catch (err) {
+      console.error(err);
+      setStatus("❌ Avatar fix failed.");
+    }
+  };
+
+  const handleAddAvatars = async () => {
+    setAddingAvatars(true);
+    try {
+      // we always hit the real "users" collection regardless of the dropdown
+      const snap = await getDocs(collection(db, "users"));
+      let batch = writeBatch(db);
+      let counter = 0;
+
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data();
+        if (!data.avatarUrl) {
+          batch.update(docSnap.ref, {
+            avatarUrl: generateAvatarUrl(docSnap.id),
+            updatedAt: serverTimestamp(),
+          });
+          counter++;
+
+          // Firestore allows 500 writes per batch
+          if (counter % 500 === 0) {
+            await batch.commit();
+            batch = writeBatch(db);
+          }
+        }
+      }
+      await batch.commit(); // flush remainder
+      setStatus(`Added avatars to ${counter} user(s) without one.`);
+    } catch (err) {
+      console.error(err);
+      setStatus("Adding avatars failed.");
+    } finally {
+      setAddingAvatars(false);
+    }
+  };
+  /** Returns a deterministic DiceBear “bottts” avatar based on a seed */
+  const generateAvatarUrl = (seed: string) =>
+    `https://api.dicebear.com/8.x/bottts/svg?seed=${seed}`;
   const collectionOptions = [
     "users",
     "posts",
@@ -111,7 +181,19 @@ const DevAddDocs = () => {
       >
         {uploading ? "Uploading..." : "Push to Firestore"}
       </button>
-
+      <button
+        className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 mt-2 disabled:opacity-50"
+        onClick={handleAddAvatars}
+        disabled={addingAvatars}
+      >
+        {addingAvatars ? "Adding Avatars..." : "Add Avatars to Users"}
+      </button>
+      <button
+        className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 mt-2 disabled:opacity-50"
+        onClick={fixPlaceholderAvatars}
+      >
+        Fix Placeholder Avatars
+      </button>
       {status && <p className="mt-4 text-sm text-gray-700">{status}</p>}
     </div>
   );
