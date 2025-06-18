@@ -1,401 +1,1684 @@
 [
-    {
-        "role": "artist",
-        "name": "Zane Ink",
-        "email": "zane.ink@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Zane+Ink",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "realism",
-          "micro",
-          "neo-traditional"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Zane+Ink+1",
-          "https://placehold.co/600x800?text=Zane+Ink+2"
-        ],
-        "studioName": "The Mark Lab",
-        "upvotes": 37,
-        "rating": 4.8,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Cleo Sharp",
-        "email": "cleo.sharp@example.com",
-        "bio": "Precision linework is my signature style.",
-        "avatarUrl": "https://placehold.co/400x400?text=Cleo+Sharp",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "dotwork",
-          "realism",
-          "linework"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Cleo+Sharp+1",
-          "https://placehold.co/600x800?text=Cleo+Sharp+2"
-        ],
-        "studioName": "Skin & Soul",
-        "upvotes": 47,
-        "rating": 4.2,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Arlo Pierce",
-        "email": "arlo.pierce@example.com",
-        "bio": "Specializes in modern and minimalistic ink styles.",
-        "avatarUrl": "https://placehold.co/400x400?text=Arlo+Pierce",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "micro",
-          "anime"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Arlo+Pierce+1",
-          "https://placehold.co/600x800?text=Arlo+Pierce+2"
-        ],
-        "studioName": "The Ink Collective",
-        "upvotes": 40,
-        "rating": 4.3,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Nico Shade",
-        "email": "nico.shade@example.com",
-        "bio": "Dedicated to colorful large-scale pieces.",
-        "avatarUrl": "https://placehold.co/400x400?text=Nico+Shade",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "realism",
-          "linework",
-          "geometric"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Nico+Shade+1",
-          "https://placehold.co/600x800?text=Nico+Shade+2"
-        ],
-        "studioName": "Noir Line Studio",
-        "upvotes": 18,
-        "rating": 4.8,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Vera Vane",
-        "email": "vera.vane@example.com",
-        "bio": "Dedicated to colorful large-scale pieces.",
-        "avatarUrl": "https://placehold.co/400x400?text=Vera+Vane",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "dotwork",
-          "neo-traditional",
-          "geometric",
-          "linework"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Vera+Vane+1",
-          "https://placehold.co/600x800?text=Vera+Vane+2"
-        ],
-        "studioName": "The Ink Collective",
-        "upvotes": 45,
-        "rating": 4.9,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Kade Hollow",
-        "email": "kade.hollow@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Kade+Hollow",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "linework",
-          "geometric",
-          "micro"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Kade+Hollow+1",
-          "https://placehold.co/600x800?text=Kade+Hollow+2"
-        ],
-        "studioName": "Needlecraft TX",
-        "upvotes": 29,
-        "rating": 4.7,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Nova Blaze",
-        "email": "nova.blaze@example.com",
-        "bio": "Dedicated to colorful large-scale pieces.",
-        "avatarUrl": "https://placehold.co/400x400?text=Nova+Blaze",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "blackwork",
-          "micro",
-          "linework",
-          "traditional"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Nova+Blaze+1",
-          "https://placehold.co/600x800?text=Nova+Blaze+2"
-        ],
-        "studioName": "Crimson Ink",
-        "upvotes": 31,
-        "rating": 4.6,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Axel Thorn",
-        "email": "axel.thorn@example.com",
-        "bio": "Precision linework is my signature style.",
-        "avatarUrl": "https://placehold.co/400x400?text=Axel+Thorn",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "geometric",
-          "traditional"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Axel+Thorn+1",
-          "https://placehold.co/600x800?text=Axel+Thorn+2"
-        ],
-        "studioName": "The Ink Collective",
-        "upvotes": 40,
-        "rating": 4.5,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Mira Stain",
-        "email": "mira.stain@example.com",
-        "bio": "Specializes in modern and minimalistic ink styles.",
-        "avatarUrl": "https://placehold.co/400x400?text=Mira+Stain",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "geometric",
-          "color"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Mira+Stain+1",
-          "https://placehold.co/600x800?text=Mira+Stain+2"
-        ],
-        "studioName": "Noir Line Studio",
-        "upvotes": 46,
-        "rating": 4.2,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Juno Fade",
-        "email": "juno.fade@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Juno+Fade",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "color",
-          "neo-traditional",
-          "realism"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Juno+Fade+1",
-          "https://placehold.co/600x800?text=Juno+Fade+2"
-        ],
-        "studioName": "Needlecraft TX",
-        "upvotes": 9,
-        "rating": 3.8,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Lex Vex",
-        "email": "lex.vex@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Lex+Vex",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "realism",
-          "geometric"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Lex+Vex+1",
-          "https://placehold.co/600x800?text=Lex+Vex+2"
-        ],
-        "studioName": "The Ink Collective",
-        "upvotes": 6,
-        "rating": 4.6,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Iris Mark",
-        "email": "iris.mark@example.com",
-        "bio": "Loves pushing the boundary between art and skin.",
-        "avatarUrl": "https://placehold.co/400x400?text=Iris+Mark",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "geometric",
-          "blackwork"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Iris+Mark+1",
-          "https://placehold.co/600x800?text=Iris+Mark+2"
-        ],
-        "studioName": "Black Needle Studio",
-        "upvotes": 3,
-        "rating": 4.1,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Talon Drip",
-        "email": "talon.drip@example.com",
-        "bio": "Precision linework is my signature style.",
-        "avatarUrl": "https://placehold.co/400x400?text=Talon+Drip",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "traditional",
-          "blackwork",
-          "linework"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Talon+Drip+1",
-          "https://placehold.co/600x800?text=Talon+Drip+2"
-        ],
-        "studioName": "The Mark Lab",
-        "upvotes": 42,
-        "rating": 3.9,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Zephyr Coil",
-        "email": "zephyr.coil@example.com",
-        "bio": "Dedicated to colorful large-scale pieces.",
-        "avatarUrl": "https://placehold.co/400x400?text=Zephyr+Coil",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "anime",
-          "micro"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Zephyr+Coil+1",
-          "https://placehold.co/600x800?text=Zephyr+Coil+2"
-        ],
-        "studioName": "Sanctum Ink",
-        "upvotes": 33,
-        "rating": 4.4,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Finn Etch",
-        "email": "finn.etch@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Finn+Etch",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "neo-traditional",
-          "blackwork",
-          "color",
-          "micro"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Finn+Etch+1",
-          "https://placehold.co/600x800?text=Finn+Etch+2"
-        ],
-        "studioName": "Color Haven",
-        "upvotes": 7,
-        "rating": 4.4,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Sable Hex",
-        "email": "sable.hex@example.com",
-        "bio": "Loves pushing the boundary between art and skin.",
-        "avatarUrl": "https://placehold.co/400x400?text=Sable+Hex",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "color",
-          "realism",
-          "dotwork"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Sable+Hex+1",
-          "https://placehold.co/600x800?text=Sable+Hex+2"
-        ],
-        "studioName": "Black Needle Studio",
-        "upvotes": 16,
-        "rating": 3.9,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Orion Drop",
-        "email": "orion.drop@example.com",
-        "bio": "Dedicated to colorful large-scale pieces.",
-        "avatarUrl": "https://placehold.co/400x400?text=Orion+Drop",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "anime",
-          "linework",
-          "traditional"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Orion+Drop+1",
-          "https://placehold.co/600x800?text=Orion+Drop+2"
-        ],
-        "studioName": "Needlecraft TX",
-        "upvotes": 36,
-        "rating": 4.2,
-        "isAvailable": true
-      },
-      {
-        "role": "artist",
-        "name": "Lena Flux",
-        "email": "lena.flux@example.com",
-        "bio": "Passionate about clean lines and bold expressions.",
-        "avatarUrl": "https://placehold.co/400x400?text=Lena+Flux",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "neo-traditional",
-          "color",
-          "blackwork",
-          "micro"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Lena+Flux+1",
-          "https://placehold.co/600x800?text=Lena+Flux+2"
-        ],
-        "studioName": "Needlecraft TX",
-        "upvotes": 37,
-        "rating": 4.1,
-        "isAvailable": false
-      },
-      {
-        "role": "artist",
-        "name": "Knox Blade",
-        "email": "knox.blade@example.com",
-        "bio": "Precision linework is my signature style.",
-        "avatarUrl": "https://placehold.co/400x400?text=Knox+Blade",
-        "location": "San Antonio, TX",
-        "specialties": [
-          "realism",
-          "micro",
-          "neo-traditional",
-          "blackwork"
-        ],
-        "portfolioUrls": [
-          "https://placehold.co/600x800?text=Knox+Blade+1",
-          "https://placehold.co/600x800?text=Knox+Blade+2"
-        ],
-        "studioName": "Crimson Ink",
-        "upvotes": 4,
-        "rating": 3.9,
-        "isAvailable": true
-      }
+  {
+    "role": "artist",
+    "name": "Zane Ink",
+    "email": "zane.ink@example.com",
+    "bio": "Experienced in Japanese, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Zane+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Zane+Ink+1",
+      "https://placehold.co/600x800?text=Zane+Ink+2"
+    ],
+    "studioName": "Zane's Studio",
+    "upvotes": 25,
+    "rating": 3.7,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Axel Thorn",
+    "email": "axel.thorn@example.com",
+    "bio": "Experienced in Color Realism, Geometric, Ornamental styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Axel+Thorn",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Geometric",
+      "Ornamental"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Axel+Thorn+1",
+      "https://placehold.co/600x800?text=Axel+Thorn+2"
+    ],
+    "studioName": "Axel's Studio",
+    "upvotes": 46,
+    "rating": 4.3,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Finn Etch",
+    "email": "finn.etch@example.com",
+    "bio": "Experienced in Micro, Neo-Traditional, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Finn+Etch",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Micro",
+      "Neo-Traditional",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Finn+Etch+1",
+      "https://placehold.co/600x800?text=Finn+Etch+2"
+    ],
+    "studioName": "Finn's Studio",
+    "upvotes": 5,
+    "rating": 4.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Lena Flux",
+    "email": "lena.flux@example.com",
+    "bio": "Experienced in Fine Line, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Lena+Flux",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Lena+Flux+1",
+      "https://placehold.co/600x800?text=Lena+Flux+2"
+    ],
+    "studioName": "Lena's Studio",
+    "upvotes": 7,
+    "rating": 4.4,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Juno Fade",
+    "email": "juno.fade@example.com",
+    "bio": "Experienced in Linework, Micro, Geometric styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Juno+Fade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Micro",
+      "Geometric"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Juno+Fade+1",
+      "https://placehold.co/600x800?text=Juno+Fade+2"
+    ],
+    "studioName": "Juno's Studio",
+    "upvotes": 6,
+    "rating": 4.4,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Sable Hex",
+    "email": "sable.hex@example.com",
+    "bio": "Experienced in Ornamental, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Sable+Hex",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Ornamental",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Sable+Hex+1",
+      "https://placehold.co/600x800?text=Sable+Hex+2"
+    ],
+    "studioName": "Sable's Studio",
+    "upvotes": 44,
+    "rating": 4.2,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Knox Blade",
+    "email": "knox.blade@example.com",
+    "bio": "Experienced in Anime, Blackwork, Traditional, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Knox+Blade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Blackwork",
+      "Traditional",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Knox+Blade+1",
+      "https://placehold.co/600x800?text=Knox+Blade+2"
+    ],
+    "studioName": "Knox's Studio",
+    "upvotes": 67,
+    "rating": 4.5,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Vera Vane",
+    "email": "vera.vane@example.com",
+    "bio": "Experienced in Fine Line, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Vera+Vane",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Vera+Vane+1",
+      "https://placehold.co/600x800?text=Vera+Vane+2"
+    ],
+    "studioName": "Vera's Studio",
+    "upvotes": 68,
+    "rating": 4.0,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Talon Drip",
+    "email": "talon.drip@example.com",
+    "bio": "Experienced in Color Realism, Color, Anime, Dotwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Talon+Drip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Color",
+      "Anime",
+      "Dotwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Talon+Drip+1",
+      "https://placehold.co/600x800?text=Talon+Drip+2"
+    ],
+    "studioName": "Talon's Studio",
+    "upvotes": 11,
+    "rating": 4.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Cleo Sharp",
+    "email": "cleo.sharp@example.com",
+    "bio": "Experienced in Realism, Blackwork, Anime styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Cleo+Sharp",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Realism",
+      "Blackwork",
+      "Anime"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Cleo+Sharp+1",
+      "https://placehold.co/600x800?text=Cleo+Sharp+2"
+    ],
+    "studioName": "Cleo's Studio",
+    "upvotes": 9,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Arlo Pierce",
+    "email": "arlo.pierce@example.com",
+    "bio": "Experienced in Neo-Traditional, Micro, Blackwork, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Arlo+Pierce",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Micro",
+      "Blackwork",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Arlo+Pierce+1",
+      "https://placehold.co/600x800?text=Arlo+Pierce+2"
+    ],
+    "studioName": "Arlo's Studio",
+    "upvotes": 25,
+    "rating": 5.0,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Iris Mark",
+    "email": "iris.mark@example.com",
+    "bio": "Experienced in Neo-Traditional, Color, Blackwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Iris+Mark",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Color",
+      "Blackwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Iris+Mark+1",
+      "https://placehold.co/600x800?text=Iris+Mark+2"
+    ],
+    "studioName": "Iris's Studio",
+    "upvotes": 16,
+    "rating": 4.6,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Zephyr Coil",
+    "email": "zephyr.coil@example.com",
+    "bio": "Experienced in Japanese, Linework, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Zephyr+Coil",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Linework",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Zephyr+Coil+1",
+      "https://placehold.co/600x800?text=Zephyr+Coil+2"
+    ],
+    "studioName": "Zephyr's Studio",
+    "upvotes": 37,
+    "rating": 4.9,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Echo Ray",
+    "email": "echo.ray@example.com",
+    "bio": "Experienced in Fine Line, Geometric, Japanese, Blackwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Echo+Ray",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Geometric",
+      "Japanese",
+      "Blackwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Echo+Ray+1",
+      "https://placehold.co/600x800?text=Echo+Ray+2"
+    ],
+    "studioName": "Echo's Studio",
+    "upvotes": 67,
+    "rating": 4.2,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Nova Pulse",
+    "email": "nova.pulse@example.com",
+    "bio": "Experienced in Linework, Geometric, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nova+Pulse",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Geometric",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nova+Pulse+1",
+      "https://placehold.co/600x800?text=Nova+Pulse+2"
+    ],
+    "studioName": "Nova's Studio",
+    "upvotes": 81,
+    "rating": 3.9,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Kai Chrome",
+    "email": "kai.chrome@example.com",
+    "bio": "Experienced in Anime, Ornamental, Traditional, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Kai+Chrome",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Ornamental",
+      "Traditional",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Kai+Chrome+1",
+      "https://placehold.co/600x800?text=Kai+Chrome+2"
+    ],
+    "studioName": "Kai's Studio",
+    "upvotes": 67,
+    "rating": 5.0,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Orion Shade",
+    "email": "orion.shade@example.com",
+    "bio": "Experienced in Blackwork, Realism, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Orion+Shade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Blackwork",
+      "Realism",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Orion+Shade+1",
+      "https://placehold.co/600x800?text=Orion+Shade+2"
+    ],
+    "studioName": "Orion's Studio",
+    "upvotes": 80,
+    "rating": 3.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Blair Void",
+    "email": "blair.void@example.com",
+    "bio": "Experienced in Ornamental, Anime, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Blair+Void",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Ornamental",
+      "Anime",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Blair+Void+1",
+      "https://placehold.co/600x800?text=Blair+Void+2"
+    ],
+    "studioName": "Blair's Studio",
+    "upvotes": 0,
+    "rating": 4.0,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Sora Flame",
+    "email": "sora.flame@example.com",
+    "bio": "Experienced in Linework, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Sora+Flame",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Sora+Flame+1",
+      "https://placehold.co/600x800?text=Sora+Flame+2"
+    ],
+    "studioName": "Sora's Studio",
+    "upvotes": 60,
+    "rating": 4.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Jett Striker",
+    "email": "jett.striker@example.com",
+    "bio": "Experienced in Neo-Traditional, Color Realism, Japanese, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Jett+Striker",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Color Realism",
+      "Japanese",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Jett+Striker+1",
+      "https://placehold.co/600x800?text=Jett+Striker+2"
+    ],
+    "studioName": "Jett's Studio",
+    "upvotes": 37,
+    "rating": 4.5,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Mira Coil",
+    "email": "mira.coil@example.com",
+    "bio": "Experienced in Linework, Blackwork, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Mira+Coil",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Blackwork",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Mira+Coil+1",
+      "https://placehold.co/600x800?text=Mira+Coil+2"
+    ],
+    "studioName": "Mira's Studio",
+    "upvotes": 59,
+    "rating": 3.9,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Riven Haze",
+    "email": "riven.haze@example.com",
+    "bio": "Experienced in Geometric, Linework, Traditional, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Riven+Haze",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Geometric",
+      "Linework",
+      "Traditional",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Riven+Haze+1",
+      "https://placehold.co/600x800?text=Riven+Haze+2"
+    ],
+    "studioName": "Riven's Studio",
+    "upvotes": 5,
+    "rating": 3.9,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Noah Blaze",
+    "email": "noah.blaze@example.com",
+    "bio": "Experienced in Neo-Traditional, Color, Ornamental styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Noah+Blaze",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Color",
+      "Ornamental"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Noah+Blaze+1",
+      "https://placehold.co/600x800?text=Noah+Blaze+2"
+    ],
+    "studioName": "Noah's Studio",
+    "upvotes": 26,
+    "rating": 4.6,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Nico Shard",
+    "email": "nico.shard@example.com",
+    "bio": "Experienced in Japanese, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nico+Shard",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nico+Shard+1",
+      "https://placehold.co/600x800?text=Nico+Shard+2"
+    ],
+    "studioName": "Nico's Studio",
+    "upvotes": 4,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Lior Trace",
+    "email": "lior.trace@example.com",
+    "bio": "Experienced in Neo-Traditional, Color Realism, Micro, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Lior+Trace",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Color Realism",
+      "Micro",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Lior+Trace+1",
+      "https://placehold.co/600x800?text=Lior+Trace+2"
+    ],
+    "studioName": "Lior's Studio",
+    "upvotes": 19,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Remi Dusk",
+    "email": "remi.dusk@example.com",
+    "bio": "Experienced in Ornamental, Geometric, Realism, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Remi+Dusk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Ornamental",
+      "Geometric",
+      "Realism",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Remi+Dusk+1",
+      "https://placehold.co/600x800?text=Remi+Dusk+2"
+    ],
+    "studioName": "Remi's Studio",
+    "upvotes": 53,
+    "rating": 3.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Ash Vale",
+    "email": "ash.vale@example.com",
+    "bio": "Experienced in Geometric, Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Ash+Vale",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Geometric",
+      "Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Ash+Vale+1",
+      "https://placehold.co/600x800?text=Ash+Vale+2"
+    ],
+    "studioName": "Ash's Studio",
+    "upvotes": 82,
+    "rating": 3.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Kira Volt",
+    "email": "kira.volt@example.com",
+    "bio": "Experienced in Linework, Geometric, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Kira+Volt",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Geometric",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Kira+Volt+1",
+      "https://placehold.co/600x800?text=Kira+Volt+2"
+    ],
+    "studioName": "Kira's Studio",
+    "upvotes": 91,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Vex Drip",
+    "email": "vex.drip@example.com",
+    "bio": "Experienced in Fine Line, Dotwork, Color Realism, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Vex+Drip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Dotwork",
+      "Color Realism",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Vex+Drip+1",
+      "https://placehold.co/600x800?text=Vex+Drip+2"
+    ],
+    "studioName": "Vex's Studio",
+    "upvotes": 37,
+    "rating": 4.6,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Xane Grip",
+    "email": "xane.grip@example.com",
+    "bio": "Experienced in Japanese, Realism, Dotwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Xane+Grip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Realism",
+      "Dotwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Xane+Grip+1",
+      "https://placehold.co/600x800?text=Xane+Grip+2"
+    ],
+    "studioName": "Xane's Studio",
+    "upvotes": 30,
+    "rating": 3.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Rio Silk",
+    "email": "rio.silk@example.com",
+    "bio": "Experienced in Color Realism, Realism, Japanese styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Rio+Silk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Realism",
+      "Japanese"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Rio+Silk+1",
+      "https://placehold.co/600x800?text=Rio+Silk+2"
+    ],
+    "studioName": "Rio's Studio",
+    "upvotes": 76,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Tess Vibe",
+    "email": "tess.vibe@example.com",
+    "bio": "Experienced in Color, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Tess+Vibe",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Tess+Vibe+1",
+      "https://placehold.co/600x800?text=Tess+Vibe+2"
+    ],
+    "studioName": "Tess's Studio",
+    "upvotes": 52,
+    "rating": 3.5,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Onyx Fletch",
+    "email": "onyx.fletch@example.com",
+    "bio": "Experienced in Traditional, Linework, Micro, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Onyx+Fletch",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Linework",
+      "Micro",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Onyx+Fletch+1",
+      "https://placehold.co/600x800?text=Onyx+Fletch+2"
+    ],
+    "studioName": "Onyx's Studio",
+    "upvotes": 91,
+    "rating": 3.5,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Jade Ink",
+    "email": "jade.ink@example.com",
+    "bio": "Experienced in Traditional, Anime styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Jade+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Anime"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Jade+Ink+1",
+      "https://placehold.co/600x800?text=Jade+Ink+2"
+    ],
+    "studioName": "Jade's Studio",
+    "upvotes": 97,
+    "rating": 4.3,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Zuri Ink",
+    "email": "zuri.ink@example.com",
+    "bio": "Experienced in Color Realism, Japanese styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Zuri+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Japanese"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Zuri+Ink+1",
+      "https://placehold.co/600x800?text=Zuri+Ink+2"
+    ],
+    "studioName": "Zuri's Studio",
+    "upvotes": 10,
+    "rating": 4.3,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Indie Flux",
+    "email": "indie.flux@example.com",
+    "bio": "Experienced in Traditional, Anime, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Indie+Flux",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Anime",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Indie+Flux+1",
+      "https://placehold.co/600x800?text=Indie+Flux+2"
+    ],
+    "studioName": "Indie's Studio",
+    "upvotes": 85,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Rune Coil",
+    "email": "rune.coil@example.com",
+    "bio": "Experienced in Realism, Ornamental, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Rune+Coil",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Realism",
+      "Ornamental",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Rune+Coil+1",
+      "https://placehold.co/600x800?text=Rune+Coil+2"
+    ],
+    "studioName": "Rune's Studio",
+    "upvotes": 44,
+    "rating": 3.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Vaughn Line",
+    "email": "vaughn.line@example.com",
+    "bio": "Experienced in Blackwork, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Vaughn+Line",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Blackwork",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Vaughn+Line+1",
+      "https://placehold.co/600x800?text=Vaughn+Line+2"
+    ],
+    "studioName": "Vaughn's Studio",
+    "upvotes": 51,
+    "rating": 4.1,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Aero Vein",
+    "email": "aero.vein@example.com",
+    "bio": "Experienced in Realism, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Aero+Vein",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Realism",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Aero+Vein+1",
+      "https://placehold.co/600x800?text=Aero+Vein+2"
+    ],
+    "studioName": "Aero's Studio",
+    "upvotes": 54,
+    "rating": 3.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Max Ink",
+    "email": "max.ink@example.com",
+    "bio": "Experienced in Traditional, Dotwork, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Max+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Dotwork",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Max+Ink+1",
+      "https://placehold.co/600x800?text=Max+Ink+2"
+    ],
+    "studioName": "Max's Studio",
+    "upvotes": 77,
+    "rating": 4.8,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Izzy Hex",
+    "email": "izzy.hex@example.com",
+    "bio": "Experienced in Anime, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Izzy+Hex",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Izzy+Hex+1",
+      "https://placehold.co/600x800?text=Izzy+Hex+2"
+    ],
+    "studioName": "Izzy's Studio",
+    "upvotes": 16,
+    "rating": 4.2,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Lex Fade",
+    "email": "lex.fade@example.com",
+    "bio": "Experienced in Blackwork, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Lex+Fade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Blackwork",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Lex+Fade+1",
+      "https://placehold.co/600x800?text=Lex+Fade+2"
+    ],
+    "studioName": "Lex's Studio",
+    "upvotes": 48,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Zara Quill",
+    "email": "zara.quill@example.com",
+    "bio": "Experienced in Traditional, Linework, Anime, Ornamental styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Zara+Quill",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Linework",
+      "Anime",
+      "Ornamental"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Zara+Quill+1",
+      "https://placehold.co/600x800?text=Zara+Quill+2"
+    ],
+    "studioName": "Zara's Studio",
+    "upvotes": 67,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Beau Shade",
+    "email": "beau.shade@example.com",
+    "bio": "Experienced in Micro, Realism, Linework, Dotwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Beau+Shade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Micro",
+      "Realism",
+      "Linework",
+      "Dotwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Beau+Shade+1",
+      "https://placehold.co/600x800?text=Beau+Shade+2"
+    ],
+    "studioName": "Beau's Studio",
+    "upvotes": 61,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Raya Trace",
+    "email": "raya.trace@example.com",
+    "bio": "Experienced in Neo-Traditional, Fine Line, Color Realism, Dotwork styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Raya+Trace",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Fine Line",
+      "Color Realism",
+      "Dotwork"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Raya+Trace+1",
+      "https://placehold.co/600x800?text=Raya+Trace+2"
+    ],
+    "studioName": "Raya's Studio",
+    "upvotes": 18,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Nash Flux",
+    "email": "nash.flux@example.com",
+    "bio": "Experienced in Japanese, Dotwork, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nash+Flux",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Dotwork",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nash+Flux+1",
+      "https://placehold.co/600x800?text=Nash+Flux+2"
+    ],
+    "studioName": "Nash's Studio",
+    "upvotes": 78,
+    "rating": 4.6,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Eden Quirk",
+    "email": "eden.quirk@example.com",
+    "bio": "Experienced in Realism, Anime styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Eden+Quirk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Realism",
+      "Anime"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Eden+Quirk+1",
+      "https://placehold.co/600x800?text=Eden+Quirk+2"
+    ],
+    "studioName": "Eden's Studio",
+    "upvotes": 60,
+    "rating": 4.5,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Skye Coil",
+    "email": "skye.coil@example.com",
+    "bio": "Experienced in Linework, Micro, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Skye+Coil",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Micro",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Skye+Coil+1",
+      "https://placehold.co/600x800?text=Skye+Coil+2"
+    ],
+    "studioName": "Skye's Studio",
+    "upvotes": 99,
+    "rating": 3.7,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Faye Blot",
+    "email": "faye.blot@example.com",
+    "bio": "Experienced in Linework, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Faye+Blot",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Faye+Blot+1",
+      "https://placehold.co/600x800?text=Faye+Blot+2"
+    ],
+    "studioName": "Faye's Studio",
+    "upvotes": 87,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Laz Drip",
+    "email": "laz.drip@example.com",
+    "bio": "Experienced in Neo-Traditional, Ornamental, Anime, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Laz+Drip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Ornamental",
+      "Anime",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Laz+Drip+1",
+      "https://placehold.co/600x800?text=Laz+Drip+2"
+    ],
+    "studioName": "Laz's Studio",
+    "upvotes": 1,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Trix Ash",
+    "email": "trix.ash@example.com",
+    "bio": "Experienced in Fine Line, Color Realism, Japanese, Anime styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Trix+Ash",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Color Realism",
+      "Japanese",
+      "Anime"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Trix+Ash+1",
+      "https://placehold.co/600x800?text=Trix+Ash+2"
+    ],
+    "studioName": "Trix's Studio",
+    "upvotes": 98,
+    "rating": 4.9,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Dune Haze",
+    "email": "dune.haze@example.com",
+    "bio": "Experienced in Dotwork, Micro, Geometric, Linework styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Dune+Haze",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Dotwork",
+      "Micro",
+      "Geometric",
+      "Linework"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Dune+Haze+1",
+      "https://placehold.co/600x800?text=Dune+Haze+2"
+    ],
+    "studioName": "Dune's Studio",
+    "upvotes": 14,
+    "rating": 4.5,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Zion Trace",
+    "email": "zion.trace@example.com",
+    "bio": "Experienced in Neo-Traditional, Realism, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Zion+Trace",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Realism",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Zion+Trace+1",
+      "https://placehold.co/600x800?text=Zion+Trace+2"
+    ],
+    "studioName": "Zion's Studio",
+    "upvotes": 88,
+    "rating": 4.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Nova Quirk",
+    "email": "nova.quirk@example.com",
+    "bio": "Experienced in Neo-Traditional, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nova+Quirk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nova+Quirk+1",
+      "https://placehold.co/600x800?text=Nova+Quirk+2"
+    ],
+    "studioName": "Nova's Studio",
+    "upvotes": 74,
+    "rating": 3.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Ashen Ray",
+    "email": "ashen.ray@example.com",
+    "bio": "Experienced in Micro, Anime, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Ashen+Ray",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Micro",
+      "Anime",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Ashen+Ray+1",
+      "https://placehold.co/600x800?text=Ashen+Ray+2"
+    ],
+    "studioName": "Ashen's Studio",
+    "upvotes": 77,
+    "rating": 4.6,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Eira Silk",
+    "email": "eira.silk@example.com",
+    "bio": "Experienced in Linework, Color styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Eira+Silk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Color"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Eira+Silk+1",
+      "https://placehold.co/600x800?text=Eira+Silk+2"
+    ],
+    "studioName": "Eira's Studio",
+    "upvotes": 74,
+    "rating": 4.0,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Rey Volt",
+    "email": "rey.volt@example.com",
+    "bio": "Experienced in Color, Anime, Japanese styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Rey+Volt",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color",
+      "Anime",
+      "Japanese"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Rey+Volt+1",
+      "https://placehold.co/600x800?text=Rey+Volt+2"
+    ],
+    "studioName": "Rey's Studio",
+    "upvotes": 9,
+    "rating": 4.3,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Orla Fletch",
+    "email": "orla.fletch@example.com",
+    "bio": "Experienced in Linework, Micro, Ornamental, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Orla+Fletch",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Linework",
+      "Micro",
+      "Ornamental",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Orla+Fletch+1",
+      "https://placehold.co/600x800?text=Orla+Fletch+2"
+    ],
+    "studioName": "Orla's Studio",
+    "upvotes": 26,
+    "rating": 4.7,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Vail Grip",
+    "email": "vail.grip@example.com",
+    "bio": "Experienced in Anime, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Vail+Grip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Vail+Grip+1",
+      "https://placehold.co/600x800?text=Vail+Grip+2"
+    ],
+    "studioName": "Vail's Studio",
+    "upvotes": 6,
+    "rating": 3.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Raya Ink",
+    "email": "raya.ink@example.com",
+    "bio": "Experienced in Color Realism, Ornamental, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Raya+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Ornamental",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Raya+Ink+1",
+      "https://placehold.co/600x800?text=Raya+Ink+2"
+    ],
+    "studioName": "Raya's Studio",
+    "upvotes": 39,
+    "rating": 4.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Milo Shade",
+    "email": "milo.shade@example.com",
+    "bio": "Experienced in Anime, Ornamental, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Milo+Shade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Ornamental",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Milo+Shade+1",
+      "https://placehold.co/600x800?text=Milo+Shade+2"
+    ],
+    "studioName": "Milo's Studio",
+    "upvotes": 78,
+    "rating": 3.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Pax Ink",
+    "email": "pax.ink@example.com",
+    "bio": "Experienced in Color, Traditional, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Pax+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color",
+      "Traditional",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Pax+Ink+1",
+      "https://placehold.co/600x800?text=Pax+Ink+2"
+    ],
+    "studioName": "Pax's Studio",
+    "upvotes": 91,
+    "rating": 3.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Seth Ray",
+    "email": "seth.ray@example.com",
+    "bio": "Experienced in Ornamental, Color, Color Realism, Japanese styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Seth+Ray",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Ornamental",
+      "Color",
+      "Color Realism",
+      "Japanese"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Seth+Ray+1",
+      "https://placehold.co/600x800?text=Seth+Ray+2"
+    ],
+    "studioName": "Seth's Studio",
+    "upvotes": 30,
+    "rating": 4.2,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Lio Dusk",
+    "email": "lio.dusk@example.com",
+    "bio": "Experienced in Anime, Geometric, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Lio+Dusk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Geometric",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Lio+Dusk+1",
+      "https://placehold.co/600x800?text=Lio+Dusk+2"
+    ],
+    "studioName": "Lio's Studio",
+    "upvotes": 70,
+    "rating": 4.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Nira Flame",
+    "email": "nira.flame@example.com",
+    "bio": "Experienced in Traditional, Ornamental, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nira+Flame",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Ornamental",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nira+Flame+1",
+      "https://placehold.co/600x800?text=Nira+Flame+2"
+    ],
+    "studioName": "Nira's Studio",
+    "upvotes": 17,
+    "rating": 4.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Vale Haze",
+    "email": "vale.haze@example.com",
+    "bio": "Experienced in Dotwork, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Vale+Haze",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Dotwork",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Vale+Haze+1",
+      "https://placehold.co/600x800?text=Vale+Haze+2"
+    ],
+    "studioName": "Vale's Studio",
+    "upvotes": 41,
+    "rating": 4.4,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Rem Ink",
+    "email": "rem.ink@example.com",
+    "bio": "Experienced in Color, Japanese, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Rem+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color",
+      "Japanese",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Rem+Ink+1",
+      "https://placehold.co/600x800?text=Rem+Ink+2"
+    ],
+    "studioName": "Rem's Studio",
+    "upvotes": 37,
+    "rating": 4.3,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Roux Drip",
+    "email": "roux.drip@example.com",
+    "bio": "Experienced in Ornamental, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Roux+Drip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Ornamental",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Roux+Drip+1",
+      "https://placehold.co/600x800?text=Roux+Drip+2"
+    ],
+    "studioName": "Roux's Studio",
+    "upvotes": 8,
+    "rating": 4.2,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Ziv Quill",
+    "email": "ziv.quill@example.com",
+    "bio": "Experienced in Japanese, Linework, Geometric, Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Ziv+Quill",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Linework",
+      "Geometric",
+      "Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Ziv+Quill+1",
+      "https://placehold.co/600x800?text=Ziv+Quill+2"
+    ],
+    "studioName": "Ziv's Studio",
+    "upvotes": 75,
+    "rating": 4.8,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Yara Ink",
+    "email": "yara.ink@example.com",
+    "bio": "Experienced in Fine Line, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Yara+Ink",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Fine Line",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Yara+Ink+1",
+      "https://placehold.co/600x800?text=Yara+Ink+2"
+    ],
+    "studioName": "Yara's Studio",
+    "upvotes": 46,
+    "rating": 4.5,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Theo Fade",
+    "email": "theo.fade@example.com",
+    "bio": "Experienced in Traditional, Geometric, Ornamental styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Theo+Fade",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Geometric",
+      "Ornamental"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Theo+Fade+1",
+      "https://placehold.co/600x800?text=Theo+Fade+2"
+    ],
+    "studioName": "Theo's Studio",
+    "upvotes": 52,
+    "rating": 4.1,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Avie Grip",
+    "email": "avie.grip@example.com",
+    "bio": "Experienced in Color Realism, Fine Line, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Avie+Grip",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color Realism",
+      "Fine Line",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Avie+Grip+1",
+      "https://placehold.co/600x800?text=Avie+Grip+2"
+    ],
+    "studioName": "Avie's Studio",
+    "upvotes": 0,
+    "rating": 4.2,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Ember Hex",
+    "email": "ember.hex@example.com",
+    "bio": "Experienced in Color, Geometric, Traditional, Micro styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Ember+Hex",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Color",
+      "Geometric",
+      "Traditional",
+      "Micro"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Ember+Hex+1",
+      "https://placehold.co/600x800?text=Ember+Hex+2"
+    ],
+    "studioName": "Ember's Studio",
+    "upvotes": 57,
+    "rating": 3.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Cass Vibe",
+    "email": "cass.vibe@example.com",
+    "bio": "Experienced in Micro, Realism, Dotwork, Color Realism styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Cass+Vibe",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Micro",
+      "Realism",
+      "Dotwork",
+      "Color Realism"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Cass+Vibe+1",
+      "https://placehold.co/600x800?text=Cass+Vibe+2"
+    ],
+    "studioName": "Cass's Studio",
+    "upvotes": 64,
+    "rating": 3.7,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Isla Silk",
+    "email": "isla.silk@example.com",
+    "bio": "Experienced in Japanese, Traditional, Fine Line styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Isla+Silk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Japanese",
+      "Traditional",
+      "Fine Line"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Isla+Silk+1",
+      "https://placehold.co/600x800?text=Isla+Silk+2"
+    ],
+    "studioName": "Isla's Studio",
+    "upvotes": 3,
+    "rating": 4.0,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Ivy Trace",
+    "email": "ivy.trace@example.com",
+    "bio": "Experienced in Neo-Traditional, Geometric styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Ivy+Trace",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Neo-Traditional",
+      "Geometric"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Ivy+Trace+1",
+      "https://placehold.co/600x800?text=Ivy+Trace+2"
+    ],
+    "studioName": "Ivy's Studio",
+    "upvotes": 66,
+    "rating": 4.8,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Juno Dusk",
+    "email": "juno.dusk@example.com",
+    "bio": "Experienced in Traditional, Fine Line, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Juno+Dusk",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Fine Line",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Juno+Dusk+1",
+      "https://placehold.co/600x800?text=Juno+Dusk+2"
+    ],
+    "studioName": "Juno's Studio",
+    "upvotes": 11,
+    "rating": 3.9,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Xyla Blaze",
+    "email": "xyla.blaze@example.com",
+    "bio": "Experienced in Geometric, Linework, Anime, Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Xyla+Blaze",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Geometric",
+      "Linework",
+      "Anime",
+      "Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Xyla+Blaze+1",
+      "https://placehold.co/600x800?text=Xyla+Blaze+2"
+    ],
+    "studioName": "Xyla's Studio",
+    "upvotes": 68,
+    "rating": 4.6,
+    "isAvailable": false
+  },
+  {
+    "role": "artist",
+    "name": "Nyx Thorn",
+    "email": "nyx.thorn@example.com",
+    "bio": "Experienced in Anime, Linework, Geometric styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Nyx+Thorn",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Anime",
+      "Linework",
+      "Geometric"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Nyx+Thorn+1",
+      "https://placehold.co/600x800?text=Nyx+Thorn+2"
+    ],
+    "studioName": "Nyx's Studio",
+    "upvotes": 35,
+    "rating": 4.3,
+    "isAvailable": true
+  },
+  {
+    "role": "artist",
+    "name": "Noor Chrome",
+    "email": "noor.chrome@example.com",
+    "bio": "Experienced in Traditional, Linework, Neo-Traditional styles with a passion for custom work.",
+    "avatarUrl": "https://placehold.co/400x400?text=Noor+Chrome",
+    "location": "San Antonio, TX",
+    "specialties": [
+      "Traditional",
+      "Linework",
+      "Neo-Traditional"
+    ],
+    "portfolioUrls": [
+      "https://placehold.co/600x800?text=Noor+Chrome+1",
+      "https://placehold.co/600x800?text=Noor+Chrome+2"
+    ],
+    "studioName": "Noor's Studio",
+    "upvotes": 70,
+    "rating": 3.5,
+    "isAvailable": false
+  }
+
   ]
   
