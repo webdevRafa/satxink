@@ -4,7 +4,7 @@ import backgroundImage from "../assets/images/tattoo-hero.jpg"; // use your pref
 export const HeroSection = () => {
   return (
     <section
-      className="relative h-[90vh] flex items-center justify-center text-center px-4"
+      className="relative h-[90vh] flex items-center justify-center text-center px-4 bg-fixed"
       style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: "cover",
