@@ -16,6 +16,7 @@ import { SignupPage } from "./pages/SignupPage";
 import DevAddDocs from "./pages/DevAddDocs";
 import LoginPage from "./pages/LoginPage";
 import { ArtistProfilePage } from "./pages/ArtistProfilePage";
+import Clients from "./pages/Clients";
 
 function App() {
   useEffect(() => {
@@ -31,6 +32,7 @@ function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/clients" element={<Clients />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/artists" element={<ArtistsPage />} />

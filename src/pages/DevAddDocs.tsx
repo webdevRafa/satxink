@@ -1,11 +1,29 @@
 // src/pages/DevAddDocs.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { collection, addDoc, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { serverTimestamp } from "firebase/firestore";
 
+export const fetchAllUserIds = async (): Promise<string[]> => {
+  try {
+    const usersSnapshot = await getDocs(collection(db, "users"));
+    const userIds = usersSnapshot.docs.map((doc) => doc.id);
+    return userIds;
+  } catch (error) {
+    console.error("Error fetching user IDs:", error);
+    return [];
+  }
+};
+
 const DevAddDocs = () => {
+  useEffect(() => {
+    const getUserIds = async () => {
+      const ids = await fetchAllUserIds();
+      console.log("Fetched User ID:s", ids);
+    };
+    getUserIds();
+  }, []);
   const { user } = useAuth();
   const [jsonData, setJsonData] = useState<any[]>([]);
   const [collectionName, setCollectionName] = useState("users");
@@ -57,40 +75,6 @@ const DevAddDocs = () => {
       setUploading(false);
     }
   };
-  const fixPlaceholderAvatars = async () => {
-    setStatus("Scanning users…");
-    try {
-      const snap = await getDocs(collection(db, "users"));
-      let batch = writeBatch(db);
-      let counter = 0;
-
-      snap.forEach((docSnap) => {
-        const data = docSnap.data();
-        const hasPlaceholder =
-          !data.avatarUrl || data.avatarUrl.includes("placehold.co");
-
-        if (hasPlaceholder) {
-          batch.update(docSnap.ref, {
-            avatarUrl: generateAvatarUrl(docSnap.id),
-            updatedAt: serverTimestamp(),
-          });
-          counter++;
-
-          // commit every 500 writes to stay under the limit
-          if (counter % 500 === 0) {
-            batch.commit();
-            batch = writeBatch(db);
-          }
-        }
-      });
-
-      await batch.commit();
-      setStatus(`✅ Replaced ${counter} placeholder avatar(s).`);
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Avatar fix failed.");
-    }
-  };
 
   const handleAddAvatars = async () => {
     setAddingAvatars(true);
@@ -125,9 +109,14 @@ const DevAddDocs = () => {
       setAddingAvatars(false);
     }
   };
+
   /** Returns a deterministic DiceBear “bottts” avatar based on a seed */
-  const generateAvatarUrl = (seed: string) =>
-    `https://api.dicebear.com/8.x/bottts/svg?seed=${seed}`;
+  const generateAvatarUrl = (seed: string) => {
+    const hash = [...seed].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const gender = hash % 2 === 0 ? "men" : "women";
+    const index = hash % 100;
+    return `https://randomuser.me/api/portraits/${gender}/${index}.jpg`;
+  };
   const collectionOptions = [
     "users",
     "posts",
@@ -145,9 +134,7 @@ const DevAddDocs = () => {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">
-        📦 Dev Seeder: Push Dummy Data
-      </h1>
+      <h1 className="text-2xl font-bold mb-4">📦 SATX ADMIN DATA</h1>
 
       <label className="block mb-4">
         <span className="text-sm font-medium">Choose a collection:</span>
@@ -182,18 +169,13 @@ const DevAddDocs = () => {
         {uploading ? "Uploading..." : "Push to Firestore"}
       </button>
       <button
-        className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 mt-2 disabled:opacity-50"
+        className="bg-indigo-600 text-white px-4 py-2 rounded ml-3 hover:bg-indigo-700 mt-2 disabled:opacity-50"
         onClick={handleAddAvatars}
         disabled={addingAvatars}
       >
         {addingAvatars ? "Adding Avatars..." : "Add Avatars to Users"}
       </button>
-      <button
-        className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 mt-2 disabled:opacity-50"
-        onClick={fixPlaceholderAvatars}
-      >
-        Fix Placeholder Avatars
-      </button>
+
       {status && <p className="mt-4 text-sm text-gray-700">{status}</p>}
     </div>
   );

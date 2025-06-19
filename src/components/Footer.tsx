@@ -12,7 +12,8 @@ export const Footer = () => {
         className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4"
       >
         <div className="text-center md:text-left">
-          © {new Date().getFullYear()} TattooConnect SATX. All rights reserved.
+          © {new Date().getFullYear()} SATX
+          <span style={{ color: "var(--color-primary)" }}>ink</span>
         </div>
 
         <div data-aos="fade-left" className="flex gap-6">
