@@ -35,7 +35,7 @@ export const HeroSection = () => {
             to="/artists"
             className="bg-[#b6382d] text-white px-6 py-3 rounded-md font-medium hover:bg-[#a53228] transition"
           >
-            Browse Artists
+            Find an Artist
           </Link>
         </div>
       </div>
