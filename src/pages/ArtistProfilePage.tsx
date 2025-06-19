@@ -13,8 +13,7 @@ interface Artist {
   specialties: string[];
   portfolioUrls: string[];
   studioName: string;
-  upvotes: number;
-  rating: number;
+  likedBy: string[];
   isAvailable: boolean;
 }
 
@@ -54,7 +53,7 @@ export const ArtistProfilePage = () => {
         <img
           src={artist.avatarUrl}
           alt={artist.name}
-          className="w-40 h-40 object-cover rounded-full border border-gray-600"
+          className="w-40 h-40 object-cover rounded-full "
         />
         <div className="flex-1">
           <h1 className="text-3xl! font-bold text-white">{artist.name}</h1>
@@ -76,13 +75,10 @@ export const ArtistProfilePage = () => {
             <span className="font-medium! text-white">Studio:</span>{" "}
             {artist.studioName}
           </p>
+
           <p className="text-sm! text-gray-400 mb-1">
-            <span className="font-medium text-white">Rating:</span>{" "}
-            {artist.rating} ⭐
-          </p>
-          <p className="text-sm! text-gray-400 mb-1">
-            <span className="font-medium text-white">Upvotes:</span>{" "}
-            {artist.upvotes}
+            <span className="font-medium text-white">Likes:</span>{" "}
+            {artist.likedBy?.length || 0}
           </p>
           <p className="text-sm! text-gray-400 mb-1">
             <span className="font-medium text-white">Availability:</span>{" "}

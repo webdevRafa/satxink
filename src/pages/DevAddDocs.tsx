@@ -1,6 +1,14 @@
 // src/pages/DevAddDocs.tsx
 import { useEffect, useState } from "react";
-import { collection, addDoc, getDocs, writeBatch } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  writeBatch,
+  query,
+  where,
+  limit,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import { serverTimestamp } from "firebase/firestore";
@@ -16,13 +24,30 @@ export const fetchAllUserIds = async (): Promise<string[]> => {
   }
 };
 
+export const fetchClientUserIds = async (
+  maxDocs: number = 100
+): Promise<string[]> => {
+  try {
+    const clientsQ = query(
+      collection(db, "users"),
+      where("role", "==", "client"),
+      limit(maxDocs)
+    );
+
+    const snapshot = await getDocs(clientsQ);
+    return snapshot.docs.map((doc) => doc.id);
+  } catch (error) {
+    console.error("Error fetching client user IDs:", error);
+    return [];
+  }
+};
 const DevAddDocs = () => {
   useEffect(() => {
-    const getUserIds = async () => {
-      const ids = await fetchAllUserIds();
-      console.log("Fetched User ID:s", ids);
+    const getClientIds = async () => {
+      const ids = await fetchClientUserIds(100); // optional: can omit (100) since it defaults to that
+      console.log("Fetched Client User IDs:", ids);
     };
-    getUserIds();
+    getClientIds();
   }, []);
   const { user } = useAuth();
   const [jsonData, setJsonData] = useState<any[]>([]);

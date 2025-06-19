@@ -20,6 +20,7 @@ interface Artist {
   name: string;
   avatarUrl: string;
   specialties: string[];
+  likedBy: [];
 }
 
 const PAGE_SIZE = 6;
@@ -171,6 +172,7 @@ export const ArtistsPage = () => {
                   name={artist.name}
                   avatarUrl={artist.avatarUrl}
                   specialties={artist.specialties}
+                  likedBy={artist.likedBy || []}
                 />
               </Link>
             </div>
