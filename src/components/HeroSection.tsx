@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import backgroundImage from "../assets/images/tattoo-hero.jpg"; // use your preferred image
 
 export const HeroSection = () => {
@@ -29,20 +30,13 @@ export const HeroSection = () => {
           Browse portfolios, post your idea, and find your perfect match.
         </p>
         <div className="flex flex-col md:flex-row justify-center gap-4">
-          <a
+          <Link
             data-aos="fade-right"
-            href="/artists"
+            to="/artists"
             className="bg-[#b6382d] text-white px-6 py-3 rounded-md font-medium hover:bg-[#a53228] transition"
           >
             Browse Artists
-          </a>
-          <a
-            data-aos="fade-left"
-            href="/post-idea"
-            className="bg-[#2c2c2c] text-white px-6 py-3 rounded-md font-medium hover:bg-[#3a3a3a] transition"
-          >
-            Post a Tattoo Idea
-          </a>
+          </Link>
         </div>
       </div>
     </section>
