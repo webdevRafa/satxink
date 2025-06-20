@@ -7,11 +7,13 @@ import { ArtistCTA } from "../components/ArtistCTA";
 export const HomePage: React.FC = () => {
   return (
     <>
-      <HeroSection />
-      <FeaturedArtists />
-      <BrowseByStyle />
-      <ClientPosts />
-      <ArtistCTA />
+      <div className="overflow-hidden">
+        <HeroSection />
+        <FeaturedArtists />
+        <BrowseByStyle />
+        <ClientPosts />
+        <ArtistCTA />
+      </div>
     </>
   );
 };
