@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import logo from "../assets/logo.svg";
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,8 +12,8 @@ export const Navbar = () => {
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="text-xl font-semibold text-white">
-          SATX<span style={{ color: "var(--color-primary)" }}>Ink</span>
+        <Link to="/">
+          <img className="w-25" src={logo} alt="" />
         </Link>
 
         {/* Desktop nav */}
