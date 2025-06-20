@@ -29,8 +29,8 @@ function App() {
 
   return (
     <>
+      <Navbar />
       <div className="overflow-hidden">
-        <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/clients" element={<Clients />} />

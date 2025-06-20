@@ -1,3 +1,5 @@
+import logo from "../assets/logo.svg";
+
 export const Footer = () => {
   return (
     <footer
@@ -12,8 +14,7 @@ export const Footer = () => {
         className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4"
       >
         <div className="text-center md:text-left">
-          © {new Date().getFullYear()} SATX
-          <span style={{ color: "var(--color-primary)" }}>ink</span>
+          <img data-aos="fade-up" className="w-25" src={logo} alt="" />
         </div>
 
         <div data-aos="fade-left" className="flex gap-6">
