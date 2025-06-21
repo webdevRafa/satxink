@@ -1,6 +1,8 @@
 import "./index.css";
 import { Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+
 // @ts-ignore
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -19,6 +21,8 @@ import { ArtistProfilePage } from "./pages/ArtistProfilePage";
 import Clients from "./pages/Clients";
 
 function App() {
+  const { pathname } = useLocation(); // <- cleaner than location.pathname
+
   useEffect(() => {
     AOS.init({
       duration: 700, // animation duration in ms
@@ -27,15 +31,14 @@ function App() {
     });
   }, []);
 
+  // Refresh AOS on every route change
   useEffect(() => {
-    // Delay ensures animations are measured after DOM settles
     const timeout = setTimeout(() => {
-      AOS.refreshHard();
-    }, 100);
+      AOS.refreshHard(); // force AOS to re-calculate positions
+    }, 100); // give it a little delay to allow DOM to settle
 
-    return () => clearTimeout(timeout);
-  }, [location.pathname]);
-
+    return () => clearTimeout(timeout); // cleanup
+  }, [pathname]);
   return (
     <>
       <Navbar />
