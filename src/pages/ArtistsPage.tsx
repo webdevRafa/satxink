@@ -183,8 +183,12 @@ export const ArtistsPage = () => {
         {filteredArtists.map((artist, index) => {
           const isLast = index === filteredArtists.length - 1;
           return (
-            <div key={artist.id} ref={isLast ? lastArtistRef : null}>
-              <Link data-aos="fade-up" to={`/artists/${artist.id}`}>
+            <div
+              data-aos="fade-up"
+              key={artist.id}
+              ref={isLast ? lastArtistRef : null}
+            >
+              <Link to={`/artists/${artist.id}`}>
                 <ArtistCard
                   name={artist.name}
                   avatarUrl={artist.avatarUrl}
