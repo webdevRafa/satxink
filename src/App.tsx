@@ -27,6 +27,15 @@ function App() {
     });
   }, []);
 
+  useEffect(() => {
+    // Delay ensures animations are measured after DOM settles
+    const timeout = setTimeout(() => {
+      AOS.refreshHard();
+    }, 100);
+
+    return () => clearTimeout(timeout);
+  }, [location.pathname]);
+
   return (
     <>
       <Navbar />
