@@ -1,4 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+// @ts-ignore
+import AOS from "aos";
+import "aos/dist/aos.css";
 
 import {
   collection,
@@ -54,7 +57,14 @@ export const ArtistsPage = () => {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
-
+  AOS.init({
+    duration: 700,
+    easing: "ease-out",
+    once: true,
+    mirror: false,
+    // 👇 This forces AOS to watch the actual window
+    disableMutationObserver: false,
+  });
   // ✅ Fetch first page (only once)
   useEffect(() => {
     const initialFetch = async () => {
