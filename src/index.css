@@ -12,6 +12,10 @@
     --color-primary: #b6382d;
     --color-primary-hover: #a53228;
   }
+  html, body {
+    overflow-x: clip; /* NOT overflow: hidden! */
+  -webkit-overflow-scrolling: touch;
+  }
 body {
     background-color: var(--color-bg-base);
     color: var(--color-text-light);

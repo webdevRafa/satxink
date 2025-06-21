@@ -31,7 +31,11 @@ function App() {
     // 👇 This forces AOS to watch the actual window
     disableMutationObserver: false,
   });
-
+  useEffect(() => {
+    window.addEventListener("load", () => {
+      AOS.refreshHard();
+    });
+  }, []);
   // Refresh AOS on every route change
   useEffect(() => {
     const timeout = setTimeout(() => {
