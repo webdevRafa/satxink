@@ -19,6 +19,7 @@ import DevAddDocs from "./pages/DevAddDocs";
 import LoginPage from "./pages/LoginPage";
 import { ArtistProfilePage } from "./pages/ArtistProfilePage";
 import Clients from "./pages/Clients";
+import ArtistDashboard from "./pages/ArtistDashboard";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -52,6 +53,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/artist-dashboard" element={<ArtistDashboard />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />

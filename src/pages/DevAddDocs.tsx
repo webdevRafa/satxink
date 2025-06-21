@@ -152,6 +152,7 @@ const DevAddDocs = () => {
     "upvotes",
     "bookings",
     "reports",
+    "requests",
   ];
 
   if (!user)
