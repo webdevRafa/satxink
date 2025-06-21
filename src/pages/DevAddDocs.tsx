@@ -151,8 +151,9 @@ const DevAddDocs = () => {
     "notifications",
     "upvotes",
     "bookings",
+    "bookingRequests",
+    "bookingOffers",
     "reports",
-    "requests",
   ];
 
   if (!user)
