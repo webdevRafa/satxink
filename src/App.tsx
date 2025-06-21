@@ -23,13 +23,14 @@ import Clients from "./pages/Clients";
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
 
-  useEffect(() => {
-    AOS.init({
-      duration: 700, // animation duration in ms
-      once: true, // only animate once per element
-      easing: "ease-out", // optional
-    });
-  }, []);
+  AOS.init({
+    duration: 700,
+    easing: "ease-out",
+    once: true,
+    mirror: false,
+    // 👇 This forces AOS to watch the actual window
+    disableMutationObserver: false,
+  });
 
   // Refresh AOS on every route change
   useEffect(() => {
