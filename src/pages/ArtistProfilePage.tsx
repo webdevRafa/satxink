@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import { FaFacebook } from "react-icons/fa";
+import { RiInstagramFill } from "react-icons/ri";
+import { SiWebmoney } from "react-icons/si";
 
 interface Artist {
   id: string;
@@ -15,6 +18,12 @@ interface Artist {
   studioName: string;
   likedBy: string[];
   isAvailable: boolean;
+  socialLinks?: SocialLinks;
+}
+interface SocialLinks {
+  facebook?: string;
+  instagram?: string;
+  website?: string;
 }
 
 export const ArtistProfilePage = () => {
@@ -88,6 +97,37 @@ export const ArtistProfilePage = () => {
               {artist.isAvailable ? "Available" : "Unavailable"}
             </span>
           </p>
+          {artist.socialLinks && (
+            <div className="flex items-center gap-4 mt-4">
+              {artist.socialLinks.facebook && (
+                <a
+                  href={artist.socialLinks.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FaFacebook className="text-xl hover:text-blue-500 transition" />
+                </a>
+              )}
+              {artist.socialLinks.instagram && (
+                <a
+                  href={artist.socialLinks.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <RiInstagramFill className="text-xl hover:text-pink-500 transition" />
+                </a>
+              )}
+              {artist.socialLinks.website && (
+                <a
+                  href={artist.socialLinks.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <SiWebmoney className="text-xl hover:text-green-400 transition" />
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

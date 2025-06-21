@@ -4,6 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
 
 // Your Firebase environment variables
 const firebaseConfig = {
@@ -26,4 +27,6 @@ const db = getFirestore(app);
 const functions = getFunctions(app);
 
 // Export services
+export const storage = getStorage(app);
+
 export { app, auth, provider, db, functions };

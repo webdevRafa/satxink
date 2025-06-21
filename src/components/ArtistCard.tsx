@@ -1,9 +1,16 @@
 // src/components/ArtistCard.tsx
+interface SocialLinks {
+  facebook?: string;
+  instagram?: string;
+  website?: string;
+}
+
 interface ArtistCardProps {
   name: string;
   avatarUrl: string;
   specialties: string[];
   likedBy: string[];
+  socialLinks?: SocialLinks;
 }
 
 const ArtistCard = ({
@@ -21,7 +28,7 @@ const ArtistCard = ({
       <img
         src={avatarUrl || "/fallback.jpg"}
         alt={name}
-        className=" w-20 h-20 object-cover rounded-full md:translate-x-[-10px] opacity-50 md:opacity-100 my-auto"
+        className=" w-20 h-20 object-cover rounded-full md:translate-x-[-10px] md:opacity-100 my-auto "
       />
       <div className="p-2 md:4">
         <h3 className="text-base font-semibold">{name}</h3>

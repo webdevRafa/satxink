@@ -21,6 +21,12 @@ interface Artist {
   avatarUrl: string;
   specialties: string[];
   likedBy: [];
+  socialLinks?: SocialLinks;
+}
+interface SocialLinks {
+  facebook?: string;
+  instagram?: string;
+  website?: string;
 }
 
 const PAGE_SIZE = 6;
