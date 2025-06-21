@@ -46,7 +46,7 @@ const Clients = () => {
           <div
             data-aos="fade-up"
             key={client.id}
-            className="bg-[#1c1c1c] text-white rounded-xl overflow-hidden shadow-md"
+            className="bg-[#1c1c1c] text-white rounded-xl shadow-md"
           >
             <img
               src={client.avatarUrl}
