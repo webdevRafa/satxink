@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 
+// @ts-ignore
+import AOS from "aos";
+import "aos/dist/aos.css";
+
 import {
   collection,
   query,
@@ -54,7 +58,14 @@ export const ArtistsPage = () => {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
-
+  // ⬇️ add this right under the existing hooks in ArtistsPage.tsx
+  useEffect(() => {
+    if (!loading) {
+      // give React time to paint the newly-fetched cards
+      const t = setTimeout(() => AOS.refreshHard(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [artists.length, loading]);
   // ✅ Fetch first page (only once)
   useEffect(() => {
     const initialFetch = async () => {
