@@ -151,15 +151,20 @@ export const ArtistsPage = () => {
 
   return (
     <main className="px-4 py-12 max-w-6xl mx-auto relative">
-      <h1 data-aos="fade-up" className="text-3xl font-semibold text-white mb-2">
-        Find an Artist
-      </h1>
-      <p className="text-gray-400 mb-4">
-        Discover talented artists from San Antonio, browse by style, and view
-        their work.
-      </p>
+      <div data-aos="fade-down">
+        <h1 className="text-3xl font-semibold text-white mb-2">
+          Find an Artist
+        </h1>
+        <p className="text-gray-400 mb-4">
+          Discover talented artists from San Antonio, browse by style, and view
+          their work.
+        </p>
+      </div>
 
-      <div className="sticky top-20 md:top-17 pt-0.5 z-10 bg-[var(--color-bg-base)]">
+      <div
+        data-aos="fade-up"
+        className="sticky top-20 md:top-17 pt-0.5 z-10 bg-[var(--color-bg-base)]"
+      >
         <div className="flex flex-wrap gap-2 mb-6">
           {SPECIALTIES.map((tag) => (
             <button
