@@ -7,7 +7,7 @@ import { ArtistCTA } from "../components/ArtistCTA";
 export const HomePage: React.FC = () => {
   return (
     <>
-      <div className="overflow-hidden">
+      <div>
         <HeroSection />
         <FeaturedArtists />
         <BrowseByStyle />
