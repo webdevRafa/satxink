@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import logo from "../assets/logo.svg";
 
 export const Footer = () => {
@@ -30,31 +31,12 @@ export const Footer = () => {
         </div>
       </div>
 
-      <div data-aos="fade-up" className="mt-6 text-center">
-        <a
-          href="https://instagram.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-2 hover:underline"
-        >
-          IG
-        </a>
-        <a
-          href="https://facebook.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-2 hover:underline"
-        >
-          FB
-        </a>
-        <a
-          href="https://tiktok.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-2 hover:underline"
-        >
-          TikTok
-        </a>
+      <div
+        data-aos="fade-up"
+        className="mt-6 text-center flex gap-3 justify-center"
+      >
+        <Link to="/terms">Terms</Link>
+        <Link to="/privacy">Privacy</Link>
       </div>
     </footer>
   );
