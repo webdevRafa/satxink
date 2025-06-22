@@ -40,6 +40,12 @@ export const Navbar = () => {
             Client Dashboard
           </Link>
           <Link
+            to="/signup/client"
+            className="text-white hover:text-orange-400"
+          >
+            Join as Client
+          </Link>
+          <Link
             to="/signup"
             className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
             style={{

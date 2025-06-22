@@ -8,6 +8,7 @@ import {
   query,
   where,
   getDocs,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import Spinner from "../components/ui/Spinner";
@@ -19,6 +20,7 @@ type Client = {
   likedArtists: string[];
   preferredStyles: string[];
 };
+
 type BookingOffer = {
   id: string;
   artistName: string;
@@ -31,13 +33,28 @@ type BookingOffer = {
   status: "sent" | "accepted" | "declined";
 };
 
+type Booking = {
+  id: string;
+  artistId: string;
+  artistName?: string;
+  clientId: string;
+  requestId: string;
+  offerId: string;
+  selectedTime: string;
+  price: number;
+  location: string;
+  status: string;
+};
+
 const ClientDashboard = () => {
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState<BookingOffer[]>([]);
+  const [clientBookings, setClientBookings] = useState<Booking[]>([]);
   const [selectedDateOptions, setSelectedDateOptions] = useState<{
     [offerId: string]: string;
   }>({});
+
   const handleAcceptOffer = async (offerId: string) => {
     try {
       const offerRef = doc(db, "bookingOffers", offerId);
@@ -45,7 +62,6 @@ const ClientDashboard = () => {
         status: "accepted",
       });
       alert("Offer accepted!");
-      // refresh UI
       setOffers((prev) =>
         prev.map((o) => (o.id === offerId ? { ...o, status: "accepted" } : o))
       );
@@ -61,7 +77,6 @@ const ClientDashboard = () => {
         status: "declined",
       });
       alert("Offer declined.");
-      // refresh UI
       setOffers((prev) =>
         prev.map((o) => (o.id === offerId ? { ...o, status: "declined" } : o))
       );
@@ -69,44 +84,45 @@ const ClientDashboard = () => {
       console.error("Error declining offer:", error);
     }
   };
+
   useEffect(() => {
-    const fetchClient = async () => {
+    const fetchDashboardData = async () => {
       try {
         const clientRef = doc(db, "users", "VRUNIfCcE9n0ix3JY1GA");
         const clientSnap = await getDoc(clientRef);
-
         if (clientSnap.exists()) {
           setClient(clientSnap.data() as Client);
-        } else {
-          console.error("Client not found.");
         }
+
+        const offersQuery = query(
+          collection(db, "bookingOffers"),
+          where("clientId", "==", "VRUNIfCcE9n0ix3JY1GA")
+        );
+        const offersSnap = await getDocs(offersQuery);
+        const offersData: BookingOffer[] = [];
+        offersSnap.forEach((doc) =>
+          offersData.push({ id: doc.id, ...doc.data() } as BookingOffer)
+        );
+        setOffers(offersData);
+
+        const bookingsQuery = query(
+          collection(db, "bookings"),
+          where("clientId", "==", "VRUNIfCcE9n0ix3JY1GA")
+        );
+        const bookingsSnap = await getDocs(bookingsQuery);
+        const bookingsData: Booking[] = [];
+        bookingsSnap.forEach((doc) =>
+          bookingsData.push({ id: doc.id, ...doc.data() } as Booking)
+        );
+        setClientBookings(bookingsData);
       } catch (error) {
-        console.error("Error fetching client:", error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchClient();
-
-    const fetchOffers = async () => {
-      try {
-        const q = query(
-          collection(db, "bookingOffers"),
-          where("clientId", "==", "VRUNIfCcE9n0ix3JY1GA")
-        );
-        const querySnapshot = await getDocs(q);
-        const result: BookingOffer[] = [];
-        querySnapshot.forEach((doc) => {
-          result.push({ id: doc.id, ...doc.data() } as BookingOffer);
-        });
-        setOffers(result);
-      } catch (error) {
-        console.error("Error fetching booking offers:", error);
-      }
-    };
-
-    fetchOffers();
+    fetchDashboardData();
   }, []);
 
   if (loading)
@@ -159,6 +175,8 @@ const ClientDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* OFFERS */}
       <div className="mt-10 max-w-[1400px] mx-auto">
         <h2 className="text-xl font-bold mb-4">Your Offers</h2>
 
@@ -187,31 +205,6 @@ const ClientDashboard = () => {
                   <strong className="text-white">Message from Artist:</strong>{" "}
                   {offer.message}
                 </p>
-                <div className="mt-2">
-                  <p className="font-semibold">Choose a time:</p>
-                  <div className="flex flex-col gap-2 mt-1">
-                    {offer.dateOptions.map((option, idx) => (
-                      <label
-                        key={idx}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name={`time-${offer.id}`}
-                          value={option}
-                          checked={selectedDateOptions[offer.id] === option}
-                          onChange={() =>
-                            setSelectedDateOptions((prev) => ({
-                              ...prev,
-                              [offer.id]: option,
-                            }))
-                          }
-                        />
-                        <span>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
 
                 {offer.status === "sent" && (
                   <div className="mt-4 flex gap-3">
@@ -229,6 +222,45 @@ const ClientDashboard = () => {
                     </button>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* BOOKINGS */}
+      <div className="mt-16 max-w-[1400px] mx-auto">
+        <h2 className="text-xl font-bold mb-4">Confirmed Bookings</h2>
+
+        {clientBookings.length === 0 ? (
+          <p className="text-gray-400">No confirmed bookings yet.</p>
+        ) : (
+          <div className="space-y-4 flex flex-col md:flex-row md:flex-wrap gap-4 pb-40">
+            {clientBookings.map((booking) => (
+              <div
+                key={booking.id}
+                className="bg-[var(--color-bg-card)] rounded-lg p-4 shadow-sm max-w-[500px] w-full"
+              >
+                <p>
+                  <strong>Artist ID:</strong> {booking.artistId}
+                </p>
+                {booking.artistName && (
+                  <p>
+                    <strong>Artist:</strong> {booking.artistName}
+                  </p>
+                )}
+                <p>
+                  <strong>Time:</strong> {booking.selectedTime}
+                </p>
+                <p>
+                  <strong>Location:</strong> {booking.location}
+                </p>
+                <p>
+                  <strong>Price:</strong> ${booking.price}
+                </p>
+                <p>
+                  <strong>Status:</strong> {booking.status}
+                </p>
               </div>
             ))}
           </div>
