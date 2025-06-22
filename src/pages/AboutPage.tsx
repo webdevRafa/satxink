@@ -2,7 +2,7 @@
 
 export const AboutPage = () => {
   return (
-    <main className="px-4 py-12 max-w-3xl mx-auto text-white">
+    <main className="px-4 py-12 max-w-3xl mx-auto text-white h-[700px]">
       <h1 className="text-3xl font-semibold mb-4">About SATXInk</h1>
 
       <p className="text-gray-300 leading-relaxed mb-6">

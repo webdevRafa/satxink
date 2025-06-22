@@ -24,6 +24,8 @@ import ClientDashboard from "./pages/ClientDashboard";
 import ClientSignupPage from "./pages/ClientSignupPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import ClientProfileSetupPage from "./pages/ClientProfileSetupPage";
+import DashboardRedirectPage from "./pages/DashboardRedirectPage";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -62,7 +64,13 @@ function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />
+        <Route path="/dashboard" element={<DashboardRedirectPage />} />
+
         <Route path="/signup/client" element={<ClientSignupPage />} />
+        <Route
+          path="/client-profile-setup"
+          element={<ClientProfileSetupPage />}
+        />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/dev-add-docs" element={<DevAddDocs />} />

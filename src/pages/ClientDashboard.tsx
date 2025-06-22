@@ -1,5 +1,5 @@
-// src/pages/ClientDashboard.tsx
 import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth"; // ✅ import auth
 import {
   doc,
   getDoc,
@@ -82,17 +82,32 @@ const ClientDashboard = () => {
   };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        console.error("No user is signed in.");
+        setLoading(false);
+        return;
+      }
+
+      const uid = user.uid;
+      console.log("Authenticated UID:", uid);
+
       try {
-        const clientRef = doc(db, "users", "VRUNIfCcE9n0ix3JY1GA");
+        const clientRef = doc(db, "users", uid);
         const clientSnap = await getDoc(clientRef);
+        console.log("Client doc exists?", clientSnap.exists());
+
         if (clientSnap.exists()) {
           setClient(clientSnap.data() as Client);
+        } else {
+          console.warn("Client doc not found for UID:", uid);
         }
 
+        // Fetch offers
         const offersQuery = query(
           collection(db, "bookingOffers"),
-          where("clientId", "==", "VRUNIfCcE9n0ix3JY1GA")
+          where("clientId", "==", uid)
         );
         const offersSnap = await getDocs(offersQuery);
         const offersData: BookingOffer[] = [];
@@ -101,9 +116,10 @@ const ClientDashboard = () => {
         );
         setOffers(offersData);
 
+        // Fetch bookings
         const bookingsQuery = query(
           collection(db, "bookings"),
-          where("clientId", "==", "VRUNIfCcE9n0ix3JY1GA")
+          where("clientId", "==", uid)
         );
         const bookingsSnap = await getDocs(bookingsQuery);
         const bookingsData: Booking[] = [];
@@ -116,9 +132,9 @@ const ClientDashboard = () => {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    fetchDashboardData();
+    return () => unsubscribe(); // Cleanup on unmount
   }, []);
 
   if (loading)
@@ -149,9 +165,14 @@ const ClientDashboard = () => {
 
             <div className="mt-4">
               <h2 className="font-bold">Preferred Styles:</h2>
-              <ul className="list-disc list-inside text-sm">
+              <ul className="list-inside text-sm list-none flex">
                 {client.preferredStyles.map((style, index) => (
-                  <li key={index}>{style}</li>
+                  <li
+                    className="px-2.5! py-0! rounded-full border text-xs! font-medium! bg-[var(--color-bg-base)]"
+                    key={index}
+                  >
+                    {style}
+                  </li>
                 ))}
               </ul>
             </div>

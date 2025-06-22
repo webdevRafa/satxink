@@ -7,6 +7,7 @@ import {
   setDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import { app } from "../firebase/firebaseConfig"; // adjust path as needed
 
 const auth = getAuth(app);
@@ -14,6 +15,8 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 export const GoogleSignupButton = () => {
+  const navigate = useNavigate();
+
   const handleGoogleSignup = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
@@ -37,12 +40,21 @@ export const GoogleSignupButton = () => {
           requestHistory: [],
           uploadGallery: [],
           phoneNumber: user.phoneNumber || "",
+          profileComplete: false,
         };
 
         await setDoc(userRef, clientData);
         console.log("Client profile created!");
+        navigate("/client-profile-setup");
       } else {
-        console.log("Client already exists.");
+        const data = userSnap.data();
+        const isComplete = data?.profileComplete ?? false;
+
+        if (!isComplete) {
+          navigate("/client-profile-setup");
+        } else {
+          navigate("/dashboard");
+        }
       }
 
       // redirect or show success
