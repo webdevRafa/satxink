@@ -6,7 +6,7 @@ export default function PrivacyPolicy() {
       <p className="text-center">
         We collect basic user info (like name, email, profile photo) to help
         connect clients and artists. We do not sell your data. Contact us at
-        devnetiks@gmail.com with any questions.
+        support@satxink.com with any questions.
       </p>
     </div>
   );
