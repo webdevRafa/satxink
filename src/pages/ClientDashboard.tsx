@@ -8,7 +8,6 @@ import {
   query,
   where,
   getDocs,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import Spinner from "../components/ui/Spinner";
@@ -51,9 +50,6 @@ const ClientDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState<BookingOffer[]>([]);
   const [clientBookings, setClientBookings] = useState<Booking[]>([]);
-  const [selectedDateOptions, setSelectedDateOptions] = useState<{
-    [offerId: string]: string;
-  }>({});
 
   const handleAcceptOffer = async (offerId: string) => {
     try {
