@@ -1,6 +1,13 @@
 // src/pages/ArtistDashboard.tsx
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig"; // adjust path as needed
 import Spinner from "../components/ui/Spinner"; // optional loading spinner
 import { FaFacebook } from "react-icons/fa";
@@ -21,10 +28,19 @@ type Artist = {
     facebook?: string;
   };
 };
-
+type BookingRequest = {
+  id: string;
+  clientId: string;
+  description: string;
+  referenceUrls: string[];
+  preferredDateRange?: string[];
+  bodyPlacement: string;
+  size: "small" | "medium" | "large";
+};
 const ArtistDashboard = () => {
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<BookingRequest[]>([]);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -45,6 +61,24 @@ const ArtistDashboard = () => {
     };
 
     fetchArtist();
+    const fetchRequests = async () => {
+      try {
+        const q = query(
+          collection(db, "bookingRequests"),
+          where("artistId", "==", "c2wHd6HlCIulOTjycyxl")
+        );
+        const querySnapshot = await getDocs(q);
+        const result: BookingRequest[] = [];
+        querySnapshot.forEach((doc) => {
+          result.push({ id: doc.id, ...doc.data() } as BookingRequest);
+        });
+        setRequests(result);
+      } catch (error) {
+        console.error("Error fetching booking requests:", error);
+      }
+    };
+
+    fetchRequests();
   }, []);
 
   if (loading)
@@ -58,61 +92,147 @@ const ArtistDashboard = () => {
     return (
       <div className="text-center mt-10 text-red-500">Artist not found.</div>
     );
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Welcome, {artist.name}</h1>
+    <>
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-4">Welcome, {artist.name}</h1>
 
-      <div className="flex items-start gap-6">
-        <img
-          src={artist.avatarUrl}
-          alt={artist.name}
-          className="w-32 h-32 object-cover rounded-full"
-        />
-        <div>
-          <p className="font-semibold text-lg">{artist.studioName}</p>
-          <p>{artist.bio}</p>
-          <p className="text-sm text-gray-500 mt-2">{artist.location}</p>
-          <div className="mt-2 space-x-3 flex">
-            {artist.socialLinks?.facebook && (
-              <a
-                href={artist.socialLinks.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <FaFacebook className="text-xl hover:text-blue-500 transition" />
-              </a>
-            )}
-            {artist.socialLinks?.instagram && (
-              <a
-                href={artist.socialLinks.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <RiInstagramFill className="text-xl hover:text-blue-500 transition" />
-              </a>
-            )}
-            {artist.socialLinks?.website && (
-              <a
-                href={artist.socialLinks.website}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <SiWebmoney className="text-xl hover:text-blue-500 transition" />
-              </a>
-            )}
-          </div>
-          <div className="mt-4">
-            <h2 className="font-bold">Specialties:</h2>
-            <ul className="list-disc list-inside text-sm">
-              {artist.specialties.map((style, index) => (
-                <li key={index}>{style}</li>
-              ))}
-            </ul>
+        <div className="flex items-start gap-6">
+          <img
+            src={artist.avatarUrl}
+            alt={artist.name}
+            className="w-32 h-32 object-cover rounded-full"
+          />
+          <div>
+            <p className="font-semibold text-lg">{artist.studioName}</p>
+            <p>{artist.bio}</p>
+            <p className="text-sm text-gray-500 mt-2">{artist.location}</p>
+            <div className="mt-2 space-x-3 flex">
+              {artist.socialLinks?.facebook && (
+                <a
+                  href={artist.socialLinks.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FaFacebook className="text-xl hover:text-blue-500 transition" />
+                </a>
+              )}
+              {artist.socialLinks?.instagram && (
+                <a
+                  href={artist.socialLinks.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <RiInstagramFill className="text-xl hover:text-blue-500 transition" />
+                </a>
+              )}
+              {artist.socialLinks?.website && (
+                <a
+                  href={artist.socialLinks.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <SiWebmoney className="text-xl hover:text-blue-500 transition" />
+                </a>
+              )}
+            </div>
+            <div className="mt-4">
+              <h2 className="font-bold">Specialties:</h2>
+              <ul className="list-disc list-inside text-sm">
+                {artist.specialties.map((style, index) => (
+                  <li key={index}>{style}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <div className="mt-10 w-full mx-auto max-w-[1400px] pb-40">
+        <h2 className="text-xl font-bold mb-4 text-center md:text-left">
+          Booking Requests
+        </h2>
+
+        {requests.length === 0 ? (
+          <p className="text-gray-500">No booking requests yet.</p>
+        ) : (
+          <div
+            data-aos="fade-up"
+            className="space-y-4 flex justify-center md:justify-start"
+          >
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="bg-[var(--color-bg-card)] rounded-md p-4 shadow-sm max-w-[400px]"
+              >
+                <p>
+                  <strong>Description:</strong>{" "}
+                  <span className="text-gray-400">{req.description}</span>
+                </p>
+                <p>
+                  <strong>Placement:</strong>{" "}
+                  <span className="text-gray-400">{req.bodyPlacement}</span>
+                </p>
+                <p>
+                  <strong>Size:</strong>{" "}
+                  <span className="text-gray-400">{req.size}</span>
+                </p>
+
+                {Array.isArray(req.preferredDateRange) &&
+                  req.preferredDateRange.length > 0 && (
+                    <p>
+                      <strong>Preferred Dates:</strong>{" "}
+                      <span className="text-gray-400">
+                        {req.preferredDateRange.length === 2
+                          ? `${formatDate(
+                              req.preferredDateRange[0]
+                            )} – ${formatDate(req.preferredDateRange[1])}`
+                          : req.preferredDateRange.map(formatDate).join(", ")}
+                      </span>
+                    </p>
+                  )}
+
+                {Array.isArray(req.referenceUrls) &&
+                  req.referenceUrls.length > 0 && (
+                    <div className="mt-2">
+                      <strong>Reference:</strong>
+                      <div className="flex gap-2 mt-1">
+                        {req.referenceUrls.map((url, index) => (
+                          <img
+                            key={index}
+                            src={url}
+                            alt="reference"
+                            className="w-full h-[200px] object-cover rounded"
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-4 flex gap-3">
+                        <button className="px-4 py-0.5! bg-[var(--color-bg-base)] text-white! text-sm rounded hover:bg-gray-500 transition">
+                          Ignore
+                        </button>
+                        <button className="px-4 py-0.5! bg-[var(--color-primary)] text-[#121212]! text-sm rounded hover:bg-red-500 transition">
+                          Decline
+                        </button>
+                        <button className="px-4 py-0.5! text-[#121212]! bg-green-600 text-sm rounded hover:bg-green-500 transition">
+                          Send Offer
+                        </button>
+                      </div>
+                    </div>
+                  )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

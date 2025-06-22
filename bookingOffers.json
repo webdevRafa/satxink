@@ -1,0 +1,15 @@
+[
+    {
+        "artistId": "c2wHd6HlCIulOTjycyxl",
+        "clientId": "VRUNIfCcE9n0ix3JY1GA",
+        "requestId": "REPLACE_WITH_REQUEST_ID",
+        "price": 300,
+        "dateOptions": [
+          "July 12 @ 1PM",
+          "July 14 @ 3PM"
+        ],
+        "location": "Hard Knox Tattoo Studio, San Antonio, TX",
+        "message": "Thanks for the request! I’d love to do this piece. Here are a couple times I’m available next week — let me know what works best for you.",
+        "status": "sent"
+      }
+]

@@ -34,6 +34,12 @@ export const Navbar = () => {
             Artist Dashboard
           </Link>
           <Link
+            to="/client-dashboard"
+            className="text-white hover:text-orange-400"
+          >
+            Client Dashboard
+          </Link>
+          <Link
             to="/signup"
             className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
             style={{

@@ -58,7 +58,10 @@ export const ArtistProfilePage = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <div className="flex flex-col md:flex-row gap-6 items-start">
+      <div
+        data-aos="fade-up"
+        className="flex flex-col md:flex-row gap-6 items-start"
+      >
         <img
           src={artist.avatarUrl}
           alt={artist.name}
@@ -132,10 +135,16 @@ export const ArtistProfilePage = () => {
       </div>
 
       <div className="mt-10">
-        <h2 className="text-xl! font-semibold! text-white mb-4">Portfolio</h2>
+        <h2
+          data-aos="fade-up"
+          className="text-xl! font-semibold! text-white mb-4"
+        >
+          Portfolio
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {artist.portfolioUrls.map((url, i) => (
             <img
+              data-aos="fade-up"
               key={i}
               src={url}
               alt={`Portfolio ${i + 1}`}

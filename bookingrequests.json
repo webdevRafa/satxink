@@ -1,0 +1,14 @@
+[
+    {
+        "clientId": "VRUNIfCcE9n0ix3JY1GA",
+        "artistId": "c2wHd6HlCIulOTjycyxl",
+        "description": "I want a black and grey lion tattoo on my left shoulder. Something realistic but not too large.",
+        "referenceUrls": [
+          "https://source.unsplash.com/300x300/?lion,tattoo"
+        ],
+        "preferredDateRange": ["2025-07-10", "2025-07-15"],
+        "bodyPlacement": "Left Shoulder",
+        "size": "medium",
+        "status": "pending"
+      }
+]
