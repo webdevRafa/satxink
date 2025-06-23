@@ -1,339 +1,365 @@
 import { useEffect, useState } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth"; // ✅ import auth
+import { onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
-  updateDoc,
+  getDocs,
   collection,
   query,
   where,
-  getDocs,
+  addDoc,
+  Timestamp,
 } from "firebase/firestore";
+import { auth } from "../firebase/auth";
 import { db } from "../firebase/firebaseConfig";
-import Spinner from "../components/ui/Spinner";
 
-type Client = {
-  name: string;
-  email: string;
-  avatarUrl: string;
-  likedArtists: string[];
-  preferredStyles: string[];
-};
-
-type BookingOffer = {
-  id: string;
-  artistName: string;
-  artistId: string;
-  requestId: string;
-  price: number;
-  dateOptions: string[];
-  location: string;
-  message: string;
-  status: "sent" | "accepted" | "declined";
-};
-
-type Booking = {
-  id: string;
-  artistId: string;
-  artistName?: string;
-  clientId: string;
-  requestId: string;
-  offerId: string;
-  selectedTime: string;
-  price: number;
-  location: string;
-  status: string;
-};
-type Artist = {
+interface Artist {
   id: string;
   name: string;
   avatarUrl: string;
   studioName: string;
-  isAvailable: boolean;
-};
+}
 
-const ClientDashboard = () => {
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+  preferredStyles: string[];
+  likedArtists: string[];
+}
+
+interface Offer {
+  id: string;
+  artistName: string;
+  price: number;
+  location: string;
+  message: string;
+  status: string;
+}
+
+interface Booking {
+  id: string;
+  artistName: string;
+  selectedTime: string;
+  location: string;
+  price: number;
+  status: string;
+}
+
+export default function ClientDashboard() {
   const [client, setClient] = useState<Client | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [offers, setOffers] = useState<BookingOffer[]>([]);
-  const [clientBookings, setClientBookings] = useState<Booking[]>([]);
-  const [likedArtistsData, setLikedArtistsData] = useState<Artist[]>([]);
-  const handleAcceptOffer = async (offerId: string) => {
-    try {
-      const offerRef = doc(db, "bookingOffers", offerId);
-      await updateDoc(offerRef, {
-        status: "accepted",
-      });
-      alert("Offer accepted!");
-      setOffers((prev) =>
-        prev.map((o) => (o.id === offerId ? { ...o, status: "accepted" } : o))
-      );
-    } catch (error) {
-      console.error("Error accepting offer:", error);
-    }
-  };
+  const [likedArtists, setLikedArtists] = useState<Artist[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [requestText, setRequestText] = useState("");
 
-  const handleDeclineOffer = async (offerId: string) => {
-    try {
-      const offerRef = doc(db, "bookingOffers", offerId);
-      await updateDoc(offerRef, {
-        status: "declined",
-      });
-      alert("Offer declined.");
-      setOffers((prev) =>
-        prev.map((o) => (o.id === offerId ? { ...o, status: "declined" } : o))
-      );
-    } catch (error) {
-      console.error("Error declining offer:", error);
-    }
-  };
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState({
+    description: "",
+    bodyPlacement: "",
+    size: "",
+    preferredDateRange: ["", ""],
+  });
 
   useEffect(() => {
-    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        console.error("No user is signed in.");
-        setLoading(false);
-        return;
-      }
+      if (!user) return;
 
-      const uid = user.uid;
-      console.log("Authenticated UID:", uid);
+      const clientRef = doc(db, "users", user.uid);
+      const clientSnap = await getDoc(clientRef);
+      if (!clientSnap.exists()) return;
 
-      try {
-        const clientRef = doc(db, "users", uid);
-        const clientSnap = await getDoc(clientRef);
-        console.log("Client doc exists?", clientSnap.exists());
+      const clientData = { id: user.uid, ...clientSnap.data() } as Client;
+      setClient(clientData);
 
-        if (clientSnap.exists()) {
-          const clientData = clientSnap.data() as Client;
-          setClient(clientData);
-
-          // ✅ Now this works fine inside the same block
-          const artistDocs: Artist[] = [];
-          for (const artistId of clientData.likedArtists) {
-            const artistRef = doc(db, "users", artistId);
-            const artistSnap = await getDoc(artistRef);
-            if (artistSnap.exists()) {
-              const data = artistSnap.data();
-              artistDocs.push({
-                id: artistId,
-                name: data.name,
-                avatarUrl: data.avatarUrl,
-                studioName: data.studioName,
-                isAvailable: data.isAvailable,
-              });
-            }
+      const liked = await Promise.all(
+        clientData.likedArtists.map(async (id) => {
+          const docSnap = await getDoc(doc(db, "users", id));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            return {
+              id: docSnap.id,
+              name: data.name,
+              avatarUrl: data.avatarUrl,
+              studioName: data.studioName,
+            } as Artist;
           }
-          setLikedArtistsData(artistDocs);
-        }
-        // Fetch offers
-        const offersQuery = query(
-          collection(db, "bookingOffers"),
-          where("clientId", "==", uid)
-        );
-        const offersSnap = await getDocs(offersQuery);
-        const offersData: BookingOffer[] = [];
-        offersSnap.forEach((doc) =>
-          offersData.push({ id: doc.id, ...doc.data() } as BookingOffer)
-        );
-        setOffers(offersData);
+          return null;
+        })
+      );
+      setLikedArtists(liked.filter((a): a is Artist => a !== null));
 
-        // Fetch bookings
-        const bookingsQuery = query(
-          collection(db, "bookings"),
-          where("clientId", "==", uid)
-        );
-        const bookingsSnap = await getDocs(bookingsQuery);
-        const bookingsData: Booking[] = [];
-        bookingsSnap.forEach((doc) =>
-          bookingsData.push({ id: doc.id, ...doc.data() } as Booking)
-        );
-        setClientBookings(bookingsData);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
+      const offersQuery = query(
+        collection(db, "bookingOffers"),
+        where("clientId", "==", user.uid)
+      );
+      const offersSnap = await getDocs(offersQuery);
+      setOffers(
+        offersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Offer))
+      );
+
+      const bookingsQuery = query(
+        collection(db, "bookings"),
+        where("clientId", "==", user.uid)
+      );
+      const bookingsSnap = await getDocs(bookingsQuery);
+      setBookings(
+        bookingsSnap.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as Booking)
+        )
+      );
     });
 
-    return () => unsubscribe(); // Cleanup on unmount
+    return () => unsubscribe();
   }, []);
 
-  if (loading)
-    return (
-      <div className="flex justify-center mt-10">
-        <Spinner />
-      </div>
-    );
+  const handleSubmitRequest = async () => {
+    if (!client || requestText.trim() === "") return;
 
-  if (!client)
-    return (
-      <div className="text-center mt-10 text-red-500">Client not found.</div>
-    );
+    await addDoc(collection(db, "bookingRequests"), {
+      clientId: client.id,
+      text: requestText,
+      preferredStyles: client.preferredStyles,
+      createdAt: Timestamp.now(),
+    });
+
+    alert("Request sent to relevant artists!");
+    setRequestText("");
+  };
+
+  const handleOpenRequestModal = (artist: Artist) => {
+    setSelectedArtist(artist);
+    setIsModalOpen(true);
+  };
+
+  const handleModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client || !selectedArtist) return;
+
+    await addDoc(collection(db, "bookingRequests"), {
+      artistId: selectedArtist.id,
+      clientId: client.id,
+      ...modalData,
+      status: "pending",
+      createdAt: Timestamp.now(),
+    });
+
+    setIsModalOpen(false);
+    setModalData({
+      description: "",
+      bodyPlacement: "",
+      size: "",
+      preferredDateRange: ["", ""],
+    });
+    alert("Request sent!");
+  };
+
+  if (!client) return <div className="text-white p-6">Loading...</div>;
 
   return (
-    <>
-      <div className="max-w-[1400px] mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Welcome, {client.name}</h1>
+    <div className="max-w-6xl mx-auto px-4 py-10 text-white">
+      <h1 className="text-3xl font-bold mb-6">Welcome, {client.name}</h1>
 
-        <div className="flex items-start gap-6">
-          <img
-            src={client.avatarUrl}
-            alt={client.name}
-            className="w-32 h-32 object-cover rounded-full"
-          />
-          <div>
-            <p className="text-gray-600">{client.email}</p>
-
-            <div className="mt-4">
-              <h2 className="font-bold">Preferred Styles:</h2>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {client.preferredStyles.map((style, index) => (
-                  <span
-                    key={index}
-                    className="px-2.5 py-0 rounded-full border text-xs font-medium transition-all text-white border-gray-500 bg-transparent"
-                  >
-                    {style}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h2 className="font-bold">Liked Artists:</h2>
-              {likedArtistsData.length === 0 ? (
-                <p className="text-sm text-gray-400">No liked artists yet.</p>
-              ) : (
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                  {likedArtistsData.map((artist) => (
-                    <li
-                      key={artist.id}
-                      className="bg-zinc-800 p-4 rounded-lg flex items-center gap-4"
-                    >
-                      <img
-                        src={artist.avatarUrl}
-                        alt={artist.name}
-                        className="w-14 h-14 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="text-white font-medium">{artist.name}</p>
-                        <p className="text-sm text-gray-400">
-                          {artist.studioName}
-                        </p>
-                        <p
-                          className={`text-xs mt-1 font-semibold ${
-                            artist.isAvailable
-                              ? "text-green-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {artist.isAvailable
-                            ? "Available for bookings"
-                            : "Currently booked"}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+      {/* Preferred Styles */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-2">Preferred Styles</h2>
+        <div className="flex flex-wrap gap-2">
+          {client.preferredStyles.map((style) => (
+            <span
+              key={style}
+              className="px-3 py-1 border border-neutral-600 rounded-full text-sm"
+            >
+              {style}
+            </span>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* OFFERS */}
-      <div className="mt-10 max-w-[1400px] mx-auto">
-        <h2 className="text-xl font-bold mb-4">Your Offers</h2>
-
-        {offers.length === 0 ? (
-          <p className="text-gray-500">No offers received yet.</p>
+      {/* Liked Artists */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-2">Liked Artists</h2>
+        {likedArtists.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            You haven't liked any artists yet.
+          </p>
         ) : (
-          <div className="space-y-4 flex justify-center md:justify-start pb-40">
+          <div className="flex md:grid md:grid-cols-3 gap-4 overflow-x-auto md:overflow-visible pb-2">
+            {likedArtists.map((artist) => (
+              <div
+                key={artist.id}
+                className="min-w-[220px] bg-neutral-900 border border-neutral-700 rounded-lg p-4"
+              >
+                <img
+                  src={artist.avatarUrl || "/fallback-avatar.jpg"}
+                  alt={artist.name}
+                  className="w-16 h-16 rounded-full object-cover mb-2"
+                />
+                <p className="font-semibold text-sm">{artist.name}</p>
+                <p className="text-xs text-gray-400">{artist.studioName}</p>
+                <button
+                  className="mt-4 text-sm text-[#121212] bg-[#b6382d] px-4 py-2 rounded"
+                  onClick={() => handleOpenRequestModal(artist)}
+                >
+                  Request a Tattoo
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Offers from Artists */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-2">Offers from Artists</h2>
+        {offers.length === 0 ? (
+          <p className="text-sm text-gray-400">You have no offers yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {offers.map((offer) => (
               <div
                 key={offer.id}
-                className="bg-[var(--color-bg-card)] rounded-lg p-4 shadow-sm max-w-[500px]"
+                className="bg-neutral-800 rounded-lg p-4 border border-neutral-600"
               >
-                <p className="text-white">From: {offer.artistName}</p>
-                <p>
-                  <strong className="text-white">Price: </strong>
-                  <span className="text-green-300">${offer.price}</span>
+                <p className="font-medium">From: {offer.artistName}</p>
+                <p className="text-sm text-gray-300">
+                  ${offer.price} – {offer.location}
                 </p>
-                <p>
-                  <strong className="text-white">Location:</strong>{" "}
-                  {offer.location}
+                <p className="text-sm italic text-gray-400 mt-1">
+                  “{offer.message}”
                 </p>
-                <p>
-                  <strong className="text-white">Status:</strong> {offer.status}
+                <p className="mt-2 text-xs text-yellow-400">
+                  Status: {offer.status}
                 </p>
-                <p>
-                  <strong className="text-white">Message from Artist:</strong>{" "}
-                  {offer.message}
-                </p>
-
-                {offer.status === "sent" && (
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      className="px-4 py-1 bg-green-600 text-[#121212]! text-sm rounded hover:bg-green-500 transition"
-                      onClick={() => handleAcceptOffer(offer.id)}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      className="px-4 py-1 bg-red-600 text-[#121212]! text-sm rounded hover:bg-red-500 transition"
-                      onClick={() => handleDeclineOffer(offer.id)}
-                    >
-                      Decline
-                    </button>
-                  </div>
-                )}
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* BOOKINGS */}
-      <div className="mt-16 max-w-[1400px] mx-auto">
-        <h2 className="text-xl font-bold mb-4">Confirmed Bookings</h2>
-
-        {clientBookings.length === 0 ? (
-          <p className="text-gray-400">No confirmed bookings yet.</p>
+      {/* Confirmed Bookings */}
+      <section className="mb-10">
+        <h2 className="text-xl font-semibold mb-2">Confirmed Bookings</h2>
+        {bookings.length === 0 ? (
+          <p className="text-sm text-gray-400">No bookings yet.</p>
         ) : (
-          <div className="space-y-4 flex flex-col md:flex-row md:flex-wrap gap-4 pb-40">
-            {clientBookings.map((booking) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {bookings.map((booking) => (
               <div
                 key={booking.id}
-                className="bg-[var(--color-bg-card)] rounded-lg p-4 shadow-sm max-w-[500px] w-full"
+                className="bg-neutral-800 p-4 rounded-lg border border-neutral-700"
               >
-                <p>
-                  <strong>Artist ID:</strong> {booking.artistId}
-                </p>
-                {booking.artistName && (
-                  <p>
-                    <strong>Artist:</strong> {booking.artistName}
-                  </p>
-                )}
-                <p>
-                  <strong>Time:</strong> {booking.selectedTime}
-                </p>
-                <p>
-                  <strong>Location:</strong> {booking.location}
-                </p>
-                <p>
-                  <strong>Price:</strong> ${booking.price}
-                </p>
-                <p>
-                  <strong>Status:</strong> {booking.status}
+                <p className="font-medium">{booking.artistName}</p>
+                <p className="text-sm">Time: {booking.selectedTime}</p>
+                <p className="text-sm">Location: {booking.location}</p>
+                <p className="text-sm text-green-400">
+                  Status: {booking.status}
                 </p>
               </div>
             ))}
           </div>
         )}
-      </div>
-    </>
-  );
-};
+      </section>
 
-export default ClientDashboard;
+      {/* Broadcast Request */}
+      <section className="mb-20">
+        <h2 className="text-xl font-semibold mb-2">Make a Request</h2>
+        <textarea
+          className="w-full h-28 p-3 rounded bg-neutral-900 border border-neutral-700 text-white"
+          placeholder="Describe your tattoo idea here..."
+          value={requestText}
+          onChange={(e) => setRequestText(e.target.value)}
+        ></textarea>
+        <button
+          onClick={handleSubmitRequest}
+          className="mt-3 px-5 py-2 bg-white text-black rounded hover:bg-gray-200"
+        >
+          Submit Request
+        </button>
+      </section>
+
+      {/* Modal for artist-specific request */}
+      {isModalOpen && selectedArtist && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-neutral-900 p-6 rounded-md w-full max-w-md relative">
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-2 right-3 text-white text-lg"
+            >
+              &times;
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-white">
+              Request a Tattoo from {selectedArtist.name}
+            </h2>
+            <form onSubmit={handleModalSubmit}>
+              <textarea
+                required
+                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                placeholder="Describe your tattoo..."
+                value={modalData.description}
+                onChange={(e) =>
+                  setModalData({ ...modalData, description: e.target.value })
+                }
+              />
+              <input
+                type="text"
+                placeholder="Body Placement"
+                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                value={modalData.bodyPlacement}
+                onChange={(e) =>
+                  setModalData({ ...modalData, bodyPlacement: e.target.value })
+                }
+              />
+              <input
+                type="text"
+                placeholder="Size"
+                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                value={modalData.size}
+                onChange={(e) =>
+                  setModalData({ ...modalData, size: e.target.value })
+                }
+              />
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="date"
+                  className="w-full p-2 rounded bg-neutral-800 text-white"
+                  value={modalData.preferredDateRange[0]}
+                  onChange={(e) =>
+                    setModalData({
+                      ...modalData,
+                      preferredDateRange: [
+                        e.target.value,
+                        modalData.preferredDateRange[1],
+                      ],
+                    })
+                  }
+                />
+                <input
+                  type="date"
+                  className="w-full p-2 rounded bg-neutral-800 text-white"
+                  value={modalData.preferredDateRange[1]}
+                  onChange={(e) =>
+                    setModalData({
+                      ...modalData,
+                      preferredDateRange: [
+                        modalData.preferredDateRange[0],
+                        e.target.value,
+                      ],
+                    })
+                  }
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-2 bg-orange-500 hover:bg-orange-600 text-white rounded"
+              >
+                Submit
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

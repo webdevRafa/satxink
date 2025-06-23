@@ -52,25 +52,13 @@ export const Navbar = () => {
               </Link>
               {user && (
                 <div className="relative group">
-                  <img
-                    src={user.photoURL || "/fallback-avatar.png"}
-                    alt="Avatar"
-                    className="w-8 h-8 rounded-full cursor-pointer"
-                  />
-                  <div className="absolute hidden group-hover:flex flex-col right-0 mt-2 w-40 bg-[#111] border border-[#333] rounded-md text-sm z-50">
-                    <Link
-                      to="/client-dashboard"
-                      className="px-4 py-2 hover:bg-[#222] text-white"
-                    >
-                      Dashboard
-                    </Link>
-                    <button
-                      onClick={signOutUser}
-                      className="text-left px-4 py-2 hover:bg-[#222] text-red-400"
-                    >
-                      Logout
-                    </button>
-                  </div>
+                  <Link to="/client-dashboard">
+                    <img
+                      src={user?.photoURL || "/fallback-avatar.jpg"}
+                      alt="User Avatar"
+                      className="w-10 h-10 rounded-full cursor-pointer"
+                    />
+                  </Link>
                 </div>
               )}
             </>
