@@ -166,11 +166,14 @@ export default function ClientDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
-      <h1 className="text-3xl font-bold mb-6">Welcome, {client.name}</h1>
+      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Welcome, {client.name}
+      </p>
 
       {/* Preferred Styles */}
       <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">Preferred Styles</h2>
+        <h2 className="text-xl font-semibold mb-2">My preferred styles</h2>
         <div className="flex flex-wrap gap-2">
           {client.preferredStyles.map((style) => (
             <span
@@ -185,7 +188,7 @@ export default function ClientDashboard() {
 
       {/* Liked Artists */}
       <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">Liked Artists</h2>
+        <h2 className="text-xl font-semibold mb-2">Liked artists</h2>
         {likedArtists.length === 0 ? (
           <p className="text-sm text-gray-400">
             You haven't liked any artists yet.
@@ -205,10 +208,10 @@ export default function ClientDashboard() {
                 <p className="font-semibold text-sm">{artist.name}</p>
                 <p className="text-xs text-gray-400">{artist.studioName}</p>
                 <button
-                  className="mt-4 text-sm text-[#121212]! bg-[#b6382d] px-4 py-2 rounded"
+                  className="mt-4 text-sm text-white! hover:text-[#121212]! bg-neutral-700 hover:bg-neutral-300 px-4 py-2 rounded"
                   onClick={() => handleOpenRequestModal(artist)}
                 >
-                  Request a Tattoo
+                  Request a tattoo
                 </button>
               </div>
             ))}
@@ -218,7 +221,7 @@ export default function ClientDashboard() {
 
       {/* Offers from Artists */}
       <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">Offers from Artists</h2>
+        <h2 className="text-xl font-semibold mb-2">Offers from artists</h2>
         {offers.length === 0 ? (
           <p className="text-sm text-gray-400">You have no offers yet.</p>
         ) : (
@@ -246,7 +249,7 @@ export default function ClientDashboard() {
 
       {/* Confirmed Bookings */}
       <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">Confirmed Bookings</h2>
+        <h2 className="text-xl font-semibold mb-2">Confirmed bookings</h2>
         {bookings.length === 0 ? (
           <p className="text-sm text-gray-400">No bookings yet.</p>
         ) : (
@@ -270,7 +273,7 @@ export default function ClientDashboard() {
 
       {/* Broadcast Request */}
       <section className="mb-20">
-        <h2 className="text-xl font-semibold">Make a Request</h2>
+        <h2 className="text-xl font-semibold">Make a request</h2>
         <p className="mb-2 text-sm">
           This will broadcast your request to artists who match your preferred
           styles.
@@ -285,7 +288,7 @@ export default function ClientDashboard() {
           onClick={handleSubmitRequest}
           className="mt-3 px-5 py-2 bg-white text-black rounded hover:bg-gray-200"
         >
-          Submit Request
+          Submit request
         </button>
       </section>
 
@@ -415,7 +418,7 @@ export default function ClientDashboard() {
                     type="button"
                     className={`px-3 py-1 rounded-full text-sm ${
                       availableDays.includes(day)
-                        ? "bg-[#b6382d] text-white"
+                        ? "bg-neutral-300 text-[#121212]!"
                         : "bg-neutral-700 text-white"
                     }`}
                     onClick={() =>
