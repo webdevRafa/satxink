@@ -67,7 +67,13 @@ export default function ClientDashboard() {
   });
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+  }, [isModalOpen]);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
@@ -483,7 +489,7 @@ export default function ClientDashboard() {
                     <img
                       src={URL.createObjectURL(referenceImage)}
                       alt="Preview"
-                      className="w-32 h-32 object-cover rounded border border-neutral-600"
+                      className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
                     />
                   </div>
                 )}

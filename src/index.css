@@ -84,3 +84,12 @@ body {
     background-color: #3a3a3a;
   }
   
+  /* tailwind.css or global.css */
+body.modal-open {
+  overflow: hidden;
+}
+@layer utilities {
+  body.modal-open {
+    overflow: hidden;
+  }
+}
