@@ -144,5 +144,14 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
         },
         { merge: true },
       );
+      // ⬇️ add THIS block right below
+      if (category === 'portfolio') {
+        await firestore
+          .collection('users')
+          .doc(userId)
+          .update({
+            portfolioUrls: admin.firestore.FieldValue.arrayUnion(fullUrl),
+          });
+      }
   }
 });
