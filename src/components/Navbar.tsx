@@ -15,7 +15,7 @@ export const Navbar = () => {
 
   return (
     <nav
-      className="sticky top-0 z-50 w-full px-4 py-4 shadow-sm border-b border-[#1f1f1f]"
+      className="sticky top-0 z-50 w-full  mx-auto px-4 py-4 shadow-sm border-b border-[#1f1f1f]"
       style={{ backgroundColor: "var(--color-bg-base)" }}
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between">

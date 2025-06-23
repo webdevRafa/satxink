@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import backgroundImage from "../assets/images/tattoo-hero.jpg"; // use your preferred image
+import backgroundImage from "../assets/images/darkblurhero.webp"; // use your preferred image
 
 export const HeroSection = () => {
   return (

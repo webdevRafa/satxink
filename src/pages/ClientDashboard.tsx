@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 import {
   doc,
   getDoc,
@@ -12,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { auth } from "../firebase/auth";
 import { db } from "../firebase/firebaseConfig";
-
+import bgImg from "../assets/images/darkblurhero.webp";
 interface Artist {
   id: string;
   name: string;
@@ -53,6 +55,7 @@ export default function ClientDashboard() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requestText, setRequestText] = useState("");
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
 
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -140,12 +143,25 @@ export default function ClientDashboard() {
     e.preventDefault();
     if (!client || !selectedArtist) return;
 
+    let referenceImageUrl = null;
+
+    if (referenceImage) {
+      const storage = getStorage();
+      const imageRef = ref(
+        storage,
+        `tattoo_references/${Date.now()}_${referenceImage.name}`
+      );
+      await uploadBytes(imageRef, referenceImage);
+      referenceImageUrl = await getDownloadURL(imageRef);
+    }
+
     await addDoc(collection(db, "bookingRequests"), {
       artistId: selectedArtist.id,
       clientId: client.id,
       ...modalData,
       availableTime,
       availableDays,
+      referenceImageUrl,
       status: "pending",
       createdAt: Timestamp.now(),
     });
@@ -294,153 +310,192 @@ export default function ClientDashboard() {
 
       {/* Modal */}
       {isModalOpen && selectedArtist && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-          <div className="bg-neutral-900 p-6 rounded-md w-full max-w-md relative">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-2 right-3 text-white text-lg"
-            >
-              &times;
-            </button>
-            <h2 className="text-xl font-bold mb-4 text-white">
-              Request a Tattoo from {selectedArtist.name}
-            </h2>
-            <form onSubmit={handleModalSubmit}>
-              <textarea
-                required
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
-                placeholder="Describe your tattoo..."
-                value={modalData.description}
-                onChange={(e) =>
-                  setModalData({ ...modalData, description: e.target.value })
-                }
-              />
-              <input
-                type="text"
-                placeholder="Body Placement"
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
-                value={modalData.bodyPlacement}
-                onChange={(e) =>
-                  setModalData({ ...modalData, bodyPlacement: e.target.value })
-                }
-              />
-              <label className="text-sm text-white mb-1 block">Size</label>
-              <select
-                required
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
-                value={modalData.size}
-                onChange={(e) =>
-                  setModalData({ ...modalData, size: e.target.value })
-                }
-              >
-                <option value="">Select size</option>
-                <option value="Small">Small (up to 3x3 inches)</option>
-                <option value="Medium">Medium (up to 6x6 inches)</option>
-                <option value="Large">Large (over 6x6 inches)</option>
-              </select>
-
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="date"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={modalData.preferredDateRange[0]}
-                  onChange={(e) =>
-                    setModalData({
-                      ...modalData,
-                      preferredDateRange: [
-                        e.target.value,
-                        modalData.preferredDateRange[1],
-                      ],
-                    })
-                  }
-                />
-                <input
-                  type="date"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={modalData.preferredDateRange[1]}
-                  onChange={(e) =>
-                    setModalData({
-                      ...modalData,
-                      preferredDateRange: [
-                        modalData.preferredDateRange[0],
-                        e.target.value,
-                      ],
-                    })
-                  }
-                />
-              </div>
-
-              {/* Time Availability */}
-              <label className="text-sm text-white mb-2 block">
-                Available Time Range
-              </label>
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="time"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={availableTime.from}
-                  onChange={(e) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      from: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="time"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={availableTime.to}
-                  onChange={(e) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      to: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              {/* Day Availability */}
-              <label className="text-sm text-white mb-2 block">
-                Available Days
-              </label>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {[
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                  "Sunday",
-                ].map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      availableDays.includes(day)
-                        ? "bg-neutral-300 text-[#121212]!"
-                        : "bg-neutral-700 text-white"
-                    }`}
-                    onClick={() =>
-                      setAvailableDays((prev) =>
-                        prev.includes(day)
-                          ? prev.filter((d) => d !== day)
-                          : [...prev, day]
-                      )
-                    }
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 pb-20"
+          style={{
+            backgroundImage: `url(${bgImg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="min-h-screen flex items-start justify-center py-10 px-4">
+            <div className="bg-neutral-900 p-6 rounded-md w-full max-w-md relative">
               <button
-                type="submit"
-                className="w-full py-2 bg-[#b6382d] text-white rounded"
+                onClick={() => setIsModalOpen(false)}
+                className="absolute top-2 right-3 text-white text-lg"
               >
-                Submit
+                &times;
               </button>
-            </form>
+              <h2 className="text-xl font-bold mb-4 text-white">
+                Request a Tattoo from {selectedArtist.name}
+              </h2>
+              <form onSubmit={handleModalSubmit}>
+                <textarea
+                  required
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  placeholder="Describe your tattoo..."
+                  value={modalData.description}
+                  onChange={(e) =>
+                    setModalData({ ...modalData, description: e.target.value })
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="Body Placement"
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  value={modalData.bodyPlacement}
+                  onChange={(e) =>
+                    setModalData({
+                      ...modalData,
+                      bodyPlacement: e.target.value,
+                    })
+                  }
+                />
+                <label className="text-sm text-white mb-1 block">Size</label>
+                <select
+                  required
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  value={modalData.size}
+                  onChange={(e) =>
+                    setModalData({ ...modalData, size: e.target.value })
+                  }
+                >
+                  <option value="">Select size</option>
+                  <option value="Small">Small (up to 3x3 inches)</option>
+                  <option value="Medium">Medium (up to 6x6 inches)</option>
+                  <option value="Large">Large (over 6x6 inches)</option>
+                </select>
+
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="date"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
+                    value={modalData.preferredDateRange[0]}
+                    onChange={(e) =>
+                      setModalData({
+                        ...modalData,
+                        preferredDateRange: [
+                          e.target.value,
+                          modalData.preferredDateRange[1],
+                        ],
+                      })
+                    }
+                  />
+                  <input
+                    type="date"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
+                    value={modalData.preferredDateRange[1]}
+                    onChange={(e) =>
+                      setModalData({
+                        ...modalData,
+                        preferredDateRange: [
+                          modalData.preferredDateRange[0],
+                          e.target.value,
+                        ],
+                      })
+                    }
+                  />
+                </div>
+
+                {/* Time Availability */}
+                <label className="text-sm text-white mb-2 block">
+                  Available Time Range
+                </label>
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="time"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
+                    value={availableTime.from}
+                    onChange={(e) =>
+                      setAvailableTime((prev) => ({
+                        ...prev,
+                        from: e.target.value,
+                      }))
+                    }
+                  />
+                  <input
+                    type="time"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
+                    value={availableTime.to}
+                    onChange={(e) =>
+                      setAvailableTime((prev) => ({
+                        ...prev,
+                        to: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                {/* Day Availability */}
+                <label className="text-sm text-white mb-2 block">
+                  Available Days
+                </label>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {[
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday",
+                  ].map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      className={`px-3 py-1 rounded-full text-sm ${
+                        availableDays.includes(day)
+                          ? "bg-neutral-300 text-[#121212]!"
+                          : "bg-neutral-700 text-white"
+                      }`}
+                      onClick={() =>
+                        setAvailableDays((prev) =>
+                          prev.includes(day)
+                            ? prev.filter((d) => d !== day)
+                            : [...prev, day]
+                        )
+                      }
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Reference Image (optional)
+                </label>
+                <div className="relative mb-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setReferenceImage(file);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                  />
+                  <div className="bg-neutral-700 text-white text-sm px-4 py-2 rounded-full font-semibold text-center hover:bg-neutral-300 hover:text-[#121212]">
+                    Upload Reference
+                  </div>
+                </div>
+                {referenceImage && (
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-300 mb-1">Preview:</p>
+                    <img
+                      src={URL.createObjectURL(referenceImage)}
+                      alt="Preview"
+                      className="w-32 h-32 object-cover rounded border border-neutral-600"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-[#b6382d] text-white rounded"
+                >
+                  Submit
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
