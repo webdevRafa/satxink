@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-
+import { ref, uploadBytes } from "firebase/storage";
+import { db, storage } from "../firebase/firebaseConfig";
 import {
   doc,
   getDoc,
@@ -10,10 +10,12 @@ import {
   query,
   where,
   addDoc,
-  Timestamp,
 } from "firebase/firestore";
+import { serverTimestamp } from "firebase/firestore";
+
 import { auth } from "../firebase/auth";
-import { db } from "../firebase/firebaseConfig";
+import { toast, Toaster } from "react-hot-toast";
+
 import bgImg from "../assets/images/darkblurhero.webp";
 interface Artist {
   id: string;
@@ -133,7 +135,7 @@ export default function ClientDashboard() {
       clientId: client.id,
       text: requestText,
       preferredStyles: client.preferredStyles,
-      createdAt: Timestamp.now(),
+      createdAt: serverTimestamp(),
     });
 
     alert("Request sent to relevant artists!");
@@ -149,45 +151,51 @@ export default function ClientDashboard() {
     e.preventDefault();
     if (!client || !selectedArtist) return;
 
-    let referenceImageUrl = null;
+    try {
+      const reqRef = await addDoc(collection(db, "bookingRequests"), {
+        artistId: selectedArtist.id,
+        clientId: client.id,
+        clientName: client.name,
+        clientAvatar: client.avatarUrl,
+        ...modalData,
+        availableTime,
+        availableDays,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
 
-    if (referenceImage) {
-      const storage = getStorage();
-      const imageRef = ref(
-        storage,
-        `tattoo_references/${Date.now()}_${referenceImage.name}`
-      );
-      await uploadBytes(imageRef, referenceImage);
-      referenceImageUrl = await getDownloadURL(imageRef);
+      if (referenceImage) {
+        const imageRef = ref(
+          storage,
+          `bookingRequests/${reqRef.id}/originals/${referenceImage.name}`
+        );
+        await uploadBytes(imageRef, referenceImage);
+        // Cloud Function will handle full + thumbnail uploads
+      }
+
+      setIsModalOpen(false);
+      setModalData({
+        description: "",
+        bodyPlacement: "",
+        size: "",
+        preferredDateRange: ["", ""],
+      });
+      setAvailableTime({ from: "", to: "" });
+      setAvailableDays([]);
+      setReferenceImage(null);
+      toast.success("Request sent!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong.");
     }
-
-    await addDoc(collection(db, "bookingRequests"), {
-      artistId: selectedArtist.id,
-      clientId: client.id,
-      ...modalData,
-      availableTime,
-      availableDays,
-      referenceImageUrl,
-      status: "pending",
-      createdAt: Timestamp.now(),
-    });
-
-    setIsModalOpen(false);
-    setModalData({
-      description: "",
-      bodyPlacement: "",
-      size: "",
-      preferredDateRange: ["", ""],
-    });
-    setAvailableTime({ from: "", to: "" });
-    setAvailableDays([]);
-    alert("Request sent!");
   };
 
   if (!client) return <div className="text-white p-6">Loading...</div>;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
+      <Toaster position="bottom-center" />
+
       <h1 className="text-3xl font-bold">Dashboard</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Welcome, {client.name}

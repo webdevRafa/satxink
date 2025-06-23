@@ -2,6 +2,7 @@ import "./index.css";
 import { Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 
 // @ts-ignore
 import AOS from "aos";
@@ -54,7 +55,7 @@ function App() {
   return (
     <>
       <Navbar />
-
+      <Toaster position="top-center" reverseOrder={false} />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/clients" element={<Clients />} />
