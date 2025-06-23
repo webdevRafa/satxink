@@ -288,7 +288,7 @@ export default function ClientDashboard() {
           onClick={handleSubmitRequest}
           className="mt-3 px-5 py-2 bg-white text-black rounded hover:bg-gray-200"
         >
-          Submit request
+          Submit equest
         </button>
       </section>
 
