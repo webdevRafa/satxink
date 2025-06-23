@@ -31,11 +31,14 @@ type Artist = {
 type BookingRequest = {
   id: string;
   clientId: string;
+  clientName: string;
+  clientAvatar: string;
   description: string;
-  referenceUrls: string[];
   preferredDateRange?: string[];
   bodyPlacement: string;
-  size: "small" | "medium" | "large";
+  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large";
+  fullUrl: string;
+  thumbUrl: string;
 };
 const ArtistDashboard = () => {
   const [artist, setArtist] = useState<Artist | null>(null);
@@ -200,33 +203,16 @@ const ArtistDashboard = () => {
                     </p>
                   )}
 
-                {Array.isArray(req.referenceUrls) &&
-                  req.referenceUrls.length > 0 && (
-                    <div className="mt-2">
-                      <strong>Reference:</strong>
-                      <div className="flex gap-2 mt-1">
-                        {req.referenceUrls.map((url, index) => (
-                          <img
-                            key={index}
-                            src={url}
-                            alt="reference"
-                            className="w-full h-[200px] object-cover rounded"
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-4 flex gap-3">
-                        <button className="px-4 py-0.5! bg-[var(--color-bg-base)] text-white! text-sm rounded hover:bg-gray-500 transition">
-                          Ignore
-                        </button>
-                        <button className="px-4 py-0.5! bg-[var(--color-primary)] text-[#121212]! text-sm rounded hover:bg-red-500 transition">
-                          Decline
-                        </button>
-                        <button className="px-4 py-0.5! text-[#121212]! bg-green-600 text-sm rounded hover:bg-green-500 transition">
-                          Send Offer
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                {req.thumbUrl && (
+                  <div className="mt-2">
+                    <strong>Reference:</strong>
+                    <img
+                      src={req.thumbUrl}
+                      alt="reference"
+                      className="w-full h-[200px] object-cover rounded mt-1"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
