@@ -62,6 +62,8 @@ export default function ClientDashboard() {
     size: "",
     preferredDateRange: ["", ""],
   });
+  const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -142,6 +144,8 @@ export default function ClientDashboard() {
       artistId: selectedArtist.id,
       clientId: client.id,
       ...modalData,
+      availableTime,
+      availableDays,
       status: "pending",
       createdAt: Timestamp.now(),
     });
@@ -153,6 +157,8 @@ export default function ClientDashboard() {
       size: "",
       preferredDateRange: ["", ""],
     });
+    setAvailableTime({ from: "", to: "" });
+    setAvailableDays([]);
     alert("Request sent!");
   };
 
@@ -199,7 +205,7 @@ export default function ClientDashboard() {
                 <p className="font-semibold text-sm">{artist.name}</p>
                 <p className="text-xs text-gray-400">{artist.studioName}</p>
                 <button
-                  className="mt-4 text-sm text-[#121212] bg-[#b6382d] px-4 py-2 rounded"
+                  className="mt-4 text-sm text-[#121212]! bg-[#b6382d] px-4 py-2 rounded"
                   onClick={() => handleOpenRequestModal(artist)}
                 >
                   Request a Tattoo
@@ -264,7 +270,11 @@ export default function ClientDashboard() {
 
       {/* Broadcast Request */}
       <section className="mb-20">
-        <h2 className="text-xl font-semibold mb-2">Make a Request</h2>
+        <h2 className="text-xl font-semibold">Make a Request</h2>
+        <p className="mb-2 text-sm">
+          This will broadcast your request to artists who match your preferred
+          styles.
+        </p>
         <textarea
           className="w-full h-28 p-3 rounded bg-neutral-900 border border-neutral-700 text-white"
           placeholder="Describe your tattoo idea here..."
@@ -279,7 +289,7 @@ export default function ClientDashboard() {
         </button>
       </section>
 
-      {/* Modal for artist-specific request */}
+      {/* Modal */}
       {isModalOpen && selectedArtist && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
           <div className="bg-neutral-900 p-6 rounded-md w-full max-w-md relative">
@@ -311,15 +321,21 @@ export default function ClientDashboard() {
                   setModalData({ ...modalData, bodyPlacement: e.target.value })
                 }
               />
-              <input
-                type="text"
-                placeholder="Size"
+              <label className="text-sm text-white mb-1 block">Size</label>
+              <select
+                required
                 className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
                 value={modalData.size}
                 onChange={(e) =>
                   setModalData({ ...modalData, size: e.target.value })
                 }
-              />
+              >
+                <option value="">Select size</option>
+                <option value="Small">Small (up to 3x3 inches)</option>
+                <option value="Medium">Medium (up to 6x6 inches)</option>
+                <option value="Large">Large (over 6x6 inches)</option>
+              </select>
+
               <div className="flex gap-2 mb-3">
                 <input
                   type="date"
@@ -350,9 +366,74 @@ export default function ClientDashboard() {
                   }
                 />
               </div>
+
+              {/* Time Availability */}
+              <label className="text-sm text-white mb-2 block">
+                Available Time Range
+              </label>
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="time"
+                  className="w-full p-2 rounded bg-neutral-800 text-white"
+                  value={availableTime.from}
+                  onChange={(e) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      from: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  type="time"
+                  className="w-full p-2 rounded bg-neutral-800 text-white"
+                  value={availableTime.to}
+                  onChange={(e) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      to: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              {/* Day Availability */}
+              <label className="text-sm text-white mb-2 block">
+                Available Days
+              </label>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                  "Sunday",
+                ].map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      availableDays.includes(day)
+                        ? "bg-[#b6382d] text-white"
+                        : "bg-neutral-700 text-white"
+                    }`}
+                    onClick={() =>
+                      setAvailableDays((prev) =>
+                        prev.includes(day)
+                          ? prev.filter((d) => d !== day)
+                          : [...prev, day]
+                      )
+                    }
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+
               <button
                 type="submit"
-                className="w-full py-2 bg-orange-500 hover:bg-orange-600 text-white rounded"
+                className="w-full py-2 bg-[#b6382d] text-white rounded"
               >
                 Submit
               </button>
