@@ -1,9 +1,17 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
 import logo from "../assets/satxlogo.svg";
+import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import { useEffect, useState } from "react";
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <nav
@@ -13,7 +21,7 @@ export const Navbar = () => {
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-25" src={logo} alt="" />
+          <img className="w-25" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop nav */}
@@ -27,41 +35,81 @@ export const Navbar = () => {
           <Link to="/about" className="text-white hover:text-orange-400">
             About
           </Link>
-          <Link
-            to="/artist-dashboard"
-            className="text-white hover:text-orange-400"
-          >
-            Artist Dashboard
-          </Link>
-          <Link
-            to="/client-dashboard"
-            className="text-white hover:text-orange-400"
-          >
-            Client Dashboard
-          </Link>
-          <Link
-            to="/signup/client"
-            className="text-white hover:text-orange-400"
-          >
-            Join as Client
-          </Link>
-          <Link
-            to="/signup"
-            className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
-            style={{
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-            }}
-            onMouseOver={(e) =>
-              (e.currentTarget.style.backgroundColor =
-                "var(--color-primary-hover)")
-            }
-            onMouseOut={(e) =>
-              (e.currentTarget.style.backgroundColor = "var(--color-primary)")
-            }
-          >
-            Join as Artist
-          </Link>
+
+          {user && (
+            <>
+              <Link
+                to="/artist-dashboard"
+                className="text-white hover:text-orange-400"
+              >
+                Artist Dashboard
+              </Link>
+              <Link
+                to="/client-dashboard"
+                className="text-white hover:text-orange-400"
+              >
+                Client Dashboard
+              </Link>
+              {user && (
+                <div className="relative group">
+                  <img
+                    src={user.photoURL || "/fallback-avatar.png"}
+                    alt="Avatar"
+                    className="w-8 h-8 rounded-full cursor-pointer"
+                  />
+                  <div className="absolute hidden group-hover:flex flex-col right-0 mt-2 w-40 bg-[#111] border border-[#333] rounded-md text-sm z-50">
+                    <Link
+                      to="/client-dashboard"
+                      className="px-4 py-2 hover:bg-[#222] text-white"
+                    >
+                      Dashboard
+                    </Link>
+                    <button
+                      onClick={signOutUser}
+                      className="text-left px-4 py-2 hover:bg-[#222] text-red-400"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {!user && (
+            <>
+              <Link
+                to="/signup/client"
+                className="text-white hover:text-orange-400"
+              >
+                Join as Client
+              </Link>
+              <button
+                onClick={signInWithGoogle}
+                className="text-white hover:text-orange-400"
+              >
+                Login
+              </button>
+              <Link
+                to="/signup"
+                className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
+                style={{
+                  backgroundColor: "var(--color-primary)",
+                  color: "white",
+                }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor =
+                    "var(--color-primary-hover)")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor =
+                    "var(--color-primary)")
+                }
+              >
+                Join as Artist
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile menu button */}
@@ -85,13 +133,51 @@ export const Navbar = () => {
           <Link to="/about" className="text-white hover:text-orange-400">
             About
           </Link>
-          <Link
-            to="/signup"
-            className="px-4 py-2 mt-2 rounded-md font-medium text-white text-center"
-            style={{ backgroundColor: "var(--color-primary)" }}
-          >
-            Join as Artist
-          </Link>
+
+          {user ? (
+            <>
+              <Link
+                to="/artist-dashboard"
+                className="text-white hover:text-orange-400"
+              >
+                Artist Dashboard
+              </Link>
+              <Link
+                to="/client-dashboard"
+                className="text-white hover:text-orange-400"
+              >
+                Client Dashboard
+              </Link>
+              <button
+                onClick={signOutUser}
+                className="text-left text-white hover:text-red-400"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/signup/client"
+                className="text-white hover:text-orange-400"
+              >
+                Join as Client
+              </Link>
+              <button
+                onClick={signInWithGoogle}
+                className="text-left text-white hover:text-orange-400"
+              >
+                Login
+              </button>
+              <Link
+                to="/signup"
+                className="px-4 py-2 mt-2 rounded-md font-medium text-white text-center"
+                style={{ backgroundColor: "var(--color-primary)" }}
+              >
+                Join as Artist
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>

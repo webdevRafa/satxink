@@ -44,13 +44,20 @@ type Booking = {
   location: string;
   status: string;
 };
+type Artist = {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  studioName: string;
+  isAvailable: boolean;
+};
 
 const ClientDashboard = () => {
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState<BookingOffer[]>([]);
   const [clientBookings, setClientBookings] = useState<Booking[]>([]);
-
+  const [likedArtistsData, setLikedArtistsData] = useState<Artist[]>([]);
   const handleAcceptOffer = async (offerId: string) => {
     try {
       const offerRef = doc(db, "bookingOffers", offerId);
@@ -99,11 +106,27 @@ const ClientDashboard = () => {
         console.log("Client doc exists?", clientSnap.exists());
 
         if (clientSnap.exists()) {
-          setClient(clientSnap.data() as Client);
-        } else {
-          console.warn("Client doc not found for UID:", uid);
-        }
+          const clientData = clientSnap.data() as Client;
+          setClient(clientData);
 
+          // ✅ Now this works fine inside the same block
+          const artistDocs: Artist[] = [];
+          for (const artistId of clientData.likedArtists) {
+            const artistRef = doc(db, "users", artistId);
+            const artistSnap = await getDoc(artistRef);
+            if (artistSnap.exists()) {
+              const data = artistSnap.data();
+              artistDocs.push({
+                id: artistId,
+                name: data.name,
+                avatarUrl: data.avatarUrl,
+                studioName: data.studioName,
+                isAvailable: data.isAvailable,
+              });
+            }
+          }
+          setLikedArtistsData(artistDocs);
+        }
         // Fetch offers
         const offersQuery = query(
           collection(db, "bookingOffers"),
@@ -151,7 +174,7 @@ const ClientDashboard = () => {
 
   return (
     <>
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-[1400px] mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Welcome, {client.name}</h1>
 
         <div className="flex items-start gap-6">
@@ -165,29 +188,55 @@ const ClientDashboard = () => {
 
             <div className="mt-4">
               <h2 className="font-bold">Preferred Styles:</h2>
-              <ul className="list-inside text-sm list-none flex">
+              <div className="flex flex-wrap gap-2 mt-2">
                 {client.preferredStyles.map((style, index) => (
-                  <li
-                    className="px-2.5! py-0! rounded-full border text-xs! font-medium! bg-[var(--color-bg-base)]"
+                  <span
                     key={index}
+                    className="px-2.5 py-0 rounded-full border text-xs font-medium transition-all text-white border-gray-500 bg-transparent"
                   >
                     {style}
-                  </li>
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
 
             <div className="mt-4">
               <h2 className="font-bold">Liked Artists:</h2>
-              <ul className="list-disc list-inside text-sm">
-                {client.likedArtists.length > 0 ? (
-                  client.likedArtists.map((id, index) => (
-                    <li key={index}>Artist ID: {id}</li>
-                  ))
-                ) : (
-                  <li>No liked artists yet.</li>
-                )}
-              </ul>
+              {likedArtistsData.length === 0 ? (
+                <p className="text-sm text-gray-400">No liked artists yet.</p>
+              ) : (
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                  {likedArtistsData.map((artist) => (
+                    <li
+                      key={artist.id}
+                      className="bg-zinc-800 p-4 rounded-lg flex items-center gap-4"
+                    >
+                      <img
+                        src={artist.avatarUrl}
+                        alt={artist.name}
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                      <div>
+                        <p className="text-white font-medium">{artist.name}</p>
+                        <p className="text-sm text-gray-400">
+                          {artist.studioName}
+                        </p>
+                        <p
+                          className={`text-xs mt-1 font-semibold ${
+                            artist.isAvailable
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {artist.isAvailable
+                            ? "Available for bookings"
+                            : "Currently booked"}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
