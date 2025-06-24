@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   collection,
+  doc,
   addDoc,
   getDocs,
   writeBatch,
@@ -100,6 +101,41 @@ const DevAddDocs = () => {
       setUploading(false);
     }
   };
+  const handleUploadWithManualIds = async () => {
+    if (!jsonData.length) return;
+    setUploading(true);
+    try {
+      const batch = writeBatch(db);
+      let skipped = 0;
+
+      for (const docData of jsonData) {
+        if (!docData.id) {
+          console.warn("Skipping doc without 'id':", docData);
+          skipped++;
+          continue;
+        }
+
+        const docRef = doc(db, collectionName, docData.id);
+        batch.set(docRef, {
+          ...docData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      setStatus(
+        `Successfully uploaded ${
+          jsonData.length - skipped
+        } docs with manual IDs to "${collectionName}". Skipped ${skipped}.`
+      );
+    } catch (err) {
+      console.error(err);
+      setStatus("Manual ID upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleAddAvatars = async () => {
     setAddingAvatars(true);
@@ -154,6 +190,7 @@ const DevAddDocs = () => {
     "bookingRequests",
     "bookingOffers",
     "reports",
+    "shops",
   ];
 
   if (!user)
@@ -202,7 +239,13 @@ const DevAddDocs = () => {
       >
         {addingAvatars ? "Adding Avatars..." : "Add Avatars to Users"}
       </button>
-
+      <button
+        className="bg-green-600 text-white px-4 py-2 rounded ml-3 hover:bg-green-700 mt-2 disabled:opacity-50"
+        onClick={handleUploadWithManualIds}
+        disabled={uploading || !jsonData.length}
+      >
+        {uploading ? "Uploading..." : "Push with Manual IDs"}
+      </button>
       {status && <p className="mt-4 text-sm text-gray-700">{status}</p>}
     </div>
   );

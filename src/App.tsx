@@ -27,6 +27,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ClientProfileSetupPage from "./pages/ClientProfileSetupPage";
 import DashboardRedirectPage from "./pages/DashboardRedirectPage";
+import ArtistSignupPage from "./pages/ArtistSignupPage";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -68,6 +69,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardRedirectPage />} />
 
         <Route path="/signup/client" element={<ClientSignupPage />} />
+        <Route path="/signup/artist" element={<ArtistSignupPage />} />
         <Route
           path="/client-profile-setup"
           element={<ClientProfileSetupPage />}

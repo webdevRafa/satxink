@@ -35,6 +35,12 @@ export const Navbar = () => {
           <Link to="/about" className="text-white hover:text-orange-400">
             About
           </Link>
+          <Link
+            to="/signup/artist"
+            className="text-white hover:text-orange-400"
+          >
+            Join as Artist
+          </Link>
 
           {user && (
             <>

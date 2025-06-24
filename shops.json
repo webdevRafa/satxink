@@ -1,0 +1,184 @@
+[
+    {
+        "id": "twisted-tattoo-san-antonio",
+        "name": "Twisted Tattoo",
+        "address": "1031 Patricia Dr, Suite 100, San Antonio, TX 78213",
+        "mapLink": "https://www.google.com/maps?q=1031+Patricia+Dr+Suite+100+San+Antonio+TX+78213"
+      },
+      {
+        "id": "firme-copias",
+        "name": "Firme Copias Tattoo Studio",
+        "address": "10520 Culebra Rd #1132, San Antonio, TX 78251",
+        "mapLink": "https://www.google.com/maps?q=10520+Culebra+Rd+%231132+San+Antonio+TX+78251"
+},
+      {
+        "id": "nite-owl-tattoo-studio",
+        "name": "Nite Owl Tattoo Studio",
+        "address": "7121 W US Hwy 90 Suite 230 & 1816 Fredericksburg Rd, San Antonio, TX",
+        "mapLink": "https://www.google.com/maps?q=7121+W+US+Hwy+90+Suite+230+San+Antonio+TX"
+      },
+      {
+        "id": "ink-and-iron-tattoos",
+        "name": "Ink & Iron Tattoos & Piercing",
+        "address": "8302 Waters Edge Dr, San Antonio, TX 78245",
+       "mapLink": "https://www.google.com/maps?q=8302+Waters+Edge+Dr+San+Antonio+TX+78245"
+      },
+      {
+        "id": "ink-couture-tattoos",
+        "name": "Ink Couture Tattoos",
+        "address": "15717 San Pedro Ave, San Antonio, TX 78232 (plus 3 other locations)",
+        "mapLink": "https://www.google.com/maps?q=15717+San+Pedro+Ave+San+Antonio+TX+78232"
+      },
+        {
+          "id": "final-touch-tattoo",
+          "name": "Final Touch Tattoo",
+          "address": "227 E Cevallos St, Suite 202, San Antonio, TX 78204",
+         "mapLink": "https://www.google.com/maps?q=227+E+Cevallos+St+San+Antonio+TX+78204"
+        },
+        {
+          "id": "hyper-inkers",
+          "name": "Hyper Inkers Tattoo Studio",
+          "address": "8045 Callaghan Rd, San Antonio, TX 78230",
+         "mapLink": "https://www.google.com/maps?q=8045+Callaghan+Rd+San+Antonio+TX+78230"
+        },
+        {
+          "id": "live-through-this-tattoos",
+          "name": "Live Through This Tattoos",
+          "address": "619 SW 24th St, Suite 101, San Antonio, TX 78207",
+         "mapLink": "https://www.google.com/maps?q=619+SW+24th+St+San+Antonio+TX+78207"
+        },
+        {
+          "id": "fortune-bros-tattoo",
+          "name": "Fortune Bros Tattoo Co.",
+          "address": "918 Oblate Dr, San Antonio, TX 78216",
+         "mapLink": "https://www.google.com/maps?q=918+Oblate+Dr+San+Antonio+TX+78216"
+        },
+        {
+          "id": "buddha-box-studios",
+          "name": "Buddha Box Studios",
+          "address": "5337 Glen Ridge Dr, Suite 109, San Antonio, TX 78229",
+         "mapLink": "https://www.google.com/maps?q=5337+Glen+Ridge+Dr+San+Antonio+TX+78229"
+        },
+        {
+            "id": "ink10city-tattoos",
+            "name": "Ink10City Tattoos",
+            "address": "7706 Bandera Rd, Ste 108, San Antonio, TX 78238",
+            "mapLink": "https://www.google.com/maps?q=7706+Bandera+Rd+Ste+108+San+Antonio+TX+78238"
+          },
+          {
+            "id": "colorblindminds-tattoo-studio",
+            "name": "Colorblindminds Tattoo Studio",
+            "address": "6330 DeZavala Rd, Suite 102, San Antonio, TX 78249",
+            "mapLink": "https://www.google.com/maps?q=6330+DeZavala+Rd+Suite+102+San+Antonio+TX+78249"
+          },
+          {
+            "id": "wicked-tattoos-piercing",
+            "name": "Wicked Tattoos & Piercing",
+            "address": "Stone Oak & Babcock Rd, San Antonio, TX",
+            "mapLink": "https://www.google.com/maps?q=Wicked+Tattoos+San+Antonio+TX"
+          },
+          {
+            "id": "dandyland-custom-tattoos",
+            "name": "Dandyland Custom Tattoos & Body Piercing",
+            "address": "1620 Fredericksburg Rd, San Antonio, TX 78201",
+            "mapLink": "https://www.google.com/maps?q=1620+Fredericksburg+Rd+San+Antonio+TX+78201"
+          },
+          {
+            "id": "platinum-tattoos-body-piercing",
+            "name": "Platinum Tattoos & Body Piercings",
+            "address": "5545 NW Loop 410, San Antonio, TX 78238",
+            "mapLink": "https://www.google.com/maps?q=5545+NW+Loop+410+San+Antonio+TX+78238"
+          },
+          {
+            "id": "soft-revolution-tattoo",
+            "name": "Soft Revolution Tattoo",
+            "address": "118 Broadway St, San Antonio, TX 78205",
+            "mapLink": "https://www.google.com/maps?q=118+Broadway+St+San+Antonio+TX+78205"
+          },
+          {
+            "id": "into-the-void-tattoos",
+            "name": "Into The Void Tattoos",
+            "address": "1016 S Presa St, San Antonio, TX 78210",
+            "mapLink": "https://www.google.com/maps?q=1016+S+Presa+St+San+Antonio+TX+78210"
+          },
+          {
+            "id": "inkline-tattoos",
+            "name": "Inkline Tattoos",
+            "address": "7325 N Loop 1604 W, Suite 104, San Antonio, TX 78249",
+            "mapLink": "https://www.google.com/maps?q=7325+N+Loop+1604+W+Suite+104+San+Antonio+TX+78249"
+          },
+          {
+            "id": "cursed-mark-tattoo-studio",
+            "name": "Cursed Mark Tattoo Studio",
+            "address": "8373 Culebra Rd, Suite 201B, San Antonio, TX 78251",
+            "mapLink": "https://www.google.com/maps?q=8373+Culebra+Rd+Suite+201B+San+Antonio+TX+78251"
+          },
+          {
+            "id": "doomsday-tattoo",
+            "name": "Doomsday Tattoo",
+            "address": "910 San Pedro Ave, San Antonio, TX 78212",
+            "mapLink": "https://www.google.com/maps?q=910+San+Pedro+Ave+San+Antonio+TX+78212"
+          },
+          {
+            "id": "element-tattoo-shop",
+            "name": "Element Tattoo Shop",
+            "address": "4741 Fredericksburg Rd, San Antonio, TX 78229",
+            "mapLink": "https://www.google.com/maps?q=4741+Fredericksburg+Rd+San+Antonio+TX+78229"
+          },
+          {
+            "id": "flesh-electric-tattoo",
+            "name": "Flesh Electric Tattoo",
+            "address": "2554 Blossom Dr, San Antonio, TX 78217",
+            "mapLink": "https://www.google.com/maps?q=2554+Blossom+Dr+San+Antonio+TX+78217"
+          },
+          {
+            "id": "prospect-parlor",
+            "name": "Prospect Parlor",
+            "address": "3218 Northwestern Dr, San Antonio, TX 78238",
+            "mapLink": "https://www.google.com/maps?q=3218+Northwestern+Dr+San+Antonio+TX+78238"
+          },
+          {
+            "id": "altar-tattoo-studio",
+            "name": "ALTAR Tattoo Studio",
+            "address": "14751 Old Bandera Rd #3101, Helotes, TX 78023",
+            "mapLink": "https://www.google.com/maps?q=14751+Old+Bandera+Rd+%233101+Helotes+TX+78023"
+          },
+          {
+            "id": "dynasty-tattoo-studio",
+            "name": "Dynasty Tattoo Studio",
+            "address": "6409 Northwest Loop 410, San Antonio, TX 78238",
+            "mapLink": "https://www.google.com/maps?q=6409+Northwest+Loop+410+San+Antonio+TX+78238"
+          },
+          {
+            "id": "inception-tattoos",
+            "name": "Inception Tattoos",
+            "address": "12244 Nacogdoches Rd, San Antonio, TX 78217",
+            "mapLink": "https://www.google.com/maps?q=12244+Nacogdoches+Rd+San+Antonio+TX+78217"
+          },
+          {
+            "id": "electric-panther-tattoo",
+            "name": "Electric Panther Tattoo",
+            "address": "2403 N St Mary's St, San Antonio, TX 78212",
+            "mapLink": "https://www.google.com/maps?q=2403+N+St+Mary's+St+San+Antonio+TX+78212"
+          },
+          {
+            "id": "nostalgic-ink-tattoo",
+            "name": "Nostalgic Ink Tattoo",
+            "address": "11549 Bandera Rd #104, San Antonio, TX 78250",
+            "mapLink": "https://www.google.com/maps?q=11549+Bandera+Rd+%23104+San+Antonio+TX+78250"
+          },
+          {
+            "id": "black-pearl-tattoo-studio",
+            "name": "Black Pearl Tattoo Studio",
+            "address": "2024 S WW White Rd, San Antonio, TX 78222",
+            "mapLink": "https://www.google.com/maps?q=2024+S+WW+White+Rd+San+Antonio+TX+78222"
+          },
+          {
+            "id": "revolucion-tattoo-studio",
+            "name": "Revolucion Tattoo Studio",
+            "address": "706 Fredericksburg Rd, San Antonio, TX 78201",
+            "mapLink": "https://www.google.com/maps?q=706+Fredericksburg+Rd+San+Antonio+TX+78201"
+          }
+
+]
+  
