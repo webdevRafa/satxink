@@ -33,20 +33,20 @@ export const Navbar = () => {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-6 text-sm">
-          <Link to="/artists" className="text-white hover:text-orange-400">
+          <Link
+            to="/artists"
+            className="text-neutral-300 hover:text-orange-400"
+          >
             Artists
           </Link>
-          <Link to="/client-posts" className="text-white hover:text-orange-400">
+          <Link
+            to="/client-posts"
+            className="text-neutral-300 hover:text-orange-400"
+          >
             Client Posts
           </Link>
-          <Link to="/about" className="text-white hover:text-orange-400">
+          <Link to="/about" className="text-neutral-300 hover:text-orange-400">
             About
-          </Link>
-          <Link
-            to="/signup/artist"
-            className="text-white hover:text-orange-400"
-          >
-            Join as Artist
           </Link>
 
           {user && (
@@ -64,35 +64,17 @@ export const Navbar = () => {
           {!user && (
             <>
               <Link
-                to="/signup/client"
-                className="text-white hover:text-orange-400"
+                to="/signup"
+                className="text-neutral-300 hover:text-orange-400"
               >
-                Join as Client
+                Signup
               </Link>
               <button
                 onClick={handleLogin}
-                className="text-white hover:text-orange-400"
+                className="text-white hover:text-orange-400 bg-[var(--color-bg-card)]"
               >
                 Login
               </button>
-              <Link
-                to="/signup/artist"
-                className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
-                style={{
-                  backgroundColor: "var(--color-primary)",
-                  color: "white",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    "var(--color-primary-hover)")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    "var(--color-primary)")
-                }
-              >
-                Join as Artist
-              </Link>
             </>
           )}
         </div>
