@@ -31,9 +31,8 @@ export const HeroSection = () => {
         </p>
         <div className="flex flex-col md:flex-row justify-center gap-4">
           <Link
-            data-aos="fade-right"
             to="/artists"
-            className="bg-[#b6382d] text-white px-6 py-3 rounded-md font-medium hover:bg-[#a53228] transition"
+            className="px-6 py-3 text-white! transition duration-300 hover:text-[#121212]! border-2 border-neutral-300 hover:bg-neutral-300 rounded"
           >
             Find an Artist
           </Link>

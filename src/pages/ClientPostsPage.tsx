@@ -29,7 +29,7 @@ const clientPosts = [
 
 export const ClientPostsPage = () => {
   return (
-    <main className="px-4 py-12 max-w-6xl mx-auto">
+    <main data-aos="fade-in" className="px-4 py-12 max-w-6xl mx-auto">
       <h1 className="text-3xl font-semibold text-white mb-2">
         Client Tattoo Requests
       </h1>

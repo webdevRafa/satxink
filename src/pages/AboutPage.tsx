@@ -2,11 +2,17 @@
 
 export const AboutPage = () => {
   return (
-    <main className="px-4 py-12 max-w-3xl mx-auto text-white h-[700px]">
-      <h1 className="text-3xl font-semibold mb-4">About SATXInk</h1>
+    <main
+      data-aos="fade-in"
+      className="px-4 py-12 max-w-3xl mx-auto text-white h-[700px] mt-20"
+    >
+      <h1 className="text-3xl font-semibold mb-4">
+        <span className="text-gray-300">about</span> SATX
+        <span className="text-[#b6382d]">INK</span>
+      </h1>
 
       <p className="text-gray-300 leading-relaxed mb-6">
-        SATXInk is a community-driven platform dedicated to connecting tattoo
+        SATXINK is a community-driven platform dedicated to connecting tattoo
         clients with the best artists in San Antonio, Texas. Whether you're
         looking to find the perfect artist for your next piece or you're a
         talented artist wanting to showcase your work, this is your home base.
@@ -23,7 +29,7 @@ export const AboutPage = () => {
         Want to join the scene?{" "}
         <a
           href="/signup"
-          className="text-orange-400 underline hover:text-orange-300"
+          className="text-white underline hover:text-orange-300"
         >
           Sign up as an artist
         </a>{" "}

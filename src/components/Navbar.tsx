@@ -4,19 +4,36 @@ import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { db } from "../firebase/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
+  const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
+
   const handleLogout = () => {
+    setIsOpen(false); // close mobile nav
     signOutUser(navigate); // 👈 pass navigate into the function
   };
   const handleLogin = () => {
+    setIsOpen(false); // close mobile nav first
     signInWithGoogle(navigate);
   };
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setUserRole(userSnap.data().role);
+        }
+      } else {
+        setUserRole(null);
+      }
+    });
     return () => unsubscribe();
   }, []);
 
@@ -39,16 +56,19 @@ export const Navbar = () => {
           >
             Artists
           </Link>
-          <Link
-            to="/client-posts"
-            className="text-neutral-300 hover:text-orange-400"
-          >
-            Client Posts
-          </Link>
+
           <Link to="/about" className="text-neutral-300 hover:text-orange-400">
             About
           </Link>
-
+          {/* Only visible if user is an artist */}
+          {userRole === "artist" && (
+            <Link
+              to="/client-posts"
+              className="text-neutral-300 hover:text-white transition duration-250 bg-[var(--color-bg-card)] p-3"
+            >
+              Client Posts
+            </Link>
+          )}
           {user && (
             <div className="relative group">
               <Link to="/dashboard">
@@ -65,6 +85,7 @@ export const Navbar = () => {
             <>
               <Link
                 to="/signup"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="text-neutral-300 hover:text-orange-400"
               >
                 Signup
@@ -91,30 +112,26 @@ export const Navbar = () => {
       {/* Mobile menu */}
       {isOpen && (
         <div className="mt-4 md:hidden flex flex-col gap-4 text-sm px-2 pb-4">
-          <Link to="/artists" className="text-white hover:text-orange-400">
-            Artists
-          </Link>
-          <Link to="/client-posts" className="text-white hover:text-orange-400">
-            Client Posts
-          </Link>
-          <Link to="/about" className="text-white hover:text-orange-400">
-            About
-          </Link>
-
           {user ? (
             <>
+              {userRole === "artist" && (
+                <Link
+                  to="/client-posts"
+                  onClick={() => setIsOpen(false)}
+                  className="text-white hover:text-orange-400"
+                >
+                  Client Posts
+                </Link>
+              )}
+
               <Link
-                to="/artist-dashboard"
+                to="/dashboard"
+                onClick={() => setIsOpen(false)}
                 className="text-white hover:text-orange-400"
               >
-                Artist Dashboard
+                Dashboard
               </Link>
-              <Link
-                to="/client-dashboard"
-                className="text-white hover:text-orange-400"
-              >
-                Client Dashboard
-              </Link>
+
               <button
                 onClick={handleLogout}
                 className="text-left text-white hover:text-red-400"
@@ -125,26 +142,41 @@ export const Navbar = () => {
           ) : (
             <>
               <Link
-                to="/signup/client"
+                to="/signup"
+                onClick={() => {
+                  setIsOpen(false);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
                 className="text-white hover:text-orange-400"
               >
-                Join as Client
+                Signup
               </Link>
+
               <button
-                onClick={handleLogin}
+                onClick={() => {
+                  setIsOpen(false);
+                  handleLogin();
+                }}
                 className="text-left text-white hover:text-orange-400"
               >
                 Login
               </button>
-              <Link
-                to="/signup"
-                className="px-4 py-2 mt-2 rounded-md font-medium text-white text-center"
-                style={{ backgroundColor: "var(--color-primary)" }}
-              >
-                Join as Artist
-              </Link>
             </>
           )}
+          <Link
+            to="/artists"
+            onClick={() => setIsOpen(false)}
+            className="text-white hover:text-orange-400"
+          >
+            Artists
+          </Link>
+          <Link
+            to="/about"
+            onClick={() => setIsOpen(false)}
+            className="text-white hover:text-orange-400"
+          >
+            About
+          </Link>
         </div>
       )}
     </nav>
