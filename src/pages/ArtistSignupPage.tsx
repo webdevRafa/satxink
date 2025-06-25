@@ -166,7 +166,10 @@ const ArtistSignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen text-white flex items-center justify-center px-4">
+    <div
+      data-aos="fade-in"
+      className="min-h-screen text-white flex items-center justify-center px-4"
+    >
       <div className="max-w-2xl w-full text-center">
         <h1 className="flex items-center justify-center flex-wrap text-4xl md:text-5xl font-bold mb-6 gap-2 text-center">
           <span>Join</span>

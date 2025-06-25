@@ -96,7 +96,7 @@ export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
   return (
     <button
       onClick={handleGoogleSignup}
-      className="bg-[#b6382d] text-white px-6 py-3 rounded-lg hover:bg-[#b6542d] transition"
+      className="border-3 border-neutral-400 hover:border-[#121212] text-white px-6 py-3 rounded-lg hover:bg-[#b6382d]"
     >
       Sign up with Google
     </button>
