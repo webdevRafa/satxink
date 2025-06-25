@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import ScrollToTop from "./helpers/ScrollToTop";
 
 // @ts-ignore
 import AOS from "aos";
@@ -57,6 +58,7 @@ function App() {
     <>
       <Navbar />
       <Toaster position="top-center" reverseOrder={false} />
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/clients" element={<Clients />} />

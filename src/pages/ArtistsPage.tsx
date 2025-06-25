@@ -163,7 +163,7 @@ export const ArtistsPage = () => {
 
       <div
         data-aos="fade-up"
-        className="sticky top-20 md:top-17 pt-0.5 z-10 bg-[var(--color-bg-base)]"
+        className="sticky top-20 md:top-20 pt-0.5 z-10 bg-[var(--color-bg-base)]"
       >
         <div className="flex flex-wrap gap-2 mb-6">
           {SPECIALTIES.map((tag) => (
