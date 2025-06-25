@@ -1,0 +1,29 @@
+[
+    {
+        "avatarUrl": "string",
+        "bio": "string",
+        "createdAt": "timestamp",
+        "displayName": "string",
+        "email": "string",
+        "featured": "boolean",
+        "isAvailable": "false",
+        "isVerified": "false",
+        "likedBy": ["array of strings"],
+        "location": "string",
+        "name": "string",
+        "phoneNumber": "string",
+        "portfolioUrls": ["array of strings"],
+        "profileComplete": "boolean",
+        "role": "string",
+        "shopId": "string",
+        "socialLinks": {
+            "facebook": "string",
+            "instagram": "string",
+            "website": "string"
+        },
+        "specialties": ["array of strings"],
+        "studioName": "string",
+        "uid": "string",
+        "updatedAt": "string"
+    }
+]

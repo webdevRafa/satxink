@@ -4,7 +4,15 @@ import logo from "../assets/logo.svg";
 import type { User } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
+
+import {
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
 
 type Shop = {
   id: string;
@@ -35,6 +43,8 @@ const ArtistSignupPage = () => {
   const [formVisible, setFormVisible] = useState(false);
   const [shops, setShops] = useState<Shop[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -107,6 +117,7 @@ const ArtistSignupPage = () => {
     ) {
       alert("One or more of your social links are not valid URLs.");
       setSubmitting(false);
+
       return;
     }
 
@@ -134,9 +145,21 @@ const ArtistSignupPage = () => {
       createdAt: Timestamp.now(),
     };
 
-    await addDoc(collection(db, "users"), newArtist);
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        ...newArtist,
+        location: "", // optional
+        studioName: shops.find((shop) => shop.id === shopId)?.name || "",
+        portfolioUrls: [],
+        likedBy: [],
+        updatedAt: Timestamp.now(),
+        profileComplete: true,
+      },
+      { merge: true }
+    );
     setSubmitting(false);
-    alert("Your profile has been submitted! We'll review and verify soon.");
+    navigate("/artist-dashboard");
   };
 
   return (
@@ -158,7 +181,7 @@ const ArtistSignupPage = () => {
               Create your artist profile, showcase your portfolio, and connect
               with local clients.
             </p>
-            <GoogleSignupButton />
+            <GoogleSignupButton role="artist" />
             <p className="text-sm text-zinc-500 mt-4">
               We’ll use your Google info to create your account. You can
               complete your profile afterward.

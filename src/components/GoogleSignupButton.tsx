@@ -1,4 +1,4 @@
-// components/GoogleSignupButton.tsx
+// GoogleSignupButton.tsx
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import {
   getFirestore,
@@ -8,56 +8,86 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import { app } from "../firebase/firebaseConfig"; // adjust path as needed
+import { app } from "../firebase/firebaseConfig";
+
+type GoogleSignupButtonProps = {
+  role: "client" | "artist";
+};
 
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-export const GoogleSignupButton = () => {
+export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
   const navigate = useNavigate();
 
   const handleGoogleSignup = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        const clientData = {
-          role: "client",
+        const baseData = {
+          role,
           name: user.displayName || "",
           email: user.email || "",
           avatarUrl: user.photoURL || "",
-          bio: "",
-          location: "",
           createdAt: serverTimestamp(),
-          likedArtists: [],
-          savedPosts: [],
-          messages: [],
-          requestHistory: [],
-          uploadGallery: [],
           phoneNumber: user.phoneNumber || "",
-          profileComplete: false,
         };
 
-        await setDoc(userRef, clientData);
-        console.log("Client profile created!");
-        navigate("/client-profile-setup");
+        if (role === "client") {
+          await setDoc(userRef, {
+            ...baseData,
+            bio: "",
+            location: "",
+            likedArtists: [],
+            savedPosts: [],
+            messages: [],
+            requestHistory: [],
+            uploadGallery: [],
+            profileComplete: false,
+          });
+          navigate("/client-profile-setup");
+        } else if (role === "artist") {
+          // We let the ArtistSignupPage finish creating full profile
+          await setDoc(userRef, {
+            avatarUrl: user.photoURL || "",
+            bio: "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            displayName: user.displayName || "",
+            email: user.email || "",
+            featured: false,
+            isVerified: false,
+            phoneNumber: user.phoneNumber || "",
+            portfolioUrls: [],
+            profileComplete: false,
+            role: "artist",
+            shopId: "",
+            socialLinks: {
+              instagram: "",
+              facebook: "",
+              website: "",
+            },
+            specialties: [],
+            likedBy: [],
+          });
+
+          // no redirect, the form will appear on the ArtistSignupPage
+        }
       } else {
         const data = userSnap.data();
         const isComplete = data?.profileComplete ?? false;
 
-        if (!isComplete) {
-          navigate("/client-profile-setup");
+        if (role === "client") {
+          navigate(isComplete ? "/dashboard" : "/client-profile-setup");
         } else {
-          navigate("/dashboard");
+          // For artist, just remain on the page — ArtistSignupPage will render the form based on auth state
         }
       }
-
-      // redirect or show success
     } catch (error) {
       console.error("Google signup failed:", error);
     }

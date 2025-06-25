@@ -20,7 +20,7 @@ const ClientSignupPage = () => {
           ideas, message artists, and explore styles.
         </p>
 
-        <GoogleSignupButton />
+        <GoogleSignupButton role="client" />
 
         <p className="text-sm text-zinc-500 mt-4">
           We’ll use your Google info to create your account. You can complete

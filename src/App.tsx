@@ -15,7 +15,6 @@ import { HomePage } from "./pages/HomePage";
 import { ArtistsPage } from "./pages/ArtistsPage";
 import { ClientPostsPage } from "./pages/ClientPostsPage";
 import { AboutPage } from "./pages/AboutPage";
-import { SignupPage } from "./pages/SignupPage";
 import DevAddDocs from "./pages/DevAddDocs";
 import LoginPage from "./pages/LoginPage";
 import { ArtistProfilePage } from "./pages/ArtistProfilePage";
@@ -63,7 +62,6 @@ function App() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/artist-dashboard" element={<ArtistDashboard />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
-        <Route path="/signup" element={<SignupPage />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />
         <Route path="/dashboard" element={<DashboardRedirectPage />} />

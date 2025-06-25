@@ -85,7 +85,7 @@ export const Navbar = () => {
                 Login
               </button>
               <Link
-                to="/signup"
+                to="/signup/artist"
                 className="ml-4 px-5 py-2 rounded-md font-medium transition text-sm"
                 style={{
                   backgroundColor: "var(--color-primary)",

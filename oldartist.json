@@ -1,0 +1,24 @@
+[
+    {
+        "avatarUrl": "string",
+        "bio": "string",
+        "createdAt": "timestamp",
+        "email": "string",
+        "featured": "boolean",
+        "isAvailable": "boolean",
+        "likedBy": ["array of strings"],
+        "location": "string",
+        "name": "string",
+        "portfolioUrls": [],
+        "role": "artist",
+        "socialLinks": {
+            "facebook": "string",
+            "instagram": "string",
+            "website": "string"
+        },
+        "specialties": [],
+        "studioName": "",
+        "updatedAt": "timestamp"
+
+    }
+]

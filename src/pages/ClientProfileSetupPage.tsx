@@ -111,7 +111,7 @@ const ClientProfileSetupPage = () => {
                 onClick={() => toggleStyle(style)}
                 className={`px-4 py-2 rounded-full border transition ${
                   preferredStyles.includes(style)
-                    ? "bg-[#b6382d] border-[#b6382d] text-white"
+                    ? "bg-neutral-300  text-[#121212]"
                     : "bg-zinc-800 border-zinc-600 text-zinc-300"
                 }`}
               >
