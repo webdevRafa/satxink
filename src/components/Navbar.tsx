@@ -3,11 +3,18 @@ import logo from "../assets/satxlogo.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export const Navbar = () => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
-
+  const handleLogout = () => {
+    signOutUser(navigate); // 👈 pass navigate into the function
+  };
+  const handleLogin = () => {
+    signInWithGoogle(navigate);
+  };
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
@@ -43,31 +50,15 @@ export const Navbar = () => {
           </Link>
 
           {user && (
-            <>
-              <Link
-                to="/artist-dashboard"
-                className="text-white hover:text-orange-400"
-              >
-                Artist Dashboard
+            <div className="relative group">
+              <Link to="/dashboard">
+                <img
+                  src={user?.photoURL || "/fallback-avatar.jpg"}
+                  alt="User Avatar"
+                  className="w-10 h-10 rounded-full cursor-pointer"
+                />
               </Link>
-              <Link
-                to="/client-dashboard"
-                className="text-white hover:text-orange-400"
-              >
-                Client Dashboard
-              </Link>
-              {user && (
-                <div className="relative group">
-                  <Link to="/client-dashboard">
-                    <img
-                      src={user?.photoURL || "/fallback-avatar.jpg"}
-                      alt="User Avatar"
-                      className="w-10 h-10 rounded-full cursor-pointer"
-                    />
-                  </Link>
-                </div>
-              )}
-            </>
+            </div>
           )}
 
           {!user && (
@@ -79,7 +70,7 @@ export const Navbar = () => {
                 Join as Client
               </Link>
               <button
-                onClick={signInWithGoogle}
+                onClick={handleLogin}
                 className="text-white hover:text-orange-400"
               >
                 Login
@@ -143,7 +134,7 @@ export const Navbar = () => {
                 Client Dashboard
               </Link>
               <button
-                onClick={signOutUser}
+                onClick={handleLogout}
                 className="text-left text-white hover:text-red-400"
               >
                 Logout
@@ -158,7 +149,7 @@ export const Navbar = () => {
                 Join as Client
               </Link>
               <button
-                onClick={signInWithGoogle}
+                onClick={handleLogin}
                 className="text-left text-white hover:text-orange-400"
               >
                 Login

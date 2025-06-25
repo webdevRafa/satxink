@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { useNavigate } from "react-router-dom";
+import Spinner from "../components/ui/Spinner";
 
 const DashboardRedirectPage = () => {
   const navigate = useNavigate();
@@ -33,8 +34,8 @@ const DashboardRedirectPage = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen text-white flex items-center justify-center">
-      Redirecting to your dashboard...
+    <div className="min-h-screen flex items-center justify-center">
+      <Spinner /> {/* your own Spinner component */}
     </div>
   );
 };

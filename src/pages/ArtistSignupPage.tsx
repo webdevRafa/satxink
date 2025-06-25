@@ -11,7 +11,7 @@ import {
   getDocs,
   doc,
   setDoc,
-  Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 
 type Shop = {
@@ -126,8 +126,6 @@ const ArtistSignupPage = () => {
     ).map((el) => (el as HTMLInputElement).value);
 
     const newArtist = {
-      uid: user.uid,
-      email: user.email,
       displayName,
       bio,
       shopId,
@@ -138,28 +136,33 @@ const ArtistSignupPage = () => {
         website,
       },
       avatarUrl: user.photoURL || "",
-      isAvailable: false,
-      isVerified: false,
+      email: user.email || "",
       featured: false,
+      isVerified: false,
       role: "artist",
-      createdAt: Timestamp.now(),
+      createdAt: serverTimestamp(),
     };
 
-    await setDoc(
-      doc(db, "users", user.uid),
-      {
-        ...newArtist,
-        location: "", // optional
-        studioName: shops.find((shop) => shop.id === shopId)?.name || "",
-        portfolioUrls: [],
-        likedBy: [],
-        updatedAt: Timestamp.now(),
-        profileComplete: true,
-      },
-      { merge: true }
-    );
-    setSubmitting(false);
-    navigate("/artist-dashboard");
+    try {
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          ...newArtist,
+          portfolioUrls: [],
+          likedBy: [],
+          updatedAt: serverTimestamp(),
+          profileComplete: true,
+        },
+        { merge: true }
+      );
+
+      setSubmitting(false);
+      navigate("/artist-dashboard");
+    } catch (err) {
+      console.error("Artist profile submission failed:", err);
+      alert("Something went wrong. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   return (

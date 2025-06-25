@@ -1,4 +1,3 @@
-// src/pages/ArtistDashboard.tsx
 import { useEffect, useState } from "react";
 import {
   doc,
@@ -8,26 +7,27 @@ import {
   where,
   getDocs,
 } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig"; // adjust path as needed
-import Spinner from "../components/ui/Spinner"; // optional loading spinner
+import { db, auth } from "../firebase/firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+import Spinner from "../components/ui/Spinner";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import { SiWebmoney } from "react-icons/si";
+import { useNavigate } from "react-router-dom"; // ✅ At the top of the file
 
 type Artist = {
-  name: string;
+  displayName: string;
   email: string;
   bio: string;
   avatarUrl: string;
   specialties: string[];
-  studioName: string;
-  location: string;
   socialLinks?: {
     instagram?: string;
     website?: string;
     facebook?: string;
   };
 };
+
 type BookingRequest = {
   id: string;
   clientId: string;
@@ -40,48 +40,52 @@ type BookingRequest = {
   fullUrl: string;
   thumbUrl: string;
 };
+
 const ArtistDashboard = () => {
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchArtist = async () => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setArtist(null); // clear the artist
+        setRequests([]); // clear requests
+        setLoading(false); // stop spinner
+        navigate("/"); // ✅ Redirect to homepage on sign out
+        return;
+      }
+
       try {
-        const artistRef = doc(db, "users", "c2wHd6HlCIulOTjycyxl");
+        const artistRef = doc(db, "users", user.uid);
         const artistSnap = await getDoc(artistRef);
 
         if (artistSnap.exists()) {
           setArtist(artistSnap.data() as Artist);
+
+          const q = query(
+            collection(db, "bookingRequests"),
+            where("artistId", "==", user.uid)
+          );
+          const querySnapshot = await getDocs(q);
+          const result: BookingRequest[] = [];
+          querySnapshot.forEach((doc) => {
+            result.push({ id: doc.id, ...doc.data() } as BookingRequest);
+          });
+          setRequests(result);
         } else {
-          console.error("Artist not found.");
+          setArtist(null); // handle missing artist
+          setRequests([]);
         }
       } catch (error) {
-        console.error("Error fetching artist:", error);
+        console.error("Error loading artist dashboard:", error);
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    fetchArtist();
-    const fetchRequests = async () => {
-      try {
-        const q = query(
-          collection(db, "bookingRequests"),
-          where("artistId", "==", "c2wHd6HlCIulOTjycyxl")
-        );
-        const querySnapshot = await getDocs(q);
-        const result: BookingRequest[] = [];
-        querySnapshot.forEach((doc) => {
-          result.push({ id: doc.id, ...doc.data() } as BookingRequest);
-        });
-        setRequests(result);
-      } catch (error) {
-        console.error("Error fetching booking requests:", error);
-      }
-    };
-
-    fetchRequests();
+    return () => unsubscribe(); // cleanup
   }, []);
 
   if (loading)
@@ -93,8 +97,11 @@ const ArtistDashboard = () => {
 
   if (!artist)
     return (
-      <div className="text-center mt-10 text-red-500">Artist not found.</div>
+      <div className="text-center mt-10 text-red-500">
+        Artist not found or not signed in.
+      </div>
     );
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString("en-US", {
@@ -107,18 +114,18 @@ const ArtistDashboard = () => {
   return (
     <>
       <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Welcome, {artist.name}</h1>
+        <h1 className="text-2xl font-bold mb-4">
+          Welcome, {artist.displayName}
+        </h1>
 
         <div className="flex items-start gap-6">
           <img
             src={artist.avatarUrl}
-            alt={artist.name}
+            alt={artist.displayName}
             className="w-32 h-32 object-cover rounded-full"
           />
           <div>
-            <p className="font-semibold text-lg">{artist.studioName}</p>
-            <p>{artist.bio}</p>
-            <p className="text-sm text-gray-500 mt-2">{artist.location}</p>
+            <p className="font-semibold text-lg">{artist.bio}</p>
             <div className="mt-2 space-x-3 flex">
               {artist.socialLinks?.facebook && (
                 <a
@@ -135,7 +142,7 @@ const ArtistDashboard = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <RiInstagramFill className="text-xl hover:text-blue-500 transition" />
+                  <RiInstagramFill className="text-xl hover:text-pink-500 transition" />
                 </a>
               )}
               {artist.socialLinks?.website && (
@@ -144,10 +151,11 @@ const ArtistDashboard = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <SiWebmoney className="text-xl hover:text-blue-500 transition" />
+                  <SiWebmoney className="text-xl hover:text-green-500 transition" />
                 </a>
               )}
             </div>
+
             <div className="mt-4">
               <h2 className="font-bold">Specialties:</h2>
               <ul className="list-disc list-inside text-sm">
@@ -159,6 +167,7 @@ const ArtistDashboard = () => {
           </div>
         </div>
       </div>
+
       <div className="mt-10 w-full mx-auto max-w-[1400px] pb-40">
         <h2 className="text-xl font-bold mb-4 text-center md:text-left">
           Booking Requests
@@ -169,7 +178,7 @@ const ArtistDashboard = () => {
         ) : (
           <div
             data-aos="fade-up"
-            className="space-y-4 flex justify-center md:justify-start"
+            className="space-y-4 flex flex-wrap gap-4 justify-center md:justify-start"
           >
             {requests.map((req) => (
               <div
