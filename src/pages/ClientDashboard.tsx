@@ -58,6 +58,7 @@ export default function ClientDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requestText, setRequestText] = useState("");
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [step, setStep] = useState(1);
 
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -322,209 +323,248 @@ export default function ClientDashboard() {
       </section>
 
       {isModalOpen && selectedArtist && (
-        <div
-          data-aos="slide-up"
-          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 transition-opacity duration-300 px-0 md:px-4"
-        >
-          <div
-            className={`w-full max-w-[1400px] mx-auto h-auto bg-[#121212]/80 text-white rounded-lg p-6 shadow-lg transform transition-transform duration-300 ease-in-out
-      ${
-        isModalOpen ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
-      }`}
-          >
-            {/* Close Button */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 transition-opacity duration-300 px-4">
+          <div className="w-full max-w-[800px] max-h-[90vh] overflow-y-auto bg-[#121212]/80 text-white rounded-lg p-6 shadow-lg relative">
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setStep(1);
+              }}
               className="absolute top-6 right-6 text-white text-xl"
             >
               <X />
             </button>
 
-            <h2 className="text-2xl font-bold mb-6">
-              Request a Tattoo from {selectedArtist.name}
-            </h2>
+            {step === 1 && (
+              <h2 className="text-2xl font-bold mb-6 text-neutral-400!">
+                Tell <span className="text-white!">{selectedArtist.name}</span>{" "}
+                what you need
+              </h2>
+            )}
+            {step === 2 && (
+              <h2 className="text-2xl font-bold mb-6">
+                What's your availability?
+              </h2>
+            )}
 
-            <form
-              onSubmit={handleModalSubmit}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
-            >
-              {/* LEFT COLUMN */}
-              <div>
-                <textarea
-                  required
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                  placeholder="Describe your tattoo..."
-                  value={modalData.description}
-                  onChange={(e) =>
-                    setModalData({ ...modalData, description: e.target.value })
-                  }
-                />
-                <input
-                  type="text"
-                  placeholder="Body Placement"
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                  value={modalData.bodyPlacement}
-                  onChange={(e) =>
-                    setModalData({
-                      ...modalData,
-                      bodyPlacement: e.target.value,
-                    })
-                  }
-                />
-                <label className="text-sm text-white mb-1 block">Size</label>
-                <select
-                  required
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                  value={modalData.size}
-                  onChange={(e) =>
-                    setModalData({ ...modalData, size: e.target.value })
-                  }
-                >
-                  <option value="">Select size</option>
-                  <option value="Small">Small (up to 3x3 inches)</option>
-                  <option value="Medium">Medium (up to 6x6 inches)</option>
-                  <option value="Large">Large (over 6x6 inches)</option>
-                </select>
-
-                {/* Reference Upload */}
-                <label className="block text-sm font-medium text-white mb-2">
-                  Reference Image (optional)
-                </label>
-                <div className="relative mb-4">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setReferenceImage(file);
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+            {step === 1 && (
+              <div
+                data-aos="fade-in"
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {/* LEFT COLUMN: Tattoo Details */}
+                <div>
+                  <textarea
+                    required
+                    className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
+                    placeholder="Describe your tattoo..."
+                    value={modalData.description}
+                    onChange={(e) =>
+                      setModalData({
+                        ...modalData,
+                        description: e.target.value,
+                      })
+                    }
                   />
-                  <div className="bg-neutral-700 text-white text-sm px-4 py-2 rounded-full font-semibold text-center hover:bg-neutral-300 hover:text-[#121212]">
-                    Upload Reference
+                  <input
+                    type="text"
+                    placeholder="Body Placement"
+                    className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
+                    value={modalData.bodyPlacement}
+                    onChange={(e) =>
+                      setModalData({
+                        ...modalData,
+                        bodyPlacement: e.target.value,
+                      })
+                    }
+                  />
+                  <label className="text-sm text-white mb-1 block">Size</label>
+                  <select
+                    required
+                    className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
+                    value={modalData.size}
+                    onChange={(e) =>
+                      setModalData({ ...modalData, size: e.target.value })
+                    }
+                  >
+                    <option value="">Select size</option>
+                    <option value="Small">Small (up to 3x3 inches)</option>
+                    <option value="Medium">Medium (up to 6x6 inches)</option>
+                    <option value="Large">Large (over 6x6 inches)</option>
+                  </select>
+                </div>
+
+                {/* RIGHT COLUMN: Reference Upload + Preview + Next Button */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Reference Image (optional)
+                    </label>
+                    <div className="relative mb-4">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setReferenceImage(file);
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                      />
+                      <div className="bg-neutral-300 text-[#121212] text-sm px-4 py-2 rounded-full font-semibold text-center">
+                        Upload reference
+                      </div>
+                    </div>
+
+                    {referenceImage && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-300 mb-1">Preview:</p>
+                        <img
+                          src={URL.createObjectURL(referenceImage)}
+                          alt="Preview"
+                          className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end mt-auto">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="px-6 py-2 bg-white text-[#121212] rounded"
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
-                {referenceImage && (
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-300 mb-1">Preview:</p>
-                    <img
-                      src={URL.createObjectURL(referenceImage)}
-                      alt="Preview"
-                      className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
+              </div>
+            )}
+
+            {step === 2 && (
+              <form
+                data-aos="fade-in"
+                onSubmit={handleModalSubmit}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {/* LEFT: Availability */}
+                <div>
+                  <label className="text-sm text-white mb-1 block">
+                    Date Range
+                  </label>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="date"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                      value={modalData.preferredDateRange[0]}
+                      onChange={(e) =>
+                        setModalData({
+                          ...modalData,
+                          preferredDateRange: [
+                            e.target.value,
+                            modalData.preferredDateRange[1],
+                          ],
+                        })
+                      }
+                    />
+                    <input
+                      type="date"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                      value={modalData.preferredDateRange[1]}
+                      onChange={(e) =>
+                        setModalData({
+                          ...modalData,
+                          preferredDateRange: [
+                            modalData.preferredDateRange[0],
+                            e.target.value,
+                          ],
+                        })
+                      }
                     />
                   </div>
-                )}
-              </div>
 
-              {/* RIGHT COLUMN */}
-              <div>
-                <label className="text-sm text-white mb-1 block">
-                  Date Range
-                </label>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="date"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                    value={modalData.preferredDateRange[0]}
-                    onChange={(e) =>
-                      setModalData({
-                        ...modalData,
-                        preferredDateRange: [
-                          e.target.value,
-                          modalData.preferredDateRange[1],
-                        ],
-                      })
-                    }
-                  />
-                  <input
-                    type="date"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                    value={modalData.preferredDateRange[1]}
-                    onChange={(e) =>
-                      setModalData({
-                        ...modalData,
-                        preferredDateRange: [
-                          modalData.preferredDateRange[0],
-                          e.target.value,
-                        ],
-                      })
-                    }
-                  />
-                </div>
-
-                <label className="text-sm text-white mb-2 block">
-                  Time Range
-                </label>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="time"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                    value={availableTime.from}
-                    onChange={(e) =>
-                      setAvailableTime((prev) => ({
-                        ...prev,
-                        from: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    type="time"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                    value={availableTime.to}
-                    onChange={(e) =>
-                      setAvailableTime((prev) => ({
-                        ...prev,
-                        to: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <label className="text-sm text-white mb-2 block">
-                  Available Days
-                </label>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {[
-                    "Monday",
-                    "Tuesday",
-                    "Wednesday",
-                    "Thursday",
-                    "Friday",
-                    "Saturday",
-                    "Sunday",
-                  ].map((day) => (
-                    <button
-                      key={day}
-                      type="button"
-                      className={`px-3 py-1 rounded-full text-sm ${
-                        availableDays.includes(day)
-                          ? "bg-neutral-300 text-[#121212]!"
-                          : "bg-neutral-700 text-white"
-                      }`}
-                      onClick={() =>
-                        setAvailableDays((prev) =>
-                          prev.includes(day)
-                            ? prev.filter((d) => d !== day)
-                            : [...prev, day]
-                        )
+                  <label className="text-sm text-white mb-2 block">
+                    Time Range
+                  </label>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="time"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                      value={availableTime.from}
+                      onChange={(e) =>
+                        setAvailableTime((prev) => ({
+                          ...prev,
+                          from: e.target.value,
+                        }))
                       }
-                    >
-                      {day}
-                    </button>
-                  ))}
+                    />
+                    <input
+                      type="time"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                      value={availableTime.to}
+                      onChange={(e) =>
+                        setAvailableTime((prev) => ({
+                          ...prev,
+                          to: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* SUBMIT BUTTON (Spans Both Columns) */}
-              <div className="col-span-1 md:col-span-2">
-                <button
-                  type="submit"
-                  className="max-w-[300px] mx-auto block py-2 bg-[#b6382d] text-white rounded"
-                >
-                  Submit
-                </button>
-              </div>
-            </form>
+                {/* RIGHT: Available Days + Buttons */}
+                <div>
+                  <label className="text-sm text-white mb-2 block">
+                    Available Days
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {[
+                      "Monday",
+                      "Tuesday",
+                      "Wednesday",
+                      "Thursday",
+                      "Friday",
+                      "Saturday",
+                      "Sunday",
+                    ].map((day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={`px-3 py-1 rounded-full text-sm ${
+                          availableDays.includes(day)
+                            ? "bg-neutral-300 text-[#121212]!"
+                            : "bg-neutral-700 text-white"
+                        }`}
+                        onClick={() =>
+                          setAvailableDays((prev) =>
+                            prev.includes(day)
+                              ? prev.filter((d) => d !== day)
+                              : [...prev, day]
+                          )
+                        }
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Back & Submit */}
+                  <div className="flex justify-between gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="w-full py-2 border border-white rounded"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-[#b6382d] text-white rounded"
+                    >
+                      Submit
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
