@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { LogOut, Home, Users, Info } from "lucide-react";
+import { LogOut, Home, Users, Info, Menu } from "lucide-react";
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -102,7 +102,7 @@ export const Navbar = () => {
           className="md:hidden text-white focus:outline-none"
           onClick={() => setIsOpen(true)}
         >
-          ☰
+          <Menu />
         </button>
       </div>
 
