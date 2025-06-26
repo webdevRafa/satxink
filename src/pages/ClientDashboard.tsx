@@ -330,13 +330,13 @@ export default function ClientDashboard() {
                 setIsModalOpen(false);
                 setStep(1);
               }}
-              className="absolute top-6 right-6 text-white text-xl"
+              className="absolute top-0 right-0 text-white text-xl"
             >
               <X />
             </button>
 
             {step === 1 && (
-              <h2 className="text-2xl font-bold mb-6 text-neutral-400!">
+              <h2 className="text-2xl font-bold mb-6 text-neutral-400! mt-3">
                 Tell <span className="text-white!">{selectedArtist.name}</span>{" "}
                 what you need
               </h2>
@@ -410,7 +410,7 @@ export default function ClientDashboard() {
                         }}
                         className="absolute inset-0 opacity-0 cursor-pointer z-10"
                       />
-                      <div className="bg-neutral-300 text-[#121212] text-sm px-4 py-2 rounded-full font-semibold text-center">
+                      <div className="px-6 py-2 text-white border-2 border-neutral-500 hover:bg-neutral-300 rounded max-w-[200px]">
                         Upload reference
                       </div>
                     </div>
@@ -430,7 +430,7 @@ export default function ClientDashboard() {
                   <div className="flex justify-end mt-auto">
                     <button
                       onClick={() => setStep(2)}
-                      className="px-6 py-2 bg-white text-[#121212] rounded"
+                      className="px-6 py-2 text-white border-2 border-neutral-500 hover:bg-neutral-300 hover:text-[#121212] hover:border-white rounded transition duration-300! ease-in-out"
                     >
                       Next
                     </button>
