@@ -16,7 +16,6 @@ import { serverTimestamp } from "firebase/firestore";
 import { auth } from "../firebase/auth";
 import { toast, Toaster } from "react-hot-toast";
 
-import bgImg from "../assets/images/darkblurhero.webp";
 interface Artist {
   id: string;
   name: string;
