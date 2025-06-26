@@ -1,3 +1,5 @@
+import { Heart } from "lucide-react";
+
 // src/components/ArtistCard.tsx
 interface SocialLinks {
   facebook?: string;
@@ -21,10 +23,6 @@ const ArtistCard = ({
 }: ArtistCardProps) => {
   return (
     <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative ">
-      {/* Like Badge */}
-      <div className="absolute top-2  right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/70 px-2 py-0.5 rounded-full text-xs text-white">
-        ❤️ {likedBy?.length || 0}
-      </div>
       <img
         src={avatarUrl || "/fallback.jpg"}
         alt={name}
