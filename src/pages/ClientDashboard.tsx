@@ -15,6 +15,7 @@ import { serverTimestamp } from "firebase/firestore";
 
 import { auth } from "../firebase/auth";
 import { toast, Toaster } from "react-hot-toast";
+import { X } from "lucide-react";
 
 interface Artist {
   id: string;
@@ -335,11 +336,11 @@ export default function ClientDashboard() {
             >
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute top-2 right-3 text-white text-lg"
+                className="absolute top-0 right-3 text-white text-lg"
               >
-                &times;
+                <X />
               </button>
-              <h2 className="text-xl font-bold mb-4 text-white">
+              <h2 className="text-xl font-bold  text-white">
                 Request a Tattoo from {selectedArtist.name}
               </h2>
               <form onSubmit={handleModalSubmit}>
