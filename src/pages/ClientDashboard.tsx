@@ -321,32 +321,38 @@ export default function ClientDashboard() {
         </button>
       </section>
 
-      {/* Modal */}
       {isModalOpen && selectedArtist && (
         <div
-          data-aos="slide-left"
-          className="fixed inset-0 z-50 overflow-y-auto bg-[#121212]/20 bg-opacity-50 pb-20"
+          data-aos="slide-up"
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 transition-opacity duration-300 px-0 md:px-4"
         >
           <div
-            className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 backdrop-blur-sm bg-[#121212]/50`}
+            className={`w-full max-w-[1400px] mx-auto h-auto bg-[#121212]/80 text-white rounded-lg p-6 shadow-lg transform transition-transform duration-300 ease-in-out
+      ${
+        isModalOpen ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+      }`}
           >
-            <div
-              className={`w-full sm:max-w-md h-full bg-[#121212]/30 backdrop-blur-md border-l border-white/10 p-6 overflow-y-auto transform transition-transform duration-300 ease-in-out
-      ${isModalOpen ? "translate-x-0" : "translate-x-full"}`}
+            {/* Close Button */}
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-6 right-6 text-white text-xl"
             >
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="absolute top-0 right-3 text-white text-lg"
-              >
-                <X />
-              </button>
-              <h2 className="text-xl font-bold  text-white">
-                Request a Tattoo from {selectedArtist.name}
-              </h2>
-              <form onSubmit={handleModalSubmit}>
+              <X />
+            </button>
+
+            <h2 className="text-2xl font-bold mb-6">
+              Request a Tattoo from {selectedArtist.name}
+            </h2>
+
+            <form
+              onSubmit={handleModalSubmit}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              {/* LEFT COLUMN */}
+              <div>
                 <textarea
                   required
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
                   placeholder="Describe your tattoo..."
                   value={modalData.description}
                   onChange={(e) =>
@@ -356,7 +362,7 @@ export default function ClientDashboard() {
                 <input
                   type="text"
                   placeholder="Body Placement"
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
                   value={modalData.bodyPlacement}
                   onChange={(e) =>
                     setModalData({
@@ -368,7 +374,7 @@ export default function ClientDashboard() {
                 <label className="text-sm text-white mb-1 block">Size</label>
                 <select
                   required
-                  className="w-full p-2 rounded bg-neutral-800 text-white mb-3"
+                  className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
                   value={modalData.size}
                   onChange={(e) =>
                     setModalData({ ...modalData, size: e.target.value })
@@ -380,7 +386,42 @@ export default function ClientDashboard() {
                   <option value="Large">Large (over 6x6 inches)</option>
                 </select>
 
-                <div className="flex gap-2 mb-3">
+                {/* Reference Upload */}
+                <label className="block text-sm font-medium text-white mb-2">
+                  Reference Image (optional)
+                </label>
+                <div className="relative mb-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setReferenceImage(file);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                  />
+                  <div className="bg-neutral-700 text-white text-sm px-4 py-2 rounded-full font-semibold text-center hover:bg-neutral-300 hover:text-[#121212]">
+                    Upload Reference
+                  </div>
+                </div>
+                {referenceImage && (
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-300 mb-1">Preview:</p>
+                    <img
+                      src={URL.createObjectURL(referenceImage)}
+                      alt="Preview"
+                      className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN */}
+              <div>
+                <label className="text-sm text-white mb-1 block">
+                  Date Range
+                </label>
+                <div className="flex gap-2 mb-4">
                   <input
                     type="date"
                     className="w-full p-2 rounded bg-neutral-800 text-white"
@@ -411,9 +452,8 @@ export default function ClientDashboard() {
                   />
                 </div>
 
-                {/* Time Availability */}
                 <label className="text-sm text-white mb-2 block">
-                  Available Time Range
+                  Time Range
                 </label>
                 <div className="flex gap-2 mb-4">
                   <input
@@ -440,7 +480,6 @@ export default function ClientDashboard() {
                   />
                 </div>
 
-                {/* Day Availability */}
                 <label className="text-sm text-white mb-2 block">
                   Available Days
                 </label>
@@ -474,42 +513,18 @@ export default function ClientDashboard() {
                     </button>
                   ))}
                 </div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Reference Image (optional)
-                </label>
-                <div className="relative mb-4">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setReferenceImage(file);
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                  />
-                  <div className="bg-neutral-700 text-white text-sm px-4 py-2 rounded-full font-semibold text-center hover:bg-neutral-300 hover:text-[#121212]">
-                    Upload Reference
-                  </div>
-                </div>
-                {referenceImage && (
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-300 mb-1">Preview:</p>
-                    <img
-                      src={URL.createObjectURL(referenceImage)}
-                      alt="Preview"
-                      className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
-                    />
-                  </div>
-                )}
+              </div>
 
+              {/* SUBMIT BUTTON (Spans Both Columns) */}
+              <div className="col-span-1 md:col-span-2">
                 <button
                   type="submit"
-                  className="w-full py-2 bg-[#b6382d] text-white rounded"
+                  className="max-w-[300px] mx-auto block py-2 bg-[#b6382d] text-white rounded"
                 >
                   Submit
                 </button>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
