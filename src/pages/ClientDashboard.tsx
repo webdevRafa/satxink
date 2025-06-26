@@ -305,8 +305,7 @@ export default function ClientDashboard() {
       <section className="mb-20">
         <h2 className="text-xl font-semibold">Make a request</h2>
         <p className="mb-2 text-sm">
-          This will broadcast your request to artists who match your preferred
-          styles.
+          This will be visible to artists who match your vision
         </p>
         <textarea
           className="w-full h-28 p-3 rounded bg-neutral-900 border border-neutral-700 text-white"
