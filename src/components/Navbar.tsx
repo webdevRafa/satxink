@@ -117,7 +117,7 @@ export const Navbar = () => {
         <div
           className={`w-[80%] max-w-xs h-full relative transition-transform duration-300 ease-in-out
       ${isOpen ? "translate-x-0" : "translate-x-full"}
-      bg-black/70 backdrop-blur-md  p-6 shadow-xl
+      bg-[#121212]/70 backdrop-blur-md  p-6 shadow-xl
     `}
         >
           {/* Close Button */}
