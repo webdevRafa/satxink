@@ -59,7 +59,7 @@ export const ArtistProfilePage = () => {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
       <div
-        data-aos="fade-up"
+        data-aos="fade-in"
         className="flex flex-col md:flex-row gap-6 items-start"
       >
         <img
