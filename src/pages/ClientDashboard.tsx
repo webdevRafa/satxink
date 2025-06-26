@@ -6,12 +6,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  updateDoc,
   collection,
   query,
   where,
   addDoc,
 } from "firebase/firestore";
-import { serverTimestamp } from "firebase/firestore";
+import { serverTimestamp, Timestamp } from "firebase/firestore";
 
 import { auth } from "../firebase/auth";
 import { toast, Toaster } from "react-hot-toast";
@@ -35,11 +36,16 @@ interface Client {
 
 interface Offer {
   id: string;
+  artistId: string;
   artistName: string;
+  clientId: string;
   price: number;
   location: string;
   message: string;
   status: string;
+  dateOptions: string[];
+  requestId: string;
+  createdAt?: Timestamp;
 }
 
 interface Booking {
@@ -70,6 +76,89 @@ export default function ClientDashboard() {
   });
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const handleOfferResponse = async (
+    offerId: string,
+    newStatus: "accepted" | "declined"
+  ) => {
+    try {
+      const offerRef = doc(db, "bookingOffers", offerId);
+      const offerSnap = await getDoc(offerRef);
+      if (!offerSnap.exists()) {
+        toast.error("Offer not found.");
+        return;
+      }
+
+      const offerData = offerSnap.data();
+      if (
+        !offerData ||
+        !offerData.artistId ||
+        !Array.isArray(offerData.dateOptions)
+      ) {
+        toast.error("Invalid offer data.");
+        return;
+      }
+
+      const selectedTime =
+        offerData.dateOptions.length > 0 ? offerData.dateOptions[0] : "TBD";
+
+      await updateDoc(offerRef, {
+        status: newStatus,
+        respondedAt: serverTimestamp(),
+      });
+
+      if (newStatus === "accepted") {
+        // Look up artist to get shopId
+        const artistRef = doc(db, "users", offerData.artistId);
+        const artistSnap = await getDoc(artistRef);
+
+        if (!artistSnap.exists()) {
+          toast.error("Artist not found.");
+          return;
+        }
+
+        const artistData = artistSnap.data();
+        if (!artistData?.shopId) {
+          toast.error("Artist is missing shop ID.");
+          return;
+        }
+
+        // Look up shop address
+        const shopRef = doc(db, "shops", artistData.shopId);
+        const shopSnap = await getDoc(shopRef);
+        const shopAddress = shopSnap.exists()
+          ? shopSnap.data().address
+          : "Location unavailable";
+
+        // Create booking
+        await addDoc(collection(db, "bookings"), {
+          artistId: offerData.artistId,
+          artistName: offerData.artistName,
+          clientId: offerData.clientId,
+          price: offerData.price,
+          location: shopAddress,
+          selectedTime,
+          offerId: offerId,
+          status: "confirmed",
+          createdAt: serverTimestamp(),
+        });
+
+        toast.success("Booking confirmed!");
+      } else {
+        toast.success(`Offer ${newStatus}`);
+      }
+
+      // Update UI locally
+      setOffers((prev) =>
+        prev.map((offer) =>
+          offer.id === offerId ? { ...offer, status: newStatus } : offer
+        )
+      );
+    } catch (error) {
+      console.error("Error processing offer:", error);
+      toast.error("Something went wrong.");
+    }
+  };
+
   useEffect(() => {
     if (isModalOpen) {
       document.body.classList.add("modal-open");
@@ -272,6 +361,23 @@ export default function ClientDashboard() {
                 <p className="mt-2 text-xs text-yellow-400">
                   Status: {offer.status}
                 </p>
+
+                {offer.status === "pending" && (
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => handleOfferResponse(offer.id, "accepted")}
+                      className="px-4 py-1 rounded bg-[#121212] hover:bg-neutral-500 hover:text-[#121212]! transition duration-300! ease-in-out  text-white! text-sm"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleOfferResponse(offer.id, "declined")}
+                      className="px-4 py-1 rounded bg-[#121212] text-white hover:bg-neutral-500 hover:text-[#121212]! transition duration-300! ease-in-out text-sm"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
