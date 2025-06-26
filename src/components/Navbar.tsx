@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import { LogOut, Home, Users, Info } from "lucide-react";
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -14,13 +15,14 @@ export const Navbar = () => {
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
 
   const handleLogout = () => {
-    setIsOpen(false); // close mobile nav
-    signOutUser(navigate); // 👈 pass navigate into the function
+    setIsOpen(false);
+    signOutUser(navigate);
   };
   const handleLogin = () => {
-    setIsOpen(false); // close mobile nav first
+    setIsOpen(false);
     signInWithGoogle(navigate);
   };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -39,16 +41,16 @@ export const Navbar = () => {
 
   return (
     <nav
-      className="sticky top-0 z-50 w-full  mx-auto px-4 py-4 shadow-sm border-b border-[#1f1f1f]"
+      className="sticky top-0 z-50 w-full mx-auto px-4 py-4 shadow-sm border-b border-[#1f1f1f]"
       style={{ backgroundColor: "var(--color-bg-base)" }}
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-25" src={logo} alt="SATX Ink Logo" />
+          <img className="w-24" src={logo} alt="SATX Ink Logo" />
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-6 text-sm">
           <Link
             to="/artists"
@@ -56,11 +58,10 @@ export const Navbar = () => {
           >
             Artists
           </Link>
-
           <Link to="/about" className="text-neutral-300 hover:text-orange-400">
             About
           </Link>
-          {/* Only visible if user is an artist */}
+
           {userRole === "artist" && (
             <Link
               to="/client-posts"
@@ -69,23 +70,19 @@ export const Navbar = () => {
               Client Posts
             </Link>
           )}
-          {user && (
-            <div className="relative group">
-              <Link to="/dashboard">
-                <img
-                  src={user?.photoURL || "/fallback-avatar.jpg"}
-                  alt="User Avatar"
-                  className="w-10 h-10 rounded-full cursor-pointer"
-                />
-              </Link>
-            </div>
-          )}
 
-          {!user && (
+          {user ? (
+            <Link to="/dashboard">
+              <img
+                src={user?.photoURL || "/fallback-avatar.jpg"}
+                alt="User Avatar"
+                className="w-10 h-10 rounded-full border border-white cursor-pointer"
+              />
+            </Link>
+          ) : (
             <>
               <Link
                 to="/signup"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="text-neutral-300 hover:text-orange-400"
               >
                 Signup
@@ -100,85 +97,114 @@ export const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile menu button */}
+        {/* Hamburger Button */}
         <button
           className="md:hidden text-white focus:outline-none"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsOpen(true)}
         >
           ☰
         </button>
       </div>
 
-      {/* Mobile menu */}
-      {isOpen && (
-        <div className="mt-4 md:hidden flex flex-col gap-4 text-sm px-2 pb-4">
-          {user ? (
-            <>
-              {userRole === "artist" && (
-                <Link
-                  to="/client-posts"
-                  onClick={() => setIsOpen(false)}
-                  className="text-white hover:text-orange-400"
-                >
-                  Client Posts
-                </Link>
-              )}
+      {/* Slide-In Mobile Menu */}
 
+      <div
+        className={`fixed inset-0 z-50 bg-black/70 transition-opacity duration-300 ${
+          isOpen
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div
+          className={`w-[80%] max-w-xs h-full bg-[#0e0e0e] p-6 shadow-xl relative transition-transform duration-300 ease-in-out ${
+            isOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          {/* Close Button */}
+          <button
+            className="absolute top-3 right-3 text-white text-xl"
+            onClick={() => setIsOpen(false)}
+          >
+            ✕
+          </button>
+
+          {/* Profile Summary */}
+          {user && (
+            <div className="mb-6 flex items-center gap-3">
+              <img
+                src={user?.photoURL || "/fallback-avatar.jpg"}
+                alt="Avatar"
+                className="w-10 h-10 rounded-full border border-gray-500"
+              />
+              <div>
+                <p className="text-white text-sm">{user.displayName}</p>
+                <p className="text-gray-400 text-xs capitalize">{userRole}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Menu Items */}
+          <nav className="flex flex-col gap-4 text-white text-base">
+            {user && userRole === "artist" && (
+              <Link
+                to="/client-posts"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 hover:text-orange-400"
+              >
+                <Home size={18} /> Client Posts
+              </Link>
+            )}
+            {user && (
               <Link
                 to="/dashboard"
                 onClick={() => setIsOpen(false)}
-                className="text-white hover:text-orange-400"
+                className="flex items-center gap-2 hover:text-orange-400"
               >
-                Dashboard
+                <Home size={18} /> Dashboard
               </Link>
+            )}
+            <Link
+              to="/artists"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2 hover:text-orange-400"
+            >
+              <Users size={18} /> Artists
+            </Link>
+            <Link
+              to="/about"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2 hover:text-orange-400"
+            >
+              <Info size={18} /> About
+            </Link>
 
+            {user ? (
               <button
                 onClick={handleLogout}
-                className="text-left text-white hover:text-red-400"
+                className="flex items-center gap-2 mt-4 text-left hover:text-red-400"
               >
-                Logout
+                <LogOut size={18} /> Logout
               </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/signup"
-                onClick={() => {
-                  setIsOpen(false);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className="text-white hover:text-orange-400"
-              >
-                Signup
-              </Link>
-
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  handleLogin();
-                }}
-                className="text-left text-white hover:text-orange-400"
-              >
-                Login
-              </button>
-            </>
-          )}
-          <Link
-            to="/artists"
-            onClick={() => setIsOpen(false)}
-            className="text-white hover:text-orange-400"
-          >
-            Artists
-          </Link>
-          <Link
-            to="/about"
-            onClick={() => setIsOpen(false)}
-            className="text-white hover:text-orange-400"
-          >
-            About
-          </Link>
+            ) : (
+              <>
+                <Link
+                  to="/signup"
+                  onClick={() => setIsOpen(false)}
+                  className="hover:text-orange-400"
+                >
+                  Signup
+                </Link>
+                <button
+                  onClick={handleLogin}
+                  className="text-left hover:text-orange-400"
+                >
+                  Login
+                </button>
+              </>
+            )}
+          </nav>
         </div>
-      )}
+      </div>
     </nav>
   );
 };
