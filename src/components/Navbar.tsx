@@ -109,7 +109,7 @@ export const Navbar = () => {
       {/* Slide-In Mobile Menu */}
 
       <div
-        className={`fixed inset-0 z-50 bg-black/70 transition-opacity duration-300 ${
+        className={`fixed inset-0 z-50 bg-black/70 transition-opacity duration-300 flex justify-end ${
           isOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -117,7 +117,7 @@ export const Navbar = () => {
       >
         <div
           className={`w-[80%] max-w-xs h-full bg-[#0e0e0e] p-6 shadow-xl relative transition-transform duration-300 ease-in-out ${
-            isOpen ? "translate-x-0" : "translate-x-full"
+            isOpen ? "translate-x-0" : "translate-x-[100%]"
           }`}
         >
           {/* Close Button */}
