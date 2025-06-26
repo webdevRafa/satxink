@@ -1,5 +1,3 @@
-import { Heart } from "lucide-react";
-
 // src/components/ArtistCard.tsx
 interface SocialLinks {
   facebook?: string;
@@ -15,12 +13,7 @@ interface ArtistCardProps {
   socialLinks?: SocialLinks;
 }
 
-const ArtistCard = ({
-  name,
-  avatarUrl,
-  specialties,
-  likedBy,
-}: ArtistCardProps) => {
+const ArtistCard = ({ name, avatarUrl, specialties }: ArtistCardProps) => {
   return (
     <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative ">
       <img
