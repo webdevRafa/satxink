@@ -324,15 +324,16 @@ export default function ClientDashboard() {
       {/* Modal */}
       {isModalOpen && selectedArtist && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 pb-20"
-          style={{
-            backgroundImage: `url(${bgImg})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
+          data-aos="slide-left"
+          className="fixed inset-0 z-50 overflow-y-auto bg-[#121212]/20 bg-opacity-50 pb-20"
         >
-          <div className="min-h-screen flex items-start justify-center py-10 px-4">
-            <div className="bg-neutral-900 p-6 rounded-md w-full max-w-md relative">
+          <div
+            className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 backdrop-blur-sm bg-[#121212]/50`}
+          >
+            <div
+              className={`w-full sm:max-w-md h-full bg-[#121212]/30 backdrop-blur-md border-l border-white/10 p-6 overflow-y-auto transform transition-transform duration-300 ease-in-out
+      ${isModalOpen ? "translate-x-0" : "translate-x-full"}`}
+            >
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="absolute top-2 right-3 text-white text-lg"
