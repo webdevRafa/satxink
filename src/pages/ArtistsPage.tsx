@@ -203,7 +203,7 @@ export const ArtistsPage = () => {
           {SPECIALTIES.map((tag) => (
             <button
               key={tag}
-              className={`px-3 py-1 rounded-full border text-xs font-medium transition-all ${
+              className={`px-1! md:px-3! py-1!  md:py-2! rounded-full border text-xs! font-medium transition-all ${
                 specialtyFilter === tag
                   ? "bg-white text-black border-white"
                   : "text-white border-gray-500 hover:border-white"
