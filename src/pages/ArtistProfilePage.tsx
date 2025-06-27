@@ -12,7 +12,7 @@ interface Artist {
   email: string;
   bio: string;
   avatarUrl: string;
-  location: string;
+  location?: string;
   specialties: string[];
   portfolioUrls: string[];
   studioName: string;
@@ -77,7 +77,7 @@ export const ArtistProfilePage = () => {
             <h1 className="text-3xl md:text-4xl font-bold text-white">
               {artist.name}
             </h1>
-            <p className="text-gray-400 mt-1">{artist.location}</p>
+            <p className="text-white">{artist.studioName}</p>
             <p className="text-gray-300 mt-2 italic text-sm">{artist.bio}</p>
 
             {/* Socials */}
@@ -116,7 +116,7 @@ export const ArtistProfilePage = () => {
 
             {/* Styles */}
             <div className="mt-6">
-              <h2 className="text-lg font-semibold text-white mb-2">Styles</h2>
+              <p className="text-white mb-2">styles</p>
               <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {artist.specialties.map((style) => (
                   <li
@@ -127,11 +127,6 @@ export const ArtistProfilePage = () => {
                   </li>
                 ))}
               </ul>
-            </div>
-
-            {/* Studio / Likes / Availability */}
-            <div className="mt-4 text-sm text-gray-400">
-              <p className="text-white">{artist.studioName}</p>
             </div>
           </div>
         </div>
