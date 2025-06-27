@@ -50,40 +50,40 @@ const SPECIALTIES = [
   "Fine Line",
   "Color Realism",
 ];
-function useScrollDirection(threshold = 10) {
-  const [scrollDir, setScrollDir] = useState<"up" | "down">("up");
-  const lastScrollY = useRef(window.scrollY);
-  const ticking = useRef(false);
+function useStickyReveal(threshold = 10) {
+  const [visible, setVisible] = useState(true);
+  const lastY = useRef(window.scrollY);
+  const lastDirection = useRef<"up" | "down">("up");
 
   useEffect(() => {
-    const updateScrollDir = () => {
-      const currentScrollY = window.scrollY;
-      const diff = currentScrollY - lastScrollY.current;
+    const update = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastY.current;
+      const goingDown = delta > threshold;
+      const goingUp = delta < -threshold;
 
-      if (Math.abs(diff) >= threshold) {
-        setScrollDir(diff > 0 ? "down" : "up");
-        lastScrollY.current = currentScrollY;
+      if (goingDown && lastDirection.current !== "down") {
+        setVisible(false);
+        lastDirection.current = "down";
+      } else if (goingUp && lastDirection.current !== "up") {
+        setVisible(true);
+        lastDirection.current = "up";
       }
 
-      ticking.current = false;
+      lastY.current = currentY;
     };
 
-    const onScroll = () => {
-      if (!ticking.current) {
-        window.requestAnimationFrame(updateScrollDir);
-        ticking.current = true;
-      }
-    };
+    const handleScroll = () => requestAnimationFrame(update);
 
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [threshold]);
 
-  return scrollDir;
+  return visible;
 }
 
 export const ArtistsPage = () => {
-  const scrollDirection = useScrollDirection(25);
+  const isStylesVisible = useStickyReveal(20); // feel free to test 10, 15, etc.
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [lastDoc, setLastDoc] =
@@ -195,8 +195,8 @@ export const ArtistsPage = () => {
       </div>
 
       <div
-        className={`sticky top-0 z-30 transition-transform duration-300 backdrop-blur bg-[var(--color-bg-base)] border-b border-white/5 ${
-          scrollDirection === "down" ? "-translate-y-full" : "translate-y-0"
+        className={`sticky top-18 z-30 transition-transform duration-300 backdrop-blur bg-[var(--color-bg-base)] border-b border-white/5 ${
+          !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
         <div className="flex flex-wrap gap-2 px-4 py-3 max-w-6xl mx-auto">
