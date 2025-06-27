@@ -83,7 +83,7 @@ function useStickyReveal(threshold = 10) {
 }
 
 export const ArtistsPage = () => {
-  const isStylesVisible = useStickyReveal(20); // feel free to test 10, 15, etc.
+  const isStylesVisible = useStickyReveal(10); // feel free to test 10, 15, etc.
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [lastDoc, setLastDoc] =
