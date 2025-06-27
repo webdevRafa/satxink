@@ -39,6 +39,9 @@ const SPECIALTIES = [
 ];
 
 const ArtistSignupPage = () => {
+  const [paymentType, setPaymentType] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState("");
+
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [shops, setShops] = useState<Shop[]>([]);
@@ -125,6 +128,35 @@ const ArtistSignupPage = () => {
       form.querySelectorAll("input[name='specialties']:checked")
     ).map((el) => (el as HTMLInputElement).value);
 
+    const paymentType = (
+      form.elements.namedItem("paymentType") as RadioNodeList
+    )?.value;
+
+    const selectedMethod = (
+      form.elements.namedItem("externalMethod") as HTMLSelectElement
+    )?.value;
+
+    const externalHandle = (
+      form.elements.namedItem("externalHandle") as HTMLInputElement
+    )?.value;
+
+    const externalPaymentDetails =
+      paymentType === "external"
+        ? {
+            method: selectedMethod,
+            handle: externalHandle,
+          }
+        : null;
+
+    const depositAmount = parseFloat(
+      (form.elements.namedItem("depositAmount") as HTMLInputElement)?.value ||
+        "0"
+    );
+
+    const finalPaymentTiming = (
+      form.elements.namedItem("finalPaymentTiming") as RadioNodeList
+    )?.value;
+
     const newArtist = {
       displayName,
       bio,
@@ -141,6 +173,16 @@ const ArtistSignupPage = () => {
       isVerified: false,
       role: "artist",
       createdAt: serverTimestamp(),
+      paymentType,
+      ...(paymentType === "external" && {
+        externalPaymentDetails,
+        depositPolicy: {
+          depositRequired: true,
+          amount: depositAmount,
+          nonRefundable: true,
+        },
+        finalPaymentTiming,
+      }),
     };
 
     try {
@@ -168,7 +210,7 @@ const ArtistSignupPage = () => {
   return (
     <div
       data-aos="fade-in"
-      className="min-h-screen text-white flex items-center justify-center px-4"
+      className="min-h-screen bg-gradient-to-br from-[var(--color-bg-footer)] via-[var(--color-bg-card)]  to-[var(--color-bg-footer)] text-white flex items-center justify-center px-4"
     >
       <div className="max-w-2xl w-full text-center">
         <h1 className="flex items-center justify-center flex-wrap text-4xl md:text-5xl font-bold mb-6 gap-2 text-center">
@@ -198,7 +240,7 @@ const ArtistSignupPage = () => {
         {formVisible && (
           <form
             onSubmit={handleArtistSubmit}
-            className="mt-10 space-y-4 text-left bg-zinc-900 p-6 rounded-lg"
+            className="mt-10 space-y-4 text-left bg-[#121212] p-6 rounded-lg"
           >
             <h2 className="text-xl font-semibold text-white mb-2">
               Complete Your Artist Profile
@@ -274,6 +316,116 @@ const ArtistSignupPage = () => {
                 className="w-full p-2 rounded bg-zinc-800 text-white"
               />
             </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-white">
+                How would you like to accept payments?
+              </label>
+              <div className="flex flex-col space-y-1">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value="internal"
+                    checked={paymentType === "internal"}
+                    onChange={() => {
+                      setPaymentType("internal");
+                      setSelectedMethod("");
+                    }}
+                    className="accent-red-600"
+                    required
+                  />
+                  <span>In-app with Stripe (recommended)</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    value="external"
+                    checked={paymentType === "external"}
+                    onChange={() => setPaymentType("external")}
+                    className="accent-red-600"
+                  />
+                  <span>Externally (CashApp, Venmo, Zelle)</span>
+                </label>
+              </div>
+
+              {paymentType === "external" && (
+                <div className="space-y-3 mt-4">
+                  <select
+                    name="externalMethod"
+                    value={selectedMethod}
+                    onChange={(e) => setSelectedMethod(e.target.value)}
+                    required
+                    className="w-full p-2 rounded bg-zinc-800 text-white"
+                  >
+                    <option value="">
+                      Select your preferred payment method
+                    </option>
+                    <option value="cashapp">CashApp</option>
+                    <option value="venmo">Venmo</option>
+                    <option value="zelle">Zelle</option>
+                  </select>
+
+                  {selectedMethod && (
+                    <input
+                      type="text"
+                      name="externalHandle"
+                      required
+                      placeholder={
+                        selectedMethod === "zelle"
+                          ? "Email or phone number"
+                          : selectedMethod === "cashapp"
+                          ? "$YourCashTag"
+                          : "@yourusername or phone"
+                      }
+                      className="w-full p-2 rounded bg-zinc-800 text-white"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* External-only fields */}
+            <div id="external-payment-fields" className="space-y-2">
+              <input
+                type="number"
+                name="depositAmount"
+                placeholder="Required deposit amount (e.g. 100)"
+                className="w-full p-2 rounded bg-zinc-800 text-white"
+                min={0}
+              />
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white">
+                  When do you prefer final payment?
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="finalPaymentTiming"
+                    value="before"
+                    className="accent-red-600"
+                  />
+                  <span>Before the session</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="finalPaymentTiming"
+                    value="after"
+                    className="accent-red-600"
+                  />
+                  <span>After the session</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="bg-red-600 px-4 py-2 rounded text-white hover:bg-red-700"
+            >
+              {submitting ? "Submitting..." : "Submit Profile"}
+            </button>
 
             <button
               type="submit"
