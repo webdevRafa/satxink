@@ -21,17 +21,18 @@ export const HeroSection = () => {
       {/* Content */}
       <div className="relative z-10 max-w-3xl text-white">
         <h1
-          data-aos="fade-down"
+          data-aos="fade-in"
           className="text-3xl md:text-4xl font-semibold mb-4"
         >
           Connecting You to San Antonio’s Best Tattoo Artists
         </h1>
-        <p data-aos="fade-right" className="text-base text-gray-300 mb-6">
+        <p data-aos="fade-in" className="text-base text-gray-300 mb-6">
           Browse portfolios, post your idea, and find your perfect match.
         </p>
         <div className="flex flex-col md:flex-row justify-center gap-4">
           <Link
             to="/artists"
+            data-aos="fade-in"
             className="px-6 py-3 text-white! transition duration-300 hover:text-[#121212]! border-2 border-neutral-300 hover:bg-neutral-300 rounded"
           >
             Find an Artist

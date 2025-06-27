@@ -151,36 +151,33 @@ export const ArtistsPage = () => {
 
   return (
     <main className="px-4 py-12 max-w-6xl mx-auto relative">
-      <div data-aos="fade-down">
-        <h1 className="text-3xl font-semibold text-white mb-2">
-          Find an Artist
-        </h1>
-        <p className="text-gray-400 mb-4">
-          Discover talented artists from San Antonio, browse by style, and view
-          their work.
-        </p>
-      </div>
+      <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl px-4 py-6 md:p-6 shadow-lg max-w-6xl mx-auto mb-8">
+        <div className="text-center md:text-left">
+          <h1 className="text-2xl md:text-4xl font-bold text-white">
+            Find Your Artist
+          </h1>
+          <p className="text-sm md:text-base text-gray-400 mt-1 md:mt-2 italic max-w-xl mx-auto md:mx-0">
+            Discover talented artists from San Antonio. Filter by style and
+            explore their portfolios.
+          </p>
 
-      <div
-        data-aos="fade-up"
-        className="sticky top-20 md:top-18 pt-0.5 z-10 bg-[var(--color-bg-base)]"
-      >
-        <div className="flex flex-wrap gap-2 mb-6">
-          {SPECIALTIES.map((tag) => (
-            <button
-              key={tag}
-              className={`px-2.5! py-0! rounded-full border text-xs! font-medium! transition-all ${
-                specialtyFilter === tag
-                  ? "bg-white text-black border-white"
-                  : "text-white border-gray-500 hover:border-white"
-              }`}
-              onClick={() =>
-                setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
-              }
-            >
-              {tag}
-            </button>
-          ))}
+          <div className="mt-4 md:mt-6 flex flex-wrap gap-2 justify-center md:justify-start">
+            {SPECIALTIES.map((tag) => (
+              <button
+                key={tag}
+                className={`px-3 py-1 text-sm rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-sm hover:bg-white/10 transition ${
+                  specialtyFilter === tag
+                    ? "bg-white text-black font-semibold"
+                    : ""
+                }`}
+                onClick={() =>
+                  setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
+                }
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -189,7 +186,7 @@ export const ArtistsPage = () => {
           const isLast = index === filteredArtists.length - 1;
           return (
             <div
-              data-aos="fade-up"
+              data-aos="fade-in"
               key={artist.id}
               ref={isLast ? lastArtistRef : null}
             >

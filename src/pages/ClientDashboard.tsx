@@ -287,7 +287,10 @@ export default function ClientDashboard() {
       <Toaster position="bottom-center" />
 
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+        <div
+          data-aos="fade-in"
+          className="flex flex-col md:flex-row items-center md:items-start gap-6"
+        >
           {/* Avatar */}
           <div className="relative group">
             <img
