@@ -113,27 +113,37 @@ const ArtistDashboard = () => {
 
   return (
     <>
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">
-          Welcome, {artist.displayName}
-        </h1>
+      <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Avatar */}
+          <div className="relative group">
+            <img
+              src={artist.avatarUrl}
+              alt={artist.displayName}
+              className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
+            />
+            <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
+              Artist
+            </span>
+          </div>
 
-        <div className="flex items-start gap-6">
-          <img
-            src={artist.avatarUrl}
-            alt={artist.displayName}
-            className="w-32 h-32 object-cover rounded-full"
-          />
-          <div>
-            <p className="font-semibold text-lg">{artist.bio}</p>
-            <div className="mt-2 space-x-3 flex">
+          {/* Info */}
+          <div className="text-center md:text-left flex-1">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              Welcome, {artist.displayName}
+            </h1>
+            <p className="text-gray-400 mt-2 italic">{artist.bio}</p>
+
+            {/* Socials */}
+            <div className="flex justify-center md:justify-start gap-4 mt-4">
               {artist.socialLinks?.facebook && (
                 <a
                   href={artist.socialLinks.facebook}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-blue-500 transition transform hover:scale-110"
                 >
-                  <FaFacebook className="text-xl hover:text-blue-500 transition" />
+                  <FaFacebook size={22} />
                 </a>
               )}
               {artist.socialLinks?.instagram && (
@@ -141,8 +151,9 @@ const ArtistDashboard = () => {
                   href={artist.socialLinks.instagram}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-pink-500 transition transform hover:scale-110"
                 >
-                  <RiInstagramFill className="text-xl hover:text-pink-500 transition" />
+                  <RiInstagramFill size={22} />
                 </a>
               )}
               {artist.socialLinks?.website && (
@@ -150,17 +161,26 @@ const ArtistDashboard = () => {
                   href={artist.socialLinks.website}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-green-400 transition transform hover:scale-110"
                 >
-                  <SiWebmoney className="text-xl hover:text-green-500 transition" />
+                  <SiWebmoney size={22} />
                 </a>
               )}
             </div>
 
-            <div className="mt-4">
-              <h2 className="font-bold">Specialties:</h2>
-              <ul className="list-disc list-inside text-sm">
+            {/* Styles */}
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                My styles
+              </h2>
+              <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {artist.specialties.map((style, index) => (
-                  <li key={index}>{style}</li>
+                  <li
+                    key={index}
+                    className="px-4 py-1 text-sm rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-sm hover:bg-white/10 transition"
+                  >
+                    {style}
+                  </li>
                 ))}
               </ul>
             </div>
