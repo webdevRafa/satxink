@@ -286,25 +286,49 @@ export default function ClientDashboard() {
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
       <Toaster position="bottom-center" />
 
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Welcome, {client.name}
-      </p>
-
-      {/* Preferred Styles */}
-      <section className="mb-10">
-        <h2 className="text-xl font-semibold mb-2">My preferred styles</h2>
-        <div className="flex flex-wrap gap-2">
-          {client.preferredStyles.map((style) => (
-            <span
-              key={style}
-              className="px-3 py-1 border border-neutral-600 rounded-full text-sm"
-            >
-              {style}
+      <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Avatar */}
+          <div className="relative group">
+            <img
+              src={client.avatarUrl || "/fallback-avatar.jpg"}
+              alt={client.name}
+              className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
+            />
+            <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
+              Client
             </span>
-          ))}
+          </div>
+
+          {/* Info */}
+          <div className="text-center md:text-left flex-1">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              Welcome, {client.name}
+            </h1>
+            <p className="text-gray-400 mt-2 italic">
+              Here’s your dashboard — track offers, find artists, and book with
+              confidence.
+            </p>
+
+            {/* Preferred Styles */}
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                My Preferred Styles
+              </h2>
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                {client.preferredStyles.map((style, index) => (
+                  <span
+                    key={index}
+                    className="px-3 py-1 text-sm rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-sm hover:bg-white/10 transition"
+                  >
+                    {style}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
       {/* Liked Artists */}
       <section className="mb-10">

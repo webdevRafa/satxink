@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "satxink-1b0d6"
-  }
+    "default": "satxink-1b0d6",
+    "satxink": "satxink-1b0d6"
+  },
+  "targets": {},
+  "etags": {}
 }
