@@ -58,79 +58,82 @@ export const ArtistProfilePage = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      <div
-        data-aos="fade-in"
-        className="flex flex-col md:flex-row gap-6 items-start"
-      >
-        <img
-          src={artist.avatarUrl}
-          alt={artist.name}
-          className="w-40 h-40 object-cover rounded-full "
-        />
-        <div className="flex-1">
-          <h1 className="text-3xl! font-bold text-white">{artist.name}</h1>
-          <p className="text-gray-400 mb-2">{artist.location}</p>
-          <p className="text-sm! text-gray-300 mb-4">{artist.bio}</p>
-
-          <div className="flex flex-wrap gap-2 mb-4">
-            {artist.specialties.map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-0.5 bg-white text-black text-xs! rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
+      <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Avatar */}
+          <div className="relative group">
+            <img
+              src={artist.avatarUrl}
+              alt={artist.name}
+              className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
+            />
+            <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
+              Artist
+            </span>
           </div>
 
-          <p className="text-sm! text-gray-400 mb-1">
-            <span className="font-medium! text-white">Studio:</span>{" "}
-            {artist.studioName}
-          </p>
+          {/* Info */}
+          <div className="text-center md:text-left flex-1">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              {artist.name}
+            </h1>
+            <p className="text-gray-400 mt-1">{artist.location}</p>
+            <p className="text-gray-300 mt-2 italic text-sm">{artist.bio}</p>
 
-          <p className="text-sm! text-gray-400 mb-1">
-            <span className="font-medium text-white">Likes:</span>{" "}
-            {artist.likedBy?.length || 0}
-          </p>
-          <p className="text-sm! text-gray-400 mb-1">
-            <span className="font-medium text-white">Availability:</span>{" "}
-            <span
-              className={artist.isAvailable ? "text-green-400" : "text-red-400"}
-            >
-              {artist.isAvailable ? "Available" : "Unavailable"}
-            </span>
-          </p>
-          {artist.socialLinks && (
-            <div className="flex items-center gap-4 mt-4">
-              {artist.socialLinks.facebook && (
+            {/* Socials */}
+            <div className="flex justify-center md:justify-start gap-4 mt-4">
+              {artist.socialLinks?.facebook && (
                 <a
                   href={artist.socialLinks.facebook}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-blue-500 transition transform hover:scale-110"
                 >
-                  <FaFacebook className="text-xl hover:text-blue-500 transition" />
+                  <FaFacebook size={22} />
                 </a>
               )}
-              {artist.socialLinks.instagram && (
+              {artist.socialLinks?.instagram && (
                 <a
                   href={artist.socialLinks.instagram}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-pink-500 transition transform hover:scale-110"
                 >
-                  <RiInstagramFill className="text-xl hover:text-pink-500 transition" />
+                  <RiInstagramFill size={22} />
                 </a>
               )}
-              {artist.socialLinks.website && (
+              {artist.socialLinks?.website && (
                 <a
                   href={artist.socialLinks.website}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="text-white hover:text-green-400 transition transform hover:scale-110"
                 >
-                  <SiWebmoney className="text-xl hover:text-green-400 transition" />
+                  <SiWebmoney size={22} />
                 </a>
               )}
             </div>
-          )}
+
+            {/* Styles */}
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold text-white mb-2">Styles</h2>
+              <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
+                {artist.specialties.map((style) => (
+                  <li
+                    key={style}
+                    className="px-4 py-1 text-sm rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-sm hover:bg-white/10 transition"
+                  >
+                    {style}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Studio / Likes / Availability */}
+            <div className="mt-4 text-sm text-gray-400">
+              <p className="text-white">{artist.studioName}</p>
+            </div>
+          </div>
         </div>
       </div>
 
