@@ -159,7 +159,12 @@ export const processAvatar = onObjectFinalized(async (event) => {
   const object = event.data;
   const filePath = object.name;
 
-  if (!filePath || !filePath.includes('avatar-original.jpg')) return;
+   // 🔒 Skip any files outside the users/ path
+   if (!filePath || !filePath.startsWith('users/') || !filePath.includes('avatar-original.jpg')) {
+    console.log(`⏭️ Skipping file: ${filePath}`);
+    return;
+  }
+
 
   const bucket = admin.storage().bucket(object.bucket);
   const fileName = path.basename(filePath);

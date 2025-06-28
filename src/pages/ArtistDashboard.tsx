@@ -15,7 +15,13 @@ import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import { SiWebmoney } from "react-icons/si";
 import { useNavigate } from "react-router-dom"; // ✅ At the top of the file
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  getBlob,
+  deleteObject,
+} from "firebase/storage";
 import { toast } from "react-hot-toast";
 
 type Artist = {
@@ -49,6 +55,8 @@ const ArtistDashboard = () => {
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
   const navigate = useNavigate();
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,59 +64,55 @@ const ArtistDashboard = () => {
     if (!file || !user) return;
 
     const uid = user.uid;
-    const storageRef = ref(storage, `users/${uid}/avatar-original.jpg`);
-    await uploadBytes(storageRef, file);
+    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
 
-    const tempUrl = URL.createObjectURL(file);
-    setPreviewUrl(tempUrl);
-
-    setTimeout(async () => {
-      const fullRef = ref(storage, `users/${uid}/avatar.jpg`);
-      const fullUrl = await getDownloadURL(fullRef);
-
-      await updateDoc(doc(db, "users", uid), {
-        avatarUrl: fullUrl,
-      });
-
-      setArtist((prev) => (prev ? { ...prev, avatarUrl: fullUrl } : prev));
-      setPreviewUrl(null); // Optional: clear the preview
-    }, 4000);
-  };
-  const waitForImage = async (
-    ref: any,
-    maxRetries = 5,
-    interval = 1000
-  ): Promise<string> => {
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const url = await getDownloadURL(ref);
-        return url;
-      } catch (err) {
-        await new Promise((res) => setTimeout(res, interval));
-      }
+    try {
+      await uploadBytes(tempRef, file); // Only uploads to temp path
+      const tempUrl = URL.createObjectURL(file); // Local preview
+      setPreviewUrl(tempUrl); // Show preview in UI
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      toast.error("Avatar upload failed");
     }
-    throw new Error("Processed avatar image not found.");
   };
+
   const handleSaveAvatar = async () => {
     const user = auth.currentUser;
     if (!user) return;
-
     const uid = user.uid;
-    const fullRef = ref(storage, `users/${uid}/avatar.jpg`);
+    setSavingAvatar(true); // 🟢 Start loading spinner
+
+    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
+    const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
 
     try {
-      const fullUrl = await waitForImage(fullRef); // ✅ wait until file exists
+      // 🧹 Try to delete the old avatar (optional)
+      try {
+        await deleteObject(finalRef);
+        console.log("🗑️ Previous avatar deleted.");
+      } catch (e) {
+        console.log("⚠️ No previous avatar to delete. Proceeding...");
+      }
 
-      await updateDoc(doc(db, "users", uid), {
-        avatarUrl: fullUrl,
-      });
+      // ✅ Download the file from temp
+      const blob = await getBlob(tempRef);
 
-      setArtist((prev) => (prev ? { ...prev, avatarUrl: fullUrl } : prev));
-      setPreviewUrl(null);
+      // ✅ Upload to the final destination
+      console.log("📤 Uploading to finalRef:", finalRef.fullPath);
+      await uploadBytes(finalRef, blob);
+
+      // ✅ Update Firestore avatarUrl
+      const avatarUrl = await getDownloadURL(finalRef);
+      const docRef = doc(db, "users", uid);
+      await updateDoc(docRef, { avatarUrl });
+
       toast.success("Avatar updated!");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save avatar. Try again shortly.");
+      setPreviewUrl(null); // clear preview
+    } catch (error) {
+      console.error("Saving avatar failed:", error);
+      toast.error("Failed to save avatar.");
+    } finally {
+      setSavingAvatar(false); // 🔴 Stop loading spinner
     }
   };
 
@@ -183,11 +187,19 @@ const ArtistDashboard = () => {
           {/* Avatar */}
           <div className="relative group w-fit mx-auto md:mx-0">
             <label className="relative group cursor-pointer block">
-              <img
-                src={previewUrl || artist.avatarUrl}
-                alt={artist.displayName}
-                className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
-              />
+              <div className="relative w-32 h-32 md:w-40 md:h-40">
+                <img
+                  src={previewUrl || artist.avatarUrl}
+                  alt={artist.displayName}
+                  className="w-full h-full object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
+                />
+                {savingAvatar && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-full">
+                    <Spinner className="w-6 h-6 text-white" />
+                  </div>
+                )}
+              </div>
+
               <input
                 type="file"
                 accept="image/*"
@@ -204,7 +216,10 @@ const ArtistDashboard = () => {
               <div className="mt-2 text-center">
                 <button
                   onClick={handleSaveAvatar}
-                  className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-4 py-1 rounded shadow transition"
+                  disabled={savingAvatar}
+                  className={`border-2 border-neutral-500 text-white text-xs px-4 py-1 rounded shadow transition flex items-center justify-center gap-2 ${
+                    savingAvatar ? "opacity-70 cursor-not-allowed" : ""
+                  }`}
                 >
                   Save Avatar
                 </button>
