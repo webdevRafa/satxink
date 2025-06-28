@@ -48,6 +48,7 @@ const ArtistSignupPage = () => {
   const [paymentType, setPaymentType] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
+  const [finalPaymentTiming, setFinalPaymentTiming] = useState("");
 
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState(false);
@@ -62,7 +63,10 @@ const ArtistSignupPage = () => {
   const [facebook, setFacebook] = useState("");
   const [website, setWebsite] = useState("");
   const navigate = useNavigate();
-
+  useEffect(() => {
+    setSubmitting(false); // backend flag
+    setReadyToSubmit(false); // UI guard
+  }, []);
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -126,38 +130,20 @@ const ArtistSignupPage = () => {
       return;
     }
 
-    const displayName = (
-      form.elements.namedItem("displayName") as HTMLInputElement
-    ).value;
-    const bio = (form.elements.namedItem("bio") as HTMLInputElement).value;
-    const shopId = (form.elements.namedItem("shopId") as HTMLSelectElement)
-      .value;
+    const sanitizedInstagram = sanitizeUrl(instagram);
+    const sanitizedFacebook = sanitizeUrl(facebook);
+    const sanitizedWebsite = sanitizeUrl(website);
 
-    let instagram = (form.elements.namedItem("instagram") as HTMLInputElement)
-      .value;
-    let facebook = (form.elements.namedItem("facebook") as HTMLInputElement)
-      .value;
-    let website = (form.elements.namedItem("website") as HTMLInputElement)
-      .value;
-
-    instagram = sanitizeUrl(instagram);
-    facebook = sanitizeUrl(facebook);
-    website = sanitizeUrl(website);
-
+    // validate URLs
     if (
-      !isValidUrl(instagram) ||
-      !isValidUrl(facebook) ||
-      !isValidUrl(website)
+      !isValidUrl(sanitizedInstagram) ||
+      !isValidUrl(sanitizedFacebook) ||
+      !isValidUrl(sanitizedWebsite)
     ) {
       alert("One or more of your social links are not valid URLs.");
       setSubmitting(false);
-
       return;
     }
-
-    const specialties = Array.from(
-      form.querySelectorAll("input[name='specialties']:checked")
-    ).map((el) => (el as HTMLInputElement).value);
 
     const externalHandle = (
       form.elements.namedItem("externalHandle") as HTMLInputElement
@@ -176,9 +162,6 @@ const ArtistSignupPage = () => {
         "0"
     );
 
-    const finalPaymentTiming =
-      (form.elements.namedItem("finalPaymentTiming") as RadioNodeList | null)
-        ?.value || "";
     if (!finalPaymentTiming) {
       alert("Please select when you'd like to receive final payment.");
       setSubmitting(false);
@@ -191,9 +174,9 @@ const ArtistSignupPage = () => {
       shopId,
       specialties,
       socialLinks: {
-        instagram,
-        facebook,
-        website,
+        instagram: sanitizedInstagram,
+        facebook: sanitizedFacebook,
+        website: sanitizedWebsite,
       },
       avatarUrl: user.photoURL || "",
       email: user.email || "",
@@ -212,6 +195,8 @@ const ArtistSignupPage = () => {
         finalPaymentTiming,
       }),
     };
+    console.log("Submitting artist:", newArtist);
+    console.log("Final Payload →", newArtist);
 
     try {
       await setDoc(
@@ -478,8 +463,9 @@ const ArtistSignupPage = () => {
                     <input
                       type="radio"
                       name="finalPaymentTiming"
-                      required
                       value="before"
+                      checked={finalPaymentTiming === "before"}
+                      onChange={(e) => setFinalPaymentTiming(e.target.value)}
                       className="accent-red-600"
                     />
                     <span>Before the session</span>
@@ -488,8 +474,9 @@ const ArtistSignupPage = () => {
                     <input
                       type="radio"
                       name="finalPaymentTiming"
-                      required
                       value="after"
+                      checked={finalPaymentTiming === "after"}
+                      onChange={(e) => setFinalPaymentTiming(e.target.value)}
                       className="accent-red-600"
                     />
                     <span>After the session</span>
@@ -530,7 +517,7 @@ const ArtistSignupPage = () => {
                   Next →
                 </button>
               ) : (
-                <button type="submit" disabled={submitting}>
+                <button type="submit" disabled={!readyToSubmit || submitting}>
                   {submitting ? "Submitting..." : "Submit Profile"}
                 </button>
               )}
