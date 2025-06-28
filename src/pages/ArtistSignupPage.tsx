@@ -60,8 +60,13 @@ const ArtistSignupPage = () => {
       if (firebaseUser) {
         setUser(firebaseUser);
         setFormVisible(true);
+        setSubmitting(false); // ✅ Only here
+      } else {
+        setUser(null);
+        setFormVisible(false);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -96,7 +101,10 @@ const ArtistSignupPage = () => {
   };
   const handleArtistSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      setSubmitting(false);
+      return;
+    }
 
     setSubmitting(true);
 
@@ -135,14 +143,6 @@ const ArtistSignupPage = () => {
       form.querySelectorAll("input[name='specialties']:checked")
     ).map((el) => (el as HTMLInputElement).value);
 
-    const paymentType = (
-      form.elements.namedItem("paymentType") as RadioNodeList
-    )?.value;
-
-    const selectedMethod = (
-      form.elements.namedItem("externalMethod") as HTMLSelectElement
-    )?.value;
-
     const externalHandle = (
       form.elements.namedItem("externalHandle") as HTMLInputElement
     )?.value;
@@ -163,7 +163,11 @@ const ArtistSignupPage = () => {
     const finalPaymentTiming = (
       form.elements.namedItem("finalPaymentTiming") as RadioNodeList
     )?.value;
-
+    if (paymentType === "external" && (!selectedMethod || !externalHandle)) {
+      alert("Please complete your external payment info.");
+      setSubmitting(false);
+      return;
+    }
     const newArtist = {
       displayName,
       bio,
@@ -206,6 +210,7 @@ const ArtistSignupPage = () => {
       );
 
       setSubmitting(false);
+      console.log("redirecting to artist dashboard");
       navigate("/artist-dashboard");
     } catch (err) {
       console.error("Artist profile submission failed:", err);
@@ -246,6 +251,7 @@ const ArtistSignupPage = () => {
 
         {formVisible && (
           <form
+            autoComplete="off"
             onSubmit={handleArtistSubmit}
             className="mt-10 space-y-4 text-left bg-[#121212] p-6 rounded-lg"
           >
@@ -452,7 +458,11 @@ const ArtistSignupPage = () => {
                 submit your artist profile.
               </p>
             )}
-
+            {submitting && (
+              <p className="text-sm text-zinc-400 mb-2">
+                Just a sec — saving your profile…
+              </p>
+            )}
             <div className="flex justify-between pt-6">
               {currentStep > 0 && (
                 <button
