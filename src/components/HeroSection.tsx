@@ -33,7 +33,7 @@ export const HeroSection = () => {
           <Link
             to="/artists"
             data-aos="fade-in"
-            className="px-6 py-3 text-white! transition duration-300 hover:text-[#121212]! border-2 border-neutral-300 hover:bg-neutral-300 rounded"
+            className="px-6 py-3 text-white! max-w-[300px] mx-auto  transition! duration-350  border-2 border-neutral-600 hover:border-[#111111] hover:bg-[#121212] rounded"
           >
             Find an Artist
           </Link>
