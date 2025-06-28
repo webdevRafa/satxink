@@ -52,7 +52,15 @@ const ArtistSignupPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [shops, setShops] = useState<Shop[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false); // this controls backend write
+  const [readyToSubmit, setReadyToSubmit] = useState(false); // this guards button UI
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [shopId, setShopId] = useState("");
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [instagram, setInstagram] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [website, setWebsite] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,7 +77,13 @@ const ArtistSignupPage = () => {
 
     return () => unsubscribe();
   }, []);
-
+  useEffect(() => {
+    if (currentStep === 4) {
+      setReadyToSubmit(true);
+    } else {
+      setReadyToSubmit(false);
+    }
+  }, [currentStep]);
   useEffect(() => {
     const fetchShops = async () => {
       const snapshot = await getDocs(collection(db, "shops"));
@@ -101,14 +115,16 @@ const ArtistSignupPage = () => {
   };
   const handleArtistSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    if (!form) {
+      alert("Form not found.");
+      setSubmitting(false);
+      return;
+    }
     if (!user) {
       setSubmitting(false);
       return;
     }
-
-    setSubmitting(true);
-
-    const form = e.currentTarget;
 
     const displayName = (
       form.elements.namedItem("displayName") as HTMLInputElement
@@ -160,14 +176,15 @@ const ArtistSignupPage = () => {
         "0"
     );
 
-    const finalPaymentTiming = (
-      form.elements.namedItem("finalPaymentTiming") as RadioNodeList
-    )?.value;
-    if (paymentType === "external" && (!selectedMethod || !externalHandle)) {
-      alert("Please complete your external payment info.");
+    const finalPaymentTiming =
+      (form.elements.namedItem("finalPaymentTiming") as RadioNodeList | null)
+        ?.value || "";
+    if (!finalPaymentTiming) {
+      alert("Please select when you'd like to receive final payment.");
       setSubmitting(false);
       return;
     }
+    setSubmitting(true);
     const newArtist = {
       displayName,
       bio,
@@ -266,6 +283,8 @@ const ArtistSignupPage = () => {
                   <input
                     type="text"
                     name="displayName"
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    value={displayName}
                     placeholder="Display Name (e.g. @inkbykai or DotQueen)"
                     required
                     className="w-full p-2 rounded bg-zinc-800 text-white mb-2"
@@ -273,11 +292,15 @@ const ArtistSignupPage = () => {
                   <textarea
                     name="bio"
                     placeholder="Your Bio"
+                    onChange={(e) => setBio(e.target.value)}
+                    value={bio}
                     required
                     className="w-full p-2 rounded bg-zinc-800 text-white"
                   />
                   <select
                     name="shopId"
+                    onChange={(e) => setShopId(e.target.value)}
+                    value={shopId}
                     required
                     className="w-full p-2 rounded bg-zinc-800 text-white"
                   >
@@ -309,6 +332,17 @@ const ArtistSignupPage = () => {
                           <input
                             type="checkbox"
                             name="specialties"
+                            checked={specialties.includes(style)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSpecialties((prev) => [...prev, style]);
+                              } else {
+                                setSpecialties((prev) =>
+                                  prev.filter((s) => s !== style)
+                                );
+                              }
+                            }}
+                            required
                             value={style}
                             className="accent-red-600"
                           />
@@ -321,18 +355,27 @@ const ArtistSignupPage = () => {
                     <input
                       type="url"
                       name="instagram"
+                      required
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
                       placeholder="Instagram URL"
                       className="w-full p-2 rounded bg-zinc-800 text-white"
                     />
                     <input
                       type="url"
                       name="facebook"
+                      onChange={(e) => setFacebook(e.target.value)}
+                      required
+                      value={facebook}
                       placeholder="Facebook URL"
                       className="w-full p-2 rounded bg-zinc-800 text-white"
                     />
                     <input
                       type="url"
                       name="website"
+                      onChange={(e) => setWebsite(e.target.value)}
+                      value={website}
+                      required
                       placeholder="Website URL"
                       className="w-full p-2 rounded bg-zinc-800 text-white"
                     />
@@ -368,6 +411,7 @@ const ArtistSignupPage = () => {
                       <input
                         type="radio"
                         name="paymentType"
+                        required
                         value="external"
                         checked={paymentType === "external"}
                         onChange={() => setPaymentType("external")}
@@ -421,6 +465,7 @@ const ArtistSignupPage = () => {
                 <input
                   type="number"
                   name="depositAmount"
+                  required
                   placeholder="Required deposit amount (e.g. 100)"
                   className="w-full p-2 rounded bg-zinc-800 text-white"
                   min={0}
@@ -433,6 +478,7 @@ const ArtistSignupPage = () => {
                     <input
                       type="radio"
                       name="finalPaymentTiming"
+                      required
                       value="before"
                       className="accent-red-600"
                     />
@@ -442,6 +488,7 @@ const ArtistSignupPage = () => {
                     <input
                       type="radio"
                       name="finalPaymentTiming"
+                      required
                       value="after"
                       className="accent-red-600"
                     />
@@ -458,7 +505,7 @@ const ArtistSignupPage = () => {
                 submit your artist profile.
               </p>
             )}
-            {submitting && (
+            {readyToSubmit && submitting && (
               <p className="text-sm text-zinc-400 mb-2">
                 Just a sec — saving your profile…
               </p>
@@ -483,15 +530,7 @@ const ArtistSignupPage = () => {
                   Next →
                 </button>
               ) : (
-                <button
-                  type="submit"
-                  className={`px-4 py-2 rounded text-white ${
-                    submitting
-                      ? "bg-zinc-600 cursor-not-allowed"
-                      : "bg-red-600 hover:bg-red-700"
-                  }`}
-                  disabled={submitting}
-                >
+                <button type="submit" disabled={submitting}>
                   {submitting ? "Submitting..." : "Submit Profile"}
                 </button>
               )}
