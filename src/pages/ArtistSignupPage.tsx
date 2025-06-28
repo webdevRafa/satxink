@@ -49,9 +49,12 @@ const ArtistSignupPage = () => {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [finalPaymentTiming, setFinalPaymentTiming] = useState("");
+  const [externalHandle, setExternalHandle] = useState("");
 
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+
   const [shops, setShops] = useState<Shop[]>([]);
   const [submitting, setSubmitting] = useState(false); // this controls backend write
   const [readyToSubmit, setReadyToSubmit] = useState(false); // this guards button UI
@@ -145,10 +148,6 @@ const ArtistSignupPage = () => {
       return;
     }
 
-    const externalHandle = (
-      form.elements.namedItem("externalHandle") as HTMLInputElement
-    )?.value;
-
     const externalPaymentDetails =
       paymentType === "external"
         ? {
@@ -156,11 +155,6 @@ const ArtistSignupPage = () => {
             handle: externalHandle,
           }
         : null;
-
-    const depositAmount = parseFloat(
-      (form.elements.namedItem("depositAmount") as HTMLInputElement)?.value ||
-        "0"
-    );
 
     if (!finalPaymentTiming) {
       alert("Please select when you'd like to receive final payment.");
@@ -427,6 +421,8 @@ const ArtistSignupPage = () => {
                         <input
                           type="text"
                           name="externalHandle"
+                          value={externalHandle}
+                          onChange={(e) => setExternalHandle(e.target.value)}
                           required
                           placeholder={
                             selectedMethod === "zelle"
@@ -450,6 +446,8 @@ const ArtistSignupPage = () => {
                 <input
                   type="number"
                   name="depositAmount"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
                   required
                   placeholder="Required deposit amount (e.g. 100)"
                   className="w-full p-2 rounded bg-zinc-800 text-white"
