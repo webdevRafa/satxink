@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import {
   doc,
+  updateDoc,
   getDoc,
   collection,
   query,
   where,
   getDocs,
 } from "firebase/firestore";
-import { db, auth } from "../firebase/firebaseConfig";
+import { db, auth, storage } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import Spinner from "../components/ui/Spinner";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import { SiWebmoney } from "react-icons/si";
 import { useNavigate } from "react-router-dom"; // ✅ At the top of the file
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { toast } from "react-hot-toast";
 
 type Artist = {
   displayName: string;
@@ -42,10 +45,72 @@ type BookingRequest = {
 };
 
 const ArtistDashboard = () => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const navigate = useNavigate();
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const user = auth.currentUser;
+    if (!file || !user) return;
+
+    const uid = user.uid;
+    const storageRef = ref(storage, `users/${uid}/avatar-original.jpg`);
+    await uploadBytes(storageRef, file);
+
+    const tempUrl = URL.createObjectURL(file);
+    setPreviewUrl(tempUrl);
+
+    setTimeout(async () => {
+      const fullRef = ref(storage, `users/${uid}/avatar.jpg`);
+      const fullUrl = await getDownloadURL(fullRef);
+
+      await updateDoc(doc(db, "users", uid), {
+        avatarUrl: fullUrl,
+      });
+
+      setArtist((prev) => (prev ? { ...prev, avatarUrl: fullUrl } : prev));
+      setPreviewUrl(null); // Optional: clear the preview
+    }, 4000);
+  };
+  const waitForImage = async (
+    ref: any,
+    maxRetries = 5,
+    interval = 1000
+  ): Promise<string> => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const url = await getDownloadURL(ref);
+        return url;
+      } catch (err) {
+        await new Promise((res) => setTimeout(res, interval));
+      }
+    }
+    throw new Error("Processed avatar image not found.");
+  };
+  const handleSaveAvatar = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const uid = user.uid;
+    const fullRef = ref(storage, `users/${uid}/avatar.jpg`);
+
+    try {
+      const fullUrl = await waitForImage(fullRef); // ✅ wait until file exists
+
+      await updateDoc(doc(db, "users", uid), {
+        avatarUrl: fullUrl,
+      });
+
+      setArtist((prev) => (prev ? { ...prev, avatarUrl: fullUrl } : prev));
+      setPreviewUrl(null);
+      toast.success("Avatar updated!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save avatar. Try again shortly.");
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -116,15 +181,41 @@ const ArtistDashboard = () => {
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
           {/* Avatar */}
-          <div className="relative group">
-            <img
-              src={artist.avatarUrl}
-              alt={artist.displayName}
-              className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
-            />
-            <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
-              Artist
-            </span>
+          <div className="relative group w-fit mx-auto md:mx-0">
+            <label className="relative group cursor-pointer block">
+              <img
+                src={previewUrl || artist.avatarUrl}
+                alt={artist.displayName}
+                className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                onChange={handleAvatarUpload}
+              />
+              <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
+                Artist
+              </span>
+            </label>
+
+            {/* Show only when preview is active */}
+            {previewUrl && (
+              <div className="mt-2 text-center">
+                <button
+                  onClick={handleSaveAvatar}
+                  className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-4 py-1 rounded shadow transition"
+                >
+                  Save Avatar
+                </button>
+              </div>
+            )}
+
+            {!previewUrl && (
+              <div className="mt-2 text-center">
+                <p className="text-sm text-gray-400">Click to change avatar</p>
+              </div>
+            )}
           </div>
 
           {/* Info */}
@@ -170,9 +261,6 @@ const ArtistDashboard = () => {
 
             {/* Styles */}
             <div className="mt-6">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                My styles
-              </h2>
               <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {artist.specialties.map((style, index) => (
                   <li

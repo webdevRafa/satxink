@@ -1,25 +1,31 @@
 import { Link } from "react-router-dom";
-import backgroundImage from "../assets/images/darkblurhero.webp"; // use your preferred image
+import backgroundImage from "../assets/images/darkblurhero.webp";
+import { useState } from "react";
 
 export const HeroSection = () => {
-  return (
-    <section
-      className="relative h-[90vh] flex items-center justify-center text-center px-4 bg-fixed"
-      style={{
-        backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      {/* Overlay */}
-      <div
-        className="absolute inset-0"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0.6)" }}
-      ></div>
+  const [isHovered, setIsHovered] = useState(false);
 
-      {/* Content */}
-      <div className="relative z-10 max-w-3xl text-white">
+  return (
+    <section className="relative h-[90vh] overflow-hidden flex items-center justify-center text-center px-4 bg-black">
+      {/* Background Image Layer */}
+      <div
+        className="absolute inset-0 bg-center bg-cover bg-no-repeat z-0"
+        style={{
+          backgroundImage: `url(${backgroundImage})`,
+        }}
+      />
+
+      {/* Frosted Glass Effect Layer */}
+      <div
+        className={`absolute inset-0 z-10 transition-all duration-300 ${
+          isHovered
+            ? "bg-black/70 backdrop-blur-sm"
+            : "bg-black/60 backdrop-blur-none"
+        }`}
+      />
+
+      {/* Foreground Content */}
+      <div className="relative z-20 max-w-3xl text-white">
         <h1
           data-aos="fade-in"
           className="text-3xl md:text-4xl font-semibold mb-4"
@@ -33,7 +39,9 @@ export const HeroSection = () => {
           <Link
             to="/artists"
             data-aos="fade-in"
-            className="px-6 py-3 text-white! max-w-[300px] mx-auto  transition! duration-350  border-2 border-neutral-600 hover:border-[#111111] hover:bg-[#121212] rounded"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="px-6 py-3 text-white max-w-[300px] group mx-auto transition duration-350 border-2 border-neutral-600 hover:border-white hover:bg-[#111111] rounded"
           >
             Find an Artist
           </Link>

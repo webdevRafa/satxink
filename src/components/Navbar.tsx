@@ -24,18 +24,25 @@ export const Navbar = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const tryFetchUserRole = async (uid: string, retries = 2) => {
+      const userRef = doc(db, "users", uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        setUserRole(userSnap.data().role);
+      } else if (retries > 0) {
+        setTimeout(() => tryFetchUserRole(uid, retries - 1), 1000);
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          setUserRole(userSnap.data().role);
-        }
+        tryFetchUserRole(firebaseUser.uid);
       } else {
         setUserRole(null);
       }
     });
+
     return () => unsubscribe();
   }, []);
 

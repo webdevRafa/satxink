@@ -155,3 +155,48 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
       }
   }
 });
+export const processAvatar = onObjectFinalized(async (event) => {
+  const object = event.data;
+  const filePath = object.name;
+
+  if (!filePath || !filePath.includes('avatar-original.jpg')) return;
+
+  const bucket = admin.storage().bucket(object.bucket);
+  const fileName = path.basename(filePath);
+  const tempFilePath = path.join(os.tmpdir(), fileName);
+  const uid = filePath.split('/')[1]; // expects: users/{uid}/avatar-original.jpg
+
+  // Download original
+  await bucket.file(filePath).download({ destination: tempFilePath });
+
+  // Create avatar.jpg
+  const avatarPath = path.join(os.tmpdir(), 'avatar.jpg');
+  await sharp(tempFilePath)
+    .resize(512, 512)
+    .jpeg({ quality: 80 })
+    .toFile(avatarPath);
+
+  await bucket.upload(avatarPath, {
+    destination: `users/${uid}/avatar.jpg`,
+    metadata: { contentType: 'image/jpeg' },
+  });
+
+  // Optional: create avatar-thumb.jpg
+  const thumbPath = path.join(os.tmpdir(), 'avatar-thumb.jpg');
+  await sharp(tempFilePath)
+    .resize(128, 128)
+    .jpeg({ quality: 70 })
+    .toFile(thumbPath);
+
+  await bucket.upload(thumbPath, {
+    destination: `users/${uid}/avatar-thumb.jpg`,
+    metadata: { contentType: 'image/jpeg' },
+  });
+
+  // Cleanup temp files
+  await fs.unlink(tempFilePath);
+  await fs.unlink(avatarPath);
+  await fs.unlink(thumbPath);
+
+  console.log(`✅ Avatar processed for user: ${uid}`);
+});
