@@ -158,7 +158,12 @@ const ArtistDashboard = () => {
       // Update Firestore
       await updateDoc(doc(db, "users", uid), { avatarUrl });
 
-      setArtist((prev) => (prev ? { ...prev, avatarUrl } : prev));
+      setArtist((prev) =>
+        prev ? { ...prev, avatarUrl: `${avatarUrl}?t=${Date.now()}` } : prev
+      );
+      setTimeout(() => {
+        setPreviewUrl(null);
+      }, 1000); // 1 second is usually enough
       setPreviewUrl(null);
       toast.success("Avatar saved!");
     } catch (error) {
