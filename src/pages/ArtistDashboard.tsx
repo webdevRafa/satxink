@@ -56,6 +56,9 @@ const ArtistDashboard = () => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [overrideAvatarUrl, setOverrideAvatarUrl] = useState<string | null>(
+    null
+  );
 
   const navigate = useNavigate();
 
@@ -157,6 +160,7 @@ const ArtistDashboard = () => {
 
       // Update Firestore
       await updateDoc(doc(db, "users", uid), { avatarUrl });
+      setOverrideAvatarUrl(tempUrl); // ← new local override
 
       setArtist((prev) =>
         prev ? { ...prev, avatarUrl: `${avatarUrl}?t=${Date.now()}` } : prev
@@ -207,7 +211,7 @@ const ArtistDashboard = () => {
             <label className="relative group cursor-pointer block">
               <div className="relative w-32 h-32 md:w-40 md:h-40">
                 <img
-                  src={previewUrl || artist.avatarUrl}
+                  src={previewUrl || overrideAvatarUrl || artist.avatarUrl}
                   alt={artist.displayName}
                   className="w-full h-full object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
                 />
