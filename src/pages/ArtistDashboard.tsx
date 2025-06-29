@@ -14,7 +14,7 @@ import Spinner from "../components/ui/Spinner";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import { SiWebmoney } from "react-icons/si";
-import { useNavigate } from "react-router-dom"; // ✅ At the top of the file
+import { useNavigate } from "react-router-dom";
 import {
   ref,
   uploadBytes,
@@ -57,114 +57,17 @@ const ArtistDashboard = () => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [avatarRefreshToken, setAvatarRefreshToken] = useState(Date.now());
 
   const navigate = useNavigate();
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const user = auth.currentUser;
-    if (!file || !user) return;
-
-    const uid = user.uid;
-    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
-
-    try {
-      // Upload to temporary location only
-      await uploadBytes(tempRef, file);
-
-      // Generate preview for UI
-      const tempUrl = URL.createObjectURL(file);
-      setPreviewUrl(tempUrl);
-      setSelectedFile(file); // Store selected file for later use on save
-    } catch (error) {
-      console.error("Avatar upload failed:", error);
-      toast.error("Avatar upload failed");
-    }
-  };
-
-  const handleSaveAvatar = async () => {
-    const user = auth.currentUser;
-    if (!user || !selectedFile) {
-      toast.error("No avatar selected.");
-      return;
-    }
-
-    const uid = user.uid;
-    setSavingAvatar(true);
-
-    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
-    const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
-
-    try {
-      try {
-        await deleteObject(finalRef);
-      } catch {
-        console.log("No previous avatar to delete.");
-      }
-
-      const blob = await getBlob(tempRef);
-      await uploadBytes(finalRef, blob, {
-        contentType: selectedFile.type,
-      });
-
-      toast.success("Avatar uploaded. Processing...");
-
-      const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
-      let avatarUrl = "";
-      let attempts = 0;
-
-      while (attempts < 10) {
-        try {
-          avatarUrl = await getDownloadURL(processedRef);
-          break;
-        } catch {
-          await new Promise((res) => setTimeout(res, 1000));
-          attempts++;
-        }
-      }
-
-      if (!avatarUrl) {
-        throw new Error("Processed avatar.jpg not found after waiting.");
-      }
-
-      await updateDoc(doc(db, "users", uid), {
-        avatarUrl: `${avatarUrl}?t=${Date.now()}`,
-      });
-
-      const updatedSnap = await getDoc(doc(db, "users", uid));
-      if (updatedSnap.exists()) {
-        const updatedArtist = updatedSnap.data() as Artist;
-        const timestampedUrl = `${updatedArtist.avatarUrl}?t=${Date.now()}`;
-        setArtist({ ...updatedArtist, avatarUrl: timestampedUrl });
-      }
-
-      setPreviewUrl(null);
-      setSelectedFile(null);
-    } catch (error) {
-      console.error("Saving avatar failed:", error);
-      toast.error("Failed to save avatar.");
-    } finally {
-      setSavingAvatar(false);
-      setLoading(false);
-
-      // 🔥 FORCEFUL FULL PAGE RELOAD
-      console.log("✅ Forcing hard reload...");
-      setTimeout(() => {
-        // Try the cleanest reload
-        window.location.reload();
-
-        // Fallback if that fails
-        window.location.href = "/";
-      }, 1000);
-    }
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        setArtist(null); // clear the artist
-        setRequests([]); // clear requests
-        setLoading(false); // stop spinner
-        navigate("/"); // ✅ Redirect to homepage on sign out
+        setArtist(null);
+        setRequests([]);
+        setLoading(false);
+        navigate("/");
         return;
       }
 
@@ -186,7 +89,7 @@ const ArtistDashboard = () => {
           });
           setRequests(result);
         } else {
-          setArtist(null); // handle missing artist
+          setArtist(null);
           setRequests([]);
         }
       } catch (error) {
@@ -196,8 +99,103 @@ const ArtistDashboard = () => {
       }
     });
 
-    return () => unsubscribe(); // cleanup
+    return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchFreshAvatar = async () => {
+      if (!auth.currentUser) return;
+      const uid = auth.currentUser.uid;
+      try {
+        const rawUrl = await getDownloadURL(
+          ref(storage, `users/${uid}/avatar.jpg`)
+        );
+        const freshUrl = `${rawUrl}?v=${Date.now()}`;
+        setArtist((prev) => (prev ? { ...prev, avatarUrl: freshUrl } : prev));
+      } catch (error) {
+        console.error("Error fetching avatar:", error);
+      }
+    };
+
+    fetchFreshAvatar();
+  }, [avatarRefreshToken]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const user = auth.currentUser;
+    if (!file || !user) return;
+
+    const uid = user.uid;
+    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
+
+    try {
+      await uploadBytes(tempRef, file);
+      const tempUrl = URL.createObjectURL(file);
+      setPreviewUrl(tempUrl);
+      setSelectedFile(file);
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      toast.error("Avatar upload failed");
+    }
+  };
+
+  const handleSaveAvatar = async () => {
+    const user = auth.currentUser;
+    if (!user || !selectedFile) {
+      toast.error("No avatar selected.");
+      return;
+    }
+
+    const uid = user.uid;
+    setSavingAvatar(true);
+
+    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
+    const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
+    const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
+
+    try {
+      try {
+        await deleteObject(finalRef);
+      } catch {
+        console.log("No previous avatar to delete.");
+      }
+
+      const blob = await getBlob(tempRef);
+      await uploadBytes(finalRef, blob, {
+        contentType: selectedFile.type,
+      });
+
+      toast.success("Avatar uploaded. Processing...");
+
+      let avatarUrl = "";
+      let attempts = 0;
+
+      while (attempts < 10) {
+        try {
+          avatarUrl = await getDownloadURL(processedRef);
+          break;
+        } catch {
+          await new Promise((res) => setTimeout(res, 1000));
+          attempts++;
+        }
+      }
+
+      if (!avatarUrl)
+        throw new Error("Processed avatar.jpg not found after waiting.");
+
+      await updateDoc(doc(db, "users", uid), { avatarUrl });
+
+      setPreviewUrl(null);
+      setSelectedFile(null);
+      setAvatarRefreshToken(Date.now());
+      toast.success("Avatar saved successfully.");
+    } catch (error) {
+      console.error("Saving avatar failed:", error);
+      toast.error("Failed to save avatar.");
+    } finally {
+      setSavingAvatar(false);
+    }
+  };
 
   if (loading)
     return (
@@ -226,7 +224,6 @@ const ArtistDashboard = () => {
     <>
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-          {/* Avatar */}
           <div className="relative group w-fit mx-auto md:mx-0">
             <label className="relative group cursor-pointer block">
               <div className="relative w-32 h-32 md:w-40 md:h-40">
@@ -253,8 +250,7 @@ const ArtistDashboard = () => {
               </span>
             </label>
 
-            {/* Show only when preview is active */}
-            {previewUrl && (
+            {previewUrl ? (
               <div className="mt-2 text-center">
                 <button
                   onClick={handleSaveAvatar}
@@ -266,23 +262,19 @@ const ArtistDashboard = () => {
                   Save Avatar
                 </button>
               </div>
-            )}
-
-            {!previewUrl && (
+            ) : (
               <div className="mt-2 text-center">
                 <p className="text-sm text-gray-400">Click to change avatar</p>
               </div>
             )}
           </div>
 
-          {/* Info */}
           <div className="text-center md:text-left flex-1">
             <h1 className="text-3xl md:text-4xl font-bold text-white">
               Welcome, {artist.displayName}
             </h1>
             <p className="text-gray-400 mt-2 italic">{artist.bio}</p>
 
-            {/* Socials */}
             <div className="flex justify-center md:justify-start gap-4 mt-4">
               {artist.socialLinks?.facebook && (
                 <a
@@ -316,7 +308,6 @@ const ArtistDashboard = () => {
               )}
             </div>
 
-            {/* Styles */}
             <div className="mt-6">
               <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {artist.specialties.map((style, index) => (
@@ -341,10 +332,7 @@ const ArtistDashboard = () => {
         {requests.length === 0 ? (
           <p className="text-gray-500">No booking requests yet.</p>
         ) : (
-          <div
-            data-aos="fade-up"
-            className="space-y-4 flex flex-wrap gap-4 justify-center md:justify-start"
-          >
+          <div className="space-y-4 flex flex-wrap gap-4 justify-center md:justify-start">
             {requests.map((req) => (
               <div
                 key={req.id}
@@ -362,7 +350,6 @@ const ArtistDashboard = () => {
                   <strong>Size:</strong>{" "}
                   <span className="text-gray-400">{req.size}</span>
                 </p>
-
                 {Array.isArray(req.preferredDateRange) &&
                   req.preferredDateRange.length > 0 && (
                     <p>
