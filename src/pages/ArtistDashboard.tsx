@@ -343,7 +343,7 @@ const ArtistDashboard = () => {
                   <div className="mt-2 text-center">
                     <button
                       onClick={handleSaveAvatar}
-                      className="border-2 border-neutral-500 text-white text-xs px-4 py-1 rounded shadow transition flex items-center justify-center gap-2"
+                      className="transition  border-2 border-neutral-500 text-white text-xs px-4! py-1! rounded shadow  flex items-center justify-center gap-2"
                     >
                       Save Avatar
                     </button>
