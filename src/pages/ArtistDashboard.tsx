@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Cropper from "react-easy-crop";
+import { Timestamp } from "firebase/firestore";
 
 import {
   doc,
@@ -187,6 +188,14 @@ const ArtistDashboard = () => {
     if (!selectedRequest || !artist) return;
 
     try {
+      const appointmentTimes: Timestamp[] = dateOptions
+        .filter((opt) => opt.date && opt.time)
+        .map((opt) => {
+          const [year, month, day] = opt.date.split("-").map(Number);
+          const [hour, minute] = opt.time.split(":").map(Number);
+          const jsDate = new Date(year, month - 1, day, hour, minute);
+          return Timestamp.fromDate(jsDate);
+        });
       const offerRef = await addDoc(collection(db, "bookingOffers"), {
         artistId: artist.id,
         artistName: artist.displayName,
@@ -194,7 +203,7 @@ const ArtistDashboard = () => {
         requestId: selectedRequest.id,
         price: offerPrice,
         message: offerMessage,
-        dateOptions,
+        appointmentTimes, // ✅ This is now safe and correct
         status: "pending",
         depositAmount: artist.depositPolicy.amount,
         finalPaymentTiming: artist.finalPaymentTiming,
@@ -215,11 +224,7 @@ const ArtistDashboard = () => {
       setSelectedRequest(null);
       setOfferImage(null);
       setOfferPrice(0);
-      setDateOptions([
-        { date: "", time: "" },
-        { date: "", time: "" },
-        { date: "", time: "" },
-      ]);
+
       setOfferMessage("");
     } catch (err) {
       console.error(err);
@@ -424,7 +429,7 @@ const ArtistDashboard = () => {
           </div>
 
           <div className="text-center md:text-left flex-1">
-            <h1 className="text-3xl md:text-4xl font-bold text-white">
+            <h1 className="text-3xl! md:text-4xl! font-bold text-white">
               Welcome, {artist.displayName}
             </h1>
             <p className="text-gray-400 mt-2 italic">{artist.bio}</p>
@@ -606,6 +611,8 @@ const ArtistDashboard = () => {
                     <input
                       type="time"
                       step="900"
+                      min="00:00"
+                      max="23:45"
                       value={option.time}
                       onChange={(e) =>
                         setDateOptions((prev) => {
