@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import Cropper from "react-easy-crop";
-
 import {
   doc,
   updateDoc,
@@ -50,57 +48,6 @@ type BookingRequest = {
   fullUrl: string;
   thumbUrl: string;
 };
-const getCroppedImg = async (
-  imageSrc: string,
-  crop: { x: number; y: number },
-  zoom: number,
-  aspect: number,
-  cropAreaPixels: any
-): Promise<Blob> => {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) throw new Error("Canvas context not available");
-  console.log(crop, zoom, aspect); // force TS to see them as used
-
-  // Scale the image based on zoom
-  const scale = image.naturalWidth / image.width;
-
-  // Set canvas to desired cropped size
-  canvas.width = cropAreaPixels.width;
-  canvas.height = cropAreaPixels.height;
-
-  // Draw the cropped image onto the canvas
-  ctx.drawImage(
-    image,
-    cropAreaPixels.x * scale,
-    cropAreaPixels.y * scale,
-    cropAreaPixels.width * scale,
-    cropAreaPixels.height * scale,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) return reject(new Error("Canvas is empty"));
-      resolve(blob);
-    }, "image/jpeg");
-  });
-};
-
-function createImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener("load", () => resolve(image));
-    image.addEventListener("error", (error) => reject(error));
-    image.setAttribute("crossOrigin", "anonymous");
-    image.src = url;
-  });
-}
 
 const ArtistDashboard = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -112,11 +59,6 @@ const ArtistDashboard = () => {
   const [overrideAvatarUrl, setOverrideAvatarUrl] = useState<string | null>(
     null
   );
-  const [showCropper, setShowCropper] = useState(false);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -165,12 +107,9 @@ const ArtistDashboard = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setCropImageSrc(reader.result as string);
-      setShowCropper(true);
-    };
-    reader.readAsDataURL(file);
+    const tempUrl = URL.createObjectURL(file);
+    setPreviewUrl(tempUrl);
+    setSelectedFile(file);
   };
 
   const handleSaveAvatar = async () => {
@@ -266,54 +205,6 @@ const ArtistDashboard = () => {
 
   return (
     <>
-      {showCropper && cropImageSrc && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex flex-col justify-center items-center">
-          <div className="relative w-[90vw] h-[60vh] bg-white rounded">
-            <Cropper
-              image={cropImageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_, croppedPixels) =>
-                setCroppedAreaPixels(croppedPixels)
-              }
-            />
-          </div>
-          <div className="mt-4 flex gap-4">
-            <button
-              onClick={async () => {
-                if (!cropImageSrc || !croppedAreaPixels) return;
-                const blob = await getCroppedImg(
-                  cropImageSrc,
-                  crop,
-                  zoom,
-                  1,
-                  croppedAreaPixels
-                );
-                const preview = URL.createObjectURL(blob);
-                setPreviewUrl(preview);
-                setSelectedFile(
-                  new File([blob], "avatar.jpg", { type: "image/jpeg" })
-                );
-                setOverrideAvatarUrl(preview);
-                setShowCropper(false);
-              }}
-              className="bg-green-600 text-white px-4 py-2 rounded"
-            >
-              Save Crop
-            </button>
-            <button
-              onClick={() => setShowCropper(false)}
-              className="bg-gray-400 text-white px-4 py-2 rounded"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
           <div className="relative group w-fit mx-auto md:mx-0">
