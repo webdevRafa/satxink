@@ -57,7 +57,6 @@ const ArtistDashboard = () => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [avatarRefreshToken, setAvatarRefreshToken] = useState(Date.now());
 
   const navigate = useNavigate();
 
@@ -102,24 +101,6 @@ const ArtistDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const fetchFreshAvatar = async () => {
-      if (!auth.currentUser) return;
-      const uid = auth.currentUser.uid;
-      try {
-        const rawUrl = await getDownloadURL(
-          ref(storage, `users/${uid}/avatar.jpg`)
-        );
-        const freshUrl = `${rawUrl}?v=${Date.now()}`;
-        setArtist((prev) => (prev ? { ...prev, avatarUrl: freshUrl } : prev));
-      } catch (error) {
-        console.error("Error fetching avatar:", error);
-      }
-    };
-
-    fetchFreshAvatar();
-  }, [avatarRefreshToken]);
-
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const user = auth.currentUser;
@@ -149,17 +130,22 @@ const ArtistDashboard = () => {
     const uid = user.uid;
     setSavingAvatar(true);
 
+    const tempUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(tempUrl);
+
     const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
     const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
     const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
 
     try {
+      // Delete old avatar
       try {
         await deleteObject(finalRef);
       } catch {
         console.log("No previous avatar to delete.");
       }
 
+      // Copy temp to final
       const blob = await getBlob(tempRef);
       await uploadBytes(finalRef, blob, {
         contentType: selectedFile.type,
@@ -167,9 +153,9 @@ const ArtistDashboard = () => {
 
       toast.success("Avatar uploaded. Processing...");
 
+      // Attempt to get the processed avatar (with retry)
       let avatarUrl = "";
       let attempts = 0;
-
       while (attempts < 10) {
         try {
           avatarUrl = await getDownloadURL(processedRef);
@@ -180,20 +166,27 @@ const ArtistDashboard = () => {
         }
       }
 
-      if (!avatarUrl)
-        throw new Error("Processed avatar.jpg not found after waiting.");
+      if (!avatarUrl) {
+        throw new Error("Processed avatar not ready after waiting.");
+      }
 
+      // Save to Firestore
       await updateDoc(doc(db, "users", uid), { avatarUrl });
 
+      // Option 1: Try to update UI with new avatar immediately
+      setArtist((prev) => (prev ? { ...prev, avatarUrl } : prev));
       setPreviewUrl(null);
-      setSelectedFile(null);
-      setAvatarRefreshToken(Date.now());
-      toast.success("Avatar saved successfully.");
+      toast.success("Avatar saved!");
+
+      // Option 2 (alternative): Reload the whole page for fresh load
+      // window.location.reload();
     } catch (error) {
       console.error("Saving avatar failed:", error);
       toast.error("Failed to save avatar.");
     } finally {
       setSavingAvatar(false);
+      setSelectedFile(null);
+      URL.revokeObjectURL(tempUrl);
     }
   };
 
@@ -232,11 +225,6 @@ const ArtistDashboard = () => {
                   alt={artist.displayName}
                   className="w-full h-full object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
                 />
-                {savingAvatar && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-full">
-                    <Spinner className="w-6 h-6 text-white" />
-                  </div>
-                )}
               </div>
 
               <input
@@ -252,15 +240,16 @@ const ArtistDashboard = () => {
 
             {previewUrl ? (
               <div className="mt-2 text-center">
-                <button
-                  onClick={handleSaveAvatar}
-                  disabled={savingAvatar}
-                  className={`border-2 border-neutral-500 text-white text-xs px-4 py-1 rounded shadow transition flex items-center justify-center gap-2 ${
-                    savingAvatar ? "opacity-70 cursor-not-allowed" : ""
-                  }`}
-                >
-                  Save Avatar
-                </button>
+                {previewUrl && !savingAvatar ? (
+                  <div className="mt-2 text-center">
+                    <button
+                      onClick={handleSaveAvatar}
+                      className="border-2 border-neutral-500 text-white text-xs px-4 py-1 rounded shadow transition flex items-center justify-center gap-2"
+                    >
+                      Save Avatar
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="mt-2 text-center">
