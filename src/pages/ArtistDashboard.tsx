@@ -19,7 +19,6 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
-  getBlob,
   deleteObject,
 } from "firebase/storage";
 import { toast } from "react-hot-toast";
@@ -101,23 +100,13 @@ const ArtistDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    const user = auth.currentUser;
-    if (!file || !user) return;
+    if (!file) return;
 
-    const uid = user.uid;
-    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
-
-    try {
-      await uploadBytes(tempRef, file);
-      const tempUrl = URL.createObjectURL(file);
-      setPreviewUrl(tempUrl);
-      setSelectedFile(file);
-    } catch (error) {
-      console.error("Avatar upload failed:", error);
-      toast.error("Avatar upload failed");
-    }
+    const tempUrl = URL.createObjectURL(file);
+    setPreviewUrl(tempUrl);
+    setSelectedFile(file);
   };
 
   const handleSaveAvatar = async () => {
@@ -133,27 +122,23 @@ const ArtistDashboard = () => {
     const tempUrl = URL.createObjectURL(selectedFile);
     setPreviewUrl(tempUrl);
 
-    const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
     const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
     const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
 
     try {
-      // Delete old avatar
+      // Delete previous avatar
       try {
         await deleteObject(finalRef);
       } catch {
         console.log("No previous avatar to delete.");
       }
 
-      // Copy temp to final
-      const blob = await getBlob(tempRef);
-      await uploadBytes(finalRef, blob, {
+      // Upload the selected file
+      await uploadBytes(finalRef, selectedFile, {
         contentType: selectedFile.type,
       });
 
-      toast.success("Avatar uploaded. Processing...");
-
-      // Attempt to get the processed avatar (with retry)
+      // Wait for the processed avatar.jpg (via Cloud Function)
       let avatarUrl = "";
       let attempts = 0;
       while (attempts < 10) {
@@ -170,16 +155,12 @@ const ArtistDashboard = () => {
         throw new Error("Processed avatar not ready after waiting.");
       }
 
-      // Save to Firestore
+      // Update Firestore
       await updateDoc(doc(db, "users", uid), { avatarUrl });
 
-      // Option 1: Try to update UI with new avatar immediately
       setArtist((prev) => (prev ? { ...prev, avatarUrl } : prev));
       setPreviewUrl(null);
       toast.success("Avatar saved!");
-
-      // Option 2 (alternative): Reload the whole page for fresh load
-      // window.location.reload();
     } catch (error) {
       console.error("Saving avatar failed:", error);
       toast.error("Failed to save avatar.");
