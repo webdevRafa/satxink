@@ -4,11 +4,13 @@ import Cropper from "react-easy-crop";
 import {
   doc,
   updateDoc,
+  addDoc,
   getDoc,
   collection,
   query,
   where,
   getDocs,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db, auth, storage } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
@@ -26,6 +28,7 @@ import {
 import { toast } from "react-hot-toast";
 
 type Artist = {
+  id: string;
   displayName: string;
   email: string;
   bio: string;
@@ -36,6 +39,12 @@ type Artist = {
     website?: string;
     facebook?: string;
   };
+  depositPolicy: {
+    amount: number;
+    depositRequired: boolean;
+    nonRefundable: boolean;
+  };
+  finalPaymentTiming: "before" | "after";
 };
 
 type BookingRequest = {
@@ -107,6 +116,19 @@ const ArtistDashboard = () => {
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
+    null
+  );
+  const [offerPrice, setOfferPrice] = useState<number>(0);
+  const [offerMessage, setOfferMessage] = useState("");
+  const [offerImage, setOfferImage] = useState<File | null>(null);
+  const [dateOptions, setDateOptions] = useState([
+    { date: "", time: "" },
+    { date: "", time: "" },
+    { date: "", time: "" },
+  ]);
+
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [overrideAvatarUrl, setOverrideAvatarUrl] = useState<string | null>(
@@ -160,6 +182,50 @@ const ArtistDashboard = () => {
 
     return () => unsubscribe();
   }, []);
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRequest || !artist) return;
+
+    try {
+      const offerRef = await addDoc(collection(db, "bookingOffers"), {
+        artistId: artist.id,
+        artistName: artist.displayName,
+        clientId: selectedRequest.clientId,
+        requestId: selectedRequest.id,
+        price: offerPrice,
+        message: offerMessage,
+        dateOptions,
+        status: "pending",
+        depositAmount: artist.depositPolicy.amount,
+        finalPaymentTiming: artist.finalPaymentTiming,
+        createdAt: serverTimestamp(),
+      });
+
+      if (offerImage) {
+        const imageRef = ref(
+          storage,
+          `bookingOffers/${offerRef.id}/originals/${offerImage.name}`
+        );
+        await uploadBytes(imageRef, offerImage);
+        // 🔥 your Cloud Function (Sharp) will handle compression
+      }
+
+      toast.success("Offer sent!");
+      setIsOfferModalOpen(false);
+      setSelectedRequest(null);
+      setOfferImage(null);
+      setOfferPrice(0);
+      setDateOptions([
+        { date: "", time: "" },
+        { date: "", time: "" },
+        { date: "", time: "" },
+      ]);
+      setOfferMessage("");
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong.");
+    }
+  };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -462,8 +528,105 @@ const ArtistDashboard = () => {
                     />
                   </div>
                 )}
+                <button
+                  onClick={() => {
+                    setSelectedRequest(req);
+                    setIsOfferModalOpen(true);
+                  }}
+                  className="border-2 border-neutral-500 px-3! py-1! rounded text-white mt-2"
+                >
+                  Make Offer
+                </button>
               </div>
             ))}
+          </div>
+        )}
+        {isOfferModalOpen && selectedRequest && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
+            <div className="bg-[#121212] text-white rounded-lg p-6 w-full max-w-xl relative">
+              <button
+                onClick={() => {
+                  setIsOfferModalOpen(false);
+                  setSelectedRequest(null);
+                }}
+                className="absolute top-2 right-3 text-xl"
+              >
+                <span>X</span>
+              </button>
+
+              <h2 className="text-2xl font-bold mb-4">
+                Create Offer for {selectedRequest.clientName}
+              </h2>
+
+              <form onSubmit={handleOfferSubmit} data-aos="fade-in">
+                <label htmlFor="price" className="text-sm font-medium mb-1">
+                  Price
+                </label>
+                <input
+                  type="number"
+                  placeholder="Price"
+                  required
+                  value={offerPrice}
+                  onChange={(e) => setOfferPrice(Number(e.target.value))}
+                  className="w-full p-2 mb-4 rounded bg-neutral-800"
+                />
+
+                <textarea
+                  placeholder="Optional message"
+                  value={offerMessage}
+                  onChange={(e) => setOfferMessage(e.target.value)}
+                  className="w-full p-2 mb-4 rounded bg-neutral-800"
+                />
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setOfferImage(e.target.files?.[0] || null)}
+                  className="mb-4"
+                />
+
+                <label className="text-sm text-white mb-1 block">
+                  Available Appointment Options
+                </label>
+
+                {dateOptions.map((option, idx) => (
+                  <div key={idx} className="flex gap-2 mb-2">
+                    <input
+                      type="date"
+                      value={option.date}
+                      onChange={(e) =>
+                        setDateOptions((prev) => {
+                          const updated = [...prev];
+                          updated[idx].date = e.target.value;
+                          return updated;
+                        })
+                      }
+                      className="w-1/2 p-2 rounded bg-neutral-800"
+                    />
+                    <input
+                      type="time"
+                      step="900"
+                      value={option.time}
+                      onChange={(e) =>
+                        setDateOptions((prev) => {
+                          const updated = [...prev];
+                          updated[idx].time = e.target.value;
+                          return updated;
+                        })
+                      }
+                      className="w-1/2 p-2 rounded bg-neutral-800"
+                    />
+                  </div>
+                ))}
+
+                <button
+                  type="submit"
+                  className="w-full py-2 mt-4  text-white rounded border-2 border-neutral-400"
+                >
+                  Send Offer
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>
