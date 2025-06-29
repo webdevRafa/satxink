@@ -56,6 +56,7 @@ const ArtistDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const navigate = useNavigate();
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,9 +68,13 @@ const ArtistDashboard = () => {
     const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
 
     try {
-      await uploadBytes(tempRef, file); // Only uploads to temp path
-      const tempUrl = URL.createObjectURL(file); // Local preview
-      setPreviewUrl(tempUrl); // Show preview in UI
+      // Upload to temporary location only
+      await uploadBytes(tempRef, file);
+
+      // Generate preview for UI
+      const tempUrl = URL.createObjectURL(file);
+      setPreviewUrl(tempUrl);
+      setSelectedFile(file); // Store selected file for later use on save
     } catch (error) {
       console.error("Avatar upload failed:", error);
       toast.error("Avatar upload failed");
@@ -78,41 +83,78 @@ const ArtistDashboard = () => {
 
   const handleSaveAvatar = async () => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user || !selectedFile) {
+      toast.error("No avatar selected.");
+      return;
+    }
+
     const uid = user.uid;
-    setSavingAvatar(true); // 🟢 Start loading spinner
+    setSavingAvatar(true);
 
     const tempRef = ref(storage, `tempAvatars/${uid}/avatar-original.jpg`);
     const finalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
 
     try {
-      // 🧹 Try to delete the old avatar (optional)
       try {
         await deleteObject(finalRef);
-        console.log("🗑️ Previous avatar deleted.");
-      } catch (e) {
-        console.log("⚠️ No previous avatar to delete. Proceeding...");
+      } catch {
+        console.log("No previous avatar to delete.");
       }
 
-      // ✅ Download the file from temp
       const blob = await getBlob(tempRef);
+      await uploadBytes(finalRef, blob, {
+        contentType: selectedFile.type,
+      });
 
-      // ✅ Upload to the final destination
-      console.log("📤 Uploading to finalRef:", finalRef.fullPath);
-      await uploadBytes(finalRef, blob);
+      toast.success("Avatar uploaded. Processing...");
 
-      // ✅ Update Firestore avatarUrl
-      const avatarUrl = await getDownloadURL(finalRef);
-      const docRef = doc(db, "users", uid);
-      await updateDoc(docRef, { avatarUrl });
+      const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
+      let avatarUrl = "";
+      let attempts = 0;
 
-      toast.success("Avatar updated!");
-      setPreviewUrl(null); // clear preview
+      while (attempts < 10) {
+        try {
+          avatarUrl = await getDownloadURL(processedRef);
+          break;
+        } catch {
+          await new Promise((res) => setTimeout(res, 1000));
+          attempts++;
+        }
+      }
+
+      if (!avatarUrl) {
+        throw new Error("Processed avatar.jpg not found after waiting.");
+      }
+
+      await updateDoc(doc(db, "users", uid), {
+        avatarUrl: `${avatarUrl}?t=${Date.now()}`,
+      });
+
+      const updatedSnap = await getDoc(doc(db, "users", uid));
+      if (updatedSnap.exists()) {
+        const updatedArtist = updatedSnap.data() as Artist;
+        const timestampedUrl = `${updatedArtist.avatarUrl}?t=${Date.now()}`;
+        setArtist({ ...updatedArtist, avatarUrl: timestampedUrl });
+      }
+
+      setPreviewUrl(null);
+      setSelectedFile(null);
     } catch (error) {
       console.error("Saving avatar failed:", error);
       toast.error("Failed to save avatar.");
     } finally {
-      setSavingAvatar(false); // 🔴 Stop loading spinner
+      setSavingAvatar(false);
+      setLoading(false);
+
+      // 🔥 FORCEFUL FULL PAGE RELOAD
+      console.log("✅ Forcing hard reload...");
+      setTimeout(() => {
+        // Try the cleanest reload
+        window.location.reload();
+
+        // Fallback if that fails
+        window.location.href = "/";
+      }, 1000);
     }
   };
 

@@ -159,8 +159,7 @@ export const processAvatar = onObjectFinalized(async (event) => {
   const object = event.data;
   const filePath = object.name;
 
-   // 🔒 Skip any files outside the users/ path
-   if (!filePath || !filePath.startsWith('users/') || !filePath.includes('avatar-original.jpg')) {
+  if (!filePath || (!filePath.startsWith('users/') && !filePath.startsWith('tempAvatars/')) || !filePath.includes('avatar-original.jpg')) {
     console.log(`⏭️ Skipping file: ${filePath}`);
     return;
   }
