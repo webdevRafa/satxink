@@ -25,7 +25,7 @@ const BookingRequestsList: React.FC<Props> = ({
       {bookingRequests.map((request) => (
         <div
           key={request.id}
-          className="bg-zinc-800 p-4 rounded-lg shadow relative"
+          className="bg-[var(--color-bg-card)] p-4 rounded-lg shadow relative"
         >
           <div className="flex items-center gap-3 mb-2">
             <img

@@ -47,7 +47,7 @@ const MakeOfferModal = ({
   onSubmit,
 }: Props) => {
   if (!isOpen || !selectedRequest) return null;
-
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
       <div className="bg-[#121212] text-white rounded-lg p-6 w-full max-w-xl relative">
@@ -75,13 +75,36 @@ const MakeOfferModal = ({
             onChange={(e) => setOfferMessage(e.target.value)}
             className="w-full p-2 mb-4 rounded bg-neutral-800"
           />
-
+          <p className="text-xs text-neutral-400 mb-2 italic">
+            (Optional) Upload a sample image to show the client a reference.
+          </p>
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => setOfferImage(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setOfferImage(file);
+              if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => setPreviewUrl(reader.result as string);
+                reader.readAsDataURL(file);
+              } else {
+                setPreviewUrl(null);
+              }
+            }}
             className="mb-4"
           />
+
+          {previewUrl && (
+            <div className="mb-4">
+              <p className="text-sm mb-1">Sample Image Preview:</p>
+              <img
+                src={previewUrl}
+                alt="Sample"
+                className="rounded max-h-48 object-contain"
+              />
+            </div>
+          )}
 
           <label className="text-sm text-white mb-1 block">
             Available Appointment Options
@@ -118,6 +141,18 @@ const MakeOfferModal = ({
               />
             </div>
           ))}
+          {offerImage && (
+            <div className="mb-4">
+              <p className="text-sm text-neutral-400 mb-1 italic">
+                Sample Image Preview:
+              </p>
+              <img
+                src={previewUrl || URL.createObjectURL(offerImage)}
+                alt="Offer Sample"
+                className="rounded max-h-48 object-contain"
+              />
+            </div>
+          )}
 
           <button
             type="submit"

@@ -1,6 +1,7 @@
-// SidebarNavigation.tsx
-import React from "react";
+import React, { useState } from "react";
+
 type ViewType = "requests" | "offers" | "confirmed";
+
 interface SidebarProps {
   activeView: ViewType;
   onViewChange: (view: ViewType) => void;
@@ -11,26 +12,67 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   onViewChange,
 }) => {
   const views: ViewType[] = ["requests", "offers", "confirmed"];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <aside className="w-full md:w-64 p-4 bg-zinc-900 rounded-xl mb-4 md:mb-0">
-      <ul className="space-y-2">
-        {views.map((view) => (
-          <li key={view}>
-            <button
-              onClick={() => onViewChange(view)}
-              className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
-                activeView === view
-                  ? "bg-white text-black font-bold"
-                  : "text-white hover:bg-zinc-800"
-              }`}
-            >
-              {view.charAt(0).toUpperCase() + view.slice(1)}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </aside>
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl mb-4">
+        <ul className="space-y-2">
+          {views.map((view) => (
+            <li key={view}>
+              <button
+                onClick={() => onViewChange(view)}
+                className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
+                  activeView === view
+                    ? "bg-white text-black font-bold"
+                    : "text-white hover:bg-zinc-800"
+                }`}
+              >
+                {view.charAt(0).toUpperCase() + view.slice(1)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      {/* Mobile Toggle Button */}
+      <div className="md:hidden mb-4">
+        <button
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          className="text-white px-4 py-2 bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-card)] rounded-lg w-full"
+        >
+          {mobileMenuOpen ? "Close Menu" : "Menu"}
+        </button>
+
+        {/* Mobile Dropdown Menu */}
+        <div
+          className={`transition-all duration-300 overflow-hidden ${
+            mobileMenuOpen ? "max-h-96 mt-2" : "max-h-0"
+          }`}
+        >
+          <ul className="space-y-2 bg-[var(--color-bg-base)] rounded-xl p-4">
+            {views.map((view) => (
+              <li key={view}>
+                <button
+                  onClick={() => {
+                    onViewChange(view);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
+                    activeView === view
+                      ? "bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-card)]"
+                      : "text-white hover:bg-[var(--color-bg-card)]"
+                  }`}
+                >
+                  {view.charAt(0).toUpperCase() + view.slice(1)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </>
   );
 };
 
