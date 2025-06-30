@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import backgroundImage from "../assets/images/darkblurhero.webp";
+import backgroundImage from "../assets/images/satx-inked.webp";
 import { useState } from "react";
 
 export const HeroSection = () => {
@@ -12,6 +12,10 @@ export const HeroSection = () => {
         className="absolute inset-0 bg-center bg-cover bg-no-repeat z-0"
         style={{
           backgroundImage: `url(${backgroundImage})`,
+          backgroundAttachment: "fixed",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "cover",
         }}
       />
 
