@@ -11,10 +11,10 @@ import {
   getDocs,
 } from "firebase/firestore";
 
-import SidebarNavigation from "./components/SidebarNavigation";
-import ArtistProfileHeader from "./components/ArtistProfileHeader";
-import BookingRequestsList from "./components/BookingRequestsList";
-import MakeOfferModal from "./components/MakeOfferModal";
+import SidebarNavigation from "../components/SidebarNavigation";
+import ArtistProfileHeader from "../components/ArtistProfileHeader";
+import BookingRequestsList from "../components/BookingRequestsList";
+import MakeOfferModal from "../components/MakeOfferModal";
 
 const NewArtistDashboard = () => {
   const [activeView, setActiveView] = useState<
@@ -60,7 +60,10 @@ const NewArtistDashboard = () => {
 
   return (
     <div className="flex h-screen bg-zinc-900 text-white">
-      <SidebarNavigation activeView={activeView} onViewChange={setActiveView} />
+      <SidebarNavigation
+        activeView={activeView}
+        onViewChange={(view) => setActiveView(view)}
+      />
 
       <main className="flex-1 overflow-y-auto p-6">
         {artist && <ArtistProfileHeader artist={artist} />}

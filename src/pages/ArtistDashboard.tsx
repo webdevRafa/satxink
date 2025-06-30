@@ -158,7 +158,10 @@ const ArtistDashboard = () => {
         const artistSnap = await getDoc(artistRef);
 
         if (artistSnap.exists()) {
-          setArtist(artistSnap.data() as Artist);
+          setArtist({
+            ...(artistSnap.data() as Omit<Artist, "id">),
+            id: artistSnap.id,
+          });
 
           const q = query(
             collection(db, "bookingRequests"),
