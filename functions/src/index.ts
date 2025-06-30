@@ -6,6 +6,8 @@ import * as path   from 'path';
 import * as os     from 'os';
 import * as fs     from 'fs/promises';
 import sharp       from 'sharp';
+import { v4 as uuidv4 } from "uuid";  
+
 
 admin.initializeApp();
 const bucket = admin.storage().bucket();
@@ -90,8 +92,12 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
 
   // Save full-res JPG
   await bucket.file(fullResPath).save(inputBuffer, {
-    metadata: { contentType: 'image/jpeg' },
-    public:   true, // remove if you prefer signed URLs
+    metadata: {
+      contentType: "image/jpeg",
+      metadata: {
+        firebaseStorageDownloadTokens: uuidv4(),
+      },
+    },
   });
 
   // Create & save 300-px WebP thumbnail
@@ -100,10 +106,23 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
     .webp({ quality: 80 })
     .toBuffer();
 
-  await bucket.file(thumbPath).save(thumbBuffer, {
-    metadata: { contentType: 'image/webp' },
-    public:   true,
-  });
+    await bucket.file(thumbPath).save(thumbBuffer, {
+      metadata: {
+        contentType: "image/webp",
+        metadata: {
+          firebaseStorageDownloadTokens: uuidv4(),
+        },
+      },
+    });
+    const [fullDownloadUrl] = await bucket.file(fullResPath).getSignedUrl({
+      action: 'read',
+      expires: '03-01-2030', // pick your expiration
+    });
+    
+    const [thumbDownloadUrl] = await bucket.file(thumbPath).getSignedUrl({
+      action: 'read',
+      expires: '03-01-2030',
+    });
 
   /* ------------------------------------------------------------------ */
   /* 4.  Clean up                                                       */
@@ -114,8 +133,8 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
   /* ------------------------------------------------------------------ */
   /* 5.  Write URLs back to Firestore                                   */
   /* ------------------------------------------------------------------ */
-  const fullUrl  = `https://storage.googleapis.com/${bucket.name}/${fullResPath}`;
-  const thumbUrl = `https://storage.googleapis.com/${bucket.name}/${thumbPath}`;
+  const fullUrl = fullDownloadUrl;
+  const thumbUrl = thumbDownloadUrl;
   const firestore = admin.firestore();
 
   if (category === 'bookingRequests') {

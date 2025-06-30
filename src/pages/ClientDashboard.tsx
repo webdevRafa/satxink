@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   doc,
@@ -255,12 +255,34 @@ export default function ClientDashboard() {
       });
 
       if (referenceImage) {
-        const imageRef = ref(
+        const originalRef = ref(
           storage,
           `bookingRequests/${reqRef.id}/originals/${referenceImage.name}`
         );
-        await uploadBytes(imageRef, referenceImage);
-        // Cloud Function will handle full + thumbnail uploads
+        await uploadBytes(originalRef, referenceImage);
+
+        const fullRef = ref(
+          storage,
+          `bookingRequests/${reqRef.id}/full/${referenceImage.name}`
+        );
+        const thumbRef = ref(
+          storage,
+          `bookingRequests/${reqRef.id}/thumb/${referenceImage.name}`
+        );
+
+        try {
+          const [fullUrl, thumbUrl] = await Promise.all([
+            getDownloadURL(fullRef),
+            getDownloadURL(thumbRef),
+          ]);
+
+          await updateDoc(reqRef, {
+            fullUrl,
+            thumbUrl,
+          });
+        } catch (error) {
+          console.error("Failed to get image URLs", error);
+        }
       }
 
       setIsModalOpen(false);
