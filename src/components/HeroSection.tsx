@@ -3,6 +3,11 @@ import backgroundImage from "../assets/images/satx-inked.webp";
 import { useState } from "react";
 
 export const HeroSection = () => {
+  const isIOS =
+    typeof window !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+    !(window as any).MSStream;
+
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -12,7 +17,7 @@ export const HeroSection = () => {
         className="absolute inset-0 bg-center bg-cover bg-no-repeat z-0"
         style={{
           backgroundImage: `url(${backgroundImage})`,
-          backgroundAttachment: "fixed",
+          backgroundAttachment: isIOS ? "scroll" : "fixed",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
           backgroundSize: "cover",
