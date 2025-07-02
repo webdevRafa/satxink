@@ -69,33 +69,63 @@ const RequestTattooModal: React.FC<Props> = ({
         createdAt: serverTimestamp(),
       });
 
+      // 🟢 Immediately toast and close modal
+      toast.success("Request sent!");
+      reset();
+      onClose();
+
+      // 🟡 THEN process optional image upload in the background
       if (referenceImage) {
+        const fileName = referenceImage.name;
+
         const originalRef = ref(
           storage,
-          `bookingRequests/${reqRef.id}/originals/${referenceImage.name}`
+          `bookingRequests/${reqRef.id}/originals/${fileName}`
         );
         await uploadBytes(originalRef, referenceImage);
 
         const fullRef = ref(
           storage,
-          `bookingRequests/${reqRef.id}/full/${referenceImage.name}`
+          `bookingRequests/${reqRef.id}/full/${fileName}`
         );
         const thumbRef = ref(
           storage,
-          `bookingRequests/${reqRef.id}/thumb/${referenceImage.name}`
+          `bookingRequests/${reqRef.id}/thumb/${fileName}`
         );
 
-        const [fullUrl, thumbUrl] = await Promise.all([
-          getDownloadURL(fullRef),
-          getDownloadURL(thumbRef),
-        ]);
+        const waitForURL = (
+          ref: any,
+          maxRetries = 10,
+          delay = 500
+        ): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const attempt = (retries: number) => {
+              getDownloadURL(ref)
+                .then(resolve)
+                .catch((err) => {
+                  if (retries >= maxRetries) return reject(err);
+                  setTimeout(() => attempt(retries + 1), delay);
+                });
+            };
+            attempt(0);
+          });
+        };
 
-        await updateDoc(reqRef, { fullUrl, thumbUrl });
+        try {
+          const [fullUrl, thumbUrl] = await Promise.all([
+            waitForURL(fullRef),
+            waitForURL(thumbRef),
+          ]);
+
+          await updateDoc(reqRef, {
+            fullUrl,
+            thumbUrl,
+          });
+        } catch (error) {
+          console.warn("Image not ready after retry:", error);
+          // optional: toast.error("Image processing failed")
+        }
       }
-
-      toast.success("Request sent!");
-      reset();
-      onClose();
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong.");
