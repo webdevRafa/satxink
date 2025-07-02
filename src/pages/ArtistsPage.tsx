@@ -185,7 +185,7 @@ export const ArtistsPage = () => {
   return (
     <main className="px-4 py-12 max-w-6xl mx-auto relative">
       <div data-aos="fade-in">
-        <h1 className="text-3xl font-semibold text-white mb-2">
+        <h1 className="text-3xl! font-semibold text-white mb-2">
           Find an Artist
         </h1>
         <p className="text-gray-400 mb-4">
@@ -203,7 +203,7 @@ export const ArtistsPage = () => {
           {SPECIALTIES.map((tag) => (
             <button
               key={tag}
-              className={`px-1! md:px-3! py-1!  md:py-2! rounded-full border text-xs! font-medium transition-all ${
+              className={`px-1! md:px-3! py-1!  md:py-2! rounded-full border text-xs! font-medium hover:scale-110 ease-in-out duration-300 transition-all ${
                 specialtyFilter === tag
                   ? "bg-white text-black border-white"
                   : "text-white border-gray-500 hover:border-white"
