@@ -25,8 +25,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 onClick={() => onViewChange(view)}
                 className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
                   activeView === view
-                    ? "bg-white text-black font-bold"
-                    : "text-white hover:bg-zinc-800"
+                    ? "text-white font-bold"
+                    : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                 }`}
               >
                 {view.charAt(0).toUpperCase() + view.slice(1)}
