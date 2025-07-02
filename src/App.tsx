@@ -30,7 +30,7 @@ import DashboardRedirectPage from "./pages/DashboardRedirectPage";
 import ArtistSignupPage from "./pages/ArtistSignupPage";
 import SignupSelection from "./pages/SignupSelection";
 import NewArtistDashboard from "./pages/NewArtistDashboard";
-
+import NewClientDashboard from "./pages/NewClientDashboard";
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
 
@@ -65,6 +65,7 @@ function App() {
         <Route path="/clients" element={<Clients />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/new-artist-dashboard" element={<NewArtistDashboard />} />
+        <Route path="/new-client-dashboard" element={<NewClientDashboard />} />
         <Route path="/artist-dashboard" element={<ArtistDashboard />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
         <Route path="/artists" element={<ArtistsPage />} />

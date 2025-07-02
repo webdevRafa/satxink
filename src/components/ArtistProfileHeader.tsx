@@ -53,8 +53,8 @@ const ArtistProfileHeader: React.FC<ArtistProfileHeaderProps> = ({
 
       {/* Info */}
       <div>
-        <h2 className="text-2xl font-semibold">{artist.displayName}</h2>
-        <p className="text-neutral-400 italic mt-1">{artist.bio}</p>
+        <h2 className="text-2xl font-semibold mb-1!">{artist.displayName}</h2>
+        <p className="text-neutral-400 italic mt-0!">{artist.bio}</p>
 
         {/* Specialties */}
         <div className="flex flex-wrap gap-2 mt-3">
