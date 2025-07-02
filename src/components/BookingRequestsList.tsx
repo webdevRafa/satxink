@@ -29,12 +29,12 @@ const BookingRequestsList: React.FC<Props> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
         {bookingRequests.map((request) => (
           <button
             key={request.id}
             onClick={() => setSelectedRequest(request)}
-            className="bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-1 hover:ring-lime-500"
+            className="w-full  bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
           >
             <div className="flex items-center gap-3 mb-3">
               <img

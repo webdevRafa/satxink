@@ -17,7 +17,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl mb-4">
+      <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
         <ul className="space-y-2">
           {views.map((view) => (
             <li key={view}>
