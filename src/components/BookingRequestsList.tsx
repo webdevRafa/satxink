@@ -1,7 +1,5 @@
 import { Fragment, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { DateRange } from "react-date-range";
-import { addDays } from "date-fns";
 
 type BookingRequest = {
   id: string;
@@ -28,14 +26,12 @@ const BookingRequestsList: React.FC<Props> = ({
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
     null
   );
-  const [dateRange, setDateRange] = useState([
-    {
-      startDate: new Date(),
-      endDate: addDays(new Date(), 7),
-      key: "selection",
-    },
-  ]);
-
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    new Date().getMonth()
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear()
+  );
   const [isFiltering, setIsFiltering] = useState(false);
 
   const formatDateRange = (dates: string[]): string => {
@@ -61,41 +57,58 @@ const BookingRequestsList: React.FC<Props> = ({
         const [startStr, endStr] = req.preferredDateRange;
         const reqStart = new Date(startStr);
         const reqEnd = new Date(endStr);
-        const filterStart = dateRange[0].startDate;
-        const filterEnd = dateRange[0].endDate;
 
-        return reqEnd >= filterStart && reqStart <= filterEnd;
+        const requestMonths = [reqStart.getMonth(), reqEnd.getMonth()];
+        const requestYears = [reqStart.getFullYear(), reqEnd.getFullYear()];
+
+        return (
+          requestYears.includes(selectedYear) &&
+          requestMonths.includes(selectedMonth)
+        );
       })
     : bookingRequests;
 
   return (
     <>
-      <div className="mb-4">
-        <button
-          onClick={() => setIsFiltering((prev) => !prev)}
-          className="mb-2 text-sm underline text-gray-300 hover:text-white"
+      <div className="sticky top-[-24px] z-20 bg-[var(--color-bg-base)] py-3 px-2 mb-4 border-b border-neutral-800 flex flex-wrap items-center gap-4">
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+          className="bg-[var(--color-bg-base)] text-white border border-neutral-700 rounded px-3 py-1 text-sm"
         >
-          {isFiltering ? "Clear Date Filter" : "Filter by Date Range"}
+          {Array.from({ length: 12 }, (_, i) => (
+            <option key={i} value={i}>
+              {new Date(0, i).toLocaleString("en-US", { month: "long" })}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          className="bg-[var(--color-bg-base)] text-white border border-neutral-700 rounded px-3 py-1 text-sm"
+        >
+          {[2025, 2026, 2027].map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+
+        <button
+          onClick={() => setIsFiltering(true)}
+          className="bg-[var(--color-bg-card)] hover:bg-neutral-400 text-white px-3 py-1 rounded text-sm"
+        >
+          Filter
         </button>
 
         {isFiltering && (
-          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow border border-neutral-700 inline-block">
-            <DateRange
-              editableDateInputs
-              onChange={(ranges) => {
-                setDateRange([
-                  {
-                    startDate: ranges.selection.startDate ?? new Date(),
-                    endDate: ranges.selection.endDate ?? new Date(),
-                    key: "selection",
-                  },
-                ]);
-              }}
-              moveRangeOnFirstSelection={false}
-              ranges={dateRange}
-              className="text-white"
-            />
-          </div>
+          <button
+            onClick={() => setIsFiltering(false)}
+            className="text-sm underline text-red-400 hover:text-red-300"
+          >
+            Clear Filter
+          </button>
         )}
       </div>
 
