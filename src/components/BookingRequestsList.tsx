@@ -122,9 +122,12 @@ const BookingRequestsList: React.FC<Props> = ({
               className="w-full h-32 object-cover rounded-md mb-2"
             />
 
-            <p className="text-sm text-gray-300 line-clamp-2 mb-1">
-              {request.description}
-            </p>
+            <div className="relative overflow-hidden h-[3.5rem] mb-1">
+              <p className="text-sm text-gray-300 line-clamp-2 pr-4">
+                {request.description}
+              </p>
+              <div className="absolute bottom-0 right-0 h-full w-10 bg-gradient-to-l from-[var(--color-bg-card)] to-transparent pointer-events-none" />
+            </div>
 
             {request.preferredDateRange?.length === 2 && (
               <p className="text-xs text-gray-400 mb-1">
