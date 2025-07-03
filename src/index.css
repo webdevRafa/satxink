@@ -1,7 +1,5 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-@import "react-date-range/dist/styles.css";        /* main style */
-@import "react-date-range/dist/theme/default.css"; /* theme */
 
 
 /* Clean up padding + match your dark theme */
@@ -62,6 +60,7 @@ body {
     background-color: var(--color-bg-base);
     color: var(--color-text-light);
     font-family: 'Space Grotesk', sans-serif;
+    
   }
   h1 {
     font-size: 2rem;         /* ~32px */

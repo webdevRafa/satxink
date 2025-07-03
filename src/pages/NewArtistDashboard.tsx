@@ -112,7 +112,7 @@ const NewArtistDashboard = () => {
   }, [uid]);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white">
+    <div className="flex flex-col md:flex-row h-full relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white">
       <SidebarNavigation
         activeView={activeView}
         onViewChange={(view) => setActiveView(view)}
