@@ -1,5 +1,47 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "react-date-range/dist/styles.css";        /* main style */
+@import "react-date-range/dist/theme/default.css"; /* theme */
+
+
+/* Clean up padding + match your dark theme */
+.rdrCalendarWrapper {
+  background-color: var(--color-bg-base);
+  color: white;
+  border-radius: 0.75rem;
+  font-family: inherit;
+  box-shadow: 0 0 0 1px #2d2d2d;
+}
+
+.rdrMonthAndYearWrapper,
+.rdrWeekDays {
+  background-color: transparent;
+}
+
+.rdrDayNumber span {
+  color: white !important;
+}
+
+.rdrDayDisabled {
+  background-color: #1a1a1a;
+  color: #555 !important;
+}
+
+.rdrDayToday .rdrDayNumber span {
+  border: 1px solid #888;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.rdrSelected,
+.rdrInRange,
+.rdrStartEdge,
+.rdrEndEdge {
+  background: #1e90ff !important;
+  color: white !important;
+}
+
+
 :root {
     --color-bg-base: #121212;
     --color-bg-card: #1c1c1c;

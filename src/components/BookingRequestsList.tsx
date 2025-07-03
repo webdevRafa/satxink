@@ -1,5 +1,7 @@
 import { Fragment, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
+import { DateRange } from "react-date-range";
+import { addDays } from "date-fns";
 
 type BookingRequest = {
   id: string;
@@ -26,27 +28,84 @@ const BookingRequestsList: React.FC<Props> = ({
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
     null
   );
+  const [dateRange, setDateRange] = useState([
+    {
+      startDate: new Date(),
+      endDate: addDays(new Date(), 7),
+      key: "selection",
+    },
+  ]);
+
+  const [isFiltering, setIsFiltering] = useState(false);
+
   const formatDateRange = (dates: string[]): string => {
     const options: Intl.DateTimeFormatOptions = {
       year: "numeric",
       month: "long",
       day: "numeric",
     };
+
     const [start, end] = dates;
-    const startDate = new Date(start).toLocaleDateString("en-US", options);
-    const endDate = new Date(end).toLocaleDateString("en-US", options);
-    return `${startDate} - ${endDate}`;
+
+    const toLocalDate = (dateStr: string): string => {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const localDate = new Date(year, month - 1, day); // no UTC conversion
+      return localDate.toLocaleDateString("en-US", options);
+    };
+
+    return `${toLocalDate(start)} - ${toLocalDate(end)}`;
   };
+  const filteredRequests = isFiltering
+    ? bookingRequests.filter((req) => {
+        if (!req.preferredDateRange) return false;
+        const [startStr, endStr] = req.preferredDateRange;
+        const reqStart = new Date(startStr);
+        const reqEnd = new Date(endStr);
+        const filterStart = dateRange[0].startDate;
+        const filterEnd = dateRange[0].endDate;
+
+        return reqEnd >= filterStart && reqStart <= filterEnd;
+      })
+    : bookingRequests;
 
   return (
     <>
+      <div className="mb-4">
+        <button
+          onClick={() => setIsFiltering((prev) => !prev)}
+          className="mb-2 text-sm underline text-gray-300 hover:text-white"
+        >
+          {isFiltering ? "Clear Date Filter" : "Filter by Date Range"}
+        </button>
+
+        {isFiltering && (
+          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow border border-neutral-700 inline-block">
+            <DateRange
+              editableDateInputs
+              onChange={(ranges) => {
+                setDateRange([
+                  {
+                    startDate: ranges.selection.startDate ?? new Date(),
+                    endDate: ranges.selection.endDate ?? new Date(),
+                    key: "selection",
+                  },
+                ]);
+              }}
+              moveRangeOnFirstSelection={false}
+              ranges={dateRange}
+              className="text-white"
+            />
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-        {bookingRequests.map((request) => (
-          <button
+        {filteredRequests.map((request) => (
+          <div
+            className="w-full  bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
             data-aos="fade-in"
             key={request.id}
             onClick={() => setSelectedRequest(request)}
-            className="w-full  bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
           >
             <div className="flex items-center gap-3 mb-3">
               <img
@@ -67,8 +126,14 @@ const BookingRequestsList: React.FC<Props> = ({
               {request.description}
             </p>
 
+            {request.preferredDateRange?.length === 2 && (
+              <p className="text-xs text-gray-400 mb-1">
+                {formatDateRange(request.preferredDateRange)}
+              </p>
+            )}
+
             <p className="text-xs text-gray-400">Tap to view details</p>
-          </button>
+          </div>
         ))}
       </div>
 
@@ -120,7 +185,7 @@ const BookingRequestsList: React.FC<Props> = ({
                       <img
                         src={selectedRequest.fullUrl}
                         alt="Tattoo idea"
-                        className="w-full h-48 object-cover rounded-md mb-4"
+                        className="w-full h-full object-cover rounded-md mb-4"
                       />
 
                       <p className="text-sm mb-1">
