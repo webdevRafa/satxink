@@ -112,13 +112,13 @@ const NewArtistDashboard = () => {
   }, [uid]);
 
   return (
-    <div className="flex flex-col md:flex-row h-full relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white">
+    <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white">
       <SidebarNavigation
         activeView={activeView}
         onViewChange={(view) => setActiveView(view)}
       />
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="relative flex-1 overflow-y-auto p-6">
         {artist && <ArtistProfileHeader artist={artist} />}
 
         {activeView === "requests" && (
