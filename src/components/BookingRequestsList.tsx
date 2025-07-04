@@ -10,10 +10,15 @@ type BookingRequest = {
   clientAvatar: string;
   description: string;
   preferredDateRange?: string[];
+  availableTime?: {
+    from: string;
+    to: string;
+  };
   bodyPlacement: string;
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large";
   fullUrl: string;
   thumbUrl: string;
+  budget?: string | number; // ✅ support both dropdown ranges and custom exact value
 };
 
 interface Props {
@@ -53,6 +58,14 @@ const BookingRequestsList: React.FC<Props> = ({
 
     return `${toLocalDate(start)} - ${toLocalDate(end)}`;
   };
+  const formatTime = (time: string): string => {
+    const [hourStr, minute] = time.split(":");
+    let hour = parseInt(hourStr, 10);
+    const ampm = hour >= 12 ? "pm" : "am";
+    hour = hour % 12 || 12; // Convert 0 to 12
+    return `${hour}:${minute}${ampm}`;
+  };
+
   const filteredRequests = isFiltering
     ? bookingRequests.filter((req) => {
         if (!req.preferredDateRange) return false;
@@ -149,6 +162,17 @@ const BookingRequestsList: React.FC<Props> = ({
                 {formatDateRange(request.preferredDateRange)}
               </p>
             )}
+            {request.budget && (
+              <p className="text-xs text-emerald-400! mb-1">
+                <strong>Budget:</strong>{" "}
+                {typeof request.budget === "number"
+                  ? `$${request.budget}`
+                  : (() => {
+                      const [min, max] = request.budget.split("-");
+                      return `$${min}–$${max}`;
+                    })()}
+              </p>
+            )}
 
             <p className="text-xs text-gray-400">Tap to view details</p>
           </div>
@@ -209,26 +233,56 @@ const BookingRequestsList: React.FC<Props> = ({
                       </Zoom>
 
                       <p className="text-sm mb-1">
-                        <strong>Client:</strong> {selectedRequest.clientName}
+                        <strong className="text-neutral-200">Client:</strong>{" "}
+                        {selectedRequest.clientName}
                       </p>
                       <p className="text-sm mb-1">
-                        <strong>Body Placement:</strong>{" "}
+                        <strong className="text-neutral-200">
+                          Body Placement:
+                        </strong>{" "}
                         {selectedRequest.bodyPlacement}
                       </p>
                       <p className="text-sm mb-1">
-                        <strong>Size:</strong> {selectedRequest.size}
+                        <strong className="text-neutral-200">Size:</strong>{" "}
+                        {selectedRequest.size}
                       </p>
-                      <p className="text-sm mb-3">
-                        <strong>Description:</strong>{" "}
-                        {selectedRequest.description}
-                      </p>
+                      {selectedRequest.budget && (
+                        <p className="text-sm text-emerald-400! font-medium mb-1">
+                          <strong className="text-neutral-200">Budget:</strong>{" "}
+                          {typeof selectedRequest.budget === "number"
+                            ? `$${selectedRequest.budget}`
+                            : (() => {
+                                const [min, max] =
+                                  selectedRequest.budget.split("-");
+                                return `$${min}–$${max}`;
+                              })()}
+                        </p>
+                      )}
                       {selectedRequest.preferredDateRange?.length === 2 && (
-                        <p className="text-sm mb-3">
-                          <strong>Available Date Range:</strong>{" "}
+                        <p className="text-sm mb-1">
+                          <strong className="text-neutral-200">
+                            Available Date Range:
+                          </strong>{" "}
                           {formatDateRange(selectedRequest.preferredDateRange)}
                         </p>
                       )}
+                      {selectedRequest.availableTime?.from &&
+                        selectedRequest.availableTime?.to && (
+                          <p className="text-sm mb-1">
+                            <strong className="text-neutral-200">
+                              Preferred Time:
+                            </strong>{" "}
+                            {formatTime(selectedRequest.availableTime.from)} –{" "}
+                            {formatTime(selectedRequest.availableTime.to)}
+                          </p>
+                        )}
 
+                      <p className="text-sm mb-3">
+                        <strong className="text-neutral-200">
+                          Description:
+                        </strong>{" "}
+                        {selectedRequest.description}
+                      </p>
                       <button
                         onClick={() => {
                           onMakeOffer(selectedRequest);
