@@ -1,7 +1,10 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-
+[data-rmiz-modal-overlay] {
+  background: linear-gradient(to bottom, var(--color-bg-base), var(--color-bg-footer)) !important;
+  backdrop-filter: blur(4px);
+}
 /* Clean up padding + match your dark theme */
 .rdrCalendarWrapper {
   background-color: var(--color-bg-base);

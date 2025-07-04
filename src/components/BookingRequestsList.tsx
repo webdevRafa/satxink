@@ -1,5 +1,7 @@
 import { Fragment, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
 
 type BookingRequest = {
   id: string;
@@ -70,7 +72,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
   return (
     <>
-      <div className="sticky top-20 z-40 bg-[var(--color-bg-base)] py-3 px-2 mb-4 border-b border-neutral-800 flex flex-wrap items-center gap-4">
+      <div className="bg-[var(--color-bg-base)] py-3 px-2 mb-4 flex flex-wrap items-center gap-4 max-w-[900px]">
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -198,11 +200,13 @@ const BookingRequestsList: React.FC<Props> = ({
                         </button>
                       </div>
 
-                      <img
-                        src={selectedRequest.fullUrl}
-                        alt="Tattoo idea"
-                        className="w-full h-full object-cover rounded-md mb-4"
-                      />
+                      <Zoom>
+                        <img
+                          src={selectedRequest.fullUrl}
+                          alt="Tattoo idea"
+                          className="w-full max-h-[65vh] object-contain rounded-md mb-4"
+                        />
+                      </Zoom>
 
                       <p className="text-sm mb-1">
                         <strong>Client:</strong> {selectedRequest.clientName}

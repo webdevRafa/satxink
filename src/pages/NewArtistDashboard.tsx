@@ -118,7 +118,7 @@ const NewArtistDashboard = () => {
         onViewChange={(view) => setActiveView(view)}
       />
 
-      <main className="relative flex-1 overflow-y-auto p-6">
+      <main className="relative flex-1 overflow-y-auto p-6 h-full">
         {artist && <ArtistProfileHeader artist={artist} />}
 
         {activeView === "requests" && (
