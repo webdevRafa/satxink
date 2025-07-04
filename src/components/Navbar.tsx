@@ -51,7 +51,7 @@ export const Navbar = () => {
       className="sticky top-0 z-50 w-full mx-auto px-4 py-4 shadow-sm border-b border-[#1f1f1f]"
       style={{ backgroundColor: "var(--color-bg-base)" }}
     >
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <div className="max-w-[1800px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
           <img className="w-24" src={logo} alt="SATX Ink Logo" />

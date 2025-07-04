@@ -38,7 +38,8 @@ const RequestTattooModal: React.FC<Props> = ({
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
-
+  const [budget, setBudget] = useState("");
+  const [customBudget, setCustomBudget] = useState(""); // Manual input
   const reset = () => {
     setStep(1);
     setDescription("");
@@ -52,6 +53,21 @@ const RequestTattooModal: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Determine final budget (either a selected range string or a custom number)
+    let finalBudget: string | number | null = null;
+
+    if (budget === "custom") {
+      const parsed = Number(customBudget);
+      finalBudget =
+        !isNaN(parsed) && parsed > 0 && parsed <= 5000 ? parsed : null;
+      // ✅ Guard clause for bad input
+      if (finalBudget === null) {
+        toast.error("Please enter a valid custom budget under $5,000.");
+        return; // Stop form submission
+      }
+    } else {
+      finalBudget = budget || null;
+    }
 
     try {
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
@@ -63,6 +79,7 @@ const RequestTattooModal: React.FC<Props> = ({
         bodyPlacement,
         size,
         preferredDateRange,
+        budget: finalBudget,
         availableTime,
         availableDays,
         status: "pending",
@@ -187,6 +204,34 @@ const RequestTattooModal: React.FC<Props> = ({
                 <option value="Medium">Medium (up to 6x6 inches)</option>
                 <option value="Large">Large (over 6x6 inches)</option>
               </select>
+              <label className="text-sm mb-1">Optional Budget</label>
+              <select
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                className="w-full p-2 mb-2 rounded bg-[var(--color-bg-card)] text-white border border-neutral-700"
+              >
+                <option value="">Have a budget?</option>
+                <option value="0-100">$0–$100</option>
+                <option value="100-200">$100–$200</option>
+                <option value="200-350">$200–$350</option>
+                <option value="350-500">$350–$500</option>
+                <option value="500-750">$500-$750</option>
+                <option value="750-1000">$750-$1000</option>
+                <option value="1000+">$1000+</option>
+                <option value="custom">Other (enter manually)</option>
+              </select>
+
+              {budget === "custom" && (
+                <input
+                  type="number"
+                  placeholder="Enter your budget (USD)"
+                  value={customBudget}
+                  onChange={(e) => setCustomBudget(e.target.value)}
+                  className="w-full p-2 mb-4 rounded bg-[var(--color-bg-card)] text-white border border-neutral-700"
+                  min={0}
+                  step={5}
+                />
+              )}
             </div>
 
             <div className="flex flex-col justify-between">
