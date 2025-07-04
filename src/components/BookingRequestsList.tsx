@@ -114,7 +114,7 @@ const BookingRequestsList: React.FC<Props> = ({
         )}
       </div>
 
-      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
+      <div className="max-w-[1800px] grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
         {filteredRequests.map((request) => (
           <div
             className="w-full  bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
