@@ -10,6 +10,7 @@ type BookingRequest = {
   clientAvatar: string;
   description: string;
   preferredDateRange?: string[];
+  availableDays: string[];
   availableTime?: {
     from: string;
     to: string;
@@ -64,6 +65,32 @@ const BookingRequestsList: React.FC<Props> = ({
     const ampm = hour >= 12 ? "pm" : "am";
     hour = hour % 12 || 12; // Convert 0 to 12
     return `${hour}:${minute}${ampm}`;
+  };
+  const getFormattedAvailableDays = (days: string[]): string => {
+    const dayOrder = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const abbreviations: { [key: string]: string } = {
+      Sunday: "Sun",
+      Monday: "Mon",
+      Tuesday: "Tue",
+      Wednesday: "Wed",
+      Thursday: "Thu",
+      Friday: "Fri",
+      Saturday: "Sat",
+    };
+
+    const sorted = [...days].sort(
+      (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)
+    );
+
+    return sorted.map((day) => abbreviations[day] || day).join(", ");
   };
 
   const filteredRequests = isFiltering
@@ -276,6 +303,16 @@ const BookingRequestsList: React.FC<Props> = ({
                             {formatTime(selectedRequest.availableTime.to)}
                           </p>
                         )}
+                      {selectedRequest.availableDays?.length > 0 && (
+                        <p className="text-sm mb-1">
+                          <strong className="text-neutral-200">
+                            Available Days:
+                          </strong>{" "}
+                          {getFormattedAvailableDays(
+                            selectedRequest.availableDays
+                          )}
+                        </p>
+                      )}
 
                       <p className="text-sm mb-3">
                         <strong className="text-neutral-200">
