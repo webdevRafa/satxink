@@ -37,7 +37,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
       </aside>
 
       {/* Mobile Toggle Button */}
-      <div className="md:hidden mb-4 sticky top-20 z-50">
+      <div className="md:hidden mb-4 sticky top-20 z-40">
         <button
           onClick={() => setMobileMenuOpen((prev) => !prev)}
           className="text-white px-4 py-2 bg-[var(--color-bg-base)] rounded-lg w-full"
