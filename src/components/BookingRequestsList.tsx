@@ -2,6 +2,8 @@ import { Fragment, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import Zoom from "react-medium-image-zoom";
 import "react-medium-image-zoom/dist/styles.css";
+import gun from "../assets/white-gun.svg";
+import colorGun from "../assets/gun.svg";
 
 type BookingRequest = {
   id: string;
@@ -41,6 +43,7 @@ const BookingRequestsList: React.FC<Props> = ({
     new Date().getFullYear()
   );
   const [isFiltering, setIsFiltering] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const formatDateRange = (dates: string[]): string => {
     const options: Intl.DateTimeFormatOptions = {
@@ -320,15 +323,28 @@ const BookingRequestsList: React.FC<Props> = ({
                         </strong>{" "}
                         {selectedRequest.description}
                       </p>
-                      <button
-                        onClick={() => {
-                          onMakeOffer(selectedRequest);
-                          setSelectedRequest(null);
-                        }}
-                        className="bg-[#121212] border-2 border-neutral-500 text-white! w-full text-sm px-4 py-2 rounded"
-                      >
-                        Make an offer
-                      </button>
+
+                      <div className="flex  gap-1">
+                        <button className="bg-[#121212] border-2 border-neutral-500 text-red-400! w-full text-sm p-0! rounded max-w-[200px] py-2!">
+                          Decline
+                        </button>
+                        <button
+                          onMouseEnter={() => setIsHovered(true)}
+                          onMouseLeave={() => setIsHovered(false)}
+                          onClick={() => {
+                            onMakeOffer(selectedRequest);
+                            setSelectedRequest(null);
+                          }}
+                          className="bg-[#121212] border-2 border-neutral-500 text-emerald-400! w-full text-sm p-0! rounded flex justify-center items-center max-w-[200px]"
+                        >
+                          Make an offer
+                          <img
+                            className="h-10 w-13 p-0!"
+                            src={isHovered ? colorGun : gun}
+                            alt=""
+                          />
+                        </button>
+                      </div>
                     </>
                   )}
                 </Dialog.Panel>
