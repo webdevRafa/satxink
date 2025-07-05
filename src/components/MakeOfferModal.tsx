@@ -19,6 +19,8 @@ type Props = {
   selectedRequest: BookingRequest;
   offerPrice: number;
   setOfferPrice: (val: number) => void;
+  fallbackPrice: number | null;
+  setFallbackPrice: (val: number | null) => void;
   offerMessage: string;
   setOfferMessage: (val: string) => void;
   offerImage: File | null;
@@ -38,6 +40,8 @@ const MakeOfferModal = ({
   selectedRequest,
   offerPrice,
   setOfferPrice,
+  fallbackPrice,
+  setFallbackPrice,
   offerMessage,
   setOfferMessage,
   offerImage,
@@ -64,10 +68,29 @@ const MakeOfferModal = ({
           <input
             type="number"
             required
-            value={offerPrice}
-            onChange={(e) => setOfferPrice(Number(e.target.value))}
+            value={offerPrice === 0 ? "" : offerPrice}
+            onChange={(e) =>
+              setOfferPrice(e.target.value ? Number(e.target.value) : 0)
+            }
             className="w-full p-2 mb-4 rounded bg-neutral-800"
           />
+          <label className="text-sm font-medium mb-1">
+            Fallback Price (optional)
+          </label>
+          <input
+            type="number"
+            value={fallbackPrice ?? ""}
+            onChange={(e) =>
+              setFallbackPrice(e.target.value ? Number(e.target.value) : null)
+            }
+            className="w-full p-2 mb-4 rounded bg-neutral-800"
+          />
+          <p className="text-xs text-neutral-400 italic mb-4">
+            This is the lowest price you're willing to accept. If the client
+            declines your main offer, they’ll be shown this fallback option. By
+            setting it, you’re pre-approving to do the tattoo at this rate if
+            they accept it.
+          </p>
 
           <textarea
             placeholder="Optional message"

@@ -31,6 +31,8 @@ const NewArtistDashboard = () => {
   const [uid, setUid] = useState<string | null>(null);
   const [offerImage, setOfferImage] = useState<File | null>(null);
   const [offerPrice, setOfferPrice] = useState(0);
+  const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
+
   const [offerMessage, setOfferMessage] = useState("");
   const [dateOptions, setDateOptions] = useState([
     { date: "", time: "" },
@@ -58,6 +60,7 @@ const NewArtistDashboard = () => {
       clientId: selectedBooking.clientId,
       requestId: selectedBooking.id,
       price: offerPrice,
+      fallbackPrice: fallbackPrice ?? null,
       message: offerMessage,
       dateOptions,
       imageUrl: uploadedImageUrl || null,
@@ -69,6 +72,7 @@ const NewArtistDashboard = () => {
 
     // Reset everything
     setOfferPrice(0);
+    setFallbackPrice(null);
     setOfferMessage("");
     setOfferImage(null);
     setDateOptions([
@@ -139,6 +143,8 @@ const NewArtistDashboard = () => {
           selectedRequest={selectedBooking}
           offerPrice={offerPrice}
           setOfferPrice={setOfferPrice}
+          fallbackPrice={fallbackPrice}
+          setFallbackPrice={setFallbackPrice}
           offerMessage={offerMessage}
           setOfferMessage={setOfferMessage}
           offerImage={offerImage}

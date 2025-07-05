@@ -36,7 +36,7 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
   const [root]  = parts;                          // 'users' | 'bookingRequests'
   let userId    = '';
   let requestId = '';
-  let category: 'portfolio' | 'flashes' | 'bookingRequests' | null = null;
+  let category: 'portfolio' | 'flashes' | 'bookingRequests' | 'offers' | null = null;
 
   if (
     root === 'users' &&
@@ -50,8 +50,10 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
     // bookingRequests/{reqId}/originals/{file}
     requestId = parts[1];
     category  = 'bookingRequests';
+  } else if (root === 'offers' && parts.length === 3) {
+    userId = parts[1];
+    category = 'offers';
   } else {
-    // Something else → ignore
     return;
   }
 

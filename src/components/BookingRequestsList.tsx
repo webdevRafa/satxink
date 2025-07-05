@@ -335,7 +335,7 @@ const BookingRequestsList: React.FC<Props> = ({
                             onMakeOffer(selectedRequest);
                             setSelectedRequest(null);
                           }}
-                          className="bg-[#121212] border-2 border-neutral-500 hover:border-emerald-400 text-emerald-400! w-full text-sm p-0! rounded flex justify-center items-center max-w-[200px]"
+                          className="bg-[#121212] border-2 border-neutral-500 hover:border-emerald-400 text-emerald-400! w-full text-sm p-0! rounded flex gap-1 justify-center items-center max-w-[200px]"
                         >
                           Make an offer
                           <img
