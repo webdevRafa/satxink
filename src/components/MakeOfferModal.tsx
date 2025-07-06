@@ -21,6 +21,8 @@ type Props = {
   setOfferPrice: (val: number) => void;
   fallbackPrice: number | null;
   setFallbackPrice: (val: number | null) => void;
+  depositAmount: number;
+  setDepositAmount: (val: number) => void;
   offerMessage: string;
   setOfferMessage: (val: string) => void;
   offerImage: File | null;
@@ -42,6 +44,8 @@ const MakeOfferModal = ({
   setOfferPrice,
   fallbackPrice,
   setFallbackPrice,
+  depositAmount,
+  setDepositAmount,
   offerMessage,
   setOfferMessage,
   offerImage,
@@ -176,6 +180,20 @@ const MakeOfferModal = ({
               />
             </div>
           )}
+          <label className="text-sm font-medium mb-1">Deposit Amount</label>
+          <input
+            type="number"
+            required
+            value={depositAmount === 0 ? "" : depositAmount}
+            onChange={(e) =>
+              setDepositAmount(e.target.value ? Number(e.target.value) : 0)
+            }
+            className="w-full p-2 mb-4 rounded bg-neutral-800"
+          />
+          <p className="text-xs text-neutral-400 italic mb-4">
+            Clients will be required to pay this non-refundable deposit to
+            confirm the appointment.
+          </p>
 
           <button
             type="submit"

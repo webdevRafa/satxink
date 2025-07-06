@@ -248,7 +248,7 @@ const BookingRequestsList: React.FC<Props> = ({
                         </h3>
                         <button
                           onClick={() => setSelectedRequest(null)}
-                          className="text-sm text-gray-400 hover:text-gray-200"
+                          className="text-sm text-gray-400 hover:text-white!"
                         >
                           Close
                         </button>

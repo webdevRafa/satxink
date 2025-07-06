@@ -32,6 +32,7 @@ const NewArtistDashboard = () => {
   const [offerImage, setOfferImage] = useState<File | null>(null);
   const [offerPrice, setOfferPrice] = useState(0);
   const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
+  const [depositAmount, setDepositAmount] = useState<number>(0);
 
   const [offerMessage, setOfferMessage] = useState("");
   const [dateOptions, setDateOptions] = useState([
@@ -54,9 +55,30 @@ const NewArtistDashboard = () => {
       await uploadBytes(storageRef, offerImage);
       uploadedImageUrl = await getDownloadURL(storageRef);
     }
+    if (!["internal", "external"].includes(artist.paymentType)) {
+      throw new Error("Artist has invalid or missing paymentType.");
+    }
+    let shop = null;
+    if (artist.shopId) {
+      const shopRef = doc(db, "shops", artist.shopId);
+      const shopSnap = await getDoc(shopRef);
+      if (shopSnap.exists()) {
+        shop = shopSnap.data();
+      }
+    }
 
     const offerData = {
       artistId: uid,
+      displayName: artist.displayName,
+      artistAvatar: artist.avatarUrl || null,
+
+      // Shop info
+      shopId: artist.shopId || null,
+      shopName: shop?.name || "Unavailable",
+      shopAddress: shop?.address || "Unavailable",
+      shopMapLink: shop?.mapLink || null,
+
+      // Offer-specific
       clientId: selectedBooking.clientId,
       requestId: selectedBooking.id,
       price: offerPrice,
@@ -64,6 +86,21 @@ const NewArtistDashboard = () => {
       message: offerMessage,
       dateOptions,
       imageUrl: uploadedImageUrl || null,
+
+      // Safe Payment + Deposit logic
+      paymentType: artist.paymentType, // ✅ now that it’s validated
+      externalPaymentDetails:
+        artist.paymentType === "external"
+          ? artist.externalPaymentDetails || null
+          : null,
+
+      depositPolicy: {
+        amount: depositAmount, // from modal input
+        depositRequired: true, // locked-in
+        nonRefundable: true, // locked-in
+      },
+      finalPaymentTiming: artist.finalPaymentTiming || "after",
+
       status: "pending",
       createdAt: serverTimestamp(),
     };
@@ -141,6 +178,8 @@ const NewArtistDashboard = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           selectedRequest={selectedBooking}
+          depositAmount={depositAmount}
+          setDepositAmount={setDepositAmount}
           offerPrice={offerPrice}
           setOfferPrice={setOfferPrice}
           fallbackPrice={fallbackPrice}

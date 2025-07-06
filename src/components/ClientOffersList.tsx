@@ -20,14 +20,30 @@ interface Props {
 interface Offer {
   id: string;
   artistId: string;
-  artistName: string;
+  displayName: string;
+  artistAvatar?: string;
   clientId: string;
+  requestId: string;
   price: number;
-  location: string;
+  fallbackPrice?: number;
   message: string;
   status: string;
   dateOptions: string[];
-  requestId: string;
+  imageUrl?: string;
+  shopName?: string;
+  shopAddress?: string;
+  shopMapLink?: string;
+  depositPolicy: {
+    amount: number;
+    depositRequired: boolean;
+    nonRefundable: boolean;
+  };
+  paymentType: "internal" | "external";
+  externalPaymentDetails?: {
+    handle: string;
+    method: string;
+  };
+  finalPaymentTiming: "before" | "after";
 }
 
 const ClientOffersList: React.FC<Props> = ({ clientId }) => {
@@ -35,7 +51,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
 
   const fetchOffers = async () => {
     const q = query(
-      collection(db, "bookingOffers"),
+      collection(db, "offers"),
       where("clientId", "==", clientId)
     );
     const snap = await getDocs(q);
@@ -51,7 +67,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
     action: "accepted" | "declined"
   ) => {
     try {
-      const offerRef = doc(db, "bookingOffers", offerId);
+      const offerRef = doc(db, "offers", offerId);
       const offerSnap = await getDoc(offerRef);
       if (!offerSnap.exists()) {
         toast.error("Offer not found.");
@@ -77,7 +93,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
 
         await addDoc(collection(db, "bookings"), {
           artistId: offerData.artistId,
-          artistName: offerData.artistName,
+          artistName: offerData.displayName,
           clientId: offerData.clientId,
           price: offerData.price,
           location,
@@ -111,36 +127,64 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
           You haven’t received any offers yet.
         </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="max-w-[1800px] grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
           {offers.map((offer) => (
             <div
               key={offer.id}
-              className="bg-[var(--color-bg-card)] border border-neutral-700 rounded-lg p-4"
+              className="w-full bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
             >
-              <p className="font-medium text-sm mb-1">
-                From: {offer.artistName}
+              {/* Artist name + Avatar */}
+              <div className="flex items-center gap-3 mb-3">
+                <img
+                  src={offer.artistAvatar}
+                  alt={offer.displayName}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <p className="font-medium">{offer.displayName}</p>
+              </div>
+
+              {/* Image if available */}
+              {offer.imageUrl && (
+                <img
+                  src={offer.imageUrl}
+                  alt="Tattoo sample"
+                  className="w-full h-32 object-cover rounded-md mb-2"
+                />
+              )}
+
+              {/* Message as description */}
+              {offer.message && (
+                <div className="relative overflow-hidden h-[3.5rem] mb-1">
+                  <p className="text-sm text-gray-300 line-clamp-2 pr-4">
+                    {offer.message}
+                  </p>
+                  <div className="absolute bottom-0 right-0 h-full w-10 bg-gradient-to-l from-[var(--color-bg-card)] to-transparent pointer-events-none" />
+                </div>
+              )}
+
+              {/* Info: Price, Status, Location */}
+              <p className="text-sm text-emerald-400 mb-1">
+                <strong>Price:</strong> ${offer.price}
               </p>
-              <p className="text-sm text-gray-300">
-                ${offer.price} – {offer.location}
+              <p className="text-sm text-gray-400 mb-1">
+                <strong>Status:</strong> {offer.status}
               </p>
-              <p className="text-sm italic text-gray-400 mt-2">
-                “{offer.message}”
-              </p>
-              <p className="mt-2 text-xs text-yellow-400">
-                Status: {offer.status}
+              <p className="text-sm text-gray-400 mb-3">
+                <strong>Location:</strong> {offer.shopAddress}
               </p>
 
+              {/* Action Buttons */}
               {offer.status === "pending" && (
-                <div className="flex gap-3 mt-4">
+                <div className="flex gap-2 mt-2">
                   <button
                     onClick={() => handleResponse(offer.id, "accepted")}
-                    className="px-4 py-1 rounded bg-[#121212] hover:bg-neutral-500 text-white text-sm"
+                    className="bg-[#121212] hover:bg-emerald-600 text-white text-sm border-2 border-neutral-500 hover:border-emerald-400 w-full rounded py-1"
                   >
                     Accept
                   </button>
                   <button
                     onClick={() => handleResponse(offer.id, "declined")}
-                    className="px-4 py-1 rounded bg-[#121212] hover:bg-neutral-500 text-white text-sm"
+                    className="bg-[#121212] hover:bg-red-600 text-white text-sm border-2 border-neutral-500 hover:border-red-400 w-full rounded py-1"
                   >
                     Decline
                   </button>
