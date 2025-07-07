@@ -57,7 +57,7 @@ const MakeOfferModal = ({
   if (!isOpen || !selectedRequest) return null;
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
+    <div className="fixed inset-0 z-80 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
       <div className="bg-[#121212] text-white rounded-lg p-6 w-full max-w-xl relative">
         <button onClick={onClose} className="absolute top-2 right-3 text-xl">
           <span>X</span>

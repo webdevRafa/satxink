@@ -33,7 +33,7 @@ const ArtistProfileHeader: React.FC<ArtistProfileHeaderProps> = ({
   onAvatarClick,
 }) => {
   return (
-    <div className="flex flex-col items-center md:flex-row md:items-start gap-6 md:gap-10 p-6 ">
+    <div className="bg-[var(--color-bg-base)] flex flex-col items-center md:flex-row md:items-start gap-6 md:gap-10 p-6 ">
       {/* Avatar */}
       <div className="relative group">
         <img

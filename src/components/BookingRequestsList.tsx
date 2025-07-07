@@ -115,7 +115,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
   return (
     <>
-      <div className="bg-[var(--color-bg-base)] py-3 px-2 mb-4 flex flex-wrap items-center gap-4 max-w-[900px]">
+      <div className="z-50 sticky top-32 md:top-19 bg-[var(--color-bg-footer)] py-3 px-2 mb-4 flex flex-wrap items-center gap-4 w-full">
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -213,7 +213,7 @@ const BookingRequestsList: React.FC<Props> = ({
       <Transition appear show={!!selectedRequest} as={Fragment}>
         <Dialog
           as="div"
-          className="relative z-50"
+          className="relative z-100"
           onClose={() => setSelectedRequest(null)}
         >
           <Transition.Child
