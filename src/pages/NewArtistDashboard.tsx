@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../firebase/firebaseConfig";
+import { v4 as uuidv4 } from "uuid";
+
 import { db, auth } from "../firebase/firebaseConfig";
 import {
   doc,
@@ -45,19 +47,33 @@ const NewArtistDashboard = () => {
 
     if (!selectedBooking || !uid) return;
 
-    // Optional: Upload image to Firebase Storage here and get URL
+    // Upload image to Firebase Storage and get URLs
     let uploadedImageUrl = "";
+    let fullUrl = null;
+    let thumbUrl = null;
+
     if (offerImage) {
-      const storageRef = ref(
-        storage,
-        `offers/${uid}/${Date.now()}-${offerImage.name}`
-      );
-      await uploadBytes(storageRef, offerImage);
-      uploadedImageUrl = await getDownloadURL(storageRef);
+      const filename = `${uuidv4()}-${offerImage.name}`;
+      const fullPath = `users/${uid}/offers/full/${filename}`;
+      const fullRef = ref(storage, fullPath);
+
+      await uploadBytes(fullRef, offerImage);
+      fullUrl = await getDownloadURL(fullRef);
+
+      const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
+      try {
+        thumbUrl = await getDownloadURL(thumbRef);
+      } catch {
+        console.warn("Thumbnail not available yet");
+      }
+
+      uploadedImageUrl = fullUrl; // still use as fallback or for legacy compatibility
     }
+
     if (!["internal", "external"].includes(artist.paymentType)) {
       throw new Error("Artist has invalid or missing paymentType.");
     }
+
     let shop = null;
     if (artist.shopId) {
       const shopRef = doc(db, "shops", artist.shopId);
@@ -85,19 +101,21 @@ const NewArtistDashboard = () => {
       fallbackPrice: fallbackPrice ?? null,
       message: offerMessage,
       dateOptions,
-      imageUrl: uploadedImageUrl || null,
+      imageUrl: uploadedImageUrl || null, // fallback compatibility
+      fullUrl: fullUrl || null,
+      thumbUrl: thumbUrl || null,
 
       // Safe Payment + Deposit logic
-      paymentType: artist.paymentType, // ✅ now that it’s validated
+      paymentType: artist.paymentType,
       externalPaymentDetails:
         artist.paymentType === "external"
           ? artist.externalPaymentDetails || null
           : null,
 
       depositPolicy: {
-        amount: depositAmount, // from modal input
-        depositRequired: true, // locked-in
-        nonRefundable: true, // locked-in
+        amount: depositAmount,
+        depositRequired: true,
+        nonRefundable: true,
       },
       finalPaymentTiming: artist.finalPaymentTiming || "after",
 

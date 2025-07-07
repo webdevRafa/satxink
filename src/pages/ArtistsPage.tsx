@@ -183,9 +183,9 @@ export const ArtistsPage = () => {
     : artists;
 
   return (
-    <main className="px-4 py-12 max-w-6xl mx-auto relative">
+    <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
       <div data-aos="fade-in">
-        <h1 className="text-3xl! font-semibold text-white mb-2">
+        <h1 className="text-3xl! font-semibold text-red-400! mt-35! mb-2">
           Find an Artist
         </h1>
         <p className="text-gray-400 mb-4">
@@ -218,7 +218,7 @@ export const ArtistsPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-5">
         {filteredArtists.map((artist, index) => {
           const isLast = index === filteredArtists.length - 1;
           return (

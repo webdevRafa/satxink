@@ -29,7 +29,8 @@ interface Offer {
   message: string;
   status: string;
   dateOptions: string[];
-  imageUrl?: string;
+  fullUrl?: string;
+  thumbUrl?: string;
   shopName?: string;
   shopAddress?: string;
   shopMapLink?: string;
@@ -144,9 +145,9 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
               </div>
 
               {/* Image if available */}
-              {offer.imageUrl && (
+              {offer.thumbUrl && (
                 <img
-                  src={offer.imageUrl}
+                  src={offer.thumbUrl}
                   alt="Tattoo sample"
                   className="w-full h-32 object-cover rounded-md mb-2"
                 />
