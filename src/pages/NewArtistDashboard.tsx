@@ -46,23 +46,27 @@ const NewArtistDashboard = () => {
     e.preventDefault();
 
     if (!selectedBooking || !uid) return;
+    let filename: string | null = null;
 
     // Upload image to Firebase Storage and get URLs
     let uploadedImageUrl = "";
     let fullUrl = null;
     let thumbUrl = null;
-
+    console.log("📸 offerImage before upload block:", offerImage);
     if (offerImage) {
-      const filename = `${uuidv4()}-${offerImage.name}`;
+      filename = `${uuidv4()}-${offerImage.name}`;
       const fullPath = `users/${uid}/offers/full/${filename}`;
       const fullRef = ref(storage, fullPath);
+      console.log("🔄 Uploading to:", fullPath);
 
       await uploadBytes(fullRef, offerImage);
+      console.log("✅ Upload complete:", fullPath);
       fullUrl = await getDownloadURL(fullRef);
-
+      console.log("🌐 fullUrl obtained:", fullUrl);
       const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
       try {
         thumbUrl = await getDownloadURL(thumbRef);
+        console.log("🌐 thumbUrl obtained:", thumbUrl);
       } catch {
         console.warn("Thumbnail not available yet");
       }
@@ -101,7 +105,8 @@ const NewArtistDashboard = () => {
       fallbackPrice: fallbackPrice ?? null,
       message: offerMessage,
       dateOptions,
-      imageUrl: uploadedImageUrl || null, // fallback compatibility
+      imageFilename: filename || null,
+      imageUrl: uploadedImageUrl || null, // fallback
       fullUrl: fullUrl || null,
       thumbUrl: thumbUrl || null,
 

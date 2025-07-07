@@ -1,6 +1,7 @@
 // functions/src/index.ts
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
 import { setGlobalOptions }   from 'firebase-functions/v2/options';
+
 import * as admin  from 'firebase-admin';
 import * as path   from 'path';
 import * as os     from 'os';
@@ -225,3 +226,59 @@ export const processAvatar = onObjectFinalized(async (event) => {
 
   console.log(`✅ Avatar processed for user: ${uid}`);
 });
+
+export const handleOfferImageUpload = onObjectFinalized(
+  { region: "us-central1", memory: "256MiB", timeoutSeconds: 60 }, // optional settings
+  async (event) => {
+    const filePath = event.data.name || "";
+    const fileName = path.basename(filePath);
+
+    const isOffer = filePath.startsWith("users/") && filePath.includes("/offers/full/");
+    if (!isOffer) {
+      console.log("Skipping non-offer upload:", filePath);
+      return;
+    }
+
+    const bucket = admin.storage().bucket(event.data.bucket);
+    const tempFilePath = path.join(os.tmpdir(), fileName);
+    await bucket.file(filePath).download({ destination: tempFilePath });
+
+    const thumbBuffer = await sharp(tempFilePath)
+      .resize(400)
+      .jpeg({ quality: 75 })
+      .toBuffer();
+
+    const thumbPath = filePath.replace("/offers/full/", "/offers/thumbs/");
+    const thumbFile = bucket.file(thumbPath);
+    await thumbFile.save(thumbBuffer, {
+      metadata: { contentType: "image/jpeg" },
+    });
+
+    const [fullUrl] = await bucket.file(filePath).getSignedUrl({
+      action: "read",
+      expires: "03-01-2030",
+    });
+
+    const [thumbUrl] = await thumbFile.getSignedUrl({
+      action: "read",
+      expires: "03-01-2030",
+    });
+
+    const offersRef = admin.firestore().collection("offers");
+    const snapshot = await offersRef
+      .where("imageFilename", "==", fileName)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      console.warn("⚠️ No offer document found for:", fileName);
+      return;
+    }
+
+    const offerRef = snapshot.docs[0].ref;
+    await offerRef.update({ fullUrl, thumbUrl });
+
+    await fs.unlink(tempFilePath);
+    console.log(`✅ Offer doc updated with fullUrl + thumbUrl for: ${fileName}`);
+  }
+);

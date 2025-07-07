@@ -147,7 +147,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
               {/* Image if available */}
               {offer.thumbUrl && (
                 <img
-                  src={offer.thumbUrl}
+                  src={offer.fullUrl}
                   alt="Tattoo sample"
                   className="w-full h-32 object-cover rounded-md mb-2"
                 />
