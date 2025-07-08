@@ -1,17 +1,12 @@
 // NewArtistDashboard.tsx
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "../firebase/firebaseConfig";
-import { v4 as uuidv4 } from "uuid";
 
 import { db, auth } from "../firebase/firebaseConfig";
 import {
   doc,
   getDoc,
   collection,
-  addDoc,
-  serverTimestamp,
   query,
   where,
   getDocs,
@@ -31,7 +26,6 @@ const NewArtistDashboard = () => {
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
-  const [offerImage, setOfferImage] = useState<File | null>(null);
   const [offerPrice, setOfferPrice] = useState(0);
   const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
   const [depositAmount, setDepositAmount] = useState<number>(0);
@@ -42,106 +36,6 @@ const NewArtistDashboard = () => {
     { date: "", time: "" },
     { date: "", time: "" },
   ]);
-  const handleOfferSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedBooking || !uid) return;
-    let filename: string | null = null;
-
-    // Upload image to Firebase Storage and get URLs
-    let uploadedImageUrl = "";
-    let fullUrl = null;
-    let thumbUrl = null;
-    console.log("📸 offerImage before upload block:", offerImage);
-    if (offerImage) {
-      filename = `${uuidv4()}-${offerImage.name}`;
-      const fullPath = `users/${uid}/offers/full/${filename}`;
-      const fullRef = ref(storage, fullPath);
-      console.log("🔄 Uploading to:", fullPath);
-
-      await uploadBytes(fullRef, offerImage);
-      console.log("✅ Upload complete:", fullPath);
-      fullUrl = await getDownloadURL(fullRef);
-      console.log("🌐 fullUrl obtained:", fullUrl);
-      const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
-      try {
-        thumbUrl = await getDownloadURL(thumbRef);
-        console.log("🌐 thumbUrl obtained:", thumbUrl);
-      } catch {
-        console.warn("Thumbnail not available yet");
-      }
-
-      uploadedImageUrl = fullUrl; // still use as fallback or for legacy compatibility
-    }
-
-    if (!["internal", "external"].includes(artist.paymentType)) {
-      throw new Error("Artist has invalid or missing paymentType.");
-    }
-
-    let shop = null;
-    if (artist.shopId) {
-      const shopRef = doc(db, "shops", artist.shopId);
-      const shopSnap = await getDoc(shopRef);
-      if (shopSnap.exists()) {
-        shop = shopSnap.data();
-      }
-    }
-
-    const offerData = {
-      artistId: uid,
-      displayName: artist.displayName,
-      artistAvatar: artist.avatarUrl || null,
-
-      // Shop info
-      shopId: artist.shopId || null,
-      shopName: shop?.name || "Unavailable",
-      shopAddress: shop?.address || "Unavailable",
-      shopMapLink: shop?.mapLink || null,
-
-      // Offer-specific
-      clientId: selectedBooking.clientId,
-      requestId: selectedBooking.id,
-      price: offerPrice,
-      fallbackPrice: fallbackPrice ?? null,
-      message: offerMessage,
-      dateOptions,
-      imageFilename: filename || null,
-      imageUrl: uploadedImageUrl || null, // fallback
-      fullUrl: fullUrl || null,
-      thumbUrl: thumbUrl || null,
-
-      // Safe Payment + Deposit logic
-      paymentType: artist.paymentType,
-      externalPaymentDetails:
-        artist.paymentType === "external"
-          ? artist.externalPaymentDetails || null
-          : null,
-
-      depositPolicy: {
-        amount: depositAmount,
-        depositRequired: true,
-        nonRefundable: true,
-      },
-      finalPaymentTiming: artist.finalPaymentTiming || "after",
-
-      status: "pending",
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, "offers"), offerData);
-
-    // Reset everything
-    setOfferPrice(0);
-    setFallbackPrice(null);
-    setOfferMessage("");
-    setOfferImage(null);
-    setDateOptions([
-      { date: "", time: "" },
-      { date: "", time: "" },
-      { date: "", time: "" },
-    ]);
-    setIsModalOpen(false);
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -209,11 +103,10 @@ const NewArtistDashboard = () => {
           setFallbackPrice={setFallbackPrice}
           offerMessage={offerMessage}
           setOfferMessage={setOfferMessage}
-          offerImage={offerImage}
-          setOfferImage={setOfferImage}
           dateOptions={dateOptions}
           setDateOptions={setDateOptions}
-          onSubmit={handleOfferSubmit}
+          artist={artist}
+          uid={uid!}
         />
       </main>
     </div>

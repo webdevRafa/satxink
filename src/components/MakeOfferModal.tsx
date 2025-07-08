@@ -1,4 +1,14 @@
 import React from "react";
+import { db, storage } from "../firebase/firebaseConfig";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { v4 as uuidv4 } from "uuid";
 
 type BookingRequest = {
   id: string;
@@ -16,46 +26,129 @@ type BookingRequest = {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  artist: any;
+  uid: string;
   selectedRequest: BookingRequest;
-  offerPrice: number;
-  setOfferPrice: (val: number) => void;
-  fallbackPrice: number | null;
-  setFallbackPrice: (val: number | null) => void;
   depositAmount: number;
-  setDepositAmount: (val: number) => void;
+  setDepositAmount: React.Dispatch<React.SetStateAction<number>>;
+  offerPrice: number;
+  setOfferPrice: React.Dispatch<React.SetStateAction<number>>;
+  fallbackPrice: number | null;
+  setFallbackPrice: React.Dispatch<React.SetStateAction<number | null>>;
   offerMessage: string;
-  setOfferMessage: (val: string) => void;
-  offerImage: File | null;
-  setOfferImage: (file: File | null) => void;
+  setOfferMessage: React.Dispatch<React.SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
-  setDateOptions: (
-    updater: (
-      prev: { date: string; time: string }[]
-    ) => { date: string; time: string }[]
-  ) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  setDateOptions: React.Dispatch<
+    React.SetStateAction<{ date: string; time: string }[]>
+  >;
 };
 
 const MakeOfferModal = ({
   isOpen,
   onClose,
   selectedRequest,
+  depositAmount,
+  setDepositAmount,
   offerPrice,
   setOfferPrice,
   fallbackPrice,
   setFallbackPrice,
-  depositAmount,
-  setDepositAmount,
   offerMessage,
   setOfferMessage,
-  offerImage,
-  setOfferImage,
   dateOptions,
   setDateOptions,
-  onSubmit,
+  uid,
+  artist,
 }: Props) => {
   if (!isOpen || !selectedRequest) return null;
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [offerImage, setOfferImage] = React.useState<File | null>(null);
+
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedRequest || !uid) return;
+
+    if (!["internal", "external"].includes(artist.paymentType)) {
+      throw new Error("Artist has invalid or missing paymentType.");
+    }
+
+    let filename: string | null = null;
+    let fullUrl: string | null = null;
+    let thumbUrl: string | null = null;
+
+    if (offerImage) {
+      filename = `${uuidv4()}-${offerImage.name}`;
+      const fullPath = `users/${uid}/offers/full/${filename}`;
+      const fullRef = ref(storage, fullPath);
+      await uploadBytes(fullRef, offerImage);
+      fullUrl = await getDownloadURL(fullRef);
+
+      const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
+      try {
+        thumbUrl = await getDownloadURL(thumbRef);
+      } catch {
+        console.warn("Thumbnail not yet generated.");
+      }
+    }
+
+    let shop = null;
+    if (artist.shopId) {
+      const shopRef = doc(db, "shops", artist.shopId);
+      const shopSnap = await getDoc(shopRef);
+      if (shopSnap.exists()) {
+        shop = shopSnap.data();
+      }
+    }
+
+    const offerData = {
+      artistId: uid,
+      displayName: artist.displayName,
+      artistAvatar: artist.avatarUrl || null,
+      shopId: artist.shopId || null,
+      shopName: shop?.name || "Unavailable",
+      shopAddress: shop?.address || "Unavailable",
+      shopMapLink: shop?.mapLink || null,
+      clientId: selectedRequest.clientId,
+      requestId: selectedRequest.id,
+      price: offerPrice,
+      fallbackPrice: fallbackPrice ?? null,
+      message: offerMessage,
+      dateOptions,
+      imageFilename: filename || null,
+      fullUrl: fullUrl || null,
+      thumbUrl: thumbUrl || null,
+      paymentType: artist.paymentType,
+      externalPaymentDetails:
+        artist.paymentType === "external"
+          ? artist.externalPaymentDetails || null
+          : null,
+      depositPolicy: {
+        amount: depositAmount,
+        depositRequired: true,
+        nonRefundable: true,
+      },
+      finalPaymentTiming: artist.finalPaymentTiming || "after",
+      status: "pending",
+      createdAt: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, "offers"), offerData);
+
+    // Reset
+    setOfferPrice(0);
+    setFallbackPrice(null);
+    setOfferMessage("");
+    setDateOptions([
+      { date: "", time: "" },
+      { date: "", time: "" },
+      { date: "", time: "" },
+    ]);
+    setOfferImage(null);
+    setPreviewUrl(null);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-80 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
       <div className="bg-[#121212] text-white rounded-lg p-6 w-full max-w-xl relative">
@@ -67,7 +160,7 @@ const MakeOfferModal = ({
           Create Offer for {selectedRequest.clientName}
         </h2>
 
-        <form onSubmit={onSubmit} data-aos="fade-in">
+        <form onSubmit={handleOfferSubmit} data-aos="fade-in">
           <label className="text-sm font-medium mb-1">Price</label>
           <input
             type="number"
@@ -168,18 +261,7 @@ const MakeOfferModal = ({
               />
             </div>
           ))}
-          {offerImage && (
-            <div className="mb-4">
-              <p className="text-sm text-neutral-400 mb-1 italic">
-                Sample Image Preview:
-              </p>
-              <img
-                src={previewUrl || URL.createObjectURL(offerImage)}
-                alt="Offer Sample"
-                className="rounded max-h-48 object-contain"
-              />
-            </div>
-          )}
+
           <label className="text-sm font-medium mb-1">Deposit Amount</label>
           <input
             type="number"
