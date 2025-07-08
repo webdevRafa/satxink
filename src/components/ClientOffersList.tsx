@@ -12,43 +12,17 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
+import ViewOfferModal from "./ViewOfferModal";
+import type { Offer } from "../types/Offer";
 
 interface Props {
   clientId: string;
 }
 
-interface Offer {
-  id: string;
-  artistId: string;
-  displayName: string;
-  artistAvatar?: string;
-  clientId: string;
-  requestId: string;
-  price: number;
-  fallbackPrice?: number;
-  message: string;
-  status: string;
-  dateOptions: string[];
-  fullUrl?: string;
-  thumbUrl?: string;
-  shopName?: string;
-  shopAddress?: string;
-  shopMapLink?: string;
-  depositPolicy: {
-    amount: number;
-    depositRequired: boolean;
-    nonRefundable: boolean;
-  };
-  paymentType: "internal" | "external";
-  externalPaymentDetails?: {
-    handle: string;
-    method: string;
-  };
-  finalPaymentTiming: "before" | "after";
-}
-
 const ClientOffersList: React.FC<Props> = ({ clientId }) => {
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchOffers = async () => {
     const q = query(
@@ -133,6 +107,10 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
             <div
               key={offer.id}
               className="w-full bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
+              onClick={() => {
+                setSelectedOffer(offer);
+                setIsModalOpen(true);
+              }}
             >
               {/* Artist name + Avatar */}
               <div className="flex items-center gap-3 mb-3">
@@ -175,26 +153,16 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
               </p>
 
               {/* Action Buttons */}
-              {offer.status === "pending" && (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => handleResponse(offer.id, "accepted")}
-                    className="bg-[#121212] hover:bg-emerald-600 text-white text-sm border-2 border-neutral-500 hover:border-emerald-400 w-full rounded py-1"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => handleResponse(offer.id, "declined")}
-                    className="bg-[#121212] hover:bg-red-600 text-white text-sm border-2 border-neutral-500 hover:border-red-400 w-full rounded py-1"
-                  >
-                    Decline
-                  </button>
-                </div>
-              )}
             </div>
           ))}
         </div>
       )}
+      <ViewOfferModal
+        offer={selectedOffer}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onRespond={handleResponse}
+      />
     </section>
   );
 };
