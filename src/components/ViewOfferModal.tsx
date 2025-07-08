@@ -9,7 +9,11 @@ type Props = {
   offer: Offer | null;
   onClose: () => void;
   isOpen: boolean;
-  onRespond: (offerId: string, action: "accepted" | "declined") => void;
+  onRespond: (
+    offerId: string,
+    action: "accepted" | "declined",
+    selectedDate?: { date: string; time: string }
+  ) => void;
 };
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
@@ -98,7 +102,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 const chosenDate = offer.dateOptions[selectedDateOption];
                 console.log("Selected appointment:", chosenDate);
 
-                onRespond(offer.id, "accepted");
+                onRespond(offer.id, "accepted", chosenDate);
                 onClose();
               }}
               className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded"

@@ -15,6 +15,7 @@ export type Offer = {
     shopName?: string;
     shopAddress?: string;
     shopMapLink?: string;
+    shopId?: string;
     depositPolicy: {
       amount: number;
       depositRequired: boolean;

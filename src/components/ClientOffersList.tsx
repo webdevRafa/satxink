@@ -39,7 +39,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
 
   const handleResponse = async (
     offerId: string,
-    action: "accepted" | "declined"
+    action: "accepted" | "declined",
+    selectedDate?: { date: string; time: string }
   ) => {
     try {
       const offerRef = doc(db, "offers", offerId);
@@ -51,30 +52,52 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
 
       const offerData = offerSnap.data() as Offer;
 
+      // Step 1: Update the offer with response
       await updateDoc(offerRef, {
         status: action,
         respondedAt: serverTimestamp(),
       });
 
       if (action === "accepted") {
+        // Step 2: Optional studio info
         const artistRef = doc(db, "users", offerData.artistId);
         const artistSnap = await getDoc(artistRef);
         const artistData = artistSnap.data();
         const shopRef = doc(db, "shops", artistData?.shopId);
         const shopSnap = await getDoc(shopRef);
-        const location = shopSnap.exists()
-          ? shopSnap.data().address
-          : "Unavailable";
 
+        const shopData = shopSnap.exists() ? shopSnap.data() : {};
+
+        // Step 3: Create the booking
         await addDoc(collection(db, "bookings"), {
           artistId: offerData.artistId,
           artistName: offerData.displayName,
+          artistAvatar: offerData.artistAvatar ?? null,
+
           clientId: offerData.clientId,
-          price: offerData.price,
-          location,
-          selectedTime: offerData.dateOptions[0] || "TBD",
-          status: "confirmed",
           offerId,
+
+          price: offerData.price,
+          depositAmount: offerData.depositPolicy.amount,
+
+          paymentType: offerData.paymentType,
+          externalPaymentDetails:
+            offerData.paymentType === "external"
+              ? offerData.externalPaymentDetails ?? null
+              : null,
+
+          finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
+
+          shopId: offerData.shopId ?? null,
+          shopName: offerData.shopName ?? shopData.name ?? "Unavailable",
+          shopAddress:
+            offerData.shopAddress ?? shopData.address ?? "Unavailable",
+          shopMapLink: offerData.shopMapLink ?? shopData.mapLink ?? null,
+
+          selectedTime: selectedDate ?? { date: "TBD", time: "TBD" },
+          sampleImageUrl: offerData.fullUrl ?? null,
+
+          status: "confirmed",
           createdAt: serverTimestamp(),
         });
 
