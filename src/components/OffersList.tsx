@@ -63,11 +63,11 @@ const OffersList = ({ uid }: { uid: string }) => {
         >
           <div className="flex items-center gap-3 mb-3">
             <img
-              src={offer.artistAvatar || "/default-avatar.png"}
-              alt={offer.displayName || "Artist"}
+              src={offer.clientAvatar || "/default-avatar.png"}
+              alt={offer.clientName || "Client"}
               className="w-10 h-10 rounded-full object-cover"
             />
-            <p className="font-medium">{offer.displayName || "You"}</p>
+            <p className="font-medium">{offer.clientName || "You"}</p>
           </div>
 
           {offer.thumbUrl && (
@@ -77,7 +77,9 @@ const OffersList = ({ uid }: { uid: string }) => {
               className="w-full h-32 object-cover rounded-md mb-2"
             />
           )}
-
+          <p className="text-xs text-emerald-400 mb-1">
+            <strong>Price:</strong> ${offer.price}
+          </p>
           {offer.dateOptions?.length > 0 && (
             <div className="mb-2">
               <p className="text-xs text-gray-400 mb-1">
@@ -93,10 +95,6 @@ const OffersList = ({ uid }: { uid: string }) => {
             </div>
           )}
 
-          <p className="text-xs text-emerald-400 mb-1">
-            <strong>Price:</strong> ${offer.price}
-          </p>
-
           {offer.status && (
             <p className="text-xs text-gray-400 mb-1">
               <strong>Status:</strong>{" "}
@@ -108,10 +106,6 @@ const OffersList = ({ uid }: { uid: string }) => {
             <p className="text-xs text-gray-400 mb-1">
               <strong>Shop:</strong> {offer.shopName}
             </p>
-          )}
-
-          {offer.shopAddress && (
-            <p className="text-[10px] text-gray-500">{offer.shopAddress}</p>
           )}
 
           <p className="text-xs text-gray-400 mt-2">Tap to view details</p>

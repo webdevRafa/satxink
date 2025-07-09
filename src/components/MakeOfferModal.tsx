@@ -110,6 +110,8 @@ const MakeOfferModal = ({
       shopAddress: shop?.address || "Unavailable",
       shopMapLink: shop?.mapLink || null,
       clientId: selectedRequest.clientId,
+      clientName: selectedRequest.clientName,
+      clientAvatar: selectedRequest.clientAvatar,
       requestId: selectedRequest.id,
       price: offerPrice,
       fallbackPrice: fallbackPrice ?? null,

@@ -4,6 +4,8 @@ export type Offer = {
     displayName: string;
     artistAvatar?: string; // <-- ensure this is always a string
     clientId: string;
+    clientName?: string;
+clientAvatar?: string;
     requestId: string;
     price: number;
     fallbackPrice?: number;
