@@ -1,17 +1,17 @@
 import React, { useState } from "react";
 
-type ViewType = "requests" | "offers" | "confirmed";
+type ViewTab = "requests" | "offers" | "bookings";
 
 interface SidebarProps {
-  activeView: ViewType;
-  onViewChange: (view: ViewType) => void;
+  activeTab: ViewTab;
+  onTabChange: (tab: ViewTab) => void;
 }
 
 const SidebarNavigation: React.FC<SidebarProps> = ({
-  activeView,
-  onViewChange,
+  activeTab,
+  onTabChange,
 }) => {
-  const views: ViewType[] = ["requests", "offers", "confirmed"];
+  const tabs: ViewTab[] = ["requests", "offers", "bookings"];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -19,17 +19,17 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
         <ul className="space-y-2">
-          {views.map((view) => (
-            <li key={view}>
+          {tabs.map((tab) => (
+            <li key={tab}>
               <button
-                onClick={() => onViewChange(view)}
+                onClick={() => onTabChange(tab)}
                 className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
-                  activeView === view
+                  activeTab === tab
                     ? "text-white font-bold"
                     : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                 }`}
               >
-                {view.charAt(0).toUpperCase() + view.slice(1)}
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             </li>
           ))}
@@ -52,20 +52,20 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
           }`}
         >
           <ul className="space-y-2 bg-[var(--color-bg-base)] rounded-xl p-4">
-            {views.map((view) => (
-              <li key={view}>
+            {tabs.map((tab) => (
+              <li key={tab}>
                 <button
                   onClick={() => {
-                    onViewChange(view);
+                    onTabChange(tab);
                     setMobileMenuOpen(false);
                   }}
                   className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
-                    activeView === view
+                    activeTab === tab
                       ? "bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-card)]"
                       : "text-white hover:bg-[var(--color-bg-card)]"
                   }`}
                 >
-                  {view.charAt(0).toUpperCase() + view.slice(1)}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               </li>
             ))}

@@ -97,7 +97,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
           selectedTime: selectedDate ?? { date: "TBD", time: "TBD" },
           sampleImageUrl: offerData.fullUrl ?? null,
 
-          status: "confirmed",
+          status: "pending_payment",
           createdAt: serverTimestamp(),
         });
 
