@@ -16,6 +16,7 @@ import SidebarNavigation from "../components/SidebarNavigation";
 import ArtistProfileHeader from "../components/ArtistProfileHeader";
 import BookingRequestsList from "../components/BookingRequestsList";
 import MakeOfferModal from "../components/MakeOfferModal";
+import OffersList from "../components/OffersList";
 
 const NewArtistDashboard = () => {
   const [artist, setArtist] = useState<any>(null);
@@ -93,12 +94,7 @@ const NewArtistDashboard = () => {
           />
         )}
 
-        {activeTab === "offers" && (
-          <div className="mt-4 text-sm text-gray-400">
-            {/* You can build an <OffersList /> component later */}
-            Offers you've sent will show here.
-          </div>
-        )}
+        {activeTab === "offers" && uid && <OffersList uid={uid} />}
 
         {activeTab === "bookings" && (
           <>

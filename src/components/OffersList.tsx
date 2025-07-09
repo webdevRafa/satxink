@@ -1,55 +1,120 @@
-// Inline BookingRequest type pulled from NewArtistDashboard
-export type BookingRequest = {
-  id: string;
-  clientId: string;
-  clientName: string;
-  clientAvatar: string;
-  description: string;
-  preferredDateRange?: string[];
-  bodyPlacement: string;
-  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large";
-  fullUrl: string;
-  thumbUrl: string;
+// OffersList.tsx
+import { useEffect, useState } from "react";
+import { db } from "../firebase/firebaseConfig";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { format } from "date-fns";
+import type { Offer } from "../types/Offer";
+
+// Utility function (place right here — after imports, before component)
+export const formatReadableDate = (dateStr: string) => {
+  try {
+    return format(new Date(dateStr), "MMMM d, yyyy @ h:mm a");
+  } catch {
+    return dateStr;
+  }
 };
 
-export type Offer = {
-  clientName: string;
-  clientAvatar: string;
-  proposedDate: string;
-  proposedTime: string;
-  price: number;
-  status: "pending" | "accepted" | "declined";
-};
+const OffersList = ({ uid }: { uid: string }) => {
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-interface OffersListProps {
-  offers: Offer[];
-}
+  useEffect(() => {
+    if (!uid) return;
 
-const OffersList: React.FC<OffersListProps> = ({ offers }) => {
+    const fetchOffers = async () => {
+      try {
+        const q = query(
+          collection(db, "offers"),
+          where("artistId", "==", uid),
+          orderBy("createdAt", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Offer[];
+
+        setOffers(data);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching offers:", error);
+      }
+    };
+
+    fetchOffers();
+  }, [uid]);
+
+  if (loading) {
+    return <p className="text-gray-400 text-sm">Loading offers...</p>;
+  }
+
+  if (offers.length === 0) {
+    return (
+      <p className="text-gray-400 text-sm">You haven't sent any offers yet.</p>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-      {offers.map((offer, index) => (
-        <div key={index} className="bg-zinc-800 p-4 rounded-lg shadow">
-          <div className="flex items-center space-x-3 mb-2">
+    <div className="max-w-[1800px] grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
+      {offers.map((offer) => (
+        <div
+          key={offer.id}
+          className="w-full bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
+        >
+          <div className="flex items-center gap-3 mb-3">
             <img
-              src={offer.clientAvatar}
-              alt={offer.clientName}
+              src={offer.artistAvatar || "/default-avatar.png"}
+              alt={offer.displayName || "Artist"}
               className="w-10 h-10 rounded-full object-cover"
             />
-            <p className="font-medium">{offer.clientName}</p>
+            <p className="font-medium">{offer.displayName || "You"}</p>
           </div>
-          <p>
-            <strong>Date:</strong> {offer.proposedDate}
-          </p>
-          <p>
-            <strong>Time:</strong> {offer.proposedTime}
-          </p>
-          <p>
+
+          {offer.thumbUrl && (
+            <img
+              src={offer.thumbUrl}
+              alt="Tattoo offer"
+              className="w-full h-32 object-cover rounded-md mb-2"
+            />
+          )}
+
+          {offer.dateOptions?.length > 0 && (
+            <div className="mb-2">
+              <p className="text-xs text-gray-400 mb-1">
+                <strong>Proposed Times:</strong>
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                {offer.dateOptions.map((opt, idx) => (
+                  <li key={idx} className="text-[11px] text-gray-300">
+                    {formatReadableDate(`${opt.date} ${opt.time}`)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-xs text-emerald-400 mb-1">
             <strong>Price:</strong> ${offer.price}
           </p>
-          <p>
-            <strong>Status:</strong> {offer.status}
-          </p>
+
+          {offer.status && (
+            <p className="text-xs text-gray-400 mb-1">
+              <strong>Status:</strong>{" "}
+              <span className="capitalize">{offer.status}</span>
+            </p>
+          )}
+
+          {offer.shopName && (
+            <p className="text-xs text-gray-400 mb-1">
+              <strong>Shop:</strong> {offer.shopName}
+            </p>
+          )}
+
+          {offer.shopAddress && (
+            <p className="text-[10px] text-gray-500">{offer.shopAddress}</p>
+          )}
+
+          <p className="text-xs text-gray-400 mt-2">Tap to view details</p>
         </div>
       ))}
     </div>
