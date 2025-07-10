@@ -239,7 +239,7 @@ const BookingRequestsList: React.FC<Props> = ({
                 leaveFrom="scale-100 opacity-100"
                 leaveTo="scale-95 opacity-0"
               >
-                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-xl bg-[var(--color-bg-base)] p-6 text-white shadow-xl transition-all">
+                <Dialog.Panel className="w-full max-w-[1000px] transform overflow-hidden rounded-xl bg-gradient-to-b from-[var(--color-bg-card)] to-[var(--color-bg-footer)] p-6 text-white shadow-xl transition-all">
                   {selectedRequest && (
                     <>
                       <div className="flex justify-between items-center mb-4">
@@ -253,97 +253,118 @@ const BookingRequestsList: React.FC<Props> = ({
                           Close
                         </button>
                       </div>
+                      <div className="flex flex-col md:flex-row py-5 gap-5">
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div>
+                            <Zoom>
+                              <img
+                                src={selectedRequest.fullUrl}
+                                alt="Tattoo idea"
+                                className="w-full max-h-[65vh] md:max-h-[50vh] object-contain rounded-md mb-4"
+                              />
+                            </Zoom>
+                          </div>
+                        </div>
+                        {/* right section container for modal */}
+                        <div className="w-full flex justify-center items-end pb-0 md:pb-10">
+                          <div>
+                            <p className="text-sm mb-2">
+                              <strong className="text-neutral-200">
+                                Client:
+                              </strong>{" "}
+                              {selectedRequest.clientName}
+                            </p>
+                            <p className="text-sm mb-2">
+                              <strong className="text-neutral-200">
+                                Body Placement:
+                              </strong>{" "}
+                              {selectedRequest.bodyPlacement}
+                            </p>
+                            <p className="text-sm mb-2">
+                              <strong className="text-neutral-200">
+                                Size:
+                              </strong>{" "}
+                              {selectedRequest.size}
+                            </p>
+                            {selectedRequest.budget && (
+                              <p className="text-sm text-emerald-400! font-medium mb-2">
+                                <strong className="text-neutral-200">
+                                  Budget:
+                                </strong>{" "}
+                                {typeof selectedRequest.budget === "number"
+                                  ? `$${selectedRequest.budget}`
+                                  : (() => {
+                                      const [min, max] =
+                                        selectedRequest.budget.split("-");
+                                      return `$${min}–$${max}`;
+                                    })()}
+                              </p>
+                            )}
+                            {selectedRequest.preferredDateRange?.length ===
+                              2 && (
+                              <p className="text-sm mb-2">
+                                <strong className="text-neutral-200">
+                                  Available Date Range:
+                                </strong>{" "}
+                                {formatDateRange(
+                                  selectedRequest.preferredDateRange
+                                )}
+                              </p>
+                            )}
+                            {selectedRequest.availableTime?.from &&
+                              selectedRequest.availableTime?.to && (
+                                <p className="text-sm mb-2">
+                                  <strong className="text-neutral-200">
+                                    Preferred Time:
+                                  </strong>{" "}
+                                  {formatTime(
+                                    selectedRequest.availableTime.from
+                                  )}{" "}
+                                  –{" "}
+                                  {formatTime(selectedRequest.availableTime.to)}
+                                </p>
+                              )}
+                            {selectedRequest.availableDays?.length > 0 && (
+                              <p className="text-sm mb-2">
+                                <strong className="text-neutral-200">
+                                  Available Days:
+                                </strong>{" "}
+                                {getFormattedAvailableDays(
+                                  selectedRequest.availableDays
+                                )}
+                              </p>
+                            )}
 
-                      <Zoom>
-                        <img
-                          src={selectedRequest.fullUrl}
-                          alt="Tattoo idea"
-                          className="w-full max-h-[65vh] object-contain rounded-md mb-4"
-                        />
-                      </Zoom>
+                            <p className="text-sm mb-3">
+                              <strong className="text-neutral-200">
+                                Description:
+                              </strong>{" "}
+                              {selectedRequest.description}
+                            </p>
 
-                      <p className="text-sm mb-1">
-                        <strong className="text-neutral-200">Client:</strong>{" "}
-                        {selectedRequest.clientName}
-                      </p>
-                      <p className="text-sm mb-1">
-                        <strong className="text-neutral-200">
-                          Body Placement:
-                        </strong>{" "}
-                        {selectedRequest.bodyPlacement}
-                      </p>
-                      <p className="text-sm mb-1">
-                        <strong className="text-neutral-200">Size:</strong>{" "}
-                        {selectedRequest.size}
-                      </p>
-                      {selectedRequest.budget && (
-                        <p className="text-sm text-emerald-400! font-medium mb-1">
-                          <strong className="text-neutral-200">Budget:</strong>{" "}
-                          {typeof selectedRequest.budget === "number"
-                            ? `$${selectedRequest.budget}`
-                            : (() => {
-                                const [min, max] =
-                                  selectedRequest.budget.split("-");
-                                return `$${min}–$${max}`;
-                              })()}
-                        </p>
-                      )}
-                      {selectedRequest.preferredDateRange?.length === 2 && (
-                        <p className="text-sm mb-1">
-                          <strong className="text-neutral-200">
-                            Available Date Range:
-                          </strong>{" "}
-                          {formatDateRange(selectedRequest.preferredDateRange)}
-                        </p>
-                      )}
-                      {selectedRequest.availableTime?.from &&
-                        selectedRequest.availableTime?.to && (
-                          <p className="text-sm mb-1">
-                            <strong className="text-neutral-200">
-                              Preferred Time:
-                            </strong>{" "}
-                            {formatTime(selectedRequest.availableTime.from)} –{" "}
-                            {formatTime(selectedRequest.availableTime.to)}
-                          </p>
-                        )}
-                      {selectedRequest.availableDays?.length > 0 && (
-                        <p className="text-sm mb-1">
-                          <strong className="text-neutral-200">
-                            Available Days:
-                          </strong>{" "}
-                          {getFormattedAvailableDays(
-                            selectedRequest.availableDays
-                          )}
-                        </p>
-                      )}
-
-                      <p className="text-sm mb-3">
-                        <strong className="text-neutral-200">
-                          Description:
-                        </strong>{" "}
-                        {selectedRequest.description}
-                      </p>
-
-                      <div className="flex  gap-1">
-                        <button className="bg-[#121212] hover:bg-[var(--color-bg-footer)] border-2 border-neutral-500 hover:border-red-400  text-red-400! w-full text-sm p-0! rounded max-w-[200px] py-2!">
-                          Decline
-                        </button>
-                        <button
-                          onMouseEnter={() => setIsHovered(true)}
-                          onMouseLeave={() => setIsHovered(false)}
-                          onClick={() => {
-                            onMakeOffer(selectedRequest);
-                            setSelectedRequest(null);
-                          }}
-                          className="bg-[#121212] border-2 border-neutral-500 hover:border-emerald-400 text-emerald-400! w-full text-sm p-0! rounded flex gap-1 justify-center items-center max-w-[200px]"
-                        >
-                          Make an offer
-                          <img
-                            className="h-10 w-13 p-0!"
-                            src={isHovered ? colorGun : gun}
-                            alt=""
-                          />
-                        </button>
+                            <div className="flex  gap-2 md:gap-3 md:mt-10">
+                              <button className="bg-[#121212] hover:bg-[var(--color-bg-footer)] border-2 border-neutral-500 hover:border-red-400  text-red-400! w-full text-sm p-0! rounded max-w-[200px] py-2!">
+                                Decline
+                              </button>
+                              <button
+                                onMouseEnter={() => setIsHovered(true)}
+                                onMouseLeave={() => setIsHovered(false)}
+                                onClick={() => {
+                                  onMakeOffer(selectedRequest);
+                                  setSelectedRequest(null);
+                                }}
+                                className="bg-[#121212] border-2 border-neutral-500 hover:border-emerald-400 text-emerald-400! w-full text-sm p-0! rounded flex gap-1 justify-center items-center max-w-[200px]"
+                              >
+                                Make an offer
+                                <img
+                                  className="h-8 w-10 p-0!"
+                                  src={isHovered ? colorGun : gun}
+                                  alt=""
+                                />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </>
                   )}
