@@ -2,9 +2,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 [data-rmiz-modal-overlay] {
+  opacity: 1;
+  transition: opacity 300ms ease-in-out !important;
   background: linear-gradient(to bottom, var(--color-bg-base), var(--color-bg-footer)) !important;
-  backdrop-filter: blur(4px);
+  background: transparent !important;
+  backdrop-filter: blur(6px);
 }
+
+[data-rmiz-modal-overlay][hidden] {
+  opacity: 0 !important;
+}
+
 /* Clean up padding + match your dark theme */
 .rdrCalendarWrapper {
   background-color: var(--color-bg-base);
@@ -42,6 +50,13 @@
   color: white !important;
 }
 
+.zoom-overlay {
+  transition: opacity 300ms ease-in-out;
+}
+
+.zoom-overlay--closing {
+  opacity: 0 !important;
+}
 
 :root {
     --color-bg-base: #121212;

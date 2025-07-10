@@ -244,7 +244,7 @@ const BookingRequestsList: React.FC<Props> = ({
                     <>
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">
-                          Booking Request
+                          Booking Request <br></br>
                         </h3>
                         <button
                           onClick={() => setSelectedRequest(null)}
@@ -260,20 +260,24 @@ const BookingRequestsList: React.FC<Props> = ({
                               <img
                                 src={selectedRequest.fullUrl}
                                 alt="Tattoo idea"
-                                className="w-full max-h-[65vh] md:max-h-[50vh] object-contain rounded-md mb-4"
+                                className="w-full max-h-[65vh] md:max-h-[50vh] object-contain rounded-md mb-4 shadow-lg"
                               />
                             </Zoom>
                           </div>
                         </div>
                         {/* right section container for modal */}
-                        <div className="w-full flex justify-center items-end pb-0 md:pb-10">
+                        <div className="w-full flex justify-start md:justify-center items-end pb-0 md:pb-10">
                           <div>
-                            <p className="text-sm mb-2">
-                              <strong className="text-neutral-200">
-                                Client:
-                              </strong>{" "}
-                              {selectedRequest.clientName}
-                            </p>
+                            <div className="flex gap-2 items-start mb-5">
+                              <img
+                                className="size-7 rounded-xl"
+                                src={selectedRequest.clientAvatar}
+                                alt=""
+                              />
+                              <p className="text-sm mb-2">
+                                {selectedRequest.clientName}
+                              </p>
+                            </div>
                             <p className="text-sm mb-2">
                               <strong className="text-neutral-200">
                                 Body Placement:
