@@ -1,4 +1,5 @@
 // functions/src/index.ts
+import type { CheckoutRequestData } from '../../src/types/StripeCheckout';
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -295,12 +296,39 @@ export const handleOfferImageUpload = onObjectFinalized(
 );
 
 export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
-
   const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
     apiVersion: '2023-10-16' as any,
   });
 
   try {
+    const {
+      offerId,
+      clientId,
+      artistId,
+      price,
+      displayName,
+      artistAvatar,
+      shopName,
+      shopAddress,
+      fullUrl,
+      selectedDate,
+    } = req.data as CheckoutRequestData;
+    let formattedDateTime = '';
+
+    if (selectedDate?.date && selectedDate?.time) {
+      const combinedDateTime = new Date(`${selectedDate.date}T${selectedDate.time}`);
+      formattedDateTime = combinedDateTime.toLocaleString('en-US', {
+        weekday: 'long',    // e.g., "Saturday"
+        year: 'numeric',    // e.g., "2025"
+        month: 'long',      // e.g., "July"
+        day: 'numeric',     // e.g., "12"
+        hour: 'numeric',    // e.g., "2"
+        minute: '2-digit',  // e.g., "30"
+        hour12: true        // e.g., "PM"
+      });
+    }
+
+    
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -308,15 +336,26 @@ export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRE
         {
           price_data: {
             currency: 'usd',
-            unit_amount: 2000, // $20.00
+            unit_amount: price * 100, // Convert dollars to cents
             product_data: {
-              name: 'Test Tattoo Deposit',
-              description: 'Placeholder for testing',
+              name: `${displayName}'s Tattoo Offer`,
+              description: `Studio: ${shopName || 'N/A'} | Address: ${shopAddress || 'N/A'} | Date: ${selectedDate?.date} at ${selectedDate?.time}`,
+              images: fullUrl ? [fullUrl] : [],
             },
           },
           quantity: 1,
         },
       ],
+      metadata: {
+        offerId: offerId ?? '',
+        clientId: clientId ?? '',
+        artistId: artistId ?? '',
+        artistAvatar: artistAvatar ?? '', // convert to string explicitly
+        displayName: displayName ?? '',
+        shopName: shopName ?? '',
+        shopAddress: shopAddress ?? '',
+        selectedDate: formattedDateTime ?? '',
+      },
       success_url: 'http://localhost:5173/success',
       cancel_url: 'http://localhost:5173/cancel',
     });

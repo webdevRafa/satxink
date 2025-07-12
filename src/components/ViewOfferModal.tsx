@@ -4,6 +4,8 @@ import type { Offer } from "../types/Offer";
 import { format, parse } from "date-fns";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase/firebaseConfig";
 
 type Props = {
   offer: Offer | null;
@@ -22,6 +24,33 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   );
 
   if (!isOpen || !offer) return null;
+
+  const handleCheckout = async (chosenDate: { date: string; time: string }) => {
+    if (!offer) return;
+
+    try {
+      const createSession = httpsCallable(functions, "createCheckoutSession");
+
+      const response = await createSession({
+        offerId: offer.id,
+        clientId: offer.clientId,
+        artistId: offer.artistId,
+        price: offer.price,
+        displayName: offer.displayName,
+        artistAvatar: offer.artistAvatar ?? "",
+        shopName: offer.shopName ?? "",
+        shopAddress: offer.shopAddress ?? "",
+        fullUrl: offer.fullUrl ?? "",
+        selectedDate: chosenDate,
+      });
+
+      const { sessionUrl } = response.data as { sessionUrl: string };
+      window.location.href = sessionUrl;
+    } catch (error) {
+      console.error("Stripe checkout error:", error);
+      alert("Failed to start checkout. Please try again.");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/60 px-4">
@@ -92,18 +121,26 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
         {offer.status === "pending" && (
           <div className="mt-4 flex gap-3">
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (selectedDateOption === null) {
                   toast.error("Please select a date before accepting.");
                   return;
                 }
 
-                // Optionally log the selected date/time
                 const chosenDate = offer.dateOptions[selectedDateOption];
                 console.log("Selected appointment:", chosenDate);
 
-                onRespond(offer.id, "accepted", chosenDate);
-                onClose();
+                try {
+                  await onRespond(offer.id, "accepted", chosenDate);
+                  onClose();
+                  await handleCheckout(chosenDate);
+                } catch (error) {
+                  console.error(
+                    "Error during offer acceptance or checkout:",
+                    error
+                  );
+                  toast.error("Something went wrong.");
+                }
               }}
               className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded"
             >
