@@ -1,6 +1,9 @@
 // functions/src/index.ts
+
+
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
 import { setGlobalOptions }   from 'firebase-functions/v2/options';
+import { defineSecret } from 'firebase-functions/params';
 
 import * as admin  from 'firebase-admin';
 import * as path   from 'path';
@@ -8,6 +11,9 @@ import * as os     from 'os';
 import * as fs     from 'fs/promises';
 import sharp       from 'sharp';
 import { v4 as uuidv4 } from "uuid";  
+import Stripe from 'stripe';
+import { onCall } from 'firebase-functions/v2/https';
+import * as logger from 'firebase-functions/logger';
 
 
 admin.initializeApp();
@@ -15,6 +21,11 @@ const bucket = admin.storage().bucket();
 
 // Bump memory + timeout for big HEICs
 setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
+
+const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
+
+
+
 
 /**
  * One universal trigger for:
@@ -282,3 +293,37 @@ export const handleOfferImageUpload = onObjectFinalized(
     console.log(`✅ Offer doc updated with fullUrl + thumbUrl for: ${fileName}`);
   }
 );
+
+export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+
+  const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
+    apiVersion: '2023-10-16' as any,
+  });
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: 2000, // $20.00
+            product_data: {
+              name: 'Test Tattoo Deposit',
+              description: 'Placeholder for testing',
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: 'http://localhost:5173/success',
+      cancel_url: 'http://localhost:5173/cancel',
+    });
+
+    return { sessionUrl: session.url };
+  } catch (error) {
+    logger.error('Stripe checkout error', error);
+    throw new Error('Unable to create checkout session');
+  }
+});
