@@ -31,7 +31,7 @@ const NewClientDashboard = () => {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white">
+    <div className="flex flex-col md:flex-row h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white pt-20">
       <ClientSidebarNavigation
         activeView={activeView}
         onViewChange={(view) => setActiveView(view)}

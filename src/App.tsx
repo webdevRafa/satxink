@@ -31,6 +31,9 @@ import ArtistSignupPage from "./pages/ArtistSignupPage";
 import SignupSelection from "./pages/SignupSelection";
 import NewArtistDashboard from "./pages/NewArtistDashboard";
 import NewClientDashboard from "./pages/NewClientDashboard";
+import PaymentPage from "./pages/payment/PaymentPage";
+import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
+
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
 
@@ -74,6 +77,9 @@ function App() {
         <Route path="/signup" element={<SignupSelection />} />
         <Route path="/signup/client" element={<ClientSignupPage />} />
         <Route path="/signup/artist" element={<ArtistSignupPage />} />
+        <Route path="/payment/:bookingId" element={<PaymentPage />} />
+        <Route path="/payment-success" element={<PaymentSuccessPage />} />
+
         <Route
           path="/client-profile-setup"
           element={<ClientProfileSetupPage />}

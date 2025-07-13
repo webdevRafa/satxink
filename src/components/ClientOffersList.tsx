@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import {
   collection,
   query,
@@ -20,6 +22,7 @@ interface Props {
 }
 
 const ClientOffersList: React.FC<Props> = ({ clientId }) => {
+  const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,7 +72,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
         const shopData = shopSnap.exists() ? shopSnap.data() : {};
 
         // Step 3: Create the booking
-        await addDoc(collection(db, "bookings"), {
+        const bookingRef = await addDoc(collection(db, "bookings"), {
           artistId: offerData.artistId,
           artistName: offerData.displayName,
           artistAvatar: offerData.artistAvatar ?? null,
@@ -94,7 +97,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
             offerData.shopAddress ?? shopData.address ?? "Unavailable",
           shopMapLink: offerData.shopMapLink ?? shopData.mapLink ?? null,
 
-          selectedTime: selectedDate ?? { date: "TBD", time: "TBD" },
+          selectedDate: selectedDate ?? { date: "TBD", time: "TBD" },
           sampleImageUrl: offerData.fullUrl ?? null,
 
           status: "pending_payment",
@@ -102,6 +105,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
         });
 
         toast.success("Booking confirmed!");
+        navigate(`/payment/${bookingRef.id}`);
       } else {
         toast.success("Offer declined.");
       }

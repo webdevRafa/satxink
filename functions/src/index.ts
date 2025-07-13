@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from "uuid";
 import Stripe from 'stripe';
 import { onCall } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
+import { HttpsError } from 'firebase-functions/v2/https';
 
 
 admin.initializeApp();
@@ -310,7 +311,6 @@ export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRE
       artistAvatar,
       shopName,
       shopAddress,
-      fullUrl,
       selectedDate,
     } = req.data as CheckoutRequestData;
     let formattedDateTime = '';
@@ -340,7 +340,6 @@ export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRE
             product_data: {
               name: `${displayName}'s Tattoo Offer`,
               description: `Studio: ${shopName || 'N/A'} | Address: ${shopAddress || 'N/A'} | Date: ${selectedDate?.date} at ${selectedDate?.time}`,
-              images: fullUrl ? [fullUrl] : [],
             },
           },
           quantity: 1,
@@ -363,6 +362,6 @@ export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRE
     return { sessionUrl: session.url };
   } catch (error) {
     logger.error('Stripe checkout error', error);
-    throw new Error('Unable to create checkout session');
+    throw new HttpsError('internal', 'Unable to create checkout session');
   }
 });
