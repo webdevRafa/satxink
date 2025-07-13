@@ -409,3 +409,8 @@ export const stripeWebhook = onRequest(
     res.status(200).json({ received: true });
   }
 );
+
+module.exports = {
+  ...exports,
+  stripeWebhook,
+};
