@@ -14,5 +14,14 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "/stripeWebhook",
+        "function": "stripeWebhook",
+        "region": "us-central1"
+      }
+    ]
+  }
 }

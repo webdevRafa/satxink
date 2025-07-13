@@ -1,6 +1,5 @@
 // functions/src/index.ts
 import type { CheckoutRequestData } from '../../src/types/StripeCheckout';
-import { handleStripeWebhook } from "./stripeWebhooks";
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -15,6 +14,10 @@ import sharp       from 'sharp';
 import { v4 as uuidv4 } from "uuid";  
 import Stripe from 'stripe';
 import { onCall } from 'firebase-functions/v2/https';
+import { onRequest } from 'firebase-functions/v2/https';
+import { Request, Response } from 'express';
+
+
 import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/v2/https';
 
@@ -27,7 +30,7 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 
-export const stripeWebhook = handleStripeWebhook;
+
 
 
 
@@ -373,3 +376,36 @@ export const createCheckoutSession = onCall({ cors: true, region: "us-central1",
     throw new HttpsError('internal', 'Unable to create checkout session');
   }
 });
+
+export const stripeWebhook = onRequest(
+  {
+    region: 'us-central1',
+    secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+  },
+  async (req: Request, res: Response): Promise<void> => {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2023-10-16' as any,
+    });
+
+    const sig = req.headers['stripe-signature'] as string;
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+    let event;
+
+    try {
+      const rawBody = (req as any).rawBody;
+      event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
+    } catch (err: any) {
+      console.error('❌ Webhook verification failed:', err);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+      return;
+    }
+
+    // ✅ handle event
+    if (event.type === 'checkout.session.completed') {
+      // Your logic here
+    }
+
+    res.status(200).json({ received: true });
+  }
+);
