@@ -1,5 +1,6 @@
 // functions/src/index.ts
 import type { CheckoutRequestData } from '../../src/types/StripeCheckout';
+import { handleStripeWebhook } from "./stripeWebhooks";
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -26,6 +27,7 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 
+export const stripeWebhook = handleStripeWebhook;
 
 
 
@@ -296,7 +298,13 @@ export const handleOfferImageUpload = onObjectFinalized(
   }
 );
 
-export const createCheckoutSession = onCall({ cors: true, secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+export const createCheckoutSession = onCall({ cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+
+  const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
   const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
     apiVersion: '2023-10-16' as any,
   });
