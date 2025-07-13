@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../firebase/firebaseConfig";
+import { getAuth } from "firebase/auth";
 
 type Props = {
   offer: Offer | null;
@@ -27,6 +28,13 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   const handleCheckout = async (chosenDate: { date: string; time: string }) => {
     if (!offer) return;
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      alert("You must be logged in to proceed with checkout.");
+      return;
+    }
 
     try {
       const createSession = httpsCallable(functions, "createCheckoutSession");
