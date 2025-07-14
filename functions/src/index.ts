@@ -315,6 +315,8 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
   });
 
   try {
+    const data = req.data as CheckoutRequestData;
+
     const {
       offerId,
       clientId,
@@ -325,7 +327,9 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       shopName,
       shopAddress,
       selectedDate,
-    } = req.data as CheckoutRequestData;
+      bookingId,
+    } = data;
+    
     let formattedDateTime = '';
 
     if (selectedDate?.date && selectedDate?.time) {
@@ -360,6 +364,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       ],
       metadata: {
         offerId: offerId ?? '',
+        bookingId: bookingId ?? "",
         clientId: clientId ?? '',
         artistId: artistId ?? '',
         artistAvatar: artistAvatar ?? '', // convert to string explicitly

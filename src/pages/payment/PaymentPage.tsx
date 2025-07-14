@@ -4,6 +4,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import type { Booking } from "../../types/Booking";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../../firebase/firebaseConfig";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
@@ -135,13 +137,33 @@ const PaymentPage = () => {
             <button
               onClick={async () => {
                 try {
+                  if (!booking) return;
+
                   toast.loading("Redirecting to Stripe...");
-                  const response = await fetch(
-                    `https://your-cloud-function-url.com/createStripeSession?bookingId=${booking.id}`
+
+                  const createSession = httpsCallable(
+                    functions,
+                    "createCheckoutSession"
                   );
-                  const { checkoutUrl } = await response.json();
+
+                  const response = await createSession({
+                    offerId: booking.offerId,
+                    bookingId: booking.id,
+                    clientId: booking.clientId,
+                    artistId: booking.artistId,
+                    price: booking.depositAmount,
+                    displayName: booking.artistName,
+                    artistAvatar: booking.artistAvatar ?? "",
+                    shopName: booking.shopName ?? "",
+                    shopAddress: booking.shopAddress ?? "",
+                    selectedDate: booking.selectedDate,
+                  });
+
+                  const { sessionUrl } = response.data as {
+                    sessionUrl: string;
+                  };
                   toast.dismiss();
-                  window.location.href = checkoutUrl;
+                  window.location.href = sessionUrl;
                 } catch (err) {
                   console.error(err);
                   toast.dismiss();

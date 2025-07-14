@@ -44,7 +44,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
       const response = await createSession({
         offerId: offer.id,
-        bookingId: bookingId ?? null, // ✅ Pass bookingId here
+        bookingId,
         clientId: offer.clientId,
         artistId: offer.artistId,
         price: offer.price,
@@ -52,7 +52,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
         artistAvatar: offer.artistAvatar ?? "",
         shopName: offer.shopName ?? "",
         shopAddress: offer.shopAddress ?? "",
-        fullUrl: offer.fullUrl ?? "",
         selectedDate: chosenDate,
       });
 

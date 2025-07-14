@@ -7,6 +7,7 @@ export interface CheckoutRequestData {
     artistAvatar: string;
     shopName: string;
     shopAddress: string;
+    bookingId: string;
     selectedDate: {
       date: string;
       time: string;

@@ -24,7 +24,7 @@ export type Booking = {
     shopAddress?: string;
     shopMapLink?: string;
   
-    selectedTime: {
+    selectedDate: {
       date: string;
       time: string;
     };
