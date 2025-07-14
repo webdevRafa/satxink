@@ -16,7 +16,6 @@ import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
 import type { Offer } from "../types/Offer";
-
 interface Props {
   clientId: string;
 }
@@ -24,7 +23,11 @@ interface Props {
 const ClientOffersList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+
+  const [selectedOffer, setSelectedOffer] = useState<
+    (Offer & { bookingId?: string }) | null
+  >(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchOffers = async () => {
@@ -106,6 +109,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
 
         toast.success("Booking confirmed!");
         navigate(`/payment/${bookingRef.id}`);
+        return bookingRef.id;
       } else {
         toast.success("Offer declined.");
       }
@@ -188,7 +192,14 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
         offer={selectedOffer}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onRespond={handleResponse}
+        onRespond={async (offerId, action, selectedDate) => {
+          const bookingId = await handleResponse(offerId, action, selectedDate);
+
+          if (bookingId) {
+            // Inject bookingId into selectedOffer before checkout
+            setSelectedOffer((prev) => (prev ? { ...prev, bookingId } : prev));
+          }
+        }}
       />
     </section>
   );

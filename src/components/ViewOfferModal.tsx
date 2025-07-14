@@ -9,14 +9,14 @@ import { functions } from "../firebase/firebaseConfig";
 import { getAuth } from "firebase/auth";
 
 type Props = {
-  offer: Offer | null;
+  offer: (Offer & { bookingId?: string }) | null;
   onClose: () => void;
   isOpen: boolean;
   onRespond: (
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string }
-  ) => void;
+  ) => Promise<string | void>;
 };
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
@@ -26,7 +26,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   if (!isOpen || !offer) return null;
 
-  const handleCheckout = async (chosenDate: { date: string; time: string }) => {
+  const handleCheckout = async (
+    chosenDate: { date: string; time: string },
+    bookingId?: string
+  ) => {
     if (!offer) return;
     const auth = getAuth();
     const currentUser = auth.currentUser;
@@ -41,6 +44,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
       const response = await createSession({
         offerId: offer.id,
+        bookingId: bookingId ?? null, // ✅ Pass bookingId here
         clientId: offer.clientId,
         artistId: offer.artistId,
         price: offer.price,
@@ -139,9 +143,16 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 console.log("Selected appointment:", chosenDate);
 
                 try {
-                  await onRespond(offer.id, "accepted", chosenDate);
-                  onClose();
-                  await handleCheckout(chosenDate);
+                  const bookingId = await onRespond(
+                    offer.id,
+                    "accepted",
+                    chosenDate
+                  );
+
+                  if (bookingId) {
+                    onClose(); // ✅ close the modal
+                    await handleCheckout(chosenDate, bookingId); // ✅ only call once with bookingId
+                  }
                 } catch (error) {
                   console.error(
                     "Error during offer acceptance or checkout:",

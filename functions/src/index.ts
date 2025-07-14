@@ -1,5 +1,5 @@
 // functions/src/index.ts
-import type { CheckoutRequestData } from '../../src/types/StripeCheckout';
+import type { CheckoutRequestData } from '../src/types/StripeCheckout';
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -15,7 +15,9 @@ import { v4 as uuidv4 } from "uuid";
 import Stripe from 'stripe';
 import { onCall } from 'firebase-functions/v2/https';
 import { onRequest } from 'firebase-functions/v2/https';
-import { Request, Response } from 'express';
+
+
+
 
 
 import * as logger from 'firebase-functions/logger';
@@ -40,7 +42,7 @@ const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
  * • flash-sheet uploads
  * • client booking-request reference images
  */
-export const handleImageUpload = onObjectFinalized(async (event) => {
+const handleImageUpload = onObjectFinalized(async (event) => {
   const object      = event.data;
   const filePath    = object.name ?? '';          // e.g. users/UID/portfolio/originals/img.heic
   const contentType = object.contentType ?? '';
@@ -195,7 +197,7 @@ export const handleImageUpload = onObjectFinalized(async (event) => {
       }
   }
 });
-export const processAvatar = onObjectFinalized(async (event) => {
+const processAvatar = onObjectFinalized(async (event) => {
   const object = event.data;
   const filePath = object.name;
 
@@ -245,7 +247,7 @@ export const processAvatar = onObjectFinalized(async (event) => {
   console.log(`✅ Avatar processed for user: ${uid}`);
 });
 
-export const handleOfferImageUpload = onObjectFinalized(
+const handleOfferImageUpload = onObjectFinalized(
   { region: "us-central1", memory: "256MiB", timeoutSeconds: 60 }, // optional settings
   async (event) => {
     const filePath = event.data.name || "";
@@ -301,7 +303,7 @@ export const handleOfferImageUpload = onObjectFinalized(
   }
 );
 
-export const createCheckoutSession = onCall({ cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] }, async (req) => {
+const createCheckoutSession = onCall({ cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] }, async (req) => {
 
   const uid = req.auth?.uid;
     if (!uid) {
@@ -376,13 +378,13 @@ export const createCheckoutSession = onCall({ cors: true, region: "us-central1",
     throw new HttpsError('internal', 'Unable to create checkout session');
   }
 });
-
-export const stripeWebhook = onRequest(
+ 
+const stripeWebhook = onRequest(
   {
     region: 'us-central1',
     secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
   },
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: any, res: any): Promise<void> => {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2023-10-16' as any,
     });
@@ -411,6 +413,10 @@ export const stripeWebhook = onRequest(
 );
 
 module.exports = {
-  ...exports,
+  handleImageUpload,
+  processAvatar,
+  handleOfferImageUpload,
+  createCheckoutSession,
   stripeWebhook,
 };
+ 
