@@ -31,7 +31,7 @@ const bucket = admin.storage().bucket();
 setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
-
+const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 
 
@@ -395,7 +395,7 @@ const stripeWebhook = onRequest(
     });
 
     const sig = req.headers['stripe-signature'] as string;
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+    const endpointSecret = STRIPE_WEBHOOK_SECRET.value();
 
     let event;
 
