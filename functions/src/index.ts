@@ -373,7 +373,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         shopAddress: shopAddress ?? '',
         selectedDate: formattedDateTime ?? '',
       },
-      success_url: 'http://localhost:5173/success',
+      success_url: 'http://localhost:5173/payment-success',
       cancel_url: 'http://localhost:5173/cancel',
     });
 

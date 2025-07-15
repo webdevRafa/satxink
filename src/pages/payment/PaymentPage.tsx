@@ -62,16 +62,16 @@ const PaymentPage = () => {
   } = booking;
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white px-4 py-10 flex items-center justify-center">
-      <div className="max-w-xl w-full bg-[#1e1e1e] rounded-xl p-6 shadow-lg">
-        <h1 className="text-2xl font-bold mb-2">Pay Your Deposit</h1>
-        <p className="text-sm text-yellow-400 italic mb-4">
+    <div className="min-h-screen bg-gradient-to-b from-[var(--color-bg-footer)] to-[var(--color-bg-card)] text-white px-4 py-10 flex items-center justify-center">
+      <div className="max-w-xl w-full bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-button)] rounded-xl pt-10 pb-4 px-4 shadow-lg">
+        <h1 className="text-2xl! font-bold mb-0">Confirm Your Booking</h1>
+        <p className="text-sm! text-yellow-400! opacity-40 italic mb-6!">
           Status: {booking.status.replace("_", " ")}
         </p>
 
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-md! text-white mb-4">
           You're booking a tattoo with{" "}
-          <span className="font-semibold">{artistName}</span>
+          <span className="font-semibold text-white">{artistName}</span>
           {shopName && (
             <>
               {" "}
@@ -81,6 +81,18 @@ const PaymentPage = () => {
           .
         </p>
 
+        <p className="text-sm text-gray-300 mb-1">
+          To confirm your appointment, a deposit of:
+        </p>
+        <p className="text-2xl font-bold text-emerald-400">${depositAmount}</p>
+        <p className="text-sm text-gray-400 mt-2">
+          This payment secures your booking and allows your artist to begin
+          prep. <br />
+          <span className="text-red-400 font-medium">
+            All deposits are non-refundable.
+          </span>
+        </p>
+
         {sampleImageUrl && (
           <img
             src={sampleImageUrl}
@@ -88,13 +100,6 @@ const PaymentPage = () => {
             className="rounded-lg mb-4 max-h-60 object-contain border border-gray-700"
           />
         )}
-
-        <div className="mb-6">
-          <p className="text-sm mb-1 text-gray-300">Deposit Required:</p>
-          <p className="text-2xl font-bold text-emerald-400">
-            ${depositAmount}
-          </p>
-        </div>
 
         {paymentType === "external" && externalPaymentDetails ? (
           <div className="space-y-4">
@@ -170,9 +175,9 @@ const PaymentPage = () => {
                   toast.error("Failed to start checkout.");
                 }
               }}
-              className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded w-full"
+              className=" bg-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[280px] mt-6"
             >
-              Pay with Card
+              Proceed to Secure Checkout
             </button>
           </div>
         ) : (
