@@ -390,7 +390,7 @@ const stripeWebhook = onRequest(
     secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
   },
   async (req: any, res: any): Promise<void> => {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
       apiVersion: '2023-10-16' as any,
     });
 
@@ -410,10 +410,35 @@ const stripeWebhook = onRequest(
 
     // ✅ handle event
     if (event.type === 'checkout.session.completed') {
-      // Your logic here
+      const session = event.data.object as Stripe.Checkout.Session;
+
+  const bookingId = session.metadata?.bookingId;
+
+  if (!bookingId) {
+    console.warn("Missing bookingId in session metadata.");
+    return res.status(400).send("Missing bookingId.");
+  }
+
+  try {
+    const bookingRef = admin.firestore().collection("bookings").doc(bookingId);
+
+    await bookingRef.update({
+      status: "paid",
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      stripePaymentIntentId: session.payment_intent,
+    });
+
+    console.log(`Booking ${bookingId} marked as paid.`);
+    return res.status(200).send("Booking updated.");
+  } catch (err) {
+    console.error("Error updating booking:", err);
+    return res.status(500).send("Failed to update booking.");
+  }
+    } else {
+      console.log(`Unhandled event type: ${event.type}`);
+      return res.status(200).json({ received: true });
     }
 
-    res.status(200).json({ received: true });
   }
 );
 
