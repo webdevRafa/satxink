@@ -64,31 +64,33 @@ const PaymentPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[var(--color-bg-footer)] to-[var(--color-bg-card)] text-white px-4 py-10 flex items-center justify-center">
       <div className="max-w-xl w-full bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-button)] rounded-xl pt-10 pb-4 px-4 shadow-lg">
-        <h1 className="text-2xl! font-bold mb-0">Confirm Your Booking</h1>
-        <p className="text-sm! text-yellow-400! opacity-40 italic mb-6!">
-          Status: {booking.status.replace("_", " ")}
-        </p>
+        <h1 className="text-2xl! font-bold mb-4">Confirm Your Booking</h1>
 
         <p className="text-md! text-white mb-4">
           You're booking a tattoo with{" "}
+          <img
+            className="w-8 inline-block rounded-full"
+            src={booking.artistAvatar}
+            alt=""
+          />{" "}
           <span className="font-semibold text-white">{artistName}</span>
           {shopName && (
             <>
               {" "}
+              <br></br>
               at <span className="italic">{shopName}</span>
             </>
           )}
-          .
         </p>
 
         <p className="text-sm text-gray-300 mb-1">
           To confirm your appointment, a deposit of:
         </p>
-        <p className="text-2xl font-bold text-emerald-400">${depositAmount}</p>
+        <p className="text-3xl! font-bold text-white!">${depositAmount}</p>
         <p className="text-sm text-gray-400 mt-2">
           This payment secures your booking and allows your artist to begin
           prep. <br />
-          <span className="text-red-400 font-medium">
+          <span className="text-white font-bold">
             All deposits are non-refundable.
           </span>
         </p>
@@ -175,7 +177,7 @@ const PaymentPage = () => {
                   toast.error("Failed to start checkout.");
                 }
               }}
-              className=" bg-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[280px] mt-6"
+              className=" bg-white text-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[240px] mt-6"
             >
               Proceed to Secure Checkout
             </button>

@@ -72,7 +72,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           style={{ backgroundImage: `url(${satx})` }}
         ></div>
         <img
-          className="w-15 rounded-full absolute bottom-0 right-0 animate-pulse translate-y-[50%]"
+          className="w-15 rounded-full absolute bottom-0 right-0 animate-pulse translate-y-[30%] translate-x-0 md:translate-x-[30%]"
           src={offer.artistAvatar}
           alt=""
         />
