@@ -72,7 +72,7 @@ export default function TermsOfService() {
       <div className="mb-10">
         <h2>Platform Responsibility</h2>
         <p>
-          SATXINK is a facilitator of appointments and is not liable for the
+          SATX INK is a facilitator of appointments and is not liable for the
           outcome of any tattoo session, including artistic quality or
           health-related concerns. Users should do their own due diligence when
           booking.
@@ -82,7 +82,7 @@ export default function TermsOfService() {
       <div className="mb-10">
         <h2>Changes to These Terms</h2>
         <p>
-          SATXINK reserves the right to update these terms at any time.
+          SATX INK reserves the right to update these terms at any time.
           Continued use of the platform after changes are published constitutes
           acceptance of the updated terms.
         </p>
