@@ -183,7 +183,7 @@ const PaymentPage = () => {
                   toast.error("Failed to start checkout.");
                 }
               }}
-              className=" bg-white text-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[240px] mt-6"
+              className=" text-white bg-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[240px] mt-6"
             >
               Proceed to Secure Checkout
             </button>
