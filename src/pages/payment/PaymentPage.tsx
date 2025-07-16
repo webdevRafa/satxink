@@ -63,7 +63,7 @@ const PaymentPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[var(--color-bg-footer)] to-[var(--color-bg-card)] text-white px-4 py-10 flex items-center justify-center">
-      <div className="max-w-xl w-full bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-button)] rounded-xl pt-10 pb-4 px-4 shadow-lg">
+      <div className="shadow-sm shadow-white max-w-xl w-full bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-button)] rounded-xl pt-10 pb-4 px-4">
         <h1 className="text-2xl! font-bold mb-4">Confirm Your Booking</h1>
 
         <p className="text-md! text-white mb-4">
@@ -90,9 +90,8 @@ const PaymentPage = () => {
         <p className="text-sm text-gray-400 mt-2">
           This payment secures your booking and allows your artist to begin
           prep. <br />
-          <span className="text-white font-bold">
-            All deposits are non-refundable.
-          </span>
+          <span className="text-white font-bold">Please note:</span> All
+          deposits are non-refundable.
         </p>
 
         {sampleImageUrl && (
@@ -102,7 +101,15 @@ const PaymentPage = () => {
             className="rounded-lg mb-4 max-h-60 object-contain border border-gray-700"
           />
         )}
-
+        <p className="text-xs! text-gray-400 mt-4">
+          By continuing, you agree to our{" "}
+          <a href="/terms" target="_blank" className="underline text-white">
+            Terms of Service
+          </a>
+          . If you cancel within 24 hours of your scheduled session, the
+          remaining balance may be non-refundable. Deposits are always
+          non-refundable.
+        </p>
         {paymentType === "external" && externalPaymentDetails ? (
           <div className="space-y-4">
             <p className="text-sm text-gray-300">
@@ -140,7 +147,6 @@ const PaymentPage = () => {
           </div>
         ) : paymentType === "internal" ? (
           <div className="space-y-4">
-            <p className="text-sm text-gray-300">Proceed to secure checkout:</p>
             <button
               onClick={async () => {
                 try {
