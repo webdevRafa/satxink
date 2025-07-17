@@ -1,6 +1,5 @@
 import React from "react";
 import { RiInstagramFill } from "react-icons/ri";
-import { SiWebmoney } from "react-icons/si";
 import { FaFacebook } from "react-icons/fa";
 
 type Artist = {

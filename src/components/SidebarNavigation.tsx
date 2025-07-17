@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Handshake, FolderInput, Receipt } from "lucide-react";
 
 type ViewTab = "requests" | "offers" | "bookings";
 
@@ -11,7 +12,15 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
 }) => {
-  const tabs: ViewTab[] = ["requests", "offers", "bookings"];
+  const tabs: {
+    key: ViewTab;
+    label: string;
+    icon: React.ElementType;
+  }[] = [
+    { key: "requests", label: "Requests", icon: FolderInput },
+    { key: "offers", label: "Offers", icon: Receipt },
+    { key: "bookings", label: "Bookings", icon: Handshake },
+  ];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -19,17 +28,18 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
         <ul className="space-y-2">
-          {tabs.map((tab) => (
-            <li key={tab}>
+          {tabs.map(({ key, label, icon: Icon }) => (
+            <li key={key}>
               <button
-                onClick={() => onTabChange(tab)}
-                className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
-                  activeTab === tab
+                onClick={() => onTabChange(key)}
+                className={`flex items-center gap-2 w-full text-left px-4 py-2 rounded-lg transition-all ${
+                  activeTab === key
                     ? "text-white font-bold"
                     : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                 }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                <Icon className="w-4 h-4" />
+                {label}
               </button>
             </li>
           ))}
@@ -52,20 +62,21 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
           }`}
         >
           <ul className="space-y-2 bg-[var(--color-bg-base)] rounded-xl p-4">
-            {tabs.map((tab) => (
-              <li key={tab}>
+            {tabs.map(({ key, label, icon: Icon }) => (
+              <li key={key}>
                 <button
                   onClick={() => {
-                    onTabChange(tab);
+                    onTabChange(key);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
-                    activeTab === tab
+                  className={`flex items-center gap-2 w-full text-left px-4 py-2 rounded-lg transition-all ${
+                    activeTab === key
                       ? "bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-card)]"
                       : "text-white hover:bg-[var(--color-bg-card)]"
                   }`}
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  <Icon className="w-4 h-4" />
+                  {label}
                 </button>
               </li>
             ))}

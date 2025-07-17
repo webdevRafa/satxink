@@ -194,7 +194,7 @@ const BookingRequestsList: React.FC<Props> = ({
             )}
             {request.budget && (
               <p className="text-xs text-emerald-400! mb-1">
-                <strong>Budget:</strong>{" "}
+                <strong className="text-white">Budget:</strong>{" "}
                 {typeof request.budget === "number"
                   ? `$${request.budget}`
                   : (() => {
