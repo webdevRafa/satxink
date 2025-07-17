@@ -13,6 +13,7 @@ export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
+  const [userDoc, setUserDoc] = useState<any>(null);
   const [isScrolled, setIsScrolled] = useState(false);
 
   const handleLogout = () => {
@@ -33,22 +34,25 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    const tryFetchUserRole = async (uid: string, retries = 2) => {
+    const tryFetchUserData = async (uid: string, retries = 2) => {
       const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        setUserRole(userSnap.data().role);
+        const data = userSnap.data();
+        setUserRole(data.role);
+        setUserDoc(data);
       } else if (retries > 0) {
-        setTimeout(() => tryFetchUserRole(uid, retries - 1), 1000);
+        setTimeout(() => tryFetchUserData(uid, retries - 1), 1000);
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        tryFetchUserRole(firebaseUser.uid);
+        tryFetchUserData(firebaseUser.uid);
       } else {
         setUserRole(null);
+        setUserDoc(null);
       }
     });
 
@@ -90,10 +94,10 @@ export const Navbar = () => {
             </Link>
           )}
 
-          {user ? (
+          {userDoc?.avatarUrl ? (
             <Link to="/dashboard">
               <img
-                src={user?.photoURL || "/fallback-avatar.jpg"}
+                src={userDoc.avatarUrl}
                 alt="User Avatar"
                 className="w-10 h-10 rounded-full border border-white cursor-pointer"
               />
