@@ -80,16 +80,7 @@ const ArtistProfileHeader: React.FC<ArtistProfileHeaderProps> = ({
               <RiInstagramFill />
             </a>
           )}
-          {artist.socialLinks?.website && (
-            <a
-              href={artist.socialLinks.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-blue-400"
-            >
-              <SiWebmoney />
-            </a>
-          )}
+
           {artist.socialLinks?.facebook && (
             <a
               href={artist.socialLinks.facebook}

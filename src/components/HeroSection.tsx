@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import backgroundImage from "../assets/images/satx-inked.webp";
 import { useState } from "react";
+import logo from "../assets/newerlogo.svg";
 
 export const HeroSection = () => {
   const isIOS =
@@ -11,7 +12,7 @@ export const HeroSection = () => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <section className="relative h-[90vh] overflow-hidden flex items-center justify-center text-center px-4 bg-black">
+    <section className="relative h-[70vh] overflow-hidden flex items-center justify-center text-center px-4 bg-black">
       {/* Background Image Layer */}
       <div
         className="absolute inset-0 bg-center bg-cover bg-no-repeat z-0"
@@ -35,14 +36,12 @@ export const HeroSection = () => {
 
       {/* Foreground Content */}
       <div className="relative z-20 max-w-3xl text-white">
-        <h1
-          data-aos="fade-in"
-          className="text-3xl md:text-4xl font-semibold mb-4"
-        >
-          Connecting You to San Antonio’s Best Tattoo Artists
+        <img className="w-[90%] mx-auto max-w-[200px] mb-6" src={logo} alt="" />
+        <h1 data-aos="fade-in" className="text-2xl! font-semibold mb-0">
+          A marketplace for the culture.
         </h1>
         <p data-aos="fade-in" className="text-base text-gray-300 mb-6">
-          Browse portfolios, post your idea, and find your perfect match.
+          Show love, drop ideas, and get inked.
         </p>
         <div className="flex flex-col md:flex-row justify-center gap-4">
           <Link
