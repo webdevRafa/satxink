@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ClientSidebarNavigation from "../components/ClientSidebarNavigation";
 import LikedArtistsList from "../components/LikedArtistsList";
 import ClientOffersList from "../components/ClientOffersList";
-import ClientConfirmedList from "../components/ClientConfirmedList";
+import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../firebase/firebaseConfig";
@@ -14,7 +14,7 @@ const NewClientDashboard = () => {
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
 
   const [activeView, setActiveView] = useState<
-    "liked" | "requests" | "offers" | "confirmed"
+    "liked" | "requests" | "offers" | "bookings"
   >("liked");
   const [client, setClient] = useState<any>(null);
 
@@ -55,8 +55,8 @@ const NewClientDashboard = () => {
             {activeView === "offers" && (
               <ClientOffersList clientId={client.id} />
             )}
-            {activeView === "confirmed" && (
-              <ClientConfirmedList clientId={client.id} />
+            {activeView === "bookings" && (
+              <ClientBookingsList clientId={client.id} />
             )}
           </>
         )}

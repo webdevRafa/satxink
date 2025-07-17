@@ -1,5 +1,5 @@
 interface Props {
-  activeView: "liked" | "requests" | "offers" | "confirmed";
+  activeView: "liked" | "requests" | "offers" | "bookings";
   onViewChange: (view: Props["activeView"]) => void;
 }
 
@@ -11,7 +11,7 @@ const ClientSidebarNavigation: React.FC<Props> = ({
     { key: "liked", label: "Liked Artists" },
     { key: "requests", label: "My Requests" },
     { key: "offers", label: "Offers" },
-    { key: "confirmed", label: "Bookings" },
+    { key: "bookings", label: "Bookings" },
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import logo from "../assets/satxlogo.svg";
+import logo from "../assets/newerlogo.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
@@ -66,7 +66,7 @@ export const Navbar = () => {
       <div className="max-w-[2200px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-24" src={logo} alt="SATX Ink Logo" />
+          <img className="w-20" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop Nav */}
