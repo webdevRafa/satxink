@@ -75,7 +75,7 @@ const NewArtistDashboard = () => {
   }, [uid]);
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white pt-20">
+    <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
       <SidebarNavigation
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}
