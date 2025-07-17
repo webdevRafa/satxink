@@ -160,16 +160,16 @@ const BookingRequestsList: React.FC<Props> = ({
       <div className="max-w-[1800px] grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
         {filteredRequests.map((request) => (
           <div
-            className="w-full  bg-[var(--color-bg-card)] rounded-xl shadow-md p-4 text-left transition hover:ring-2 ring-neutral-500"
+            className="w-full  bg-[var(--color-bg-base)] shadow-md text-left transition hover:ring-2 ring-neutral-500"
             data-aos="fade-in"
             key={request.id}
             onClick={() => setSelectedRequest(request)}
           >
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center mb-1 gap-3 w-full bg-gradient-to-t from-[var(--color-bg-footer)] to-[var(--color-bg-card)]">
               <img
                 src={request.clientAvatar}
                 alt={request.clientName}
-                className="w-10 h-10 rounded-full object-cover"
+                className="w-10 h-10  translate-[-10%] object-cover"
               />
               <p className="font-medium">{request.clientName}</p>
             </div>
@@ -177,34 +177,35 @@ const BookingRequestsList: React.FC<Props> = ({
             <img
               src={request.thumbUrl}
               alt="Tattoo idea"
-              className="w-full h-32 object-cover rounded-md mb-2"
+              className="w-full h-32 object-cover mb-2 opacity-80"
             />
 
-            <div className="relative overflow-hidden h-[3.5rem] mb-1">
+            <div className="relative overflow-hidden h-[3.5rem] mb-1 px-2 ">
               <p className="text-sm text-gray-300 line-clamp-2 pr-4">
                 {request.description}
               </p>
-              <div className="absolute bottom-0 right-0 h-full w-10 bg-gradient-to-l from-[var(--color-bg-card)] to-transparent pointer-events-none" />
             </div>
 
-            {request.preferredDateRange?.length === 2 && (
-              <p className="text-xs text-gray-400 mb-1">
-                {formatDateRange(request.preferredDateRange)}
-              </p>
-            )}
-            {request.budget && (
-              <p className="text-xs text-emerald-400! mb-1">
-                <strong className="text-white">Budget:</strong>{" "}
-                {typeof request.budget === "number"
-                  ? `$${request.budget}`
-                  : (() => {
-                      const [min, max] = request.budget.split("-");
-                      return `$${min}–$${max}`;
-                    })()}
-              </p>
-            )}
+            <div className="px-2">
+              {request.preferredDateRange?.length === 2 && (
+                <p className="text-xs text-gray-400 mb-1">
+                  {formatDateRange(request.preferredDateRange)}
+                </p>
+              )}
+              {request.budget && (
+                <p className="text-xs  mb-1">
+                  <strong className="text-white">Budget:</strong>{" "}
+                  {typeof request.budget === "number"
+                    ? `$${request.budget}`
+                    : (() => {
+                        const [min, max] = request.budget.split("-");
+                        return `$${min}–$${max}`;
+                      })()}
+                </p>
+              )}
 
-            <p className="text-xs text-gray-400">Tap to view details</p>
+              <p className="text-xs text-gray-400">Tap to view details</p>
+            </div>
           </div>
         ))}
       </div>
@@ -291,7 +292,7 @@ const BookingRequestsList: React.FC<Props> = ({
                               {selectedRequest.size}
                             </p>
                             {selectedRequest.budget && (
-                              <p className="text-sm text-emerald-400! font-medium mb-2">
+                              <p className="text-sm  font-medium mb-2">
                                 <strong className="text-neutral-200">
                                   Budget:
                                 </strong>{" "}
