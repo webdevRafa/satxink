@@ -18,6 +18,7 @@ import type { DocumentData } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import ArtistCard from "../components/ArtistCard";
 import { Link } from "react-router-dom";
+import sa from "../assets/san-antonio.svg";
 
 interface Artist {
   id: string;
@@ -188,6 +189,8 @@ export const ArtistsPage = () => {
         <h1 className="text-3xl! font-semibold text-red-400! mt-35! mb-2">
           Find an Artist
         </h1>
+        <img className="max-w-[100px] mb-0! " src={sa} alt="" />
+
         <p className="text-gray-400 mb-4">
           Discover talented artists from San Antonio, browse by style, and view
           their work.

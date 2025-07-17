@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import logo from "../assets/newerlogo.svg";
+import logo from "../assets/satx-short-sep.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
@@ -70,7 +70,7 @@ export const Navbar = () => {
       <div className="max-w-[2200px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-18" src={logo} alt="SATX Ink Logo" />
+          <img className="w-28" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop Nav */}
@@ -131,7 +131,7 @@ export const Navbar = () => {
 
       {/* Slide-In Mobile Menu */}
       <div
-        className={`fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-300 flex justify-end ${
+        className={`fixed inset-0 z-90 bg-black/50 backdrop-blur-sm transition-opacity duration-300 flex justify-end ${
           isOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"

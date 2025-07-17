@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import backgroundImage from "../assets/images/satx-inked.webp";
 import { useState } from "react";
-import logo from "../assets/newerlogo.svg";
+import logo from "../assets/satx-short-sep.svg";
 
 export const HeroSection = () => {
   const isIOS =
@@ -49,7 +49,7 @@ export const HeroSection = () => {
             data-aos="fade-in"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="px-6 py-3 text-white max-w-[300px] group mx-auto transition duration-350 border-2 border-neutral-600 hover:border-white hover:bg-[#111111] rounded"
+            className="p-2 text-white max-w-[300px] group mx-auto transition duration-350 border-2 border-neutral-600 hover:border-white hover:bg-[#111111] rounded"
           >
             Find an Artist
           </Link>
