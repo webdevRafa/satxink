@@ -155,7 +155,7 @@ export const Navbar = () => {
           {user && (
             <div className="mb-6 flex items-center gap-3">
               <img
-                src={user?.photoURL || "/fallback-avatar.jpg"}
+                src={userDoc?.avatarUrl || "/fallback-avatar.jpg"}
                 alt="Avatar"
                 className="w-10 h-10 rounded-full border border-gray-500"
               />
