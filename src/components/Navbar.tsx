@@ -66,7 +66,7 @@ export const Navbar = () => {
       <div className="max-w-[2200px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-20" src={logo} alt="SATX Ink Logo" />
+          <img className="w-18" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop Nav */}
