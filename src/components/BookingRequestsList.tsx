@@ -115,7 +115,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
   return (
     <>
-      <div className="z-50 sticky top-32 md:top-19 bg-[var(--color-bg-footer)] py-3 px-2 mb-4 flex flex-wrap items-center gap-4 w-full">
+      <div className="z-50 sticky top-32 md:top-19  py-3 px-2 mb-4 flex flex-wrap items-center gap-4 w-full">
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(parseInt(e.target.value))}

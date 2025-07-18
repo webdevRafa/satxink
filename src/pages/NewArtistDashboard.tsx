@@ -1,6 +1,7 @@
 // NewArtistDashboard.tsx
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
+import CalendarSyncPanel from "../components/CalendarSyncPanel";
 
 import { db, auth } from "../firebase/firebaseConfig";
 import {
@@ -22,7 +23,13 @@ const NewArtistDashboard = () => {
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<
-    "requests" | "offers" | "bookings"
+    | "requests"
+    | "offers"
+    | "bookings"
+    | "pending"
+    | "confirmed"
+    | "cancelled"
+    | "calendar"
   >("requests");
   const [bookingStatusFilter, setBookingStatusFilter] = useState<
     "confirmed" | "pending_payment" | "cancelled"
@@ -125,7 +132,13 @@ const NewArtistDashboard = () => {
             </div>
           </>
         )}
-
+        {activeTab === "calendar" && uid && (
+          <CalendarSyncPanel
+            feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${
+              artist?.calendarToken || "defaultToken"
+            }`}
+          />
+        )}
         {/* TODO: OffersList and ConfirmedBookings components */}
 
         <MakeOfferModal

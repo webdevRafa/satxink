@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Handshake, FolderInput, Receipt, ChevronDown } from "lucide-react";
+import {
+  Handshake,
+  FolderInput,
+  Receipt,
+  ChevronDown,
+  Calendar as CalendarIcon,
+} from "lucide-react";
 
 type ViewTab =
   | "requests"
@@ -7,7 +13,8 @@ type ViewTab =
   | "bookings"
   | "pending"
   | "confirmed"
-  | "cancelled";
+  | "cancelled"
+  | "calendar";
 
 interface SidebarProps {
   activeTab: ViewTab;
@@ -24,6 +31,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "requests", label: "Requests", icon: FolderInput },
     { key: "offers", label: "Offers", icon: Receipt },
     { key: "bookings", label: "Bookings", icon: Handshake },
+    { key: "calendar", label: "Calendar Sync", icon: CalendarIcon },
   ];
 
   const bookingTabs = [
@@ -42,10 +50,9 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 <button
                   onClick={() => setShowBookingsDropdown((prev) => !prev)}
                   className={`flex items-center justify-between w-full px-4 py-2 rounded-lg transition-all ${
-                    activeTab.includes("pending") ||
-                    activeTab.includes("confirmed") ||
-                    activeTab.includes("cancelled") ||
-                    activeTab === "bookings"
+                    ["pending", "confirmed", "cancelled", "bookings"].includes(
+                      activeTab
+                    )
                       ? "text-white font-bold"
                       : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                   }`}

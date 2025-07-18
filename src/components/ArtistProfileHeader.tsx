@@ -60,7 +60,7 @@ const ArtistProfileHeader: React.FC<ArtistProfileHeaderProps> = ({
           {artist.specialties.map((style, i) => (
             <span
               key={i}
-              className="px-3 py-1 text-sm bg-neutral-800 rounded-full border border-neutral-600"
+              className="px-3 py-1 text-sm  rounded-full border border-neutral-700"
             >
               {style}
             </span>
