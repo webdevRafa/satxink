@@ -1,7 +1,13 @@
 import React, { useState } from "react";
-import { Handshake, FolderInput, Receipt } from "lucide-react";
+import { Handshake, FolderInput, Receipt, ChevronDown } from "lucide-react";
 
-type ViewTab = "requests" | "offers" | "bookings";
+type ViewTab =
+  | "requests"
+  | "offers"
+  | "bookings"
+  | "pending"
+  | "confirmed"
+  | "cancelled";
 
 interface SidebarProps {
   activeTab: ViewTab;
@@ -12,26 +18,70 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
 }) => {
-  const tabs: {
-    key: ViewTab;
-    label: string;
-    icon: React.ElementType;
-  }[] = [
+  const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
+
+  const tabs = [
     { key: "requests", label: "Requests", icon: FolderInput },
     { key: "offers", label: "Offers", icon: Receipt },
     { key: "bookings", label: "Bookings", icon: Handshake },
   ];
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const bookingTabs = [
+    { key: "pending", label: "Pending" },
+    { key: "confirmed", label: "Confirmed" },
+    { key: "cancelled", label: "Cancelled" },
+  ];
 
   return (
-    <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
-        <ul className="space-y-2">
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <li key={key}>
+    <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
+      <ul className="space-y-2">
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <li key={key}>
+            {key === "bookings" ? (
+              <>
+                <button
+                  onClick={() => setShowBookingsDropdown((prev) => !prev)}
+                  className={`flex items-center justify-between w-full px-4 py-2 rounded-lg transition-all ${
+                    activeTab.includes("pending") ||
+                    activeTab.includes("confirmed") ||
+                    activeTab.includes("cancelled") ||
+                    activeTab === "bookings"
+                      ? "text-white font-bold"
+                      : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showBookingsDropdown ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {showBookingsDropdown && (
+                  <ul className="ml-8 mt-2 space-y-1">
+                    {bookingTabs.map(({ key: subKey, label }) => (
+                      <li key={subKey}>
+                        <button
+                          onClick={() => onTabChange(subKey as ViewTab)}
+                          className={`w-full text-left px-3 py-1 rounded-lg transition-all ${
+                            activeTab === subKey
+                              ? "text-white font-bold"
+                              : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
               <button
-                onClick={() => onTabChange(key)}
+                onClick={() => onTabChange(key as ViewTab)}
                 className={`flex items-center gap-2 w-full text-left px-4 py-2 rounded-lg transition-all ${
                   activeTab === key
                     ? "text-white font-bold"
@@ -41,49 +91,11 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 <Icon className="w-4 h-4" />
                 {label}
               </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
-
-      {/* Mobile Toggle Button */}
-      <div className="md:hidden mb-4 sticky top-20 z-60">
-        <button
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          className="text-white px-4 py-2 bg-[var(--color-bg-base)] rounded-lg w-full"
-        >
-          {mobileMenuOpen ? "Close Menu" : "Menu"}
-        </button>
-
-        {/* Mobile Dropdown Menu */}
-        <div
-          className={`transition-all duration-300 overflow-hidden bg-[var(--color-bg-base)] ${
-            mobileMenuOpen ? "max-h-96" : "max-h-0"
-          }`}
-        >
-          <ul className="space-y-2 bg-[var(--color-bg-base)] rounded-xl p-4">
-            {tabs.map(({ key, label, icon: Icon }) => (
-              <li key={key}>
-                <button
-                  onClick={() => {
-                    onTabChange(key);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-2 w-full text-left px-4 py-2 rounded-lg transition-all ${
-                    activeTab === key
-                      ? "bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-card)]"
-                      : "text-white hover:bg-[var(--color-bg-card)]"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </aside>
   );
 };
 

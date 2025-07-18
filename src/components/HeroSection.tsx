@@ -36,7 +36,11 @@ export const HeroSection = () => {
 
       {/* Foreground Content */}
       <div className="relative z-20 max-w-3xl text-white">
-        <img className="w-[90%] mx-auto max-w-[200px] mb-6" src={logo} alt="" />
+        <img
+          className="animate-pulse w-[90%] mx-auto max-w-[200px] mb-6"
+          src={logo}
+          alt=""
+        />
         <h1 data-aos="fade-in" className="text-2xl! font-semibold mb-0">
           A marketplace for the culture.
         </h1>

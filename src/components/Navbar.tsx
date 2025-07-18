@@ -67,10 +67,10 @@ export const Navbar = () => {
           : "bg-transparent border-transparent"
       }`}
     >
-      <div className="max-w-[2200px] mx-auto flex items-center justify-between">
+      <div className="max-w-[1300px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-28" src={logo} alt="SATX Ink Logo" />
+          <img className="w-24" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop Nav */}
@@ -88,7 +88,7 @@ export const Navbar = () => {
           {userRole === "artist" && (
             <Link
               to="/client-posts"
-              className="text-neutral-300 hover:text-white transition duration-250 bg-[var(--color-bg-card)] p-3"
+              className="text-neutral-300 hover:text-white transition duration-250  p-3"
             >
               Client Posts
             </Link>

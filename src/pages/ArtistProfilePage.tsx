@@ -57,7 +57,7 @@ export const ArtistProfilePage = () => {
     return <p className="text-center text-gray-400 mt-10">Artist not found.</p>;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div className="max-w-5xl mx-auto px-4 py-10 mt-20">
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
           {/* Avatar */}
