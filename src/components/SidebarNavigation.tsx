@@ -5,6 +5,8 @@ import {
   Receipt,
   ChevronDown,
   Calendar as CalendarIcon,
+  Image as ImageIcon,
+  Brush as BrushIcon,
 } from "lucide-react";
 
 type ViewTab =
@@ -14,7 +16,9 @@ type ViewTab =
   | "pending"
   | "confirmed"
   | "cancelled"
-  | "calendar";
+  | "calendar"
+  | "flashes"
+  | "gallery";
 
 interface SidebarProps {
   activeTab: ViewTab;
@@ -31,6 +35,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "requests", label: "Requests", icon: FolderInput },
     { key: "offers", label: "Offers", icon: Receipt },
     { key: "bookings", label: "Bookings", icon: Handshake },
+    { key: "flashes", label: "Flashes", icon: BrushIcon }, // New tab
+    { key: "gallery", label: "Gallery", icon: ImageIcon }, // New tab
     { key: "calendar", label: "Calendar Sync", icon: CalendarIcon },
   ];
 

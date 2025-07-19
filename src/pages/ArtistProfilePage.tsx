@@ -4,7 +4,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
-import { SiWebmoney } from "react-icons/si";
 
 interface Artist {
   id: string;

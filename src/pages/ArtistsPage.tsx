@@ -20,19 +20,7 @@ import ArtistCard from "../components/ArtistCard";
 import { Link } from "react-router-dom";
 import sa from "../assets/san-antonio.svg";
 
-interface Artist {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  specialties: string[];
-  likedBy: [];
-  socialLinks?: SocialLinks;
-}
-interface SocialLinks {
-  facebook?: string;
-  instagram?: string;
-  website?: string;
-}
+import type { Artist } from "../types/Artist";
 
 const PAGE_SIZE = 6;
 const SPECIALTIES = [

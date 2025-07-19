@@ -6,7 +6,7 @@ interface SocialLinks {
 }
 
 interface ArtistCardProps {
-  name: string;
+  name?: string;
   avatarUrl: string;
   specialties: string[];
   likedBy: string[];
@@ -15,7 +15,7 @@ interface ArtistCardProps {
 
 const ArtistCard = ({ name, avatarUrl, specialties }: ArtistCardProps) => {
   return (
-    <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c] hover:to-[#2c2c2c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative ">
+    <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c] hover:to-[#2c2c2c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative  ">
       <img
         src={avatarUrl || "/fallback.jpg"}
         alt={name}
@@ -28,9 +28,9 @@ const ArtistCard = ({ name, avatarUrl, specialties }: ArtistCardProps) => {
         </p>
         <a
           href="#"
-          className="block mt-4 bg-[#2c2c2c] hover:bg-[#3a3a3a] text-white text-sm py-2 rounded-md text-center transition max-w-[120px]"
+          className="block mt-4 bg-[var(--color-bg-button)]  hover:text-white! text-sm py-2 rounded-md text-center transition max-w-[120px]"
         >
-          View Portfolio
+          View Ink
         </a>
       </div>
     </div>

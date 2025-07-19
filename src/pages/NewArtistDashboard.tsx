@@ -1,4 +1,3 @@
-// NewArtistDashboard.tsx
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
@@ -18,6 +17,8 @@ import ArtistProfileHeader from "../components/ArtistProfileHeader";
 import BookingRequestsList from "../components/BookingRequestsList";
 import MakeOfferModal from "../components/MakeOfferModal";
 import OffersList from "../components/OffersList";
+import FlashManager from "../components/FlashManager";
+import GalleryManager from "../components/GalleryManager";
 
 const NewArtistDashboard = () => {
   const [artist, setArtist] = useState<any>(null);
@@ -30,6 +31,8 @@ const NewArtistDashboard = () => {
     | "confirmed"
     | "cancelled"
     | "calendar"
+    | "flashes"
+    | "gallery"
   >("requests");
   const [bookingStatusFilter, setBookingStatusFilter] = useState<
     "confirmed" | "pending_payment" | "cancelled"
@@ -105,7 +108,6 @@ const NewArtistDashboard = () => {
 
         {activeTab === "bookings" && (
           <>
-            {/* Filter buttons */}
             <div className="flex gap-2 mb-4">
               {["confirmed", "pending_payment", "cancelled"].map((status) => (
                 <button
@@ -123,15 +125,16 @@ const NewArtistDashboard = () => {
                 </button>
               ))}
             </div>
-
-            {/* Booking list filtered by status */}
             <div className="text-sm text-gray-400">
-              {/* TODO: Create <FilteredBookingsList /> */}
               Displaying bookings with status:{" "}
               <strong>{bookingStatusFilter}</strong>
             </div>
           </>
         )}
+
+        {activeTab === "flashes" && uid && <FlashManager uid={uid} />}
+        {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
+
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel
             feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${
@@ -139,7 +142,6 @@ const NewArtistDashboard = () => {
             }`}
           />
         )}
-        {/* TODO: OffersList and ConfirmedBookings components */}
 
         <MakeOfferModal
           isOpen={isModalOpen}
