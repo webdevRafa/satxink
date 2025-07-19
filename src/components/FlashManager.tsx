@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import UploadModal from "./UploadModal";
+import { ImagePlus } from "lucide-react";
 
 import type { Flash } from "../types/Flash";
 
@@ -40,13 +41,13 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4">Manage Flash Designs</h2>
+      <h2 className="text-xl! font-bold mt-10 mb-4">Manage Flash Designs</h2>
 
       <button
         onClick={() => setIsUploadOpen(true)}
-        className="mb-4 px-4 py-2 bg-red-600 rounded-md text-white hover:bg-red-700"
+        className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white flex gap-1"
       >
-        Add Flash
+        Add <ImagePlus />
       </button>
 
       {isUploadOpen && (

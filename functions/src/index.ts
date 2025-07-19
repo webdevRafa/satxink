@@ -81,7 +81,17 @@ const handleImageUpload = onObjectFinalized(async (event) => {
   /* ------------------------------------------------------------------ */
   /* 2.  Download the raw upload to /tmp                                */
   /* ------------------------------------------------------------------ */
-  const fileName = path.basename(filePath);        // foo.heic
+  const fileName = path.basename(filePath).toLowerCase();
+if (
+  fileName.includes("_thumb") ||
+  fileName.includes("_webp90") ||
+  fileName.includes("_full") ||
+  fileName.startsWith("cropped-")
+) {
+  console.log(`Skipping derivative file: ${filePath}`);
+  return;
+}
+
   const tmpLocal = path.join(os.tmpdir(), fileName);
   await bucket.file(filePath).download({ destination: tmpLocal });
 
@@ -208,7 +218,17 @@ const processAvatar = onObjectFinalized(async (event) => {
 
 
   const bucket = admin.storage().bucket(object.bucket);
-  const fileName = path.basename(filePath);
+  const fileName = path.basename(filePath).toLowerCase();
+if (
+  fileName.includes("_thumb") ||
+  fileName.includes("_webp90") ||
+  fileName.includes("_full") ||
+  fileName.startsWith("cropped-")
+) {
+  console.log(`Skipping derivative file: ${filePath}`);
+  return;
+}
+
   const tempFilePath = path.join(os.tmpdir(), fileName);
   const uid = filePath.split('/')[1]; // expects: users/{uid}/avatar-original.jpg
 
@@ -251,7 +271,17 @@ const handleOfferImageUpload = onObjectFinalized(
   { region: "us-central1", memory: "256MiB", timeoutSeconds: 60 }, // optional settings
   async (event) => {
     const filePath = event.data.name || "";
-    const fileName = path.basename(filePath);
+    const fileName = path.basename(filePath).toLowerCase();
+if (
+  fileName.includes("_thumb") ||
+  fileName.includes("_webp90") ||
+  fileName.includes("_full") ||
+  fileName.startsWith("cropped-")
+) {
+  console.log(`Skipping derivative file: ${filePath}`);
+  return;
+}
+
 
     const isOffer = filePath.startsWith("users/") && filePath.includes("/offers/full/");
     if (!isOffer) {
@@ -449,11 +479,38 @@ const processArtistMedia = onObjectFinalized(
     if (!filePath) return;
 
     // Expect paths like: "artistId/flashes/file.jpg" or "artistId/gallery/file.png"
-    const [artistId, mediaType] = filePath.split("/");
-    if (!artistId || !mediaType) return;
-    if (mediaType !== "flashes" && mediaType !== "gallery") return;
+    const parts = filePath.split("/");
 
-    const fileName = path.basename(filePath);             // "file.jpg"
+    // Must match: users/{artistId}/{mediaType}/filename
+    if (parts.length < 4 || parts[0] !== "users") {
+      console.log(`Skipping file outside expected path: ${filePath}`);
+      return;
+    }
+    
+    const artistId = parts[1];
+    const mediaType = parts[2]; // "flashes" or "gallery"
+    
+    // Only process these two types
+    if (!artistId || (mediaType !== "flashes" && mediaType !== "gallery")) {
+      console.log(`Skipping unsupported path: ${filePath}`);
+      return;
+    }
+    
+
+    const fileName = path.basename(filePath).toLowerCase(); // "file.jpg"
+
+// Skip already-processed or cropped variants
+if (
+  fileName.includes("_thumb") ||
+  fileName.includes("_webp90") ||
+  fileName.includes("_full") ||
+  fileName.startsWith("cropped-")
+) {
+  console.log(`Skipping already-processed file: ${filePath}`);
+  return;
+}
+
+    
     const bucketDir = path.dirname(filePath);             // "artistId/flashes"
     const fileExt = path.extname(fileName);               // ".jpg"
     const baseName = fileName.replace(fileExt, "");       // "file"

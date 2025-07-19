@@ -46,7 +46,7 @@ const UploadModal: React.FC<Props> = ({
       // Upload to proper folder so Cloud Function handles resizing
       const storageRef = ref(
         storage,
-        `${uid}/${collectionType}/${uploadFile.name}`
+        `users/${uid}/${collectionType}/${uploadFile.name}`
       );
       await uploadBytes(storageRef, uploadFile);
 
@@ -75,7 +75,7 @@ const UploadModal: React.FC<Props> = ({
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
-            className="mb-4"
+            className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white"
           />
         )}
 

@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import UploadModal from "./UploadModal";
+import { ImagePlus } from "lucide-react";
 
 import type { GalleryItem } from "../types/GalleryItem";
 
@@ -44,9 +45,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
       <button
         onClick={() => setIsUploadOpen(true)}
-        className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white "
+        className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white flex gap-1 "
       >
-        Add to Gallery
+        Add <ImagePlus />
       </button>
 
       {isUploadOpen && (
