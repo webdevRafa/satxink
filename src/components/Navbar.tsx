@@ -82,17 +82,8 @@ export const Navbar = () => {
             Artists
           </Link>
           <Link to="/about" className="text-neutral-300 hover:text-orange-400">
-            About
+            Events
           </Link>
-
-          {userRole === "artist" && (
-            <Link
-              to="/client-posts"
-              className="text-neutral-300 hover:text-white transition duration-250  p-3"
-            >
-              Client Posts
-            </Link>
-          )}
 
           {userDoc?.avatarUrl ? (
             <Link to="/dashboard">
@@ -168,15 +159,6 @@ export const Navbar = () => {
 
           {/* Menu Items */}
           <nav className="flex flex-col gap-4 text-white text-base">
-            {user && userRole === "artist" && (
-              <Link
-                to="/client-posts"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 hover:text-orange-400"
-              >
-                <Home size={18} /> Client Posts
-              </Link>
-            )}
             {user && (
               <Link
                 to="/dashboard"

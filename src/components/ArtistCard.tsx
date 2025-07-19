@@ -15,7 +15,7 @@ interface ArtistCardProps {
 
 const ArtistCard = ({ name, avatarUrl, specialties }: ArtistCardProps) => {
   return (
-    <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative ">
+    <div className="bg-gradient-to-r  from-[#121212]  to-[#1c1c1c] hover:to-[#2c2c2c]  text-white rounded-xl  shadow-md flex flex-row  md:items-center group relative ">
       <img
         src={avatarUrl || "/fallback.jpg"}
         alt={name}
