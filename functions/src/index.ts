@@ -26,7 +26,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 admin.initializeApp();
 const bucket = admin.storage().bucket();
-
+const db = admin.firestore();
 // Bump memory + timeout for big HEICs
 setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
@@ -442,11 +442,123 @@ const stripeWebhook = onRequest(
   }
 );
 
+const processArtistMedia = onObjectFinalized(
+  { timeoutSeconds: 300, memory: "2GiB" },
+  async (event) => {
+    const filePath = event.data.name;
+    if (!filePath) return;
+
+    // Expect paths like: "artistId/flashes/file.jpg" or "artistId/gallery/file.png"
+    const [artistId, mediaType] = filePath.split("/");
+    if (!artistId || !mediaType) return;
+    if (mediaType !== "flashes" && mediaType !== "gallery") return;
+
+    const fileName = path.basename(filePath);             // "file.jpg"
+    const bucketDir = path.dirname(filePath);             // "artistId/flashes"
+    const fileExt = path.extname(fileName);               // ".jpg"
+    const baseName = fileName.replace(fileExt, "");       // "file"
+
+    const uuid = uuidv4();
+
+    // Temp file paths for processing
+    const tempOriginal = path.join(os.tmpdir(), fileName);
+    const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
+    const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
+    const tempFull = path.join(os.tmpdir(), `${baseName}_full${fileExt}`);
+
+    try {
+      // Download the original
+      await bucket.file(filePath).download({ destination: tempOriginal });
+
+      // Generate a 300px thumbnail (WebP, 70%)
+      await sharp(tempOriginal)
+        .resize({ width: 300 })
+        .webp({ quality: 70 })
+        .toFile(tempThumb);
+
+      // Generate a 1080px preview (WebP, 90%)
+      await sharp(tempOriginal)
+        .resize({ width: 1080 })
+        .webp({ quality: 90 })
+        .toFile(tempWebp90);
+
+      // Copy original as the "full" version
+      await fs.copyFile(tempOriginal, tempFull);
+
+      // Upload all three versions
+      const thumbPath = `${bucketDir}/${baseName}_thumb.webp`;
+      const previewPath = `${bucketDir}/${baseName}_webp90.webp`;
+      const fullPath = `${bucketDir}/${baseName}_full${fileExt}`;
+
+      await bucket.upload(tempThumb, {
+        destination: thumbPath,
+        metadata: {
+          contentType: "image/webp",
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      });
+
+      await bucket.upload(tempWebp90, {
+        destination: previewPath,
+        metadata: {
+          contentType: "image/webp",
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      });
+
+      await bucket.upload(tempFull, {
+        destination: fullPath,
+        metadata: {
+          contentType: `image/${fileExt.replace(".", "")}`,
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      });
+
+      // Helper to build public URLs
+      const makeUrl = (path: string) =>
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+          path
+        )}?alt=media&token=${uuid}`;
+
+      const thumbUrl = makeUrl(thumbPath);
+      const webp90Url = makeUrl(previewPath);
+      const fullUrl = makeUrl(fullPath);
+
+      // Write Firestore doc with all URLs and Storage paths
+      await db.collection(mediaType).add({
+        artistId,
+        thumbUrl,
+        webp90Url,
+        fullUrl,
+        fileName: baseName,           // Original filename (no extension)
+        thumbPath,                    // Storage path for thumbnail
+        previewPath,                  // Storage path for preview
+        fullPath,                     // Storage path for full image
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      console.log(
+        `Processed ${fileName} -> Firestore doc created in '${mediaType}' with thumb, preview, full variants.`
+      );
+    } catch (err) {
+      console.error(`Error processing ${filePath}:`, err);
+    } finally {
+      // Clean up temp files
+      await Promise.allSettled([
+        fs.unlink(tempOriginal),
+        fs.unlink(tempThumb),
+        fs.unlink(tempWebp90),
+        fs.unlink(tempFull),
+      ]);
+    }
+  }
+);
 module.exports = {
   handleImageUpload,
   processAvatar,
   handleOfferImageUpload,
   createCheckoutSession,
   stripeWebhook,
+  processArtistMedia,
 };
  

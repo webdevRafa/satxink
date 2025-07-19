@@ -2,26 +2,20 @@ import { useState, useEffect } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
-  addDoc,
   getDocs,
   query,
   where,
   deleteDoc,
   doc,
 } from "firebase/firestore";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
+import { ref, deleteObject } from "firebase/storage";
+import UploadModal from "./UploadModal";
 
 import type { GalleryItem } from "../types/GalleryItem";
 
 const GalleryManager = ({ uid }: { uid: string }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
-  const [file, setFile] = useState<File | null>(null);
-  const [caption, setCaption] = useState("");
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const fetchGallery = async () => {
     const q = query(collection(db, "gallery"), where("artistId", "==", uid));
@@ -35,57 +29,42 @@ const GalleryManager = ({ uid }: { uid: string }) => {
     fetchGallery();
   }, []);
 
-  const handleUpload = async () => {
-    if (!file) return;
-    const storageRef = ref(storage, `gallery/${uid}/${file.name}`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-
-    await addDoc(collection(db, "gallery"), {
-      artistId: uid,
-      imageUrl: url,
-      caption,
-    });
-    setFile(null);
-    setCaption("");
-    fetchGallery();
-  };
-
-  const handleDelete = async (itemId: string, url: string) => {
-    await deleteDoc(doc(db, "gallery", itemId));
-    await deleteObject(ref(storage, url));
+  const handleDelete = async (item: GalleryItem) => {
+    await deleteDoc(doc(db, "gallery", item.id));
+    const paths = [item.thumbPath, item.previewPath, item.fullPath];
+    await Promise.allSettled(
+      paths.map((path) => deleteObject(ref(storage, path)))
+    );
     fetchGallery();
   };
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4">Manage Tattoo Gallery</h2>
-      <div className="flex gap-2 mb-4">
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+      <h2 className="text-xl! font-bold mt-10 mb-4">Manage Tattoo Gallery</h2>
+
+      <button
+        onClick={() => setIsUploadOpen(true)}
+        className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white "
+      >
+        Add to Gallery
+      </button>
+
+      {isUploadOpen && (
+        <UploadModal
+          uid={uid}
+          isOpen={isUploadOpen}
+          onClose={() => setIsUploadOpen(false)}
+          collectionType="gallery"
+          onUploadComplete={fetchGallery}
         />
-        <input
-          type="text"
-          placeholder="Optional caption"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          className="px-2 py-1 rounded-md bg-gray-800 text-white"
-        />
-        <button
-          onClick={handleUpload}
-          className="bg-red-600 px-4 py-2 rounded-md text-white"
-        >
-          Upload
-        </button>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {items.map((item) => (
           <div key={item.id} className="relative">
             <img
-              src={item.imageUrl}
-              alt={item.caption}
+              src={item.thumbUrl || item.webp90Url}
+              alt={item.caption || "Gallery item"}
               className="rounded-lg"
             />
             {item.caption && (
@@ -94,7 +73,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               </p>
             )}
             <button
-              onClick={() => handleDelete(item.id, item.imageUrl)}
+              onClick={() => handleDelete(item)}
               className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md"
             >
               Delete
