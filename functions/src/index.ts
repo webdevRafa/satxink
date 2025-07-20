@@ -478,75 +478,69 @@ const processArtistMedia = onObjectFinalized(
     const filePath = event.data.name;
     if (!filePath) return;
 
-    // Expect paths like: "artistId/flashes/file.jpg" or "artistId/gallery/file.png"
+    // Expect paths like: "users/{artistId}/gallery/file.jpg" or "users/{artistId}/flashes/file.png"
     const parts = filePath.split("/");
-
-    // Must match: users/{artistId}/{mediaType}/filename
     if (parts.length < 4 || parts[0] !== "users") {
-      console.log(`Skipping file outside expected path: ${filePath}`);
+      console.log(`Skipping unexpected path: ${filePath}`);
       return;
     }
-    
+
     const artistId = parts[1];
-    const mediaType = parts[2]; // "flashes" or "gallery"
-    
-    // Only process these two types
-    if (!artistId || (mediaType !== "flashes" && mediaType !== "gallery")) {
+    const mediaType = parts[2]; // "gallery" or "flashes"
+    if (!artistId || (mediaType !== "gallery" && mediaType !== "flashes")) {
       console.log(`Skipping unsupported path: ${filePath}`);
       return;
     }
-    
 
     const fileName = path.basename(filePath).toLowerCase(); // "file.jpg"
 
-// Skip already-processed or cropped variants
-if (
-  fileName.includes("_thumb") ||
-  fileName.includes("_webp90") ||
-  fileName.includes("_full") ||
-  fileName.startsWith("cropped-")
-) {
-  console.log(`Skipping already-processed file: ${filePath}`);
-  return;
-}
+    // Skip only derivative files (not cropped originals)
+    if (
+      fileName.includes("_thumb") ||
+      fileName.includes("_webp90") ||
+      fileName.includes("_full")
+    ) {
+      console.log(`Skipping derivative file: ${filePath}`);
+      return;
+    }
 
-    
-    const bucketDir = path.dirname(filePath);             // "artistId/flashes"
-    const fileExt = path.extname(fileName);               // ".jpg"
-    const baseName = fileName.replace(fileExt, "");       // "file"
-
+    const bucketDir = path.dirname(filePath);             // "users/{artistId}/gallery"
+    const baseName = path.basename(fileName, path.extname(fileName)); // "upload-12345"
     const uuid = uuidv4();
 
-    // Temp file paths for processing
+    // Temp paths for processing
     const tempOriginal = path.join(os.tmpdir(), fileName);
     const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
     const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
-    const tempFull = path.join(os.tmpdir(), `${baseName}_full${fileExt}`);
+    const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`); // Always store full as JPG
 
     try {
-      // Download the original
+      // Download original upload
       await bucket.file(filePath).download({ destination: tempOriginal });
 
-      // Generate a 300px thumbnail (WebP, 70%)
+      // Generate 300px thumbnail (WebP 70%)
       await sharp(tempOriginal)
         .resize({ width: 300 })
         .webp({ quality: 70 })
         .toFile(tempThumb);
 
-      // Generate a 1080px preview (WebP, 90%)
+      // Generate 1080px preview (WebP 90%)
       await sharp(tempOriginal)
         .resize({ width: 1080 })
         .webp({ quality: 90 })
         .toFile(tempWebp90);
 
-      // Copy original as the "full" version
-      await fs.copyFile(tempOriginal, tempFull);
+      // Convert full-res to JPEG (original size, 95% quality)
+      await sharp(tempOriginal)
+        .jpeg({ quality: 95 })
+        .toFile(tempFull);
 
-      // Upload all three versions
+      // Paths for uploads
       const thumbPath = `${bucketDir}/${baseName}_thumb.webp`;
       const previewPath = `${bucketDir}/${baseName}_webp90.webp`;
-      const fullPath = `${bucketDir}/${baseName}_full${fileExt}`;
+      const fullPath = `${bucketDir}/${baseName}_full.jpg`;
 
+      // Upload all 3 versions
       await bucket.upload(tempThumb, {
         destination: thumbPath,
         metadata: {
@@ -554,7 +548,6 @@ if (
           metadata: { firebaseStorageDownloadTokens: uuid },
         },
       });
-
       await bucket.upload(tempWebp90, {
         destination: previewPath,
         metadata: {
@@ -562,40 +555,42 @@ if (
           metadata: { firebaseStorageDownloadTokens: uuid },
         },
       });
-
       await bucket.upload(tempFull, {
         destination: fullPath,
         metadata: {
-          contentType: `image/${fileExt.replace(".", "")}`,
+          contentType: "image/jpeg",
           metadata: { firebaseStorageDownloadTokens: uuid },
         },
       });
 
-      // Helper to build public URLs
+      // Generate public URLs
       const makeUrl = (path: string) =>
-        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-          path
-        )}?alt=media&token=${uuid}`;
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${uuid}`;
 
       const thumbUrl = makeUrl(thumbPath);
       const webp90Url = makeUrl(previewPath);
       const fullUrl = makeUrl(fullPath);
 
-      // Write Firestore doc with all URLs and Storage paths
+      // Write Firestore document
       await db.collection(mediaType).add({
         artistId,
         thumbUrl,
         webp90Url,
         fullUrl,
-        fileName: baseName,           // Original filename (no extension)
-        thumbPath,                    // Storage path for thumbnail
-        previewPath,                  // Storage path for preview
-        fullPath,                     // Storage path for full image
+        fileName: baseName,
+        thumbPath,
+        previewPath,
+        fullPath,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: Date.now(),
       });
+// Delete the original uploaded file (raw cropped version)
+await bucket.file(filePath).delete().catch(() => {
+  console.log(`Could not delete original file: ${filePath}`);
+});
 
       console.log(
-        `Processed ${fileName} -> Firestore doc created in '${mediaType}' with thumb, preview, full variants.`
+        `Processed ${fileName}: Created thumb, preview, full-res, and Firestore doc in '${mediaType}'.`
       );
     } catch (err) {
       console.error(`Error processing ${filePath}:`, err);
@@ -610,6 +605,10 @@ if (
     }
   }
 );
+
+
+
+
 module.exports = {
   handleImageUpload,
   processAvatar,

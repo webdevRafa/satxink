@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { storage } from "../firebase/firebaseConfig";
+import { storage, db } from "../firebase/firebaseConfig";
 import { ref, uploadBytes } from "firebase/storage";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
 
 type Props = {
@@ -8,7 +17,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   collectionType: "flashes" | "gallery";
-  onUploadComplete: () => void; // Callback to refresh items
+  onUploadComplete: () => void;
 };
 
 const UploadModal: React.FC<Props> = ({
@@ -20,43 +29,71 @@ const UploadModal: React.FC<Props> = ({
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
+  const resetAndClose = () => {
+    // Clear all local states so modal is fresh next time
+    setFile(null);
+    setCropSrc(null);
+    setCroppedFile(null);
+    setCaptionOrTitle("");
+    setTagsInput("");
+    setIsUploading(false);
+    onClose(); // Close modal in parent (GalleryManager)
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
 
     setFile(selected);
+    setCroppedFile(null);
 
     const reader = new FileReader();
     reader.onloadend = () => setCropSrc(reader.result as string);
     reader.readAsDataURL(selected);
   };
 
-  const handleFinalUpload = async (croppedFile?: File) => {
-    if (!croppedFile && !file) return;
-    const uploadFile = croppedFile || file!;
+  const handleFinalUpload = async () => {
+    const uploadFile = croppedFile || file;
+    if (!uploadFile) return;
     setIsUploading(true);
 
     try {
-      // Upload to proper folder so Cloud Function handles resizing
+      const timestamp = Date.now();
+      const ext = uploadFile.name.split(".").pop() || "jpg";
+      const uniqueName = `upload-${timestamp}.${ext}`;
       const storageRef = ref(
         storage,
-        `users/${uid}/${collectionType}/${uploadFile.name}`
+        `users/${uid}/${collectionType}/${uniqueName}`
       );
+
       await uploadBytes(storageRef, uploadFile);
 
-      // Optional: we could store `captionOrTitle` and `tags` in a separate doc here
-      // For now, Cloud Function will create the base doc (image URLs & paths)
-      // You can extend Firestore to merge these fields later if needed
+      const q = query(
+        collection(db, collectionType),
+        where("artistId", "==", uid),
+        orderBy("timestamp", "desc"), // guaranteed to sort by actual upload time
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        const docRef = snapshot.docs[0].ref;
+        await updateDoc(docRef, {
+          caption: captionOrTitle || null,
+          tags: tagsInput ? tagsInput.split(",").map((t) => t.trim()) : [],
+        });
+      }
 
       setIsUploading(false);
-      onUploadComplete();
-      onClose();
+      resetAndClose(); // Close the modal first, so the overlay disappears
+      onUploadComplete(); // Then refresh the gallery after closing
     } catch (err) {
       console.error("Upload failed:", err);
       setIsUploading(false);
@@ -79,22 +116,19 @@ const UploadModal: React.FC<Props> = ({
           />
         )}
 
-        {file && !cropSrc && (
-          <div className="mb-4 text-sm text-gray-400">
-            Preview and crop will show once the image is loaded...
-          </div>
-        )}
-
         {cropSrc && (
           <ImageCropperModal
             imageSrc={cropSrc}
             aspect={collectionType === "flashes" ? 1 : 4 / 5}
             onCancel={() => setCropSrc(null)}
-            onSave={(cropped) => handleFinalUpload(cropped)}
+            onSave={(cropped) => {
+              setCroppedFile(cropped);
+              setCropSrc(null);
+            }}
           />
         )}
 
-        {!cropSrc && file && (
+        {!cropSrc && (croppedFile || file) && (
           <>
             <input
               type="text"
@@ -116,13 +150,13 @@ const UploadModal: React.FC<Props> = ({
             />
             <div className="flex justify-end gap-3">
               <button
-                onClick={onClose}
+                onClick={resetAndClose}
                 className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleFinalUpload()}
+                onClick={handleFinalUpload}
                 disabled={isUploading}
                 className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
               >

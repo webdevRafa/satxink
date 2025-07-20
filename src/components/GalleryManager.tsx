@@ -7,6 +7,7 @@ import {
   where,
   deleteDoc,
   doc,
+  onSnapshot,
 } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import UploadModal from "./UploadModal";
@@ -27,8 +28,22 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   useEffect(() => {
+    if (!uid) return;
+
+    // Set up real-time listener
+    const q = query(collection(db, "gallery"), where("artistId", "==", uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const galleryItems = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as GalleryItem)
+      );
+      setItems(galleryItems);
+    });
+
+    // Initial fetch for good measure (optional, but keeps your old behavior)
     fetchGallery();
-  }, []);
+
+    return () => unsubscribe();
+  }, [uid]);
 
   const handleDelete = async (item: GalleryItem) => {
     await deleteDoc(doc(db, "gallery", item.id));
@@ -36,7 +51,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
     await Promise.allSettled(
       paths.map((path) => deleteObject(ref(storage, path)))
     );
-    fetchGallery();
+    // No need to call fetchGallery here; onSnapshot will auto-update
   };
 
   return (
@@ -56,7 +71,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           isOpen={isUploadOpen}
           onClose={() => setIsUploadOpen(false)}
           collectionType="gallery"
-          onUploadComplete={fetchGallery}
+          onUploadComplete={fetchGallery} // still works, but onSnapshot handles live updates
         />
       )}
 
