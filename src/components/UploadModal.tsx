@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { storage, db } from "../firebase/firebaseConfig";
 import { ref, uploadBytes } from "firebase/storage";
 import { collection, addDoc } from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
 import { serverTimestamp } from "firebase/firestore";
+import { X, Upload } from "lucide-react";
 
 type Props = {
   uid: string;
@@ -23,9 +24,24 @@ const UploadModal: React.FC<Props> = ({
   const [file, setFile] = useState<File | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+
+  // Create and clean up preview URL for cropped file
+  useEffect(() => {
+    if (!croppedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(croppedFile);
+    setPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl); // cleanup when file changes or modal closes
+    };
+  }, [croppedFile]);
 
   if (!isOpen) return null;
 
@@ -33,6 +49,7 @@ const UploadModal: React.FC<Props> = ({
     setFile(null);
     setCropSrc(null);
     setCroppedFile(null);
+    setPreviewUrl(null);
     setCaptionOrTitle("");
     setTagsInput("");
     setIsUploading(false);
@@ -45,6 +62,7 @@ const UploadModal: React.FC<Props> = ({
 
     setFile(selected);
     setCroppedFile(null);
+    setPreviewUrl(null);
 
     const reader = new FileReader();
     reader.onloadend = () => setCropSrc(reader.result as string);
@@ -52,18 +70,17 @@ const UploadModal: React.FC<Props> = ({
   };
 
   const handleFinalUpload = async () => {
-    const uploadFile = croppedFile || file;
-    if (!uploadFile || isUploading) return;
+    // Only allow cropped files
+    if (!croppedFile || isUploading) return;
 
     setIsUploading(true);
 
     try {
       const timestamp = Date.now();
-      const ext = uploadFile.name.split(".").pop() || "jpg";
+      const ext = croppedFile.name.split(".").pop() || "jpg";
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
 
-      // Step 1: Create Firestore doc immediately with metadata
       const tags = tagsInput
         ? tagsInput
             .split(",")
@@ -81,14 +98,12 @@ const UploadModal: React.FC<Props> = ({
         createdAt: serverTimestamp(),
       });
 
-      // Step 2: Upload file (Cloud Function will handle processing)
       const storageRef = ref(
         storage,
         `users/${uid}/${collectionType}/${uniqueName}`
       );
-      await uploadBytes(storageRef, uploadFile);
+      await uploadBytes(storageRef, croppedFile);
 
-      // Step 3: Close modal and trigger gallery refresh
       onUploadComplete();
       resetAndClose();
     } catch (err) {
@@ -98,26 +113,45 @@ const UploadModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex justify-center items-center">
-      <div className="bg-gray-900 text-white p-6 rounded-lg w-[90%] max-w-lg relative">
-        <h2 className="text-xl font-bold mb-4">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex justify-center items-center">
+      <div className="bg-[var(--color-bg-footer)] text-white p-6 rounded-lg w-[90%] max-w-lg relative">
+        {/* Close Button */}
+        <button
+          onClick={resetAndClose}
+          className="absolute top-3 right-3 text-white hover:text-gray-300 transition"
+        >
+          <X size={24} />
+        </button>
+
+        <h2 className="text-lg! font-bold mb-4">
           Add to {collectionType === "flashes" ? "Flashes" : "Gallery"}
         </h2>
 
-        {!file && (
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] rounded-md text-white"
-          />
+        {/* Upload Button (if no file yet) */}
+        {!file && !cropSrc && (
+          <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-500 rounded-lg cursor-pointer hover:border-gray-300 transition">
+            <Upload size={36} className="mb-2 text-gray-300" />
+            <span className="text-gray-400 text-sm">
+              Click to upload an image
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </label>
         )}
 
+        {/* Cropping UI */}
         {cropSrc && (
           <ImageCropperModal
             imageSrc={cropSrc}
             aspect={collectionType === "flashes" ? 1 : 4 / 5}
-            onCancel={() => setCropSrc(null)}
+            onCancel={() => {
+              setCropSrc(null);
+              setFile(null); // force re-select to avoid uncropped uploads
+            }}
             onSave={(cropped) => {
               setCroppedFile(cropped);
               setCropSrc(null);
@@ -125,8 +159,19 @@ const UploadModal: React.FC<Props> = ({
           />
         )}
 
-        {!cropSrc && (croppedFile || file) && (
+        {/* Only show preview & inputs if croppedFile exists */}
+        {!cropSrc && croppedFile && (
           <>
+            {previewUrl && (
+              <div className="mb-4">
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="rounded-lg max-h-64 w-auto mx-auto object-cover shadow-md"
+                />
+              </div>
+            )}
+
             <input
               type="text"
               placeholder={
@@ -136,27 +181,29 @@ const UploadModal: React.FC<Props> = ({
               }
               value={captionOrTitle}
               onChange={(e) => setCaptionOrTitle(e.target.value)}
-              className="w-full px-3 py-2 rounded bg-gray-800 text-white mb-3"
+              className="w-full px-3 py-2 rounded bg-[var(--color-bg-card)] text-white mb-3"
             />
+
             <input
               type="text"
               placeholder="Optional tags (comma separated)"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
-              className="w-full px-3 py-2 rounded bg-gray-800 text-white mb-4"
+              className="w-full px-3 py-2 rounded bg-[var(--color-bg-card)] text-white mb-4"
             />
+
             <div className="flex justify-end gap-3">
               <button
                 onClick={resetAndClose}
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+                className="px-4! py-1! bg-[var(--color-bg-button)] rounded hover:bg-gray-700"
               >
                 Cancel
               </button>
               <button
                 onClick={handleFinalUpload}
                 disabled={isUploading}
-                className={`px-4 py-2 rounded ${
-                  isUploading ? "bg-gray-500" : "bg-red-600 hover:bg-red-700"
+                className={`px-4 py-1! rounded text-black ${
+                  isUploading ? "bg-gray-500" : "bg-emerald-400"
                 }`}
               >
                 {isUploading ? "Uploading..." : "Save"}

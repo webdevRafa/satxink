@@ -69,12 +69,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   return (
     <div>
       <div className="flex gap-2 items-center my-5">
-        <h2 className="text-xl! font-bold">My Work</h2>
+        <h2 className="text-lg! font-bold">my work</h2>
 
         <div>
           <button
             onClick={() => setIsUploadOpen(true)}
-            className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-md text-white flex gap-1 "
+            className="mb-4 px-3! py-1! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-none! text-white flex gap-1 "
           >
             Add <Plus />
           </button>
