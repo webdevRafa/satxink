@@ -4,7 +4,7 @@ export type GalleryItem = {
   id: string;                      // Firestore document ID
   artistId: string;                // Linked artist
   fileName: string;                // Original filename (without extension)
-
+  status: string;
   // Public URLs for frontend display
   thumbUrl: string;                // 300px WebP thumbnail
   webp90Url: string;               // 1080px WebP (90% quality preview)

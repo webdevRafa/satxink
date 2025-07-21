@@ -1,16 +1,9 @@
 import { useState } from "react";
 import { storage, db } from "../firebase/firebaseConfig";
 import { ref, uploadBytes } from "firebase/storage";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  updateDoc,
-} from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
+import { serverTimestamp } from "firebase/firestore";
 
 type Props = {
   uid: string;
@@ -37,14 +30,13 @@ const UploadModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   const resetAndClose = () => {
-    // Clear all local states so modal is fresh next time
     setFile(null);
     setCropSrc(null);
     setCroppedFile(null);
     setCaptionOrTitle("");
     setTagsInput("");
     setIsUploading(false);
-    onClose(); // Close modal in parent (GalleryManager)
+    onClose();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,39 +53,44 @@ const UploadModal: React.FC<Props> = ({
 
   const handleFinalUpload = async () => {
     const uploadFile = croppedFile || file;
-    if (!uploadFile) return;
+    if (!uploadFile || isUploading) return;
+
     setIsUploading(true);
 
     try {
       const timestamp = Date.now();
       const ext = uploadFile.name.split(".").pop() || "jpg";
-      const uniqueName = `upload-${timestamp}.${ext}`;
+      const baseName = `upload-${timestamp}`;
+      const uniqueName = `${baseName}.${ext}`;
+
+      // Step 1: Create Firestore doc immediately with metadata
+      const tags = tagsInput
+        ? tagsInput
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
+
+      await addDoc(collection(db, collectionType), {
+        artistId: uid,
+        caption: captionOrTitle || null,
+        tags,
+        fileName: baseName,
+        timestamp,
+        status: "processing",
+        createdAt: serverTimestamp(),
+      });
+
+      // Step 2: Upload file (Cloud Function will handle processing)
       const storageRef = ref(
         storage,
         `users/${uid}/${collectionType}/${uniqueName}`
       );
-
       await uploadBytes(storageRef, uploadFile);
 
-      const q = query(
-        collection(db, collectionType),
-        where("artistId", "==", uid),
-        orderBy("timestamp", "desc"), // guaranteed to sort by actual upload time
-        limit(1)
-      );
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        const docRef = snapshot.docs[0].ref;
-        await updateDoc(docRef, {
-          caption: captionOrTitle || null,
-          tags: tagsInput ? tagsInput.split(",").map((t) => t.trim()) : [],
-        });
-      }
-
-      setIsUploading(false);
-      resetAndClose(); // Close the modal first, so the overlay disappears
-      onUploadComplete(); // Then refresh the gallery after closing
+      // Step 3: Close modal and trigger gallery refresh
+      onUploadComplete();
+      resetAndClose();
     } catch (err) {
       console.error("Upload failed:", err);
       setIsUploading(false);
@@ -158,7 +155,9 @@ const UploadModal: React.FC<Props> = ({
               <button
                 onClick={handleFinalUpload}
                 disabled={isUploading}
-                className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+                className={`px-4 py-2 rounded ${
+                  isUploading ? "bg-gray-500" : "bg-red-600 hover:bg-red-700"
+                }`}
               >
                 {isUploading ? "Uploading..." : "Save"}
               </button>

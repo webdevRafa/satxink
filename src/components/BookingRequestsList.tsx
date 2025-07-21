@@ -169,7 +169,7 @@ const BookingRequestsList: React.FC<Props> = ({
               <img
                 src={request.clientAvatar}
                 alt={request.clientName}
-                className="w-10 h-10  translate-[-10%] object-cover"
+                className="w-10 h-10  object-cover"
               />
               <p className="font-medium">{request.clientName}</p>
             </div>

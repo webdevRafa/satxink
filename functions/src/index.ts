@@ -1,5 +1,6 @@
 // functions/src/index.ts
 import type { CheckoutRequestData } from '../src/types/StripeCheckout';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -42,296 +43,230 @@ const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
  * • flash-sheet uploads
  * • client booking-request reference images
  */
+
+
+
 const handleImageUpload = onObjectFinalized(async (event) => {
-  const object      = event.data;
-  const filePath    = object.name ?? '';          // e.g. users/UID/portfolio/originals/img.heic
-  const contentType = object.contentType ?? '';
+  const object = event.data;
+  const filePath = object.name ?? "";
+  const contentType = object.contentType ?? "";
 
-  // Ignore anything that isn’t an image
-  if (!contentType.startsWith('image/')) return;
+  if (!contentType.startsWith("image/")) return;
 
-  /* ------------------------------------------------------------------ */
-  /* 1.  Identify which bucket-subfolder was hit                         */
-  /* ------------------------------------------------------------------ */
-  const parts   = filePath.split('/');            // ['users','UID','portfolio','originals','foo.heic']
-  const [root]  = parts;                          // 'users' | 'bookingRequests'
-  let userId    = '';
-  let requestId = '';
-  let category: 'portfolio' | 'flashes' | 'bookingRequests' | 'offers' | null = null;
+  const fileName = path.basename(filePath).toLowerCase();
 
+  // Skip derivatives/cropped files
   if (
-    root === 'users' &&
-    (parts[2] === 'portfolio' || parts[2] === 'flashes') &&
-    parts[3] === 'originals'
+    fileName.includes("_thumb") ||
+    fileName.includes("_webp90") ||
+    fileName.includes("_full") ||
+    fileName.startsWith("cropped-")
   ) {
-    // users/{uid}/{category}/originals/{file}
-    userId   = parts[1];
-    category = parts[2] as 'portfolio' | 'flashes';
-  } else if (root === 'bookingRequests' && parts[2] === 'originals') {
-    // bookingRequests/{reqId}/originals/{file}
-    requestId = parts[1];
-    category  = 'bookingRequests';
-  } else if (root === 'offers' && parts.length === 3) {
-    userId = parts[1];
-    category = 'offers';
-  } else {
+    console.log(`Skipping derivative file: ${filePath}`);
     return;
   }
 
-  /* ------------------------------------------------------------------ */
-  /* 2.  Download the raw upload to /tmp                                */
-  /* ------------------------------------------------------------------ */
-  const fileName = path.basename(filePath).toLowerCase();
-if (
-  fileName.includes("_thumb") ||
-  fileName.includes("_webp90") ||
-  fileName.includes("_full") ||
-  fileName.startsWith("cropped-")
-) {
-  console.log(`Skipping derivative file: ${filePath}`);
-  return;
-}
-
-  const tmpLocal = path.join(os.tmpdir(), fileName);
-  await bucket.file(filePath).download({ destination: tmpLocal });
-
-  /* ------------------------------------------------------------------ */
-  /* 3.  Build FULL-res JPG & 300-px WebP THUMB                         */
-  /* ------------------------------------------------------------------ */
-  const isHeic = contentType === 'image/heic' || fileName.toLowerCase().endsWith('.heic');
-
-  // 90 quality for artists, 80 for booking-request refs
-  const fullJpegQuality = category === 'bookingRequests' ? 80 : 90;
-
-  const inputBuffer = isHeic
-    ? await sharp(tmpLocal).jpeg({ quality: fullJpegQuality }).toBuffer()
-    : await sharp(tmpLocal)
-        .jpeg({ quality: fullJpegQuality, mozjpeg: true })
-        .toBuffer();
-
-  const baseName = path.parse(fileName).name;      // foo
-
-  let fullResPath = '';
-  let thumbPath   = '';
-
-  if (category === 'bookingRequests') {
-    fullResPath = `bookingRequests/${requestId}/full/${baseName}.jpg`;
-    thumbPath   = `bookingRequests/${requestId}/thumbs/${baseName}.webp`;
-  } else {
-    // portfolio | flashes
-    fullResPath = `users/${userId}/${category}/full/${baseName}.jpg`;
-    thumbPath   = `users/${userId}/${category}/thumbs/${baseName}.webp`;
+  // Only handle bookingRequests/{reqId}/originals/
+  const parts = filePath.split("/");
+  if (parts[0] !== "bookingRequests" || parts[2] !== "originals") {
+    console.log(`Skipping unrelated upload: ${filePath}`);
+    return;
   }
 
-  // Save full-res JPG
-  await bucket.file(fullResPath).save(inputBuffer, {
-    metadata: {
-      contentType: "image/jpeg",
-      metadata: {
-        firebaseStorageDownloadTokens: uuidv4(),
-      },
-    },
-  });
+  const requestId = parts[1];
+  const tmpLocal = path.join(os.tmpdir(), fileName);
 
-  // Create & save 300-px WebP thumbnail
-  const thumbBuffer = await sharp(inputBuffer)
-    .resize({ width: 300 })
-    .webp({ quality: 80 })
-    .toBuffer();
+  try {
+    await bucket.file(filePath).download({ destination: tmpLocal });
+
+    const isHeic =
+      contentType === "image/heic" || fileName.toLowerCase().endsWith(".heic");
+    const fullJpegQuality = 80;
+
+    const inputBuffer = isHeic
+      ? await sharp(tmpLocal).jpeg({ quality: fullJpegQuality }).toBuffer()
+      : await sharp(tmpLocal)
+          .jpeg({ quality: fullJpegQuality, mozjpeg: true })
+          .toBuffer();
+
+    const baseName = path.parse(fileName).name;
+    const fullResPath = `bookingRequests/full/${baseName}.jpg`;
+    const thumbPath = `bookingRequests/thumbs/${baseName}.webp`;
+
+    await bucket.file(fullResPath).save(inputBuffer, {
+      metadata: {
+        contentType: "image/jpeg",
+        metadata: { firebaseStorageDownloadTokens: uuidv4() },
+      },
+    });
+
+    const thumbBuffer = await sharp(inputBuffer)
+      .resize({ width: 300 })
+      .webp({ quality: 80 })
+      .toBuffer();
 
     await bucket.file(thumbPath).save(thumbBuffer, {
       metadata: {
         contentType: "image/webp",
-        metadata: {
-          firebaseStorageDownloadTokens: uuidv4(),
-        },
+        metadata: { firebaseStorageDownloadTokens: uuidv4() },
       },
     });
+
     const [fullDownloadUrl] = await bucket.file(fullResPath).getSignedUrl({
-      action: 'read',
-      expires: '03-01-2030', // pick your expiration
+      action: "read",
+      expires: "03-01-2030",
     });
-    
     const [thumbDownloadUrl] = await bucket.file(thumbPath).getSignedUrl({
-      action: 'read',
-      expires: '03-01-2030',
+      action: "read",
+      expires: "03-01-2030",
     });
 
-  /* ------------------------------------------------------------------ */
-  /* 4.  Clean up                                                       */
-  /* ------------------------------------------------------------------ */
-  await bucket.file(filePath).delete().catch(() => {}); // delete raw
-  await fs.unlink(tmpLocal).catch(() => {});            // delete /tmp copy
+    // Duplicate-skip check before writing to Firestore
+    const firestore = admin.firestore();
+    const bookingRef = firestore.collection("bookingRequests").doc(requestId);
+    const docSnap = await bookingRef.get();
+    const docData = docSnap.data();
+    if (docData?.fullUrl && docData?.thumbUrl) {
+      console.log(`Skipping ${fileName} — already processed.`);
+      return;
+    }
 
-  /* ------------------------------------------------------------------ */
-  /* 5.  Write URLs back to Firestore                                   */
-  /* ------------------------------------------------------------------ */
-  const fullUrl = fullDownloadUrl;
-  const thumbUrl = thumbDownloadUrl;
-  const firestore = admin.firestore();
+    await bookingRef.set(
+      {
+        fullUrl: fullDownloadUrl,
+        thumbUrl: thumbDownloadUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
-  if (category === 'bookingRequests') {
-    await firestore
-      .collection('bookingRequests')
-      .doc(requestId)
-      .set(
-        {
-          fullUrl,
-          thumbUrl,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-  } else {
-    await firestore
-      .collection('users')
-      .doc(userId)
-      .collection(category) // 'portfolio' | 'flashes'
-      .doc(baseName)
-      .set(
-        {
-          fullUrl,
-          thumbUrl,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-      // ⬇️ add THIS block right below
-      if (category === 'portfolio') {
-        await firestore
-          .collection('users')
-          .doc(userId)
-          .update({
-            portfolioUrls: admin.firestore.FieldValue.arrayUnion(fullUrl),
-          });
-      }
+    console.log(`✅ Processed booking request image for requestId: ${requestId}`);
+  } catch (err) {
+    console.error(`❌ Error processing booking request file: ${filePath}`, err);
+  } finally {
+    await Promise.allSettled([bucket.file(filePath).delete(), fs.unlink(tmpLocal)]);
   }
 });
+
+
+
 const processAvatar = onObjectFinalized(async (event) => {
   const object = event.data;
   const filePath = object.name;
 
-  if (!filePath || (!filePath.startsWith('users/') && !filePath.startsWith('tempAvatars/')) || !filePath.includes('avatar-original.jpg')) {
-    console.log(`⏭️ Skipping file: ${filePath}`);
+  if (
+    !filePath ||
+    (!filePath.startsWith("users/") && !filePath.startsWith("tempAvatars/")) ||
+    !filePath.includes("avatar-original.jpg")
+  ) {
+    console.log(`⏭️ Skipping unrelated file: ${filePath}`);
     return;
   }
 
-
   const bucket = admin.storage().bucket(object.bucket);
   const fileName = path.basename(filePath).toLowerCase();
-if (
-  fileName.includes("_thumb") ||
-  fileName.includes("_webp90") ||
-  fileName.includes("_full") ||
-  fileName.startsWith("cropped-")
-) {
-  console.log(`Skipping derivative file: ${filePath}`);
-  return;
-}
 
+  if (
+    fileName.includes("_thumb") ||
+    fileName.includes("_webp90") ||
+    fileName.includes("_full") ||
+    fileName.startsWith("cropped-")
+  ) {
+    console.log(`Skipping derivative file: ${filePath}`);
+    return;
+  }
+
+  const uid = filePath.split("/")[1];
   const tempFilePath = path.join(os.tmpdir(), fileName);
-  const uid = filePath.split('/')[1]; // expects: users/{uid}/avatar-original.jpg
+  const avatarPath = path.join(os.tmpdir(), "avatar.jpg");
+  const thumbPath = path.join(os.tmpdir(), "avatar-thumb.jpg");
 
-  // Download original
-  await bucket.file(filePath).download({ destination: tempFilePath });
+  try {
+    await bucket.file(filePath).download({ destination: tempFilePath });
 
-  // Create avatar.jpg
-  const avatarPath = path.join(os.tmpdir(), 'avatar.jpg');
-  await sharp(tempFilePath)
-    .resize(512, 512)
-    .jpeg({ quality: 80 })
-    .toFile(avatarPath);
+    await sharp(tempFilePath).resize(512, 512).jpeg({ quality: 80 }).toFile(avatarPath);
+    await bucket.upload(avatarPath, {
+      destination: `users/${uid}/avatar.jpg`,
+      metadata: { contentType: "image/jpeg" },
+    });
 
-  await bucket.upload(avatarPath, {
-    destination: `users/${uid}/avatar.jpg`,
-    metadata: { contentType: 'image/jpeg' },
-  });
+    await sharp(tempFilePath).resize(128, 128).jpeg({ quality: 70 }).toFile(thumbPath);
+    await bucket.upload(thumbPath, {
+      destination: `users/${uid}/avatar-thumb.jpg`,
+      metadata: { contentType: "image/jpeg" },
+    });
 
-  // Optional: create avatar-thumb.jpg
-  const thumbPath = path.join(os.tmpdir(), 'avatar-thumb.jpg');
-  await sharp(tempFilePath)
-    .resize(128, 128)
-    .jpeg({ quality: 70 })
-    .toFile(thumbPath);
-
-  await bucket.upload(thumbPath, {
-    destination: `users/${uid}/avatar-thumb.jpg`,
-    metadata: { contentType: 'image/jpeg' },
-  });
-
-  // Cleanup temp files
-  await fs.unlink(tempFilePath);
-  await fs.unlink(avatarPath);
-  await fs.unlink(thumbPath);
-
-  console.log(`✅ Avatar processed for user: ${uid}`);
+    console.log(`✅ Avatar processed for user: ${uid}`);
+  } catch (err) {
+    console.error(`❌ Error processing avatar for ${uid}:`, err);
+  } finally {
+    await Promise.allSettled([fs.unlink(tempFilePath), fs.unlink(avatarPath), fs.unlink(thumbPath)]);
+  }
 });
 
+
+
 const handleOfferImageUpload = onObjectFinalized(
-  { region: "us-central1", memory: "256MiB", timeoutSeconds: 60 }, // optional settings
+  { region: "us-central1", memory: "256MiB", timeoutSeconds: 60 },
   async (event) => {
     const filePath = event.data.name || "";
+    if (!filePath) return;
+
     const fileName = path.basename(filePath).toLowerCase();
-if (
-  fileName.includes("_thumb") ||
-  fileName.includes("_webp90") ||
-  fileName.includes("_full") ||
-  fileName.startsWith("cropped-")
-) {
-  console.log(`Skipping derivative file: ${filePath}`);
-  return;
-}
+    if (
+      fileName.includes("_thumb") ||
+      fileName.includes("_webp90") ||
+      fileName.includes("_full") ||
+      fileName.startsWith("cropped-")
+    ) {
+      console.log(`Skipping derivative file: ${filePath}`);
+      return;
+    }
 
-
-    const isOffer = filePath.startsWith("users/") && filePath.includes("/offers/full/");
-    if (!isOffer) {
-      console.log("Skipping non-offer upload:", filePath);
+    if (!(filePath.startsWith("users/") && filePath.includes("/offers/full/"))) {
+      console.log(`Skipping non-offer upload: ${filePath}`);
       return;
     }
 
     const bucket = admin.storage().bucket(event.data.bucket);
     const tempFilePath = path.join(os.tmpdir(), fileName);
-    await bucket.file(filePath).download({ destination: tempFilePath });
 
-    const thumbBuffer = await sharp(tempFilePath)
-      .resize(400)
-      .jpeg({ quality: 75 })
-      .toBuffer();
+    try {
+      await bucket.file(filePath).download({ destination: tempFilePath });
 
-    const thumbPath = filePath.replace("/offers/full/", "/offers/thumbs/");
-    const thumbFile = bucket.file(thumbPath);
-    await thumbFile.save(thumbBuffer, {
-      metadata: { contentType: "image/jpeg" },
-    });
+      const thumbBuffer = await sharp(tempFilePath).resize(400).jpeg({ quality: 75 }).toBuffer();
+      const thumbPath = filePath.replace("/offers/full/", "/offers/thumbs/");
+      const thumbFile = bucket.file(thumbPath);
+      await thumbFile.save(thumbBuffer, { metadata: { contentType: "image/jpeg" } });
 
-    const [fullUrl] = await bucket.file(filePath).getSignedUrl({
-      action: "read",
-      expires: "03-01-2030",
-    });
+      const [fullUrl] = await bucket.file(filePath).getSignedUrl({ action: "read", expires: "03-01-2030" });
+      const [thumbUrl] = await thumbFile.getSignedUrl({ action: "read", expires: "03-01-2030" });
 
-    const [thumbUrl] = await thumbFile.getSignedUrl({
-      action: "read",
-      expires: "03-01-2030",
-    });
+      const offersRef = admin.firestore().collection("offers");
+      const snapshot = await offersRef.where("imageFilename", "==", fileName).limit(1).get();
 
-    const offersRef = admin.firestore().collection("offers");
-    const snapshot = await offersRef
-      .where("imageFilename", "==", fileName)
-      .limit(1)
-      .get();
+      if (snapshot.empty) {
+        console.warn(`⚠️ No offer document found for: ${fileName}`);
+        return;
+      }
 
-    if (snapshot.empty) {
-      console.warn("⚠️ No offer document found for:", fileName);
-      return;
+      const offerRef = snapshot.docs[0].ref;
+      const docData = snapshot.docs[0].data();
+      if (docData.fullUrl && docData.thumbUrl) {
+        console.log(`Skipping ${fileName} — already processed.`);
+        return;
+      }
+
+      await offerRef.update({ fullUrl, thumbUrl });
+      console.log(`✅ Offer doc updated with fullUrl + thumbUrl for: ${fileName}`);
+    } catch (err) {
+      console.error(`❌ Error processing offer image ${filePath}:`, err);
+    } finally {
+      await Promise.allSettled([fs.unlink(tempFilePath)]);
     }
-
-    const offerRef = snapshot.docs[0].ref;
-    await offerRef.update({ fullUrl, thumbUrl });
-
-    await fs.unlink(tempFilePath);
-    console.log(`✅ Offer doc updated with fullUrl + thumbUrl for: ${fileName}`);
   }
 );
+
 
 const createCheckoutSession = onCall({ cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] }, async (req) => {
 
@@ -414,6 +349,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
   }
 });
  
+
 const stripeWebhook = onRequest(
   {
     region: 'us-central1',
@@ -438,39 +374,58 @@ const stripeWebhook = onRequest(
       return;
     }
 
-    // ✅ handle event
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
+    const firestore = admin.firestore();
+    const eventsRef = firestore.collection('processedEvents');
+    const eventDoc = eventsRef.doc(event.id);
 
-  const bookingId = session.metadata?.bookingId;
-
-  if (!bookingId) {
-    console.warn("Missing bookingId in session metadata.");
-    return res.status(400).send("Missing bookingId.");
-  }
-
-  try {
-    const bookingRef = admin.firestore().collection("bookings").doc(bookingId);
-
-    await bookingRef.update({
-      status: "paid",
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-      stripePaymentIntentId: session.payment_intent,
-    });
-
-    console.log(`Booking ${bookingId} marked as paid.`);
-    return res.status(200).send("Booking updated.");
-  } catch (err) {
-    console.error("Error updating booking:", err);
-    return res.status(500).send("Failed to update booking.");
-  }
-    } else {
-      console.log(`Unhandled event type: ${event.type}`);
-      return res.status(200).json({ received: true });
+    // Check for duplicates (idempotency)
+    const existing = await eventDoc.get();
+    if (existing.exists) {
+      console.log(`Skipping duplicate event: ${event.id}`);
+      res.status(200).send('Event already processed.');
+      return;
     }
 
+    // Mark this event as processed
+    await eventDoc.set({
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      type: event.type,
+    });
+
+    // Handle specific event types
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const bookingId = session.metadata?.bookingId;
+
+      if (!bookingId) {
+        console.warn("Missing bookingId in session metadata.");
+        res.status(400).send("Missing bookingId.");
+        return;
+      }
+
+      try {
+        const bookingRef = firestore.collection("bookings").doc(bookingId);
+
+        await bookingRef.update({
+          status: "paid",
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          stripePaymentIntentId: session.payment_intent,
+        });
+
+        console.log(`Booking ${bookingId} marked as paid.`);
+        res.status(200).send("Booking updated.");
+      } catch (err) {
+        console.error("Error updating booking:", err);
+        res.status(500).send("Failed to update booking.");
+      }
+    } else {
+      console.log(`Unhandled event type: ${event.type}`);
+      res.status(200).json({ received: true });
+    }
   }
 );
+
+
 
 const processArtistMedia = onObjectFinalized(
   { timeoutSeconds: 300, memory: "2GiB" },
@@ -478,119 +433,109 @@ const processArtistMedia = onObjectFinalized(
     const filePath = event.data.name;
     if (!filePath) return;
 
-    // Expect paths like: "users/{artistId}/gallery/file.jpg" or "users/{artistId}/flashes/file.png"
-    const parts = filePath.split("/");
-    if (parts.length < 4 || parts[0] !== "users") {
-      console.log(`Skipping unexpected path: ${filePath}`);
-      return;
-    }
-
-    const artistId = parts[1];
-    const mediaType = parts[2]; // "gallery" or "flashes"
-    if (!artistId || (mediaType !== "gallery" && mediaType !== "flashes")) {
-      console.log(`Skipping unsupported path: ${filePath}`);
-      return;
-    }
-
-    const fileName = path.basename(filePath).toLowerCase(); // "file.jpg"
-
-    // Skip only derivative files (not cropped originals)
+    // Only process images inside users/{artistId}/gallery or users/{artistId}/flashes
     if (
-      fileName.includes("_thumb") ||
-      fileName.includes("_webp90") ||
-      fileName.includes("_full")
+      !filePath.startsWith("users/") ||
+      (!filePath.includes("/gallery/") && !filePath.includes("/flashes/"))
     ) {
+      console.log(`Skipping unrelated upload: ${filePath}`);
+      return;
+    }
+
+    const fileName = path.basename(filePath).toLowerCase();
+    if (fileName.includes("_thumb") || fileName.includes("_webp90") || fileName.includes("_full")) {
       console.log(`Skipping derivative file: ${filePath}`);
       return;
     }
 
-    const bucketDir = path.dirname(filePath);             // "users/{artistId}/gallery"
-    const baseName = path.basename(fileName, path.extname(fileName)); // "upload-12345"
+    const parts = filePath.split("/");
+    const mediaType = parts[2]; // "gallery" or "flashes"
+    const baseName = path.basename(fileName, path.extname(fileName));
+    const bucketDir = path.dirname(filePath);
     const uuid = uuidv4();
 
-    // Temp paths for processing
     const tempOriginal = path.join(os.tmpdir(), fileName);
     const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
     const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
-    const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`); // Always store full as JPG
+    const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`);
 
     try {
-      // Download original upload
+      // Download the uploaded original to a temp directory
       await bucket.file(filePath).download({ destination: tempOriginal });
 
-      // Generate 300px thumbnail (WebP 70%)
-      await sharp(tempOriginal)
-        .resize({ width: 300 })
-        .webp({ quality: 70 })
-        .toFile(tempThumb);
+      // Process three image sizes: 300px thumb, 1080px webp, full JPEG
+      await sharp(tempOriginal).resize({ width: 300 }).webp({ quality: 70 }).toFile(tempThumb);
+      await sharp(tempOriginal).resize({ width: 1080 }).webp({ quality: 90 }).toFile(tempWebp90);
+      await sharp(tempOriginal).jpeg({ quality: 95 }).toFile(tempFull);
 
-      // Generate 1080px preview (WebP 90%)
-      await sharp(tempOriginal)
-        .resize({ width: 1080 })
-        .webp({ quality: 90 })
-        .toFile(tempWebp90);
-
-      // Convert full-res to JPEG (original size, 95% quality)
-      await sharp(tempOriginal)
-        .jpeg({ quality: 95 })
-        .toFile(tempFull);
-
-      // Paths for uploads
+      // Destination paths for processed files
       const thumbPath = `${bucketDir}/${baseName}_thumb.webp`;
       const previewPath = `${bucketDir}/${baseName}_webp90.webp`;
       const fullPath = `${bucketDir}/${baseName}_full.jpg`;
 
-      // Upload all 3 versions
+      // Upload processed images to their final storage paths
       await bucket.upload(tempThumb, {
         destination: thumbPath,
-        metadata: {
-          contentType: "image/webp",
-          metadata: { firebaseStorageDownloadTokens: uuid },
-        },
+        metadata: { contentType: "image/webp", metadata: { firebaseStorageDownloadTokens: uuid } },
       });
       await bucket.upload(tempWebp90, {
         destination: previewPath,
-        metadata: {
-          contentType: "image/webp",
-          metadata: { firebaseStorageDownloadTokens: uuid },
-        },
+        metadata: { contentType: "image/webp", metadata: { firebaseStorageDownloadTokens: uuid } },
       });
       await bucket.upload(tempFull, {
         destination: fullPath,
-        metadata: {
-          contentType: "image/jpeg",
-          metadata: { firebaseStorageDownloadTokens: uuid },
-        },
+        metadata: { contentType: "image/jpeg", metadata: { firebaseStorageDownloadTokens: uuid } },
       });
 
-      // Generate public URLs
-      const makeUrl = (path: string) =>
-        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${uuid}`;
+      // Helper for building download URLs
+      const makeUrl = (path: string): string =>
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+          path
+        )}?alt=media&token=${uuid}`;
 
       const thumbUrl = makeUrl(thumbPath);
       const webp90Url = makeUrl(previewPath);
       const fullUrl = makeUrl(fullPath);
 
-      // Write Firestore document
-      await db.collection(mediaType).add({
-        artistId,
-        thumbUrl,
-        webp90Url,
-        fullUrl,
-        fileName: baseName,
-        thumbPath,
-        previewPath,
-        fullPath,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        timestamp: Date.now(),
+      // Find the Firestore document created by UploadModal using fileName
+      const snapshot = await db.collection(mediaType).where("fileName", "==", baseName).limit(1).get();
+
+      if (!snapshot.empty) {
+        const docRef = snapshot.docs[0].ref;
+        const docData = snapshot.docs[0].data();
+
+        // Skip processing if already done (retry safety)
+        if (docData.thumbUrl || docData.webp90Url || docData.fullUrl) {
+          console.log(`Skipping ${baseName} — already processed.`);
+          await bucket.file(filePath).delete().catch(() => {
+            console.log(`Could not delete duplicate raw file: ${filePath}`);
+          });
+          return;
+        }
+
+        // Update the Firestore doc with URLs and mark status as ready
+        await docRef.update({
+          thumbUrl,
+          webp90Url,
+          fullUrl,
+          thumbPath,
+          previewPath,
+          fullPath,
+          status: "ready",
+        });
+
+        console.log(`Updated Firestore doc for ${baseName} with image URLs.`);
+      } else {
+        console.warn(`No Firestore doc found for ${baseName}`);
+      }
+
+      // Delete the original raw cropped upload
+      await bucket.file(filePath).delete().catch(() => {
+        console.log(`Could not delete original file: ${filePath}`);
       });
-// Delete the original uploaded file (raw cropped version)
-await bucket.file(filePath).delete().catch(() => {
-  console.log(`Could not delete original file: ${filePath}`);
-});
 
       console.log(
-        `Processed ${fileName}: Created thumb, preview, full-res, and Firestore doc in '${mediaType}'.`
+        `Processed ${fileName}: Created 3 versions and updated Firestore doc in '${mediaType}'.`
       );
     } catch (err) {
       console.error(`Error processing ${filePath}:`, err);
@@ -606,6 +551,30 @@ await bucket.file(filePath).delete().catch(() => {
   }
 );
 
+const cleanupProcessedEvents = onSchedule("every 24 hours", async () => {
+  const firestore = admin.firestore();
+  const cutoff = admin.firestore.Timestamp.fromDate(
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
+  );
+
+  const snapshot = await firestore
+    .collection('processedEvents')
+    .where('createdAt', '<', cutoff)
+    .get();
+
+  if (snapshot.empty) {
+    console.log("No old processed events to delete.");
+    return;
+  }
+
+  const batch = firestore.batch();
+  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+
+  console.log(`Deleted ${snapshot.size} old processed events.`);
+});
+
+
 
 
 
@@ -616,5 +585,6 @@ module.exports = {
   createCheckoutSession,
   stripeWebhook,
   processArtistMedia,
+  cleanupProcessedEvents,
 };
  
