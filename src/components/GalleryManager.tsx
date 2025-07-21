@@ -68,14 +68,18 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
   return (
     <div>
-      <h2 className="text-xl! font-bold mt-10 mb-4">Manage Tattoo Gallery</h2>
+      <div className="flex gap-2 items-center my-5">
+        <h2 className="text-xl! font-bold">My Work</h2>
 
-      <button
-        onClick={() => setIsUploadOpen(true)}
-        className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-md text-white flex gap-1 "
-      >
-        Add <Plus />
-      </button>
+        <div>
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="mb-4 px-4! py-2! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-md text-white flex gap-1 "
+          >
+            Add <Plus />
+          </button>
+        </div>
+      </div>
 
       {isUploadOpen && (
         <UploadModal
@@ -89,7 +93,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
       {/* Grid of gallery items */}
       <div
-        className="grid gap-4 justify-center"
+        className="grid gap-4 justify-center md:justify-start"
         style={{
           gridTemplateColumns: "repeat(auto-fill, minmax(200px, 250px))", // each item is 200–225px
         }}
@@ -100,8 +104,8 @@ const GalleryManager = ({ uid }: { uid: string }) => {
             className="bg-[var(--color-bg-card)] rounded-lg shadow-lg overflow-hidden relative hover:shadow-xl transition-shadow duration-300"
           >
             {/* Header Row */}
-            <div className="flex justify-between items-center px-3 py-2 bg-black/50">
-              <h2 className="text-sm font-semibold text-white truncate max-w-[70%] leading-none m-0">
+            <div className="flex justify-between items-center px-2 py-1 bg-[var(--color-bg-base)]">
+              <h2 className="text-sm font-semibold text-white truncate max-w-[70%] leading-none my-0!">
                 {item.caption || "Untitled"}
               </h2>
               <button
@@ -118,11 +122,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                 <span className="text-white text-sm">Processing…</span>
               </div>
             ) : (
-              <div className="w-full max-h-64 overflow-hidden">
+              <div className="w-full max-h-50 overflow-hidden">
                 <img
                   src={item.thumbUrl || item.webp90Url}
                   alt={item.caption || "Gallery item"}
-                  className="w-full object-cover max-h-64 hover:scale-105 transition duration-300 ease-in-out"
+                  className="w-full object-cover max-h-50 hover:scale-105 transition duration-300 ease-in-out"
                 />
               </div>
             )}
