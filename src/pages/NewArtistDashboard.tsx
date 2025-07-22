@@ -54,13 +54,13 @@ const NewArtistDashboard = () => {
     { date: "", time: "" },
   ]);
 
-  // Map sidebar tab to actual Firestore status
+  // Translate sidebar tab into actual Firestore status
   const getFirestoreStatus = (tab: typeof activeTab): Booking["status"] => {
     if (tab === "pending") return "pending_payment";
     if (tab === "confirmed") return "confirmed";
     if (tab === "paid") return "paid";
     if (tab === "cancelled") return "cancelled";
-    return "confirmed"; // fallback
+    return "confirmed";
   };
 
   useEffect(() => {
@@ -76,7 +76,7 @@ const NewArtistDashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch booking requests (requests tab)
+  // Fetch booking requests
   useEffect(() => {
     const fetchRequests = async () => {
       if (!uid) return;
@@ -95,11 +95,14 @@ const NewArtistDashboard = () => {
   useEffect(() => {
     const fetchBookings = async () => {
       if (!uid) return;
+
+      // Always clear previous results when switching tabs
+      setBookings([]);
+
       const statusToFetch = getFirestoreStatus(activeTab);
 
       let q;
       if (statusToFetch === "paid") {
-        // If no createdAt exists, just fetch without orderBy
         q = query(
           collection(db, "bookings"),
           where("artistId", "==", uid),
@@ -145,7 +148,7 @@ const NewArtistDashboard = () => {
 
         {activeTab === "offers" && uid && <OffersList uid={uid} />}
 
-        {/* Booking grid for active statuses */}
+        {/* Booking cards */}
         {["pending", "confirmed", "paid", "cancelled"].includes(activeTab) && (
           <div>
             <h2 className="text-xl font-semibold mb-4 capitalize">
@@ -156,9 +159,12 @@ const NewArtistDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {bookings.map((b) => {
-                  const created = b.createdAt?.toDate
-                    ? b.createdAt.toDate().toLocaleDateString()
-                    : "N/A";
+                  const created =
+                    b.createdAt?.toDate?.() || b.paidAt?.toDate?.()
+                      ? (
+                          b.createdAt?.toDate?.() || b.paidAt?.toDate?.()
+                        ).toLocaleDateString()
+                      : "N/A";
 
                   return (
                     <div
