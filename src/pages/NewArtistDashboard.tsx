@@ -9,6 +9,7 @@ import {
   collection,
   query,
   where,
+  orderBy,
   getDocs,
 } from "firebase/firestore";
 
@@ -19,28 +20,29 @@ import MakeOfferModal from "../components/MakeOfferModal";
 import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
+import type { Booking } from "../types/Booking";
 
 const NewArtistDashboard = () => {
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [activeTab, setActiveTab] = useState<
     | "requests"
     | "offers"
     | "bookings"
     | "pending"
     | "confirmed"
+    | "paid"
     | "cancelled"
     | "calendar"
     | "flashes"
     | "gallery"
   >("requests");
-  const [bookingStatusFilter, setBookingStatusFilter] = useState<
-    "confirmed" | "pending_payment" | "cancelled"
-  >("confirmed");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
+
   const [offerPrice, setOfferPrice] = useState(0);
   const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
   const [depositAmount, setDepositAmount] = useState<number>(0);
@@ -51,6 +53,15 @@ const NewArtistDashboard = () => {
     { date: "", time: "" },
     { date: "", time: "" },
   ]);
+
+  // Map sidebar tab to actual Firestore status
+  const getFirestoreStatus = (tab: typeof activeTab): Booking["status"] => {
+    if (tab === "pending") return "pending_payment";
+    if (tab === "confirmed") return "confirmed";
+    if (tab === "paid") return "paid";
+    if (tab === "cancelled") return "cancelled";
+    return "confirmed"; // fallback
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -65,6 +76,7 @@ const NewArtistDashboard = () => {
     return () => unsubscribe();
   }, []);
 
+  // Fetch booking requests (requests tab)
   useEffect(() => {
     const fetchRequests = async () => {
       if (!uid) return;
@@ -74,15 +86,42 @@ const NewArtistDashboard = () => {
         where("status", "==", "pending")
       );
       const snapshot = await getDocs(q);
-      const requests = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setBookingRequests(requests);
+      setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     };
-
     fetchRequests();
   }, [uid]);
+
+  // Fetch bookings based on the current tab
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!uid) return;
+      const statusToFetch = getFirestoreStatus(activeTab);
+
+      let q;
+      if (statusToFetch === "paid") {
+        // If no createdAt exists, just fetch without orderBy
+        q = query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", "paid")
+        );
+      } else {
+        q = query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", statusToFetch),
+          orderBy("createdAt", "desc")
+        );
+      }
+
+      const snapshot = await getDocs(q);
+      setBookings(
+        snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Booking[]
+      );
+    };
+
+    fetchBookings();
+  }, [uid, activeTab]);
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -106,35 +145,70 @@ const NewArtistDashboard = () => {
 
         {activeTab === "offers" && uid && <OffersList uid={uid} />}
 
-        {activeTab === "bookings" && (
-          <>
-            <div className="flex gap-2 mb-4">
-              {["confirmed", "pending_payment", "cancelled"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() =>
-                    setBookingStatusFilter(status as typeof bookingStatusFilter)
-                  }
-                  className={`px-4 py-2 rounded-md ${
-                    bookingStatusFilter === status
-                      ? "bg-red-600 text-white"
-                      : "bg-gray-800 text-gray-300"
-                  }`}
-                >
-                  {status.replace("_", " ").toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <div className="text-sm text-gray-400">
-              Displaying bookings with status:{" "}
-              <strong>{bookingStatusFilter}</strong>
-            </div>
-          </>
+        {/* Booking grid for active statuses */}
+        {["pending", "confirmed", "paid", "cancelled"].includes(activeTab) && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4 capitalize">
+              {activeTab} Bookings
+            </h2>
+            {bookings.length === 0 ? (
+              <p className="text-gray-400">No {activeTab} bookings yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bookings.map((b) => {
+                  const created = b.createdAt?.toDate
+                    ? b.createdAt.toDate().toLocaleDateString()
+                    : "N/A";
+
+                  return (
+                    <div
+                      key={b.id}
+                      className="bg-gray-900 rounded-lg p-4 shadow hover:shadow-lg transition"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold">
+                            {b.shopName || "Private Studio"}
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            {b.shopAddress || "Address not provided"}
+                          </p>
+                          <p className="mt-2 text-sm">
+                            {b.selectedDate.date} @ {b.selectedDate.time}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Created: {created}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            b.status === "paid" || b.status === "confirmed"
+                              ? "bg-green-600"
+                              : b.status === "pending_payment"
+                              ? "bg-yellow-600"
+                              : "bg-red-600"
+                          }`}
+                        >
+                          {b.status.replace("_", " ").toUpperCase()}
+                        </span>
+                      </div>
+                      {b.sampleImageUrl && (
+                        <img
+                          src={b.sampleImageUrl}
+                          alt="Tattoo"
+                          className="mt-3 rounded-md w-full max-h-48 object-cover"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === "flashes" && uid && <FlashManager uid={uid} />}
         {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
-
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel
             feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${

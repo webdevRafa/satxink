@@ -13,8 +13,9 @@ type ViewTab =
   | "requests"
   | "offers"
   | "bookings"
-  | "pending"
+  | "pending" // represents pending_payment
   | "confirmed"
+  | "paid"
   | "cancelled"
   | "calendar"
   | "flashes"
@@ -35,14 +36,15 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "requests", label: "Requests", icon: FolderInput },
     { key: "offers", label: "Offers", icon: Receipt },
     { key: "bookings", label: "Bookings", icon: Handshake },
-    { key: "flashes", label: "Flashes", icon: BrushIcon }, // New tab
-    { key: "gallery", label: "Gallery", icon: ImageIcon }, // New tab
+    { key: "flashes", label: "Flashes", icon: BrushIcon },
+    { key: "gallery", label: "Gallery", icon: ImageIcon },
     { key: "calendar", label: "Calendar Sync", icon: CalendarIcon },
   ];
 
   const bookingTabs = [
-    { key: "pending", label: "Pending" },
+    { key: "pending", label: "Pending" }, // internally maps to pending_payment
     { key: "confirmed", label: "Confirmed" },
+    { key: "paid", label: "Paid" },
     { key: "cancelled", label: "Cancelled" },
   ];
 
@@ -56,9 +58,13 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 <button
                   onClick={() => setShowBookingsDropdown((prev) => !prev)}
                   className={`flex items-center justify-between w-full px-4 py-2 rounded-lg transition-all ${
-                    ["pending", "confirmed", "cancelled", "bookings"].includes(
-                      activeTab
-                    )
+                    [
+                      "pending",
+                      "confirmed",
+                      "paid",
+                      "cancelled",
+                      "bookings",
+                    ].includes(activeTab)
                       ? "text-white font-bold"
                       : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                   }`}

@@ -1,3 +1,6 @@
+import { Timestamp } from "firebase/firestore";
+
+
 export type Booking = {
     id: string;
   
@@ -31,7 +34,8 @@ export type Booking = {
   
     sampleImageUrl?: string;
   
-    status: "pending_payment" | "confirmed" | "cancelled"; // you can extend this later
-    createdAt: any; // or FirebaseFirestore.Timestamp if you're using strict typing
+    status: "pending_payment" | "paid" | "confirmed" | "cancelled";
+    createdAt: Timestamp; // or FirebaseFirestore.Timestamp if you're using strict typing
+    paidAt?: Timestamp; 
   };
   
