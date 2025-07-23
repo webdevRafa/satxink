@@ -21,7 +21,19 @@
     transform: translateX(-50%);
   }
 }
-
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-bg-footer); /* now visible */
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
 .animate-scroll {
   animation: scroll-horizontal 15s linear infinite;
   will-change: transform;

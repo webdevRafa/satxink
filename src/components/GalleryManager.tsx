@@ -89,7 +89,6 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   return (
     <div>
       <div className="flex gap-2 items-center my-5">
-        <h2 className="text-lg! font-bold">my work</h2>
         <button
           onClick={() => setIsUploadOpen(true)}
           className="mb-4 px-3! py-1! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-none! text-white flex gap-1 "
@@ -402,10 +401,16 @@ const EditGalleryItemModal = ({
 
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
+      if (tags.length >= 6) {
+        setWarning("You can only add up to 6 tags.");
+        return;
+      }
       setTags([...tags, newTag.trim()]);
       setNewTag("");
+      setWarning(null); // Clear any existing warning when successful
     }
   };
+  const [warning, setWarning] = useState<string | null>(null);
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
@@ -434,11 +439,12 @@ const EditGalleryItemModal = ({
 
         {/* Tags Section */}
         <label className="block mb-2 text-sm">Tags</label>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3 max-h-16 overflow-y-auto pr-2 custom-scrollbar scrollbar-thin">
           {tags.map((tag) => (
             <span
               key={tag}
-              className="flex items-center justify-center gap-2 bg-[var(--color-bg-base)] text-white text-xs px-3 py-1 rounded-full shadow-sm min-h-[28px]"
+              className="flex items-center gap-1 bg-[var(--color-bg-base)] text-white text-xs px-3 py-1 rounded-full shadow-sm min-h-[28px] max-w-[120px] truncate"
+              title={tag}
             >
               {tag}
               <button
@@ -459,6 +465,7 @@ const EditGalleryItemModal = ({
             className="flex-1 px-3 py-2 rounded bg-[var(--color-bg-base)] text-white text-sm"
             placeholder="Add tag"
           />
+
           <button
             onClick={handleAddTag}
             className="bg-[var(--color-bg-button)] text-white px-2! py-1! rounded text-sm"
@@ -466,7 +473,7 @@ const EditGalleryItemModal = ({
             Add
           </button>
         </div>
-
+        {warning && <p className="text-rose-200! text-xs! mt-1">{warning}</p>}
         {/* Action Buttons */}
         <div className="flex justify-between items-center mt-6">
           <button
