@@ -178,7 +178,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         >
           <div className="relative max-w-[90%] max-h-[85%] flex flex-col">
             <div className="absolute top-3 left-3 right-3 flex items-center gap-4  px-4 py-2 rounded-lg">
-              <span className="text-lg ">{selectedItem.caption}</span>
+              <span
+                className="text-base md:text-lg text-white font-medium truncate max-w-[50%] leading-snug"
+                style={{ lineHeight: "1.2rem" }}
+              >
+                {selectedItem.caption}
+              </span>
 
               {/* Tag Marquee (flexible width in between) */}
               {Array.isArray(selectedItem.tags) &&
@@ -419,6 +424,7 @@ const EditGalleryItemModal = ({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-[var(--color-bg-footer)] rounded-lg p-6 w-full max-w-md">
+        <span className="text-sm text-white!">Manage</span>
         {/* Image Preview */}
         <div className="mb-4">
           <img

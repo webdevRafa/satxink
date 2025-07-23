@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-  Handshake,
-  FolderInput,
-  Receipt,
-  ChevronDown,
-  Calendar as CalendarIcon,
-  Image as ImageIcon,
-  Brush as BrushIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 type ViewTab =
   | "requests"
@@ -33,12 +25,12 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
 
   const tabs = [
-    { key: "requests", label: "Requests", icon: FolderInput },
-    { key: "offers", label: "Offers", icon: Receipt },
-    { key: "bookings", label: "Bookings", icon: Handshake },
-    { key: "flashes", label: "Flashes", icon: BrushIcon },
-    { key: "gallery", label: "Gallery", icon: ImageIcon },
-    { key: "calendar", label: "Calendar Sync", icon: CalendarIcon },
+    { key: "requests", label: "Requests" },
+    { key: "offers", label: "Offers" },
+    { key: "bookings", label: "Bookings" },
+    { key: "flashes", label: "Flashes" },
+    { key: "gallery", label: "Gallery" },
+    { key: "calendar", label: "Calendar Sync" },
   ];
 
   const bookingTabs = [
@@ -51,7 +43,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   return (
     <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
       <ul className="space-y-2">
-        {tabs.map(({ key, label, icon: Icon }) => (
+        {tabs.map(({ key, label }) => (
           <li key={key}>
             {key === "bookings" ? (
               <>
@@ -69,10 +61,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                       : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </div>
+                  <span>{label}</span>
                   <ChevronDown
                     className={`w-4 h-4 transition-transform ${
                       showBookingsDropdown ? "rotate-180" : ""
@@ -101,13 +90,12 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
             ) : (
               <button
                 onClick={() => onTabChange(key as ViewTab)}
-                className={`flex items-center gap-2 w-full text-left px-4 py-2 rounded-lg transition-all ${
+                className={`w-full text-left px-4 py-2 rounded-lg transition-all ${
                   activeTab === key
                     ? "text-white font-bold"
                     : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                 }`}
               >
-                <Icon className="w-4 h-4" />
                 {label}
               </button>
             )}
