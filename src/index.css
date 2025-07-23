@@ -13,6 +13,21 @@
   opacity: 0 !important;
 }
 
+@keyframes scroll-horizontal {
+  from {
+    transform: translateX(0%);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll {
+  animation: scroll-horizontal 15s linear infinite;
+  will-change: transform;
+}
+
+
 /* Clean up padding + match your dark theme */
 .rdrCalendarWrapper {
   background-color: var(--color-bg-base);
