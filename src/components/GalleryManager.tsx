@@ -207,50 +207,43 @@ const GalleryManager = ({ uid }: { uid: string }) => {
             />
 
             {/* Only render these AFTER image is loaded */}
-            {!modalLoading && (
-              <>
-                {/* Tags + Close Button (only after image is loaded) */}
-                {!modalLoading && (
-                  <div className="absolute top-1 left-2 right-2 flex items-center gap-4 py-0 rounded-lg bg-[#121212]/20">
-                    {Array.isArray(selectedItem.tags) &&
-                      selectedItem.tags.length > 0 && (
-                        <TagMarqueeModal tags={selectedItem.tags} />
-                      )}
-                    <button
-                      className="text-white text-xl md:text-2xl hover:text-gray-300 shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedItem(null);
-                      }}
-                    >
-                      <X />
-                    </button>
-                  </div>
-                )}
-
-                {/* Artist info (rendered ONLY after the image is loaded) */}
-
-                <div
-                  className={`absolute bottom-3 left-3 flex gap-2 justify-start items-center transition duration-300 ease-in-out ${
-                    modalLoading ? "opacity-0" : "opacity-100"
-                  }`}
+            {/* Tags + Close Button */}
+            {selectedItem && !modalLoading && (
+              <div className="absolute top-1 left-2 right-2 flex items-center gap-4 py-0 rounded-lg bg-[#121212]/20">
+                {Array.isArray(selectedItem.tags) &&
+                  selectedItem.tags.length > 0 && (
+                    <TagMarqueeModal tags={selectedItem.tags} />
+                  )}
+                <button
+                  className="text-white text-xl md:text-2xl hover:text-gray-300 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedItem(null);
+                  }}
                 >
-                  <img
-                    src={artistInfo.avatarUrl || "/default-avatar.png"}
-                    alt={artistInfo.displayName || "Artist"}
-                    className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white shadow-md transition-opacity duration-300 opacity-0 animate-fade-in"
-                  />
-                  <span className="text-white font-semibold text-lg transition-opacity duration-300 opacity-0 animate-fade-in">
-                    {artistInfo.displayName || "Unknown Artist"}
-                  </span>
-                </div>
-              </>
+                  <X />
+                </button>
+              </div>
+            )}
+
+            {/* Artist Info */}
+            {selectedItem && !modalLoading && (
+              <div className="absolute bottom-3 left-3 flex gap-2 justify-start items-center">
+                <img
+                  src={artistInfo.avatarUrl || "/default-avatar.png"}
+                  alt={artistInfo.displayName || "Artist"}
+                  className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white shadow-md transition-opacity duration-300 opacity-100"
+                />
+                <span className="text-white font-semibold text-lg transition-opacity duration-300 opacity-100">
+                  {artistInfo.displayName || "Unknown Artist"}
+                </span>
+              </div>
             )}
           </div>
 
-          {/* Right side: caption, ONLY after image loads */}
-          {!modalLoading && (
-            <h1 className="max-w-[300px] text-white text-sm md:text-xl lg:text-2xl">
+          {/* Right side: caption */}
+          {selectedItem && !modalLoading && (
+            <h1 className="max-w-[300px] text-white text-sm md:text-xl lg:text-2xl transition-opacity duration-500 opacity-100">
               {selectedItem.caption}
             </h1>
           )}
