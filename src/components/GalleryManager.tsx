@@ -174,17 +174,10 @@ const GalleryManager = ({ uid }: { uid: string }) => {
       {selectedItem && (
         <div
           onClick={() => setSelectedItem(null)}
-          className="fixed inset-0 bg-black/80 z-50 backdrop-blur-xs flex items-center justify-center"
+          className="fixed inset-0 bg-black/80 z-50 backdrop-blur-xs flex flex-col md:flex-row gap-5 items-center justify-center"
         >
           <div className="relative max-w-[90%] max-h-[85%] flex flex-col">
-            <div className="absolute top-3 left-3 right-3 flex items-center gap-4  px-4 py-2 rounded-lg">
-              <span
-                className="text-base md:text-lg text-white font-medium truncate max-w-[50%] leading-snug"
-                style={{ lineHeight: "1.2rem" }}
-              >
-                {selectedItem.caption}
-              </span>
-
+            <div className="absolute top-1 left-2 right-2 flex items-center gap-4 py-0 rounded-lg bg-[#121212]/40 px-2">
               {/* Tag Marquee (flexible width in between) */}
               {Array.isArray(selectedItem.tags) &&
                 selectedItem.tags.length > 0 && (
@@ -207,9 +200,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               <img
                 src={artistInfo.avatarUrl || "/default-avatar.png"}
                 alt={artistInfo.displayName || "Artist"}
-                className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white shadow-md"
+                className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white shadow-md animate-pulse"
               />
-              <span className="text-white font-semibold text-lg">
+              <span className="text-white font-semibold text-lg animate-pulse">
                 {artistInfo.displayName || "Unknown Artist"}
               </span>
             </div>
@@ -220,6 +213,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               className="object-contain rounded-b-lg shadow-lg max-h-[80vh] md:max-h-[70vh] lg:max-h-[60vh] max-w-full"
             />
           </div>
+          <h1 className="max-w-[300px] text-sm! md:text-xl! lg:text-2xl!">
+            {selectedItem.caption}
+          </h1>
         </div>
       )}
     </div>
