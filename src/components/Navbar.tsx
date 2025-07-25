@@ -67,10 +67,10 @@ export const Navbar = () => {
           : "bg-transparent border-transparent"
       }`}
     >
-      <div className="max-w-[1300px] mx-auto flex items-center justify-between">
+      <div className="max-w-[1400px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img className="w-24" src={logo} alt="SATX Ink Logo" />
+          <img className="w-20" src={logo} alt="SATX Ink Logo" />
         </Link>
 
         {/* Desktop Nav */}
@@ -90,7 +90,7 @@ export const Navbar = () => {
               <img
                 src={userDoc.avatarUrl}
                 alt="User Avatar"
-                className="w-10 h-10 rounded-full border border-white cursor-pointer"
+                className="w-9 h-9 rounded-full border border-white cursor-pointer"
               />
             </Link>
           ) : (

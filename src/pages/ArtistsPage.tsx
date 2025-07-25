@@ -174,12 +174,15 @@ export const ArtistsPage = () => {
   return (
     <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
       <div data-aos="fade-in">
-        <h1 className="text-3xl! font-semibold text-red-400! mt-35! mb-2">
-          Find an Artist
-        </h1>
-        <img className="max-w-[100px] mb-0! " src={sa} alt="" />
-
-        <p className="text-gray-400 mb-4">
+        {/* flex container for 'find an artist' and the sa imagery */}
+        <div className="flex gap-2 flex-row items-start md:items-end mt-30">
+          <h1 className="text-3xl! font-semibold text-white mb-0! translate-y-[13px] md:translate-y-[7px]">
+            Find an Artist
+          </h1>
+          <img className="max-w-[100px] mb-0! " src={sa} alt="" />
+        </div>
+        {/* paragraph right beneath it */}
+        <p className="text-neutral-400! mb-4">
           Discover talented artists from San Antonio, browse by style, and view
           their work.
         </p>
