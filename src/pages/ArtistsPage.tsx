@@ -199,7 +199,7 @@ export const ArtistsPage = () => {
               key={tag}
               className={`px-1! md:px-3! py-1!  md:py-2! rounded-full border text-xs! font-medium hover:scale-110 ease-in-out duration-300 transition-all ${
                 specialtyFilter === tag
-                  ? "bg-white text-black border-white"
+                  ? "bg-neutral-300 text-black border-white"
                   : "text-white border-gray-500 hover:border-white"
               }`}
               onClick={() =>

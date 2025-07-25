@@ -16,7 +16,6 @@ import { ref, deleteObject } from "firebase/storage";
 import UploadModal from "./UploadModal";
 import { Plus, MoreVertical, X } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
-
 const GalleryManager = ({ uid }: { uid: string }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -198,9 +197,10 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
             {/* Full image */}
             <img
+              data-aos="zoom-out-up"
               src={selectedItem.fullUrl || selectedItem.webp90Url}
               alt={selectedItem.caption || "Full view"}
-              className={`object-contain rounded-b-lg shadow-lg max-h-[80vh] md:max-h-[70vh] lg:max-h-[60vh] max-w-full transition-opacity duration-300 ${
+              className={`object-contain rounded-b-lg shadow-lg max-h-[70vh] lg:max-h-[60vh] max-w-full transition-opacity duration-300 ${
                 modalLoading ? "opacity-0" : "opacity-100"
               }`}
               onLoad={() => setModalLoading(false)}
@@ -243,9 +243,17 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
           {/* Right side: caption */}
           {selectedItem && !modalLoading && (
-            <h1 className="max-w-[300px] text-white text-sm md:text-xl lg:text-2xl transition-opacity duration-500 opacity-100">
-              {selectedItem.caption}
-            </h1>
+            <>
+              <h1 className="md:hidden max-w-[300px] text-white! text-sm md:text-2xl! transition-opacity duration-500 opacity-100 md:translate-x-[-40px]">
+                {selectedItem.caption}
+              </h1>
+              <h1
+                data-aos="fade-in"
+                className="hidden md:block max-w-[300px] font-light! text-white! text-sm md:text-2xl! transition-opacity duration-500 opacity-100 md:translate-x-[-40px]"
+              >
+                {selectedItem.caption}
+              </h1>
+            </>
           )}
         </div>
       )}
@@ -455,6 +463,7 @@ const EditGalleryItemModal = ({
         {/* Image Preview */}
         <div className="mb-4">
           <img
+            data-aos="fade-in"
             src={item.thumbUrl || item.webp90Url}
             alt={item.caption || "Preview"}
             className="max-w-[200px] mx-auto object-cover rounded-md shadow"
