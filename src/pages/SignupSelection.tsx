@@ -34,8 +34,8 @@ export default function SignupSelection() {
       />
       <div className="absolute inset-0 bg-black/70 backdrop-blur-xs"></div>
       <div className="relative z-10 flex flex-col items-center text-center px-4">
-        <img src={logo} alt="SATX Ink logo" />
-        <h2>A marketplace for the culture.</h2>
+        <img className="max-w-[220px]" src={logo} alt="SATX Ink logo" />
+        <h2 className="text-md!">A marketplace for the culture.</h2>
         <h2 className="text-sm! text-neutral-300! my-10">
           How will you be using this platform?
         </h2>
@@ -44,13 +44,13 @@ export default function SignupSelection() {
             onClick={() => navigate("/signup/client")}
             className="px-3! py-1! text-white border-2 border-neutral-300 rounded hover:bg-neutral-300 hover:text-black transition"
           >
-            Client
+            As a Client
           </button>
           <button
             onClick={() => navigate("/signup/artist")}
             className="px-3! py-1! text-white border-2 border-neutral-300 rounded hover:bg-neutral-300 hover:text-black transition"
           >
-            Artist
+            As an Artist
           </button>
         </div>
       </div>
