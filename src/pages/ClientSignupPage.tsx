@@ -3,7 +3,7 @@ import { GoogleSignupButton } from "../components/GoogleSignupButton";
 import logo from "../assets/satx-short-sep.svg";
 import { Link } from "react-router-dom";
 
-const ClientSignupPage = ({ onBack }: { onBack: () => void }) => {
+const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
   return (
     <div
       data-aos="fade-up"

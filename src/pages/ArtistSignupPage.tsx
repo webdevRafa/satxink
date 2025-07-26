@@ -44,7 +44,7 @@ const stepHeadings = [
   "Set Your Deposit Policy",
   "You're All Set!",
 ];
-const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
+const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [paymentType, setPaymentType] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
