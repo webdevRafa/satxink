@@ -217,18 +217,18 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <div
-      data-aos="fade-in"
+      data-aos="fade-up"
       className="min-h-screen  text-white flex items-center justify-center px-4"
     >
       <div className="max-w-2xl w-full text-center">
         {/* Back Button (always visible) */}
         <button
           onClick={onBack}
-          className="mb-4 text-zinc-400 hover:text-white text-sm underline self-start"
+          className="mb-1 text-neutral-500! hover:text-white! text-sm underline self-start"
         >
           ← Back
         </button>
-        <h1 className="flex items-center justify-center flex-wrap text-4xl md:text-5xl font-bold mb-6 gap-2 text-center">
+        <h1 className="flex items-center justify-center flex-wrap text-3xl! md:text-4xl! font-light! mb-1 gap-2 text-center">
           <span>Join</span>
           <img
             src={logo}
@@ -240,12 +240,12 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
 
         {!user && (
           <>
-            <p className="text-zinc-300 mb-8 text-lg">
+            <p className="text-neutral-300 mb-8 text-lg">
               Create your artist profile, showcase your portfolio, and connect
               with local clients.
             </p>
             <GoogleSignupButton role="artist" />
-            <p className="text-sm text-zinc-500 mt-4">
+            <p className="text-sm text-neutral-500 mt-4">
               We’ll use your Google info to create your account. You can
               complete your profile afterward.
             </p>
@@ -273,7 +273,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                     value={displayName}
                     placeholder="Display Name (e.g. @inkbykai or DotQueen)"
                     required
-                    className="w-full p-2 rounded bg-zinc-800 text-white mb-2"
+                    className="w-full p-2 rounded bg-neutral-800 text-white mb-2"
                   />
                   <textarea
                     name="bio"
@@ -281,14 +281,14 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                     onChange={(e) => setBio(e.target.value)}
                     value={bio}
                     required
-                    className="w-full p-2 rounded bg-zinc-800 text-white"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
                   />
                   <select
                     name="shopId"
                     onChange={(e) => setShopId(e.target.value)}
                     value={shopId}
                     required
-                    className="w-full p-2 rounded bg-zinc-800 text-white"
+                    className="w-full p-2 rounded bg-neutral-800 text-white"
                   >
                     <option value="">Select Your Shop</option>
                     {shops.map((shop) => (
@@ -345,7 +345,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                       value={instagram}
                       onChange={(e) => setInstagram(e.target.value)}
                       placeholder="Instagram URL"
-                      className="w-full p-2 rounded bg-zinc-800 text-white"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
                     />
                     <input
                       type="url"
@@ -354,7 +354,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                       required
                       value={facebook}
                       placeholder="Facebook URL"
-                      className="w-full p-2 rounded bg-zinc-800 text-white"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
                     />
                     <input
                       type="url"
@@ -363,7 +363,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                       value={website}
                       required
                       placeholder="Website URL"
-                      className="w-full p-2 rounded bg-zinc-800 text-white"
+                      className="w-full p-2 rounded bg-neutral-800 text-white"
                     />
                   </div>
                 </div>
@@ -414,7 +414,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                         value={selectedMethod}
                         onChange={(e) => setSelectedMethod(e.target.value)}
                         required
-                        className="w-full p-2 rounded bg-zinc-800 text-white"
+                        className="w-full p-2 rounded bg-neutral-800 text-white"
                       >
                         <option value="">
                           Select your preferred payment method
@@ -438,7 +438,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                               ? "$YourCashTag"
                               : "@yourusername or phone"
                           }
-                          className="w-full p-2 rounded bg-zinc-800 text-white"
+                          className="w-full p-2 rounded bg-neutral-800 text-white"
                         />
                       )}
                     </div>
@@ -457,7 +457,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
                   onChange={(e) => setDepositAmount(e.target.value)}
                   required
                   placeholder="Required deposit amount (e.g. 100)"
-                  className="w-full p-2 rounded bg-zinc-800 text-white"
+                  className="w-full p-2 rounded bg-neutral-800 text-white"
                   min={0}
                 />
                 <div className="space-y-1 mt-3">
@@ -492,13 +492,13 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
 
             {/* STEP 5: Review/Submit */}
             {currentStep === 4 && (
-              <p className="text-zinc-400 text-sm">
+              <p className="text-neutral-400 text-sm">
                 You're all set! When you're ready, click the button below to
                 submit your artist profile.
               </p>
             )}
             {readyToSubmit && submitting && (
-              <p className="text-sm text-zinc-400 mb-2">
+              <p className="text-sm text-neutral-400 mb-2">
                 Just a sec — saving your profile…
               </p>
             )}

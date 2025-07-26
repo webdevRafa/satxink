@@ -47,14 +47,16 @@ export default function SignupSelection() {
           <>
             {/* Selection Screen */}
             <img
-              className="max-w-[220px] mb-4"
+              className="max-w-[210px] mb-2"
               src={logo}
               alt="SATX Ink logo"
             />
             <h2 className="text-2xl md:text-3xl font-light">
               Your City. Your Ink. Your Platform.
             </h2>
-            <p className="text-zinc-300 text-lg mt-6 mb-4">Pick your path</p>
+            <p className="text-white! text-xl! font-light mt-8 mb-2">
+              Pick your path
+            </p>
             <div className="flex gap-4">
               <button
                 onClick={() => setSelectedRole("client")}

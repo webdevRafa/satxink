@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { app } from "../firebase/firebaseConfig";
+import google from "../assets/web_light_sq_SU.svg";
 
 type GoogleSignupButtonProps = {
   role: "client" | "artist";
@@ -94,11 +95,11 @@ export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
   };
 
   return (
-    <button
+    <img
+      className="mx-auto cursor-pointer hover:scale-105 transition duration-300 ease-in-out"
       onClick={handleGoogleSignup}
-      className="border-3 border-neutral-400 hover:border-[#121212] text-white px-6 py-3 rounded-lg hover:bg-[#b6382d]"
-    >
-      Sign up with Google
-    </button>
+      src={google}
+      alt=""
+    />
   );
 };
