@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { GoogleSignupButton } from "../components/GoogleSignupButton";
 import logo from "../assets/satx-short-sep.svg";
 import type { User } from "firebase/auth";
+import slugify from "slugify";
+
 import { auth, db } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
@@ -10,6 +12,8 @@ import {
   getDocs,
   doc,
   setDoc,
+  query,
+  where,
   serverTimestamp,
 } from "firebase/firestore";
 import { Listbox } from "@headlessui/react";
@@ -53,7 +57,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [finalPaymentTiming, setFinalPaymentTiming] = useState<string>("");
   const [externalHandle, setExternalHandle] = useState<string>("");
-
+  const [isCheckingName, setIsCheckingName] = useState(false);
+  const [isNameTaken, setIsNameTaken] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState<boolean>(false);
   const [depositAmount, setDepositAmount] = useState<string>("");
@@ -107,7 +112,28 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     };
     fetchShops();
   }, []);
+  // Check displayName uniqueness in real-time
+  useEffect(() => {
+    if (!displayName.trim()) {
+      setIsNameTaken(false);
+      return;
+    }
 
+    const slug = slugify(displayName, { lower: true, strict: true });
+
+    const timer = setTimeout(async () => {
+      setIsCheckingName(true);
+      const nameQuery = query(
+        collection(db, "users"),
+        where("slug", "==", slug)
+      );
+      const snapshot = await getDocs(nameQuery);
+      setIsNameTaken(!snapshot.empty);
+      setIsCheckingName(false);
+    }, 500); // debounce 500ms to avoid spamming DB
+
+    return () => clearTimeout(timer);
+  }, [displayName]);
   const sanitizeUrl = (url: string) => {
     if (!url) return "";
     const trimmed = url.trim();
@@ -160,35 +186,55 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     }
 
     setSubmitting(true);
-    const newArtist = {
-      displayName,
-      bio,
-      shopId: selectedShop ? selectedShop.id : "",
-      specialties,
-      socialLinks: {
-        instagram: sanitizedInstagram,
-        facebook: sanitizedFacebook,
-        website: sanitizedWebsite,
-      },
-      avatarUrl: user.photoURL || "",
-      email: user.email || "",
-      featured: false,
-      isVerified: false,
-      role: "artist",
-      createdAt: serverTimestamp(),
-      paymentType,
-      ...(paymentType === "external" && {
-        externalPaymentDetails,
-        depositPolicy: {
-          depositRequired: true,
-          amount: depositAmount,
-          nonRefundable: true,
-        },
-        finalPaymentTiming,
-      }),
-    };
+
+    // Generate slug from displayName
+    const slug = slugify(displayName, { lower: true, strict: true });
 
     try {
+      // Check if slug already exists in Firestore
+      const slugQuery = query(
+        collection(db, "users"),
+        where("slug", "==", slug)
+      );
+      const slugSnapshot = await getDocs(slugQuery);
+
+      if (!slugSnapshot.empty) {
+        alert("That name is already taken. Please choose another.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Build artist object
+      const newArtist = {
+        displayName,
+        slug, // store the slug
+        bio,
+        shopId: selectedShop ? selectedShop.id : "",
+        specialties,
+        socialLinks: {
+          instagram: sanitizedInstagram,
+          facebook: sanitizedFacebook,
+          website: sanitizedWebsite,
+        },
+        avatarUrl: user.photoURL || "",
+        email: user.email || "",
+        featured: false,
+        isVerified: false,
+        role: "artist",
+        createdAt: serverTimestamp(),
+        paymentType,
+        ...(paymentType === "external" && {
+          externalPaymentDetails,
+          depositPolicy: {
+            depositRequired: true,
+            amount: depositAmount,
+            nonRefundable: true,
+          },
+          finalPaymentTiming,
+        }),
+      };
+
+      // Save artist to Firestore
       await setDoc(
         doc(db, "users", user.uid),
         {
@@ -200,6 +246,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
         },
         { merge: true }
       );
+
       navigate("/artist-dashboard");
     } catch (err) {
       console.error("Artist profile submission failed:", err);
@@ -276,6 +323,24 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   required
                   className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
                 />
+                {displayName && (
+                  <p
+                    className={`text-sm! mt-0 mb-2 ${
+                      isCheckingName
+                        ? "text-gray-400"
+                        : isNameTaken
+                        ? "text-red-400!"
+                        : "text-emerald-400!"
+                    }`}
+                  >
+                    {isCheckingName
+                      ? "Checking availability..."
+                      : isNameTaken
+                      ? "This display name is already taken."
+                      : "This name is available!"}
+                  </p>
+                )}
+
                 <textarea
                   name="bio"
                   placeholder="Your Bio"
@@ -530,7 +595,12 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(currentStep + 1)}
-                  className="bg-[var(--color-bg-button)] hover:bg-[var(--color-bg-button-hover)] px-4 py-2 rounded text-white"
+                  className={`px-4 py-2 rounded text-white ${
+                    isNameTaken
+                      ? "bg-gray-600 cursor-not-allowed"
+                      : "bg-[var(--color-bg-button)] hover:bg-[var(--color-bg-button-hover)]"
+                  }`}
+                  disabled={isNameTaken}
                 >
                   Next →
                 </button>
