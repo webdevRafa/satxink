@@ -103,7 +103,7 @@ export const Navbar = () => {
               </Link>
               <button
                 onClick={handleLogin}
-                className="text-white hover:text-orange-400 bg-[var(--color-bg-card)]"
+                className="text-white font-light! hover:text-[var(--color-primary)] bg-[var(--color-bg-card)]/30 hover:bg-[var(--color-bg-footer)]/60"
               >
                 Login
               </button>

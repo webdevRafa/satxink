@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { GoogleSignupButton } from "../components/GoogleSignupButton";
-import logo from "../assets/logo.svg";
+import logo from "../assets/satx-short-sep.svg";
 import type { User } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
@@ -44,7 +44,7 @@ const stepHeadings = [
   "Set Your Deposit Policy",
   "You're All Set!",
 ];
-const ArtistSignupPage = () => {
+const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
   const [paymentType, setPaymentType] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
@@ -218,9 +218,16 @@ const ArtistSignupPage = () => {
   return (
     <div
       data-aos="fade-in"
-      className="min-h-screen bg-gradient-to-br from-[var(--color-bg-footer)] via-[var(--color-bg-card)]  to-[var(--color-bg-footer)] text-white flex items-center justify-center px-4"
+      className="min-h-screen  text-white flex items-center justify-center px-4"
     >
       <div className="max-w-2xl w-full text-center">
+        {/* Back Button (always visible) */}
+        <button
+          onClick={onBack}
+          className="mb-4 text-zinc-400 hover:text-white text-sm underline self-start"
+        >
+          ← Back
+        </button>
         <h1 className="flex items-center justify-center flex-wrap text-4xl md:text-5xl font-bold mb-6 gap-2 text-center">
           <span>Join</span>
           <img
