@@ -26,7 +26,6 @@ const stylesList = [
 
 const ClientProfileSetupPage = () => {
   const [bio, setBio] = useState("");
-  const [location, setLocation] = useState("");
   const [preferredStyles, setPreferredStyles] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -47,7 +46,6 @@ const ClientProfileSetupPage = () => {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         bio,
-        location,
         preferredStyles,
         profileComplete: true,
       });
@@ -62,12 +60,12 @@ const ClientProfileSetupPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+    <div className="min-h-screen  text-white flex items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl space-y-6 bg-zinc-900 p-8 rounded-2xl shadow-xl"
+        className="w-full max-w-2xl space-y-6  p-8 rounded-2xl shadow-xl"
       >
-        <h1 className="text-3xl md:text-4xl font-bold text-center mb-4">
+        <h1 className="text-3xl! font-light! text-center mb-4">
           Complete Your Profile
         </h1>
 
@@ -76,25 +74,11 @@ const ClientProfileSetupPage = () => {
             Short Bio
           </label>
           <textarea
-            className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white"
+            className="w-full p-3 rounded-lg bg-[var(--color-bg-base)] border border-zinc-700 text-white"
             rows={4}
             placeholder="Tell us what you're looking for..."
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block mb-2 text-zinc-300 font-medium">
-            Location
-          </label>
-          <input
-            type="text"
-            className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white"
-            placeholder="e.g. San Antonio, TX"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
             required
           />
         </div>
@@ -109,10 +93,10 @@ const ClientProfileSetupPage = () => {
                 key={style}
                 type="button"
                 onClick={() => toggleStyle(style)}
-                className={`px-4 py-2 rounded-full border transition ${
+                className={`px-4! py-2! text-sm!  border-[var(--color-bg-button)] hover:bg-[var(--color-bg-button)] border-1 rounded-full  transition ${
                   preferredStyles.includes(style)
-                    ? "bg-neutral-300  text-[#121212]"
-                    : "bg-zinc-800 border-zinc-600 text-zinc-300"
+                    ? "bg-neutral-400  text-[#121212]"
+                    : "bg-[var(--color-bg-footer)]  text-zinc-300"
                 }`}
               >
                 {style}
@@ -124,7 +108,7 @@ const ClientProfileSetupPage = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 rounded-lg bg-[#b6382d] hover:bg-[#b6542d] transition font-semibold text-white"
+          className="w-full max-w-[170px]  py-2! rounded-lg bg-[var(--color-bg-card)] hover:bg-neutral-300 transition  text-white hover:text-[#121212]"
         >
           {submitting ? "Saving..." : "Finish & Explore"}
         </button>

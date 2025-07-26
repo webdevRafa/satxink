@@ -57,30 +57,28 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
           <h2 className="text-2xl font-semibold text-white mb-4">
             How it works
           </h2>
-          <ul className="space-y-3 text-neutral-400 text-base list-style-none list-inside">
+          <ul className="space-y-4 text-neutral-400 text-base list-none list-inside">
             <li>
               <span className="text-white font-medium">
                 Sign up with Google
               </span>{" "}
-              — create your account instantly without long forms.
+              — get started instantly with one click, no forms or passwords.
             </li>
             <li>
               <span className="text-white font-medium">
                 Set up your profile
               </span>{" "}
-              — add style preferences and inspiration pics so artists know your
-              vision.
+              — share your style preferences, location, and inspiration pics so
+              artists know exactly what you’re looking for.
             </li>
             <li>
-              <span className="text-white font-medium">Find your match</span> —
-              browse artists by style, view their work, and follow your
-              favorites.
+              <span className="text-white font-medium">Discover artists</span> —
+              browse by style, explore portfolios, and follow your favorites.
             </li>
             <li>
               <span className="text-white font-medium">Request & book</span> —
-              post your tattoo idea, get offers from artists, and choose the one
-              that fits you best. Accept or decline offers with just a click —
-              booking is effortless.
+              post your idea, receive offers from artists, and accept or decline
+              with a single click. Booking is simple and stress‑free.
             </li>
           </ul>
         </div>
