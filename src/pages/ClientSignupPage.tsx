@@ -68,18 +68,19 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
               <span className="text-white font-medium">
                 Set up your profile
               </span>{" "}
-              — add your location, style preferences, and inspiration pics so
-              artists know your vision.
+              — add style preferences and inspiration pics so artists know your
+              vision.
             </li>
             <li>
               <span className="text-white font-medium">Find your match</span> —
-              browse artists by style, view their portfolios, and follow your
+              browse artists by style, view their work, and follow your
               favorites.
             </li>
             <li>
               <span className="text-white font-medium">Request & book</span> —
-              send tattoo requests, chat with artists, and lock in your next
-              session.
+              post your tattoo idea, get offers from artists, and choose the one
+              that fits you best. Accept or decline offers with just a click —
+              booking is effortless.
             </li>
           </ul>
         </div>
