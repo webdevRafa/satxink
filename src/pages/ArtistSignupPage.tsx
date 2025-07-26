@@ -4,7 +4,7 @@ import logo from "../assets/satx-short-sep.svg";
 import type { User } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   collection,
@@ -228,7 +228,7 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
         >
           ← Back
         </button>
-        <h1 className="flex items-center justify-center flex-wrap text-3xl! md:text-4xl! font-light! mb-1 gap-2 text-center">
+        <h1 className="flex items-center justify-center flex-wrap text-3xl! font-light! mb-1 gap-2 text-center">
           <span>Join</span>
           <img
             src={logo}
@@ -240,14 +240,24 @@ const ArtistSignupPage = ({ onBack }: { onBack: () => void }) => {
 
         {!user && (
           <>
-            <p className="text-neutral-300 mb-8 text-lg">
+            <p className="text-neutral-300 mb-8 text-lg! md:text-xl!">
               Create your artist profile, showcase your portfolio, and connect
               with local clients.
             </p>
             <GoogleSignupButton role="artist" />
-            <p className="text-sm text-neutral-500 mt-4">
-              We’ll use your Google info to create your account. You can
-              complete your profile afterward.
+            {/* Subtext */}
+            <p className="text-xs! text-neutral-400! mt-2! max-w-[300px] mx-auto text-center">
+              We only collect your name, profile picture, and email from Google
+              to set up your account. By signing up, you agree to our{" "}
+              <Link
+                to="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-white transition"
+              >
+                Terms
+              </Link>
+              .
             </p>
           </>
         )}

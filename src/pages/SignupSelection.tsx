@@ -51,7 +51,7 @@ export default function SignupSelection() {
               src={logo}
               alt="SATX Ink logo"
             />
-            <h2 className="text-2xl md:text-3xl font-light">
+            <h2 className="text-2xl md:text-3xl font-light!">
               Your City. Your Ink. Your Platform.
             </h2>
             <p className="text-white! text-xl! font-light mt-8 mb-2">

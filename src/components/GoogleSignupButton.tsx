@@ -95,11 +95,12 @@ export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
   };
 
   return (
-    <img
-      className="mx-auto cursor-pointer hover:scale-105 transition duration-300 ease-in-out"
+    <button
       onClick={handleGoogleSignup}
-      src={google}
-      alt=""
-    />
+      className="mx-auto flex items-center justify-center focus:outline-none hover:scale-105 transition duration-300 ease-in-out"
+      style={{ height: "40px", width: "auto" }}
+    >
+      <img src={google} alt="Sign up with Google" className="h-10 w-auto" />
+    </button>
   );
 };

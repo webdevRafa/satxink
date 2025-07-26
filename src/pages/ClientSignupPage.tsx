@@ -1,6 +1,7 @@
 // pages/ClientSignupPage.tsx
 import { GoogleSignupButton } from "../components/GoogleSignupButton";
 import logo from "../assets/satx-short-sep.svg";
+import { Link } from "react-router-dom";
 
 const ClientSignupPage = ({ onBack }: { onBack: () => void }) => {
   return (
@@ -17,7 +18,7 @@ const ClientSignupPage = ({ onBack }: { onBack: () => void }) => {
         </button>
 
         {/* Headline */}
-        <h1 className="flex items-center justify-center flex-wrap text-3xl! md:text-4xl!  gap-2 mb-1 leading-tight font-light!">
+        <h1 className="flex items-center justify-center flex-wrap text-3xl! gap-2 mb-1 leading-tight font-light!">
           <span>Join</span>
           <img
             src={logo}
@@ -37,21 +38,49 @@ const ClientSignupPage = ({ onBack }: { onBack: () => void }) => {
         <GoogleSignupButton role="client" />
 
         {/* Subtext */}
-        <p className="text-sm text-neutral-500! mt-4 mb-8">
-          We’ll use your Google info to create your account. You can complete
-          your profile afterward.
+        <p className="text-xs! text-neutral-400! mt-2! max-w-[300px] mx-auto text-center">
+          We only collect your name, profile picture, and email from Google to
+          set up your account. By signing up, you agree to our{" "}
+          <Link
+            to="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-white transition"
+          >
+            Terms
+          </Link>
+          .
         </p>
 
         {/* Divider Section */}
-        <div className="mt-12 border-t border-neutral-700! pt-8 text-left">
+        <div className="mt-12 border-t border-neutral-700 pt-8 text-left">
           <h2 className="text-2xl font-semibold text-white mb-4">
             How it works
           </h2>
-          <ul className="space-y-3 text-neutral-400! text-base list-disc list-inside">
-            <li>Sign up with Google</li>
-            <li>Complete your profile (bio, location, inspiration pics)</li>
-            <li>Browse tattoo artists by style & location</li>
-            <li>Send booking requests or DM your favorite artists</li>
+          <ul className="space-y-3 text-neutral-400 text-base list-style-none list-inside">
+            <li>
+              <span className="text-white font-medium">
+                Sign up with Google
+              </span>{" "}
+              — create your account instantly without long forms.
+            </li>
+            <li>
+              <span className="text-white font-medium">
+                Set up your profile
+              </span>{" "}
+              — add your location, style preferences, and inspiration pics so
+              artists know your vision.
+            </li>
+            <li>
+              <span className="text-white font-medium">Find your match</span> —
+              browse artists by style, view their portfolios, and follow your
+              favorites.
+            </li>
+            <li>
+              <span className="text-white font-medium">Request & book</span> —
+              send tattoo requests, chat with artists, and lock in your next
+              session.
+            </li>
           </ul>
         </div>
       </div>
