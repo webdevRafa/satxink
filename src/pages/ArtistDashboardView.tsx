@@ -37,7 +37,7 @@ const ArtistDashboardView = () => {
     | "calendar"
     | "flashes"
     | "gallery"
-  >("requests");
+  >("gallery");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

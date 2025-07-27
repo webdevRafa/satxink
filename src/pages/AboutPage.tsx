@@ -4,13 +4,8 @@ export const AboutPage = () => {
   return (
     <main
       data-aos="fade-in"
-      className="px-4 py-12 max-w-3xl mx-auto text-white h-[700px] mt-20"
+      className="px-4 py-12 max-w-3xl mx-auto text-white h-[700px] mt-30"
     >
-      <h1 className="text-3xl font-semibold mb-4">
-        <span className="text-gray-300">about</span> SATX
-        <span className="text-[#b6382d]">INK</span>
-      </h1>
-
       <p className="text-gray-300 leading-relaxed mb-6">
         SATXINK is a community-driven platform dedicated to connecting tattoo
         clients with the best artists in San Antonio, Texas. Whether you're

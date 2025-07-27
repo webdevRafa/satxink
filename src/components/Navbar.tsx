@@ -82,7 +82,7 @@ export const Navbar = () => {
             Artists
           </Link>
           <Link to="/about" className="text-neutral-300 hover:text-orange-400">
-            Events
+            About
           </Link>
 
           {userDoc?.avatarUrl ? (

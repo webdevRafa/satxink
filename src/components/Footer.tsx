@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import logo from "../assets/satx-short-sep.svg";
 
 export const Footer = () => {
@@ -15,7 +14,12 @@ export const Footer = () => {
         className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4"
       >
         <div className="text-center md:text-left">
-          <img data-aos="fade-up" className="w-25" src={logo} alt="" />
+          <img
+            data-aos="fade-up"
+            className="w-25"
+            src={logo}
+            alt="SATX Ink Logo"
+          />
         </div>
 
         <div data-aos="fade-left" className="flex gap-6">
@@ -31,12 +35,14 @@ export const Footer = () => {
         </div>
       </div>
 
-      <div
-        data-aos="fade-up"
-        className="mt-6 text-center flex gap-3 justify-center"
-      >
-        <Link to="/terms">Terms</Link>
-        <Link to="/privacy">Privacy</Link>
+      {/* Legal Links */}
+      <div className="mt-6 text-center flex gap-8 justify-center text-base font-medium">
+        <a href="/terms" className="hover:underline">
+          Terms of Service
+        </a>
+        <a href="/privacy-policy" className="hover:underline">
+          Privacy Policy
+        </a>
       </div>
     </footer>
   );
