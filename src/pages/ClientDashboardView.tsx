@@ -10,7 +10,7 @@ import { doc, getDoc } from "firebase/firestore";
 import ClientRequestsList from "../components/ClientRequestsList";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
 
-const NewClientDashboard = () => {
+const ClientDashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
 
@@ -133,4 +133,4 @@ const NewClientDashboard = () => {
   );
 };
 
-export default NewClientDashboard;
+export default ClientDashboardView;

@@ -22,7 +22,7 @@ import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
 import type { Booking } from "../types/Booking";
 
-const NewArtistDashboard = () => {
+const ArtistDashboardView = () => {
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -245,4 +245,4 @@ const NewArtistDashboard = () => {
   );
 };
 
-export default NewArtistDashboard;
+export default ArtistDashboardView;

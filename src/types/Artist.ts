@@ -4,7 +4,6 @@ import { Timestamp, FieldValue } from "firebase/firestore";
 export type SocialLinks = {
     instagram?: string;
     facebook?: string;
-    website?: string;
   };
   
   export type DepositPolicy = {

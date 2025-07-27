@@ -11,10 +11,10 @@ import {
   collection,
   getDocs,
   doc,
-  setDoc,
   query,
   where,
   serverTimestamp,
+  runTransaction,
 } from "firebase/firestore";
 import { Listbox } from "@headlessui/react";
 import { ChevronDown } from "lucide-react";
@@ -44,24 +44,21 @@ const SPECIALTIES = [
 ];
 
 const stepHeadings = [
-  "About you..",
+  "What shop do you rep?",
   "What Styles Do You Specialize In?",
   "How Should Clients Pay You?",
-  "Set Your Deposit Policy",
-  "You're All Set!",
+  "Choose Your Display Name & Finish",
 ];
 
 const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [paymentType, setPaymentType] = useState<string>("");
   const [selectedMethod, setSelectedMethod] = useState<string>("");
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [finalPaymentTiming, setFinalPaymentTiming] = useState<string>("");
   const [externalHandle, setExternalHandle] = useState<string>("");
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState<boolean>(false);
-  const [depositAmount, setDepositAmount] = useState<string>("");
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -74,7 +71,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [instagram, setInstagram] = useState<string>("");
   const [facebook, setFacebook] = useState<string>("");
-  const [website, setWebsite] = useState<string>("");
 
   const navigate = useNavigate();
 
@@ -98,7 +94,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   }, []);
 
   useEffect(() => {
-    setReadyToSubmit(currentStep === 4);
+    setReadyToSubmit(currentStep === 3);
   }, [currentStep]);
 
   useEffect(() => {
@@ -112,6 +108,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     };
     fetchShops();
   }, []);
+
   // Check displayName uniqueness in real-time
   useEffect(() => {
     if (!displayName.trim()) {
@@ -130,10 +127,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       const snapshot = await getDocs(nameQuery);
       setIsNameTaken(!snapshot.empty);
       setIsCheckingName(false);
-    }, 500); // debounce 500ms to avoid spamming DB
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [displayName]);
+
   const sanitizeUrl = (url: string) => {
     if (!url) return "";
     const trimmed = url.trim();
@@ -162,95 +160,68 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
     const sanitizedInstagram = sanitizeUrl(instagram);
     const sanitizedFacebook = sanitizeUrl(facebook);
-    const sanitizedWebsite = sanitizeUrl(website);
 
-    if (
-      !isValidUrl(sanitizedInstagram) ||
-      !isValidUrl(sanitizedFacebook) ||
-      !isValidUrl(sanitizedWebsite)
-    ) {
+    if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
       alert("One or more of your social links are not valid URLs.");
       setSubmitting(false);
       return;
     }
 
-    const externalPaymentDetails =
-      paymentType === "external"
-        ? { method: selectedMethod, handle: externalHandle }
-        : null;
-
-    if (!finalPaymentTiming) {
-      alert("Please select when you'd like to receive final payment.");
-      setSubmitting(false);
-      return;
-    }
+    // Default final payment to "before"
+    const finalPaymentTiming = "before";
 
     setSubmitting(true);
 
-    // Generate slug from displayName
     const slug = slugify(displayName, { lower: true, strict: true });
 
     try {
-      // Check if slug already exists in Firestore
-      const slugQuery = query(
-        collection(db, "users"),
-        where("slug", "==", slug)
-      );
-      const slugSnapshot = await getDocs(slugQuery);
+      await runTransaction(db, async (transaction) => {
+        const slugQuery = query(
+          collection(db, "users"),
+          where("slug", "==", slug)
+        );
+        const slugSnapshot = await getDocs(slugQuery);
+        if (!slugSnapshot.empty) {
+          throw new Error("That name is already taken. Please choose another.");
+        }
 
-      if (!slugSnapshot.empty) {
-        alert("That name is already taken. Please choose another.");
-        setSubmitting(false);
-        return;
-      }
-
-      // Build artist object
-      const newArtist = {
-        displayName,
-        slug, // store the slug
-        bio,
-        shopId: selectedShop ? selectedShop.id : "",
-        specialties,
-        socialLinks: {
-          instagram: sanitizedInstagram,
-          facebook: sanitizedFacebook,
-          website: sanitizedWebsite,
-        },
-        avatarUrl: user.photoURL || "",
-        email: user.email || "",
-        featured: false,
-        isVerified: false,
-        role: "artist",
-        createdAt: serverTimestamp(),
-        paymentType,
-        ...(paymentType === "external" && {
-          externalPaymentDetails,
-          depositPolicy: {
-            depositRequired: true,
-            amount: depositAmount,
-            nonRefundable: true,
+        const newArtist = {
+          displayName,
+          slug,
+          bio,
+          shopId: selectedShop ? selectedShop.id : "",
+          specialties,
+          socialLinks: {
+            instagram: sanitizedInstagram,
+            facebook: sanitizedFacebook,
           },
-          finalPaymentTiming,
-        }),
-      };
-
-      // Save artist to Firestore
-      await setDoc(
-        doc(db, "users", user.uid),
-        {
-          ...newArtist,
-          portfolioUrls: [],
+          avatarUrl: user.photoURL || "",
+          email: user.email || "",
+          featured: false,
+          isVerified: false,
+          role: "artist",
+          createdAt: serverTimestamp(),
+          paymentType,
+          ...(paymentType === "external" && {
+            externalPaymentDetails: {
+              method: selectedMethod,
+              handle: externalHandle,
+            },
+            finalPaymentTiming,
+          }),
           likedBy: [],
           updatedAt: serverTimestamp(),
           profileComplete: true,
-        },
-        { merge: true }
-      );
+        };
 
-      navigate("/artist-dashboard");
-    } catch (err) {
+        const artistRef = doc(db, "users", user.uid);
+        transaction.set(artistRef, newArtist, { merge: true });
+      });
+
+      navigate("/new-artist-dashboard");
+    } catch (err: any) {
       console.error("Artist profile submission failed:", err);
-      alert("Something went wrong. Please try again.");
+      alert(err.message || "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -264,16 +235,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       <div className="max-w-2xl w-full text-center">
         <button
           onClick={onBack}
-          className="mb-1 text-neutral-500 hover:text-white text-sm underline self-start"
+          className="mb-1 text-neutral-500! hover:text-white! text-sm! underline self-start"
         >
           ← Back
         </button>
-        <h1 className="flex items-center justify-center flex-wrap text-3xl! font-light! mb-1 gap-2 text-center">
+        <h1 className="flex items-center justify-center flex-wrap text-2xl! font-light! mb-1 gap-2 text-center">
           <span>Join</span>
           <img
             src={logo}
             alt="SATX Ink logo"
-            className="max-w-[100px] inline-block"
+            className="max-w-[100px] inline-block translate-y-[-2px]"
           />
           <span>as an Artist</span>
         </h1>
@@ -285,7 +256,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               with local clients.
             </p>
             <GoogleSignupButton role="artist" />
-            <p className="text-xs text-neutral-400 mt-2 max-w-[300px] mx-auto text-center">
+            <p className="text-xs! text-neutral-400! mt-2 max-w-[300px] mx-auto text-center">
               We only collect your name, profile picture, and email from Google
               to set up your account. By signing up, you agree to our{" "}
               <Link
@@ -311,45 +282,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               {stepHeadings[currentStep]}
             </h2>
 
-            {/* STEP 1 with Headless UI dropdown */}
+            {/* STEP 1 */}
             {currentStep === 0 && (
               <div data-aos="fade-in">
-                <input
-                  type="text"
-                  name="displayName"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Display Name (e.g. @inkbykai or DotQueen)"
-                  required
-                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
-                />
-                {displayName && (
-                  <p
-                    className={`text-sm! mt-0 mb-2 ${
-                      isCheckingName
-                        ? "text-gray-400"
-                        : isNameTaken
-                        ? "text-red-400!"
-                        : "text-emerald-400!"
-                    }`}
-                  >
-                    {isCheckingName
-                      ? "Checking availability..."
-                      : isNameTaken
-                      ? "This display name is already taken."
-                      : "This name is available!"}
-                  </p>
-                )}
-
-                <textarea
-                  name="bio"
-                  placeholder="Your Bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  required
-                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
-                />
-
                 <Listbox value={selectedShop} onChange={setSelectedShop}>
                   {() => (
                     <div className="relative mt-2">
@@ -386,7 +321,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </div>
             )}
 
-            {/* STEP 2: Specialties */}
+            {/* STEP 2 */}
             {currentStep === 1 && (
               <div data-aos="fade-in">
                 <label className="block text-sm font-medium text-white mb-1">
@@ -438,20 +373,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     placeholder="Facebook URL"
                     className="w-full p-2 rounded bg-neutral-800 text-white"
                   />
-                  <input
-                    type="url"
-                    name="website"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    required
-                    placeholder="Website URL"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                  />
                 </div>
               </div>
             )}
 
-            {/* STEP 3: Payment */}
+            {/* STEP 3 */}
             {currentStep === 2 && (
               <div data-aos="fade-in" className="space-y-2">
                 <label className="block text-sm font-medium text-white">
@@ -525,56 +451,50 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </div>
             )}
 
-            {/* STEP 4: Deposit & Payment Timing */}
+            {/* STEP 4 */}
             {currentStep === 3 && (
               <div data-aos="fade-in">
                 <input
-                  type="number"
-                  name="depositAmount"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
+                  type="text"
+                  name="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Choose a unique display name (e.g. @inkbykai)"
                   required
-                  placeholder="Required deposit amount (e.g. 100)"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  min={0}
+                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
                 />
-                <div className="space-y-1 mt-3">
-                  <label className="text-sm font-medium text-white">
-                    When do you prefer final payment?
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="finalPaymentTiming"
-                      value="before"
-                      checked={finalPaymentTiming === "before"}
-                      onChange={(e) => setFinalPaymentTiming(e.target.value)}
-                      className="accent-red-600"
-                    />
-                    <span>Before the session</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="finalPaymentTiming"
-                      value="after"
-                      checked={finalPaymentTiming === "after"}
-                      onChange={(e) => setFinalPaymentTiming(e.target.value)}
-                      className="accent-red-600"
-                    />
-                    <span>After the session</span>
-                  </label>
-                </div>
+                {displayName && (
+                  <p
+                    className={`text-sm mt-0 mb-2 ${
+                      isCheckingName
+                        ? "text-gray-400"
+                        : isNameTaken
+                        ? "text-red-400!"
+                        : "text-emerald-400!"
+                    }`}
+                  >
+                    {isCheckingName
+                      ? "Checking availability..."
+                      : isNameTaken
+                      ? "This display name is already taken."
+                      : "This name is available!"}
+                  </p>
+                )}
+                <textarea
+                  name="bio"
+                  placeholder="Your Bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  required
+                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
+                />
+                <p className="text-neutral-400 text-sm mt-3">
+                  Almost done! Pick your display name, confirm everything, and
+                  submit your profile.
+                </p>
               </div>
             )}
 
-            {/* STEP 5: Confirmation */}
-            {currentStep === 4 && (
-              <p className="text-neutral-400 text-sm">
-                You're all set! When you're ready, click the button below to
-                submit your artist profile.
-              </p>
-            )}
             {readyToSubmit && submitting && (
               <p className="text-sm text-neutral-400 mb-2">
                 Just a sec — saving your profile…
@@ -591,7 +511,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   ← Back
                 </button>
               )}
-              {currentStep < 4 ? (
+              {currentStep < 3 ? (
                 <button
                   type="button"
                   onClick={() => setCurrentStep(currentStep + 1)}
