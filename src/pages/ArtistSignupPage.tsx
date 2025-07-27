@@ -268,7 +268,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
         >
           ← Back
         </button>
-        <h1 className="flex items-center justify-center flex-wrap text-3xl font-light mb-1 gap-2 text-center">
+        <h1 className="flex items-center justify-center flex-wrap text-3xl! font-light! mb-1 gap-2 text-center">
           <span>Join</span>
           <img
             src={logo}

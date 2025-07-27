@@ -53,32 +53,26 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
         </p>
 
         {/* Divider Section */}
-        <div className="mt-12 border-t border-neutral-700 pt-8 text-left">
-          <h2 className="text-2xl font-semibold text-white mb-4">
-            How it works
-          </h2>
-          <ul className="space-y-4 text-neutral-400 text-base list-none list-inside">
+        <div className="mt-12 border-t border-neutral-700 pt-8 text-left text-xs!">
+          <h2 className="font-semibold text-white mb-4">How it works</h2>
+          <ul className="space-y-3 text-neutral-400 list-none list-inside text-sm">
             <li>
-              <span className="text-white font-medium">
-                Sign up with Google
-              </span>{" "}
-              — get started instantly with one click, no forms or passwords.
+              <span className="text-white">Sign up with Google</span> — get
+              started instantly with one click, no forms or passwords.
             </li>
             <li>
-              <span className="text-white font-medium">
-                Set up your profile
-              </span>{" "}
-              — share your style preferences, location, and inspiration pics so
-              artists know exactly what you’re looking for.
+              <span className="text-white">Set up your profile</span> — share
+              your style preferences, location, and inspiration pics so artists
+              know exactly what you’re looking for.
             </li>
             <li>
-              <span className="text-white font-medium">Discover artists</span> —
-              browse by style, explore portfolios, and follow your favorites.
+              <span className="text-white">Discover artists</span> — browse by
+              style, explore portfolios, and follow your favorites.
             </li>
             <li>
-              <span className="text-white font-medium">Request & book</span> —
-              post your idea, receive offers from artists, and accept or decline
-              with a single click. Booking is simple and stress‑free.
+              <span className="text-white">Request & book</span> — post your
+              idea, receive offers from artists, and accept or decline with a
+              single click. Booking is simple and stress‑free.
             </li>
           </ul>
         </div>
