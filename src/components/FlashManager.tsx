@@ -134,6 +134,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
               image={sheetImage}
               crop={crop}
               zoom={zoom}
+              maxZoom={8}
               aspect={1}
               onCropChange={setCrop}
               onZoomChange={setZoom}
