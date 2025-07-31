@@ -433,14 +433,18 @@ const processArtistMedia = onObjectFinalized(
     const filePath = event.data.name;
     if (!filePath) return;
 
-    // Only process images inside users/{artistId}/gallery or users/{artistId}/flashes
     if (
       !filePath.startsWith("users/") ||
-      (!filePath.includes("/gallery/") && !filePath.includes("/flashes/"))
+      (
+        !filePath.includes("/gallery/") &&
+        !filePath.includes("/flashes/") &&
+        !filePath.includes("/flashSheets/")
+      ) ||
+      filePath.includes("/flashSheets/flashes/")
     ) {
-      console.log(`Skipping unrelated upload: ${filePath}`);
-      return;
+      return; // skip unrelated or already-processed crops
     }
+    
 
     const fileName = path.basename(filePath).toLowerCase();
     if (fileName.includes("_thumb") || fileName.includes("_webp90") || fileName.includes("_full")) {

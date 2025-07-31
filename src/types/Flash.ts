@@ -21,4 +21,5 @@ export type Flash = {
   tags?: string[];                 // Optional: for search/filter
   isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp
+  sheetId?: string;
 };
