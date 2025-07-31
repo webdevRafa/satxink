@@ -19,6 +19,6 @@ export type Flash = {
   isAvailable?: boolean;           // Optional: mark flash as available or sold
   price?: number;                  // Optional: for marketplace support
   tags?: string[];                 // Optional: for search/filter
-
+  isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp
 };

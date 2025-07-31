@@ -67,7 +67,7 @@ export const Navbar = () => {
           : "bg-transparent border-transparent"
       }`}
     >
-      <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+      <div className="max-w-[1600px] mx-auto flex items-center justify-between">
         {/* Logo */}
         <Link to="/">
           <img className="w-20" src={logo} alt="SATX Ink Logo" />
@@ -103,7 +103,7 @@ export const Navbar = () => {
               </Link>
               <button
                 onClick={handleLogin}
-                className="text-white font-light! hover:text-[var(--color-primary)] bg-[var(--color-bg-card)]/30 hover:bg-[var(--color-bg-footer)]/60"
+                className="text-white py-1! px-2! font-light! hover:text-[var(--color-primary)]"
               >
                 Login
               </button>
