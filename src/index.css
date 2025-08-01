@@ -103,7 +103,7 @@
     --color-text-light: #f5f5f5;
     --color-text-muted: #9ca3af;
     --color-primary: #b6382d;
-    --color-primary-hover: #a53228;
+    --color-primary-hover: #cc3f32;
   }
   html, body {
     overflow-x: clip; /* NOT overflow: hidden! */

@@ -37,11 +37,6 @@ export const HeroSection = () => {
       {/* Foreground Content */}
       <div className="relative z-20 max-w-3xl text-neutral-400">
         <div className="flex flex-col md:flex-row gap-2 items-start">
-          <img
-            className="animate-pulse w-[90%] mx-auto max-w-[200px] mb-6 md:mb-0!"
-            src={logo}
-            alt=""
-          />
           <div>
             <h1 data-aos="fade-in" className="text-2xl!">
               Tap in with the city’s best.
@@ -60,7 +55,7 @@ export const HeroSection = () => {
             data-aos="fade-in"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="p-2 text-neutral-200 max-w-[300px] bg-[var(--color-bg-footer)] border-2 border-[var(--color-bg-button)] group mx-auto transition duration-350   text-sm!"
+            className="p-2 text-neutral-200 max-w-[300px] border-2 border-neutral-300 group mx-auto transition duration-350   text-sm!"
           >
             Browse Artists
           </Link>

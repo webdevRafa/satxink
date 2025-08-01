@@ -18,10 +18,8 @@ import type { Area } from "react-easy-crop";
 import { getCroppedImg } from "../utils/cropImage";
 import UploadModal from "./UploadModal";
 import { Plus, Scissors } from "lucide-react";
-import type { Flash } from "../types/Flash";
 
 const FlashManager = ({ uid }: { uid: string }) => {
-  const [flashes, setFlashes] = useState<Flash[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [sheetDocId, setSheetDocId] = useState<string | null>(null);
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
@@ -51,17 +49,8 @@ const FlashManager = ({ uid }: { uid: string }) => {
     );
   };
 
-  const fetchFlashes = async () => {
-    const q = query(collection(db, "flashes"), where("artistId", "==", uid));
-    const snapshot = await getDocs(q);
-    setFlashes(
-      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Flash))
-    );
-  };
-
   useEffect(() => {
-    if (uid) fetchFlashes();
-    fetchFlashSheets();
+    if (uid) fetchFlashSheets();
   }, [uid]);
 
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +165,6 @@ const FlashManager = ({ uid }: { uid: string }) => {
     setCurrentCrop(null);
     setPendingBlob(null);
     setShowFlashDetailsModal(false);
-    fetchFlashes();
   };
 
   return (
@@ -217,7 +205,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
           isOpen={isUploadOpen}
           onClose={() => setIsUploadOpen(false)}
           collectionType="flashes"
-          onUploadComplete={fetchFlashes}
+          onUploadComplete={() => {}}
         />
       )}
 

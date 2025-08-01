@@ -19,6 +19,7 @@ import { db } from "../firebase/firebaseConfig";
 import ArtistCard from "../components/ArtistCard";
 import { Link } from "react-router-dom";
 import sa from "../assets/san-antonio.svg";
+import gun from "../assets/white-gun.svg";
 
 import type { Artist } from "../types/Artist";
 
@@ -175,14 +176,24 @@ export const ArtistsPage = () => {
     <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
       <div data-aos="fade-in">
         {/* flex container for 'find an artist' and the sa imagery */}
-        <div className="flex gap-2 flex-row items-start md:items-end mt-30">
-          <h1 className="text-3xl! font-semibold text-white mb-0! translate-y-[13px] md:translate-y-[7px]">
-            Find an Artist
-          </h1>
-          <img className="max-w-[100px] mb-0! " src={sa} alt="" />
+        <div
+          className="flex gap-0 flex-col items-center mt-30 
+        justify-center"
+        >
+          <img
+            className="relative z-40 w-48 opacity-20 blur-[1px]"
+            src={sa}
+            alt=""
+          />
+          <div className="flex gap-0 flex-row">
+            <h1 className="text-3xl!  text-neutral-200! translate-y-[-12px] font-bold z-40 mb-0">
+              FIND YOUR ARTIST
+            </h1>
+            <img className="h-8 translate-y-[-14px]" src={gun} alt="" />
+          </div>
         </div>
         {/* paragraph right beneath it */}
-        <p className="text-neutral-400! mb-4">
+        <p className="text-neutral-500! mb-0 text-center translate-y-[-15px]">
           Discover talented artists from San Antonio, browse by style, and view
           their work.
         </p>
