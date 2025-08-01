@@ -256,28 +256,28 @@ const FlashSheetDetailPage = () => {
               value={newFlashTitle}
               onChange={(e) => setNewFlashTitle(e.target.value)}
               placeholder="Title"
-              className="w-full bg-zinc-800 rounded px-3 py-2"
+              className=" bg-zinc-800 rounded px-3 py-2 text-sm w-[80%]"
             />
             <input
               type="number"
               value={newFlashPrice}
               onChange={(e) => setNewFlashPrice(e.target.value)}
-              placeholder="Price (optional)"
-              className="w-full bg-zinc-800 rounded px-3 py-2"
+              placeholder="$"
+              className="w-full bg-zinc-800 rounded px-3 py-2 max-w-[100px] text-sm"
             />
 
             <div className="flex justify-between mt-4">
               <button
                 onClick={() => setShowCropModal(false)}
-                className="px-4 py-2 bg-rose-600 rounded"
+                className="text-sm text-[var(--color-bg-footer)]! bg-rose-600 hover:bg-rose-700  px-2! py-1! rounded"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveNewFlash}
-                className="px-4 py-2 bg-emerald-600 rounded"
+                className="px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm"
               >
-                Save
+                Publish
               </button>
             </div>
           </div>
