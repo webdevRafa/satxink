@@ -98,12 +98,19 @@ const FlashSheetDetailPage = () => {
   const [flashes, setFlashes] = useState<Flash[]>([]);
   const [editingFlash, setEditingFlash] = useState<Flash | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
+
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const fetchFlashes = async (sheetId: string) => {
     const q = query(collection(db, "flashes"), where("sheetId", "==", sheetId));
@@ -185,6 +192,8 @@ const FlashSheetDetailPage = () => {
   }, [id]);
 
   if (!sheet) return <p className="text-white">Loading...</p>;
+  const imageScale = Math.max(0.6, 1 - scrollY / 400);
+  const imageOpacity = Math.max(0.3, 1 - scrollY / 300);
 
   return (
     <div className="p-6 text-white mt-20 min-h-screen">
@@ -193,7 +202,11 @@ const FlashSheetDetailPage = () => {
       <img
         src={sheet.imageUrl}
         alt={sheet.title}
-        className="max-h-[200px] mb-1 rounded shadow mx-auto"
+        className="max-h-[250px] mb-1 rounded shadow mx-auto"
+        style={{
+          transform: `scale(${imageScale})`,
+          opacity: imageOpacity,
+        }}
       />
       <button
         onClick={() => setShowCropModal(true)}
