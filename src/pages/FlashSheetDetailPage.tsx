@@ -220,7 +220,7 @@ const FlashSheetDetailPage = () => {
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
       >
         {flashes.map((flash) => (
-          <div key={flash.id} className="bg-zinc-900 shadow">
+          <div data-aos="fade-up" key={flash.id} className="bg-zinc-900 shadow">
             <img
               src={flash.thumbUrl || flash.fullUrl}
               alt={flash.title}
