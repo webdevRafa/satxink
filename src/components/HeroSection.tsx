@@ -43,14 +43,14 @@ export const HeroSection = () => {
             alt=""
           />
           <div>
-            <h1 data-aos="fade-in" className="text-2xl! font-semibold">
-              A marketplace for the culture.
+            <h1 data-aos="fade-in" className="text-2xl!">
+              Tap in with the city’s best.
             </h1>
             <p
               data-aos="fade-in"
-              className="text-base text-gray-300 translate-y-[-5px] mb-6 text-left"
+              className=" text-gray-300 translate-y-[-5px] text-sm mb-6 text-left"
             >
-              Show love, drop ideas, and get inked.
+              Search by style. Drop ideas. Book directly.
             </p>
           </div>
         </div>
@@ -60,7 +60,7 @@ export const HeroSection = () => {
             data-aos="fade-in"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="p-1 text-neutral-400 max-w-[300px] group mx-auto transition duration-350 border-2 border-neutral-400  hover:border-neutral-400  rounded text-sm!"
+            className="p-2 text-neutral-200 max-w-[300px] bg-[var(--color-bg-footer)] border-2 border-[var(--color-bg-button)] group mx-auto transition duration-350   text-sm!"
           >
             Browse Artists
           </Link>

@@ -21,6 +21,7 @@ import LoginPage from "./pages/LoginPage";
 import { ArtistProfilePage } from "./pages/ArtistProfilePage";
 import Clients from "./pages/Clients";
 import ArtistDashboard from "./pages/ArtistDashboard";
+import FlashSheetEditor from "./pages/FlashSheetEditor";
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientSignupPage from "./pages/ClientSignupPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -87,6 +88,7 @@ function App() {
         <Route path="/dev-add-docs" element={<DevAddDocs />} />
         <Route path="/login-page" element={<LoginPage />} />
         <Route path="/artists/:id" element={<ArtistProfilePage />} />
+        <Route path="/flash-sheet/:sheetId" element={<FlashSheetEditor />} />
       </Routes>
 
       <Footer />

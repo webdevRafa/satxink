@@ -1,4 +1,4 @@
-// FlashManager.tsx with Proper Crop Flow UX
+// FlashManager.tsx — With FlashSheet Title Prompt
 
 import { useState, useEffect } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
@@ -21,7 +21,13 @@ import type { Flash } from "../types/Flash";
 const FlashManager = ({ uid }: { uid: string }) => {
   const [flashes, setFlashes] = useState<Flash[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [sheetDocId, setSheetDocId] = useState<string | null>(null);
+
   const [sheetImage, setSheetImage] = useState<string | null>(null);
+  const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
+  const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
+  const [sheetTitleInput, setSheetTitleInput] = useState("");
+
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [currentCrop, setCurrentCrop] = useState<Area | null>(null);
@@ -46,11 +52,59 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setPendingSheetFile(file);
+    setShowSheetTitleModal(true);
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setSheetImage(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSubmitFlashSheet = async () => {
+    if (!pendingSheetFile || !uid || !sheetTitleInput) return;
+
+    const timestamp = Date.now();
+    const baseName = `sheet_${timestamp}`;
+    const storageBase = `users/${uid}/flashSheets/${baseName}`;
+    const originalRef = ref(storage, `${storageBase}.jpg`);
+    await uploadBytes(originalRef, pendingSheetFile);
+
+    const waitForFile = async (ref: any, retries = 10): Promise<string> => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await getDownloadURL(ref);
+        } catch {
+          await new Promise((res) => setTimeout(res, 1000));
+        }
+      }
+      throw new Error(`Could not get download URL for ${ref.fullPath}`);
+    };
+
+    const thumbRef = ref(storage, `${storageBase}_thumb.webp`);
+    const fullRef = ref(storage, `${storageBase}_full.jpg`);
+
+    const [thumbUrl, imageUrl] = await Promise.all([
+      waitForFile(thumbRef),
+      waitForFile(fullRef),
+    ]);
+
+    const docRef = await addDoc(collection(db, "flashSheets"), {
+      artistId: uid,
+      title: sheetTitleInput,
+      fileName: baseName,
+      imageUrl,
+      thumbUrl,
+      fullPath: `${storageBase}_full.jpg`,
+      createdAt: serverTimestamp(),
+    });
+
+    setSheetDocId(docRef.id);
+    setSheetTitleInput("");
+    setPendingSheetFile(null);
+    setShowSheetTitleModal(false);
   };
 
   const handleCropComplete = (_: any, croppedAreaPixels: Area) => {
@@ -98,6 +152,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
       thumbUrl,
       webp90Url,
       isFromSheet: true,
+      sheetId: sheetDocId,
       createdAt: serverTimestamp(),
     });
 
@@ -149,6 +204,41 @@ const FlashManager = ({ uid }: { uid: string }) => {
           collectionType="flashes"
           onUploadComplete={fetchFlashes}
         />
+      )}
+
+      {showSheetTitleModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-80 z-30">
+          <div className="bg-zinc-900 p-6 rounded w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-semibold text-white">
+              Name This Flash Sheet
+            </h2>
+            <input
+              type="text"
+              value={sheetTitleInput}
+              onChange={(e) => setSheetTitleInput(e.target.value)}
+              placeholder="Flash Sheet Title"
+              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowSheetTitleModal(false);
+                  setSheetTitleInput("");
+                  setPendingSheetFile(null);
+                }}
+                className="bg-rose-600 text-white px-4 py-2 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitFlashSheet}
+                className="bg-emerald-600 text-white px-4 py-2 rounded"
+              >
+                Upload Sheet
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {sheetImage && (
