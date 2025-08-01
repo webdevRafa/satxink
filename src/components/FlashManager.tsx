@@ -11,6 +11,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import type { FlashSheet } from "../types/FlashSheet"; // you'll define this type
+
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
 import { getCroppedImg } from "../utils/cropImage";
@@ -22,6 +24,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [flashes, setFlashes] = useState<Flash[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [sheetDocId, setSheetDocId] = useState<string | null>(null);
+  const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
 
   const [sheetImage, setSheetImage] = useState<string | null>(null);
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
@@ -37,6 +40,17 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [priceInput, setPriceInput] = useState("");
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
 
+  const fetchFlashSheets = async () => {
+    const q = query(
+      collection(db, "flashSheets"),
+      where("artistId", "==", uid)
+    );
+    const snapshot = await getDocs(q);
+    setFlashSheets(
+      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as FlashSheet))
+    );
+  };
+
   const fetchFlashes = async () => {
     const q = query(collection(db, "flashes"), where("artistId", "==", uid));
     const snapshot = await getDocs(q);
@@ -47,6 +61,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
   useEffect(() => {
     if (uid) fetchFlashes();
+    fetchFlashSheets();
   }, [uid]);
 
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,24 +323,40 @@ const FlashManager = ({ uid }: { uid: string }) => {
           </div>
         </div>
       )}
-
+      <h2 className="text-lg! font-bold text-white mb-2 mt-10">
+        Your Flash Sheets
+      </h2>
       <div
         className="grid gap-4 justify-center md:justify-start"
         style={{
           gridTemplateColumns: "repeat(auto-fill, minmax(200px, 250px))",
         }}
       >
-        {flashes.map((flash) => (
-          <div key={flash.id} className="relative">
-            <img
-              src={flash.thumbUrl || flash.webp90Url}
-              alt={flash.title || "Flash"}
-              className="w-full rounded shadow hover:scale-105 transition"
-            />
-            <p>{flash.title}</p>
-            <p>{flash.price}</p>
-          </div>
-        ))}
+        <div
+          className="grid gap-4 mb-8"
+          style={{
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          }}
+        >
+          {flashSheets.map((sheet) => (
+            <div
+              key={sheet.id}
+              onClick={() =>
+                (window.location.href = `/flash-sheet/${sheet.id}`)
+              } // Change to use router if using react-router
+              className="cursor-pointer hover:scale-105 transition rounded shadow overflow-hidden"
+            >
+              <img
+                src={sheet.thumbUrl || sheet.imageUrl}
+                alt={sheet.title}
+                className="w-full h-48 object-cover"
+              />
+              <div className="bg-[var(--color-bg-card)] text-white px-3 py-2">
+                <h3 className="font-semibold truncate">{sheet.title}</h3>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
