@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import backgroundImage from "../assets/images/satx-inked.webp";
 import { useState } from "react";
-import logo from "../assets/satx-short-sep.svg";
 
 export const HeroSection = () => {
   const isIOS =

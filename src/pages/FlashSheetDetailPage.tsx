@@ -38,7 +38,7 @@ const EditFlashModal = ({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-zinc-900 rounded-lg p-6 w-full max-w-md text-white space-y-4">
-        <span className="text-sm text-gray-400">Edit Flash</span>
+        <span className="text-sm text-gray-400">Edit</span>
 
         <div className="flex justify-center">
           <img
@@ -53,7 +53,7 @@ const EditFlashModal = ({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-3 py-2 rounded bg-zinc-800 text-white"
+            className="w-full px-3 py-2 rounded bg-zinc-800 text-whit text-sm"
             placeholder="Enter title"
           />
         </div>
@@ -64,15 +64,15 @@ const EditFlashModal = ({
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            className="w-full px-3 py-2 rounded bg-zinc-800 text-white"
-            placeholder="Price (optional)"
+            className="max-w-[100px] px-3 py-2 rounded bg-zinc-800 text-white text-sm"
+            placeholder="$"
           />
         </div>
 
         <div className="flex justify-between mt-6">
           <button
             onClick={onClose}
-            className="bg-zinc-700 text-white px-4 py-2 rounded"
+            className="text-sm text-[var(--color-bg-footer)]! bg-rose-600 hover:bg-rose-700  px-2! py-1! rounded"
           >
             Cancel
           </button>
@@ -80,7 +80,7 @@ const EditFlashModal = ({
             onClick={() =>
               onSave(flash.id, title, price ? parseFloat(price) : null)
             }
-            className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+            className="px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm"
           >
             Save
           </button>
@@ -277,7 +277,7 @@ const FlashSheetDetailPage = () => {
                 onClick={handleSaveNewFlash}
                 className="px-4 py-2 bg-emerald-600 rounded"
               >
-                Save Flash
+                Save
               </button>
             </div>
           </div>

@@ -332,7 +332,10 @@ const FlashManager = ({ uid }: { uid: string }) => {
               onClick={() =>
                 (window.location.href = `/flash-sheet/${sheet.id}`)
               } // Change to use router if using react-router
-              className="cursor-pointer hover:scale-105 transition rounded shadow overflow-hidden"
+              className="cursor-pointer hover:scale-105 transition rounded shadow overflow-hidden grid gap-4 justify-center md:justify-start"
+              style={{
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 250px))",
+              }}
             >
               <img
                 src={sheet.thumbUrl || sheet.imageUrl}
