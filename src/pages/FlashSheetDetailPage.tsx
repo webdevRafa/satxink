@@ -147,16 +147,31 @@ const FlashSheetDetailPage = () => {
     ): Promise<string> => {
       for (let i = 0; i < retries; i++) {
         try {
-          return await getDownloadURL(ref);
+          const url = await getDownloadURL(ref);
+          console.log(`✅ File ready: ${ref.fullPath}`);
+          return url;
         } catch (err) {
-          if (i === retries - 1) throw err;
-          await new Promise((res) => setTimeout(res, delay));
+          if (i === retries - 1) {
+            console.error(
+              `❌ Failed to get file after ${retries} attempts: ${ref.fullPath}`,
+              err
+            );
+            throw err;
+          } else {
+            console.warn(`⏳ Retry ${i + 1}/${retries} for: ${ref.fullPath}`);
+            await new Promise((res) => setTimeout(res, delay));
+          }
         }
       }
-      throw new Error("File not found after retries");
+
+      // Redundant fallback
+      throw new Error(
+        `File not found after ${retries} retries: ${ref.fullPath}`
+      );
     };
 
     try {
+      console.log("🧩 Cropping sheet image from URL:", sheet.imageUrl);
       const croppedBlob = await getCroppedImg(sheet.imageUrl, cropArea);
       const timestamp = Date.now();
       const baseName = `flash_${timestamp}`;
@@ -166,6 +181,7 @@ const FlashSheetDetailPage = () => {
         `users/${sheet.artistId}/flashes/${baseName}.jpg`
       );
       await uploadBytes(originalRef, croppedBlob);
+      console.log("✅ Original cropped blob uploaded:", originalRef.fullPath);
       await new Promise((res) => setTimeout(res, 1200)); // buffer for cloud function
 
       const fullRef = ref(
