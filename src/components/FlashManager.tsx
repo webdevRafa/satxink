@@ -62,7 +62,19 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      setSheetImage(reader.result as string);
+      const base64 = reader.result as string;
+
+      const testImg = new Image();
+      testImg.crossOrigin = "anonymous"; // ⬅️ Required for canvas
+      testImg.onload = () => {
+        setSheetImage(base64); // ✅ only set if it can load
+      };
+      testImg.onerror = () => {
+        alert(
+          "The sheet image failed to load. It may be blocked by browser security or CORS."
+        );
+      };
+      testImg.src = base64;
     };
     reader.readAsDataURL(file);
   };
