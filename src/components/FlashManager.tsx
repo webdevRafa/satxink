@@ -1,4 +1,5 @@
 // FlashManager.tsx — With FlashSheet Title Prompt
+import { v4 as uuidv4 } from "uuid"; // at the top
 
 import { useState, useEffect } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
@@ -74,8 +75,20 @@ const FlashManager = ({ uid }: { uid: string }) => {
     const baseName = `sheet_${timestamp}`;
     const storageBase = `users/${uid}/flashSheets/${baseName}`;
     const originalRef = ref(storage, `${storageBase}.jpg`);
-    await uploadBytes(originalRef, pendingSheetFile);
 
+    // ✅ Add token metadata on upload
+    const token = uuidv4();
+    await uploadBytes(originalRef, pendingSheetFile, {
+      contentType: pendingSheetFile.type,
+      customMetadata: {
+        firebaseStorageDownloadTokens: token,
+      },
+    });
+
+    // ✅ Grab CORS-safe imageUrl right after upload
+    const imageUrl = await getDownloadURL(originalRef);
+
+    // ✅ Utility to wait for thumb/full processed files
     const waitForFile = async (ref: any, retries = 10): Promise<string> => {
       for (let i = 0; i < retries; i++) {
         try {
@@ -90,21 +103,21 @@ const FlashManager = ({ uid }: { uid: string }) => {
     const thumbRef = ref(storage, `${storageBase}_thumb.webp`);
     const fullRef = ref(storage, `${storageBase}_full.jpg`);
 
-    const [thumbUrl, imageUrl] = await Promise.all([
-      waitForFile(thumbRef),
-      waitForFile(fullRef),
-    ]);
-
+    const thumbUrl = await waitForFile(thumbRef);
+    const fullUrl = await waitForFile(fullRef);
+    // ✅ Write to Firestore
     const docRef = await addDoc(collection(db, "flashSheets"), {
       artistId: uid,
       title: sheetTitleInput,
       fileName: baseName,
-      imageUrl,
-      thumbUrl,
+      imageUrl, // from getDownloadURL(originalRef)
+      thumbUrl, // from waitForFile
+      fullUrl,
       fullPath: `${storageBase}_full.jpg`,
       createdAt: serverTimestamp(),
     });
 
+    // ✅ Reset UI
     setSheetDocId(docRef.id);
     setSheetTitleInput("");
     setPendingSheetFile(null);
