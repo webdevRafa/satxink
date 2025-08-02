@@ -99,6 +99,7 @@ const FlashSheetDetailPage = () => {
   const [editingFlash, setEditingFlash] = useState<Flash | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -137,46 +138,80 @@ const FlashSheetDetailPage = () => {
   const handleSaveNewFlash = async () => {
     if (!sheet || !cropArea) return;
 
-    const croppedBlob = await getCroppedImg(sheet.imageUrl, cropArea);
-    const timestamp = Date.now();
-    const baseName = `flash_${timestamp}`;
+    setIsPublishing(true);
 
-    const originalRef = ref(
-      storage,
-      `users/${sheet.artistId}/flashes/${baseName}.jpg`
-    );
-    await uploadBytes(originalRef, croppedBlob);
-    await new Promise((res) => setTimeout(res, 1200)); // wait for cloud function
+    const waitForFile = async (
+      ref: any,
+      retries = 10,
+      delay = 1000
+    ): Promise<string> => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await getDownloadURL(ref);
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await new Promise((res) => setTimeout(res, delay));
+        }
+      }
+      throw new Error("File not found after retries");
+    };
 
-    const [fullUrl, thumbUrl, webp90Url] = await Promise.all([
-      getDownloadURL(
-        ref(storage, `users/${sheet.artistId}/flashes/${baseName}_full.jpg`)
-      ),
-      getDownloadURL(
-        ref(storage, `users/${sheet.artistId}/flashes/${baseName}_thumb.webp`)
-      ),
-      getDownloadURL(
-        ref(storage, `users/${sheet.artistId}/flashes/${baseName}_webp90.webp`)
-      ),
-    ]);
+    try {
+      const croppedBlob = await getCroppedImg(sheet.imageUrl, cropArea);
+      const timestamp = Date.now();
+      const baseName = `flash_${timestamp}`;
 
-    await addDoc(collection(db, "flashes"), {
-      artistId: sheet.artistId,
-      sheetId: sheet.id,
-      title: newFlashTitle || "Untitled Flash",
-      price: newFlashPrice ? parseFloat(newFlashPrice) : null,
-      tags: [],
-      fullUrl,
-      thumbUrl,
-      webp90Url,
-      isFromSheet: true,
-      createdAt: serverTimestamp(),
-    });
+      const originalRef = ref(
+        storage,
+        `users/${sheet.artistId}/flashes/${baseName}.jpg`
+      );
+      await uploadBytes(originalRef, croppedBlob);
+      await new Promise((res) => setTimeout(res, 1200)); // buffer for cloud function
 
-    setShowCropModal(false);
-    setNewFlashTitle("");
-    setNewFlashPrice("");
-    if (id) fetchFlashes(id);
+      const fullRef = ref(
+        storage,
+        `users/${sheet.artistId}/flashes/${baseName}_full.jpg`
+      );
+      const thumbRef = ref(
+        storage,
+        `users/${sheet.artistId}/flashes/${baseName}_thumb.webp`
+      );
+      const webp90Ref = ref(
+        storage,
+        `users/${sheet.artistId}/flashes/${baseName}_webp90.webp`
+      );
+
+      const [fullUrl, thumbUrl, webp90Url] = await Promise.all([
+        waitForFile(fullRef),
+        waitForFile(thumbRef),
+        waitForFile(webp90Ref),
+      ]);
+
+      await addDoc(collection(db, "flashes"), {
+        artistId: sheet.artistId,
+        sheetId: sheet.id,
+        title: newFlashTitle || "Untitled Flash",
+        price: newFlashPrice ? parseFloat(newFlashPrice) : null,
+        tags: [],
+        fullUrl,
+        thumbUrl,
+        webp90Url,
+        isFromSheet: true,
+        createdAt: serverTimestamp(),
+      });
+
+      setShowCropModal(false);
+      setNewFlashTitle("");
+      setNewFlashPrice("");
+      if (id) fetchFlashes(id);
+    } catch (err) {
+      console.error("Flash creation failed:", err);
+      alert(
+        "Something went wrong while publishing your flash. Please try again."
+      );
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   useEffect(() => {
@@ -288,9 +323,14 @@ const FlashSheetDetailPage = () => {
               </button>
               <button
                 onClick={handleSaveNewFlash}
-                className="px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm"
+                disabled={isPublishing}
+                className={`px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm ${
+                  isPublishing
+                    ? "bg-gray-700 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
               >
-                Publish
+                {isPublishing ? "Publishing..." : "Publish"}
               </button>
             </div>
           </div>
