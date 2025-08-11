@@ -16,7 +16,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
 import { getCroppedImg } from "../utils/cropImage";
-import { Plus } from "lucide-react";
+import { GiReturnArrow } from "react-icons/gi";
+import { TbLayoutGridAdd } from "react-icons/tb";
 
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
@@ -57,7 +58,9 @@ const EditFlashModal = ({
             placeholder="Enter title"
           />
         </div>
-
+        <div>
+          <label htmlFor="tags">tags</label>
+        </div>
         <div>
           <label className="block text-sm mb-1">Price</label>
           <input
@@ -248,23 +251,30 @@ const FlashSheetDetailPage = () => {
 
   return (
     <div className="p-6 text-white mt-20 min-h-screen">
-      <h1 className="text-lg! text-center">{sheet.title}</h1>
+      <div className="relative max-w-[400px] mx-auto">
+        <h1 className="text-lg! text-center">{sheet.title}</h1>
 
-      <img
-        src={sheet.imageUrl}
-        alt={sheet.title}
-        className="max-h-[250px] mb-1 rounded shadow mx-auto"
-        style={{
-          transform: `scale(${imageScale})`,
-          opacity: imageOpacity,
-        }}
-      />
+        <img
+          src={sheet.imageUrl}
+          alt={sheet.title}
+          className="max-h-[400px] mb-1 rounded shadow mx-auto relative z-40"
+          style={{
+            transform: `scale(${imageScale})`,
+            opacity: imageOpacity,
+          }}
+        />
+        <div className="absolute top-[50%] left-0 translate-x-[-60%] z-50">
+          <button className="bg-[var(--color-bg-footer)] hover:bg-[var(--color-bg-card)] text-xs! flex gap-1">
+            back <GiReturnArrow className="size-5" />
+          </button>
+        </div>
+      </div>
       <button
         onClick={() => setShowCropModal(true)}
-        className="mb-10  p-1! text-xs! text-neutral-400 bg-black rounded hover:bg-zinc-800 mx-auto flex"
+        className="mb-10 mt-[-10px] relative z-50  p-1! text-xs!  bg-[var(--color-bg-footer)] rounded-sm  hover:bg-zinc-800 mx-auto flex gap-1 items-center"
       >
-        Add More
-        <Plus className="h-4 text-white" />
+        Add
+        <TbLayoutGridAdd className="size-6 text-white" />
       </button>
       <div
         className="grid gap-4 max-w-[1200px] mx-auto"

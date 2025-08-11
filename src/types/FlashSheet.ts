@@ -6,6 +6,7 @@ export type FlashSheet = {
     imageUrl: string;       // Full uncropped image
     thumbUrl?: string;      // Optional thumb from Sharp
     fullPath?: string;
+    tags?: string[];
     title?: string;         // Optional title (e.g. “Traditional Snakes”)
     createdAt?: Timestamp | Date | FieldValue | null;
   };

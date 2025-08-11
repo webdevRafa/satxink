@@ -35,7 +35,6 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
             placeholder="Enter title"
           />
         </div>
-
         <div>
           <label className="block text-sm mb-1">Price</label>
           <input
