@@ -277,7 +277,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
         <select
           value={mode}
           onChange={(e) => setMode(e.target.value as any)}
-          className="bg-gray-800 text-white px-3 py-2 rounded"
+          className="bg-[var(--color-bg-card)] text-white px-3! py-2! rounded"
         >
           <option value="individual">Upload Individually</option>
           <option value="sheet">Upload Flash Sheet</option>
@@ -286,12 +286,12 @@ const FlashManager = ({ uid }: { uid: string }) => {
         {mode === "individual" ? (
           <button
             onClick={() => setIsUploadOpen(true)}
-            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-700 flex items-center gap-2"
+            className="bg-[var(--color-primary)] text-sm! text-white px-2! py-2! rounded-md hover:bg-gray-700 flex items-center gap-2"
           >
-            <Plus size={18} /> Add Flash
+            Add <Plus size={18} />
           </button>
         ) : (
-          <label className="flex items-center gap-2 cursor-pointer bg-black text-white px-4 py-2 rounded hover:bg-gray-700">
+          <label className="flex items-center gap-2 cursor-pointer bg-[var(--color-bg-card)] text-white px-4 py-2 rounded hover:bg-gray-700">
             <Scissors size={18} /> Upload Flash Sheet
             <input
               type="file"
