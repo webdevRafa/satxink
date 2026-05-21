@@ -1,12 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import toast from "react-hot-toast";
+import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
-import { Camera, Expand, ImageOff, Layers, X } from "lucide-react";
+import { Camera, DollarSign, Expand, ImageOff, Layers, Send, X } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
+import type { Flash } from "../types/Flash";
 
 interface Artist {
   id: string;
@@ -27,10 +39,16 @@ interface SocialLinks {
   instagram?: string;
   website?: string;
 }
+type ClientProfile = {
+  id: string;
+  name: string;
+  avatarUrl: string;
+};
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
   const [artist, setArtist] = useState<Artist | null>(null);
+  const [client, setClient] = useState<ClientProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"portfolio" | "flashSheets">(
     "portfolio"
   );
@@ -38,10 +56,51 @@ export const ArtistProfilePage = () => {
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
   const [flashSheetsLoading, setFlashSheetsLoading] = useState(true);
+  const [focusedSheet, setFocusedSheet] = useState<FlashSheet | null>(null);
+  const [sheetFlashes, setSheetFlashes] = useState<Flash[]>([]);
+  const [sheetFlashesLoading, setSheetFlashesLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<FlashSheet | null>(null);
+  const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setClient(null);
+        return;
+      }
+
+      try {
+        const clientRef = doc(db, "users", user.uid);
+        const clientSnap = await getDoc(clientRef);
+        const data = clientSnap.exists() ? clientSnap.data() : {};
+
+        setClient({
+          id: user.uid,
+          name:
+            (data.name as string) ||
+            (data.displayName as string) ||
+            user.displayName ||
+            "Client",
+          avatarUrl:
+            (data.avatarUrl as string) ||
+            user.photoURL ||
+            "/default-avatar.png",
+        });
+      } catch (err) {
+        console.error("Failed to fetch client profile:", err);
+        setClient({
+          id: user.uid,
+          name: user.displayName || "Client",
+          avatarUrl: user.photoURL || "/default-avatar.png",
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -115,6 +174,34 @@ export const ArtistProfilePage = () => {
   }, [id]);
 
   useEffect(() => {
+    const fetchSheetFlashes = async () => {
+      if (!focusedSheet || !id) return;
+
+      setSheetFlashesLoading(true);
+      try {
+        const flashesQuery = query(
+          collection(db, "flashes"),
+          where("artistId", "==", id),
+          where("sheetId", "==", focusedSheet.id)
+        );
+        const snapshot = await getDocs(flashesQuery);
+        const flashes = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() } as Flash))
+          .sort((a, b) => getItemTime(b) - getItemTime(a));
+
+        setSheetFlashes(flashes);
+      } catch (err) {
+        console.error("Failed to fetch flash sheet items:", err);
+        setSheetFlashes([]);
+      } finally {
+        setSheetFlashesLoading(false);
+      }
+    };
+
+    fetchSheetFlashes();
+  }, [focusedSheet, id]);
+
+  useEffect(() => {
     if (!selectedItem && !selectedSheet) return;
 
     setModalLoading(true);
@@ -128,6 +215,16 @@ export const ArtistProfilePage = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedItem, selectedSheet]);
+
+  const handleSelectSheet = (sheet: FlashSheet) => {
+    setFocusedSheet(sheet);
+    setSelectedFlash(null);
+    window.setTimeout(() => {
+      document
+        .getElementById("flash-sheet-items")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
 
   if (loading)
     return (
@@ -269,7 +366,22 @@ export const ArtistProfilePage = () => {
           <FlashSheetsPanel
             flashSheets={flashSheets}
             flashSheetsLoading={flashSheetsLoading}
-            onOpenSheet={setSelectedSheet}
+            focusedSheetId={focusedSheet?.id}
+            onOpenSheet={handleSelectSheet}
+          />
+        )}
+
+        {activeTab === "flashSheets" && focusedSheet && (
+          <FlashSheetItemsSection
+            sheet={focusedSheet}
+            flashes={sheetFlashes}
+            loading={sheetFlashesLoading}
+            onClose={() => {
+              setFocusedSheet(null);
+              setSheetFlashes([]);
+            }}
+            onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+            onSelectFlash={setSelectedFlash}
           />
         )}
       </div>
@@ -293,11 +405,20 @@ export const ArtistProfilePage = () => {
           onClose={() => setSelectedSheet(null)}
         />
       )}
+
+      {selectedFlash && artist && (
+        <FlashRequestModal
+          flash={selectedFlash}
+          artist={artist}
+          client={client}
+          onClose={() => setSelectedFlash(null)}
+        />
+      )}
     </div>
   );
 };
 
-const getItemTime = (item: GalleryItem | FlashSheet) => {
+const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   const createdAt = item.createdAt as any;
   if (createdAt?.toMillis) return createdAt.toMillis();
   if (createdAt instanceof Date) return createdAt.getTime();
@@ -310,6 +431,9 @@ const getItemTime = (item: GalleryItem | FlashSheet) => {
 const getPreviewUrl = (item: GalleryItem) => item.webp90Url || item.thumbUrl || item.fullUrl;
 
 const getSheetPreviewUrl = (sheet: FlashSheet) => sheet.thumbUrl || sheet.imageUrl;
+
+const getFlashPreviewUrl = (flash: Flash) =>
+  flash.webp90Url || flash.thumbUrl || flash.fullUrl;
 
 const PortfolioPanel = ({
   galleryItems,
@@ -348,10 +472,12 @@ const PortfolioPanel = ({
 const FlashSheetsPanel = ({
   flashSheets,
   flashSheetsLoading,
+  focusedSheetId,
   onOpenSheet,
 }: {
   flashSheets: FlashSheet[];
   flashSheetsLoading: boolean;
+  focusedSheetId?: string;
   onOpenSheet: (sheet: FlashSheet) => void;
 }) => {
   if (flashSheetsLoading) return <PortfolioSkeleton />;
@@ -372,6 +498,7 @@ const FlashSheetsPanel = ({
           key={sheet.id}
           sheet={sheet}
           priority={index === 0}
+          isSelected={focusedSheetId === sheet.id}
           onOpen={() => onOpenSheet(sheet)}
         />
       ))}
@@ -456,17 +583,21 @@ const PortfolioCard = ({
 const FlashSheetCard = ({
   sheet,
   priority,
+  isSelected,
   onOpen,
 }: {
   sheet: FlashSheet;
   priority: boolean;
+  isSelected: boolean;
   onOpen: () => void;
 }) => (
   <button
     type="button"
     data-aos="fade-up"
     onClick={onOpen}
-    className={`group relative overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
+    className={`group relative overflow-hidden rounded-xl border bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
+      isSelected ? "border-white/40 ring-1 ring-white/25" : "border-white/10"
+    } ${
       priority ? "sm:col-span-2 lg:col-span-1" : ""
     }`}
   >
@@ -501,6 +632,152 @@ const FlashSheetCard = ({
           </div>
         )}
       </div>
+    </div>
+  </button>
+);
+
+const FlashSheetItemsSection = ({
+  sheet,
+  flashes,
+  loading,
+  onClose,
+  onPreviewSheet,
+  onSelectFlash,
+}: {
+  sheet: FlashSheet;
+  flashes: Flash[];
+  loading: boolean;
+  onClose: () => void;
+  onPreviewSheet: () => void;
+  onSelectFlash: (flash: Flash) => void;
+}) => (
+  <section
+    id="flash-sheet-items"
+    className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.22)] md:p-5"
+  >
+    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <button
+          type="button"
+          onClick={onPreviewSheet}
+          className="group relative h-44 w-full overflow-hidden rounded-xl border border-white/10 bg-black p-0! sm:w-36"
+        >
+          <img
+            src={getSheetPreviewUrl(sheet)}
+            alt={sheet.title || "Selected flash sheet"}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/20" />
+          <div className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md">
+            <Expand size={16} />
+          </div>
+        </button>
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+            Selected sheet
+          </p>
+          <h3 className="mt-2 text-2xl! font-semibold! text-white">
+            {sheet.title || "Untitled flash sheet"}
+          </h3>
+          <p className="mt-2 max-w-xl text-sm text-white/55">
+            Pick an available design below to send this artist a request with
+            the flash details attached.
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        className="self-start rounded-full border border-white/10 bg-white/[0.04] px-3! py-1.5! text-sm! text-white/70 transition hover:bg-white/10 hover:text-white lg:self-auto"
+      >
+        Close sheet
+      </button>
+    </div>
+
+    {loading ? (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-[250px] animate-pulse rounded-xl border border-white/10 bg-white/[0.05]"
+          />
+        ))}
+      </div>
+    ) : flashes.length > 0 ? (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {flashes.map((flash) => (
+          <FlashItemCard
+            key={flash.id}
+            flash={flash}
+            onClick={() => onSelectFlash(flash)}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-white/10 bg-black/20 px-5 text-center">
+        <ImageOff className="mb-3 text-white/30" size={30} />
+        <h4 className="text-base! font-semibold! text-white">
+          No itemized flashes yet
+        </h4>
+        <p className="mt-2 max-w-md text-sm text-white/50">
+          This sheet is available to view, but the artist has not published
+          individual flash items from it yet.
+        </p>
+      </div>
+    )}
+  </section>
+);
+
+const FlashItemCard = ({
+  flash,
+  onClick,
+}: {
+  flash: Flash;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    data-aos="fade-up"
+    onClick={onClick}
+    className="group overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_14px_40px_rgba(0,0,0,0.25)] transition duration-300 hover:border-white/25 hover:shadow-[0_18px_54px_rgba(0,0,0,0.36)]"
+  >
+    <div className="relative aspect-[4/3] overflow-hidden bg-black">
+      <img
+        src={getFlashPreviewUrl(flash)}
+        alt={flash.title || "Flash tattoo design"}
+        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+      <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 backdrop-blur-md">
+        Request
+      </div>
+    </div>
+    <div className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h4 className="line-clamp-2 text-base! font-semibold! text-white my-0!">
+          {flash.title || "Untitled flash"}
+        </h4>
+        {typeof flash.price === "number" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-xs text-white/75">
+            <DollarSign size={12} />
+            {flash.price}
+          </span>
+        )}
+      </div>
+      {Array.isArray(flash.tags) && flash.tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {flash.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs text-white/60"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   </button>
 );
@@ -674,6 +951,318 @@ const FlashSheetLightbox = ({
     )}
   </div>
 );
+
+const FlashRequestModal = ({
+  flash,
+  artist,
+  client,
+  onClose,
+}: {
+  flash: Flash;
+  artist: Artist;
+  client: ClientProfile | null;
+  onClose: () => void;
+}) => {
+  const [description, setDescription] = useState(
+    `I would like to request this flash design: ${flash.title || "Untitled flash"}.`
+  );
+  const [bodyPlacement, setBodyPlacement] = useState("");
+  const [size, setSize] = useState("");
+  const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
+  const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [budget, setBudget] = useState(
+    typeof flash.price === "number" ? String(flash.price) : ""
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!client) {
+      toast.error("Please sign in as a client before requesting this flash.");
+      return;
+    }
+
+    if (!bodyPlacement || !size) {
+      toast.error("Please add placement and size.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const numericBudget = Number(budget);
+      const finalBudget =
+        budget.trim() && !Number.isNaN(numericBudget) ? numericBudget : null;
+
+      await addDoc(collection(db, "bookingRequests"), {
+        artistId: artist.id,
+        clientId: client.id,
+        clientName: client.name,
+        clientAvatar: client.avatarUrl,
+        description,
+        bodyPlacement,
+        size,
+        preferredDateRange,
+        budget: finalBudget,
+        availableTime,
+        availableDays,
+        status: "pending",
+        createdAt: serverTimestamp(),
+
+        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl,
+        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+        sourceType: "flash",
+        flashId: flash.id,
+        flashTitle: flash.title || "Untitled flash",
+        flashPrice: flash.price ?? null,
+        flashSheetId: flash.sheetId || null,
+        isFromSheet: flash.isFromSheet,
+      });
+
+      toast.success("Flash request sent!");
+      onClose();
+    } catch (err) {
+      console.error("Failed to submit flash request:", err);
+      toast.error("Something went wrong while sending your request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+              Flash request
+            </p>
+            <h2 className="mt-1 text-xl! font-semibold! text-white">
+              {flash.title || "Untitled flash"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
+            aria-label="Close flash request"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 gap-6 p-5 md:grid-cols-[0.9fr_1.1fr]"
+        >
+          <div>
+            <img
+              src={getFlashPreviewUrl(flash)}
+              alt={flash.title || "Selected flash"}
+              className="max-h-[420px] w-full rounded-xl border border-white/10 object-contain bg-black"
+            />
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center gap-3">
+                <img
+                  src={artist.avatarUrl || "/default-avatar.png"}
+                  alt={artist.name}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {artist.name}
+                  </p>
+                  {typeof flash.price === "number" && (
+                    <p className="text-sm text-white/55">
+                      Listed at ${flash.price}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {!client && (
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
+                Sign in as a client to send this request.
+              </div>
+            )}
+
+            <label className="block">
+              <span className="mb-1 block text-sm text-white/70">
+                Message
+              </span>
+              <textarea
+                required
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="min-h-28 w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+              />
+            </label>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Body placement
+                </span>
+                <input
+                  required
+                  value={bodyPlacement}
+                  onChange={(event) => setBodyPlacement(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Forearm, thigh, shoulder..."
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">Size</span>
+                <select
+                  required
+                  value={size}
+                  onChange={(event) => setSize(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                >
+                  <option value="">Select size</option>
+                  <option value="Small">Small</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Large">Large</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Earliest date
+                </span>
+                <input
+                  type="date"
+                  value={preferredDateRange[0]}
+                  onChange={(event) =>
+                    setPreferredDateRange([
+                      event.target.value,
+                      preferredDateRange[1],
+                    ])
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Latest date
+                </span>
+                <input
+                  type="date"
+                  value={preferredDateRange[1]}
+                  onChange={(event) =>
+                    setPreferredDateRange([
+                      preferredDateRange[0],
+                      event.target.value,
+                    ])
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  From
+                </span>
+                <input
+                  type="time"
+                  value={availableTime.from}
+                  onChange={(event) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      from: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">To</span>
+                <input
+                  type="time"
+                  value={availableTime.to}
+                  onChange={(event) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      to: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Budget
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={budget}
+                  onChange={(event) => setBudget(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="$"
+                />
+              </label>
+            </div>
+
+            <div>
+              <span className="mb-2 block text-sm text-white/70">
+                Available days
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                  "Sunday",
+                ].map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`rounded-full border px-3! py-1! text-sm! transition ${
+                      availableDays.includes(day)
+                        ? "border-white/40 bg-white text-black"
+                        : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/10"
+                    }`}
+                    onClick={() =>
+                      setAvailableDays((prev) =>
+                        prev.includes(day)
+                          ? prev.filter((item) => item !== day)
+                          : [...prev, day]
+                      )
+                    }
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !client}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#b6382d] px-4! py-3! text-sm! font-semibold text-white transition hover:bg-[#cf4639] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? "Sending..." : "Send flash request"}
+              <Send size={16} />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
