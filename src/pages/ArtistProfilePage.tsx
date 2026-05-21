@@ -750,7 +750,7 @@ const FlashItemCard = ({
         loading="lazy"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-      <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 backdrop-blur-md">
+      <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 opacity-0 backdrop-blur-md transition duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
         Request
       </div>
     </div>
