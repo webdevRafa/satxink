@@ -22,14 +22,16 @@ import type { Flash } from "../types/Flash";
 
 interface Artist {
   id: string;
-  name: string;
+  name?: string;
+  displayName?: string;
   email: string;
   bio: string;
   avatarUrl: string;
   location?: string;
   specialties: string[];
   portfolioUrls: string[];
-  studioName: string;
+  studioName?: string;
+  shopId?: string;
   likedBy: string[];
   isAvailable: boolean;
   socialLinks?: SocialLinks;
@@ -44,10 +46,17 @@ type ClientProfile = {
   name: string;
   avatarUrl: string;
 };
+type Shop = {
+  id: string;
+  name: string;
+  address?: string;
+  mapLink?: string;
+};
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
   const [artist, setArtist] = useState<Artist | null>(null);
+  const [shop, setShop] = useState<Shop | null>(null);
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"portfolio" | "flashSheets">(
     "portfolio"
@@ -108,7 +117,20 @@ export const ArtistProfilePage = () => {
         const ref = doc(db, "users", id as string);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          setArtist({ id: snap.id, ...(snap.data() as Omit<Artist, "id">) });
+          const artistData = snap.data() as Omit<Artist, "id">;
+          setArtist({ id: snap.id, ...artistData });
+
+          if (artistData.shopId) {
+            const shopRef = doc(db, "shops", artistData.shopId);
+            const shopSnap = await getDoc(shopRef);
+            setShop(
+              shopSnap.exists()
+                ? ({ id: shopSnap.id, ...shopSnap.data() } as Shop)
+                : null
+            );
+          } else {
+            setShop(null);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch artist:", err);
@@ -233,6 +255,9 @@ export const ArtistProfilePage = () => {
   if (!artist)
     return <p className="text-center text-gray-400 mt-10">Artist not found.</p>;
 
+  const artistDisplayName = getArtistDisplayName(artist);
+  const artistShopName = shop?.name || artist.studioName;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[80vh]">
       <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
@@ -241,7 +266,7 @@ export const ArtistProfilePage = () => {
           <div className="relative group">
             <img
               src={artist.avatarUrl}
-              alt={artist.name}
+              alt={artistDisplayName}
               className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
             />
             <span className="font-bold absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
@@ -251,8 +276,24 @@ export const ArtistProfilePage = () => {
 
           {/* Info */}
           <div className="text-center md:text-left flex-1">
-            <h1 className="text-3xl! font-bold text-white">{artist.name}</h1>
-            <p className="text-white text-md!">{artist.studioName}</p>
+            <h1 className="text-3xl! font-bold text-white my-0!">
+              {artistDisplayName}
+            </h1>
+            {artistShopName &&
+              (shop?.mapLink ? (
+                <a
+                  href={shop.mapLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-sm! font-medium text-white/70 transition hover:text-white"
+                >
+                  {artistShopName}
+                </a>
+              ) : (
+                <p className="mt-1 text-sm! font-medium text-white/70">
+                  {artistShopName}
+                </p>
+              ))}
             <p className="text-gray-300 mt-2 italic text-sm">{artist.bio}</p>
 
             {/* Socials */}
@@ -434,6 +475,9 @@ const getSheetPreviewUrl = (sheet: FlashSheet) => sheet.thumbUrl || sheet.imageU
 
 const getFlashPreviewUrl = (flash: Flash) =>
   flash.webp90Url || flash.thumbUrl || flash.fullUrl;
+
+const getArtistDisplayName = (artist: Artist) =>
+  artist.displayName || artist.name || "Artist";
 
 const PortfolioPanel = ({
   galleryItems,
@@ -840,10 +884,12 @@ const PortfolioLightbox = ({
         <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
           <img
             src={artist.avatarUrl || "/default-avatar.png"}
-            alt={artist.name}
+            alt={getArtistDisplayName(artist)}
             className="h-9 w-9 rounded-full border border-white/40 object-cover"
           />
-          <span className="text-sm font-semibold text-white">{artist.name}</span>
+          <span className="text-sm font-semibold text-white">
+            {getArtistDisplayName(artist)}
+          </span>
         </div>
       )}
     </div>
@@ -927,10 +973,12 @@ const FlashSheetLightbox = ({
         <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
           <img
             src={artist.avatarUrl || "/default-avatar.png"}
-            alt={artist.name}
+            alt={getArtistDisplayName(artist)}
             className="h-9 w-9 rounded-full border border-white/40 object-cover"
           />
-          <span className="text-sm font-semibold text-white">{artist.name}</span>
+          <span className="text-sm font-semibold text-white">
+            {getArtistDisplayName(artist)}
+          </span>
         </div>
       )}
     </div>
@@ -1066,12 +1114,12 @@ const FlashRequestModal = ({
               <div className="flex items-center gap-3">
                 <img
                   src={artist.avatarUrl || "/default-avatar.png"}
-                  alt={artist.name}
+                  alt={getArtistDisplayName(artist)}
                   className="h-10 w-10 rounded-full object-cover"
                 />
                 <div>
                   <p className="text-sm font-semibold text-white">
-                    {artist.name}
+                    {getArtistDisplayName(artist)}
                   </p>
                   {typeof flash.price === "number" && (
                     <p className="text-sm text-white/55">
