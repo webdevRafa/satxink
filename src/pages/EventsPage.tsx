@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   DollarSign,
   Filter,
@@ -67,6 +68,8 @@ const dateFilters: { label: string; value: DateFilter }[] = [
   { label: "This month", value: "this_month" },
 ];
 
+const EVENT_RAIL_SCROLL_DISTANCE = 640;
+
 export const EventsPage = () => {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +117,7 @@ export const EventsPage = () => {
           }))
           .filter((event) => Boolean(event.artist))
           .filter((event) => !isPastEvent(event))
-          .sort((a, b) => getEventTime(a) - getEventTime(b));
+          .sort(sortEventsChronologically);
 
         if (isMounted) {
           setEvents(publicEvents);
@@ -192,26 +195,23 @@ export const EventsPage = () => {
   const heroEvent = filteredEvents[0];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-28 text-white">
+    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-24 text-white">
       <section className="mx-auto max-w-6xl">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(190,54,46,0.22),transparent_36%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-6 shadow-2xl md:p-8">
-          <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 rounded-full bg-[var(--color-primary)]/10 blur-3xl" />
-
-          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/45">
+        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-5 shadow-xl md:p-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
                 Events in San Antonio, TX
               </p>
-              <h1 className="mt-4 max-w-3xl text-4xl! font-bold leading-tight text-white md:text-6xl!">
-                Find flash days, pop-ups, guest spots, and tattoo events.
+              <h1 className="mt-3 max-w-3xl text-3xl! font-bold leading-tight text-white md:text-4xl!">
+                Find tattoo events from verified SATX artists.
               </h1>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/60">
-                Browse public events posted by verified SATX Ink artists. Find
-                upcoming opportunities, compare event types, and jump straight
-                to the artist profile.
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60">
+                Browse flash days, pop-ups, guest spots, conventions, and shop
+                events without losing your place in the calendar.
               </p>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <HeroStat label="Upcoming events" value={events.length} />
                 <HeroStat
                   label="Happening today"
@@ -232,18 +232,16 @@ export const EventsPage = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+            <div>
               {heroEvent ? (
-                <FeaturedEvent event={heroEvent} />
+                <FeaturedEventSummary event={heroEvent} />
               ) : (
-                <div className="flex min-h-[260px] flex-col justify-end rounded-xl border border-white/10 bg-white/[0.035] p-5">
-                  <CalendarDays className="mb-4 text-white/30" size={38} />
-                  <p className="text-sm font-semibold text-white">
-                    Events will appear here.
+                <div className="rounded-xl border border-white/10 bg-black/25 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+                    Next event
                   </p>
-                  <p className="mt-2 text-sm text-white/45">
-                    Once verified artists publish events, customers will be able
-                    to discover them from this page.
+                  <p className="mt-2 text-sm font-semibold text-white">
+                    Events will appear here
                   </p>
                 </div>
               )}
@@ -316,6 +314,7 @@ export const EventsPage = () => {
                 eyebrow="Happening now"
                 title="Today"
                 events={todayEvents}
+                layout="rail"
               />
             )}
 
@@ -324,6 +323,7 @@ export const EventsPage = () => {
                 eyebrow="Coming up soon"
                 title="This week"
                 events={weekEvents}
+                layout="rail"
               />
             )}
 
@@ -332,6 +332,7 @@ export const EventsPage = () => {
                 eyebrow="Plan ahead"
                 title="Later events"
                 events={laterEvents}
+                layout="rail"
               />
             )}
           </div>
@@ -341,6 +342,7 @@ export const EventsPage = () => {
               eyebrow="Filtered results"
               title={getDateFilterTitle(dateFilter)}
               events={filteredEvents}
+              layout="rail"
             />
           </div>
         )}
@@ -353,39 +355,105 @@ const EventSection = ({
   eyebrow,
   title,
   events,
+  layout = "grid",
 }: {
   eyebrow: string;
   title: string;
   events: PublicEvent[];
-}) => (
-  <section>
-    <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
-          {eyebrow}
-        </p>
-        <h2 className="mt-2 text-3xl! font-semibold text-white">{title}</h2>
+  layout?: "grid" | "rail";
+}) => {
+  const railRef = useRef<HTMLDivElement>(null);
+  const hasRailControls = layout === "rail" && events.length > 1;
+
+  const scrollRail = (direction: "previous" | "next") => {
+    railRef.current?.scrollBy({
+      left:
+        direction === "previous"
+          ? -EVENT_RAIL_SCROLL_DISTANCE
+          : EVENT_RAIL_SCROLL_DISTANCE,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <section className="min-w-0">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
+            {eyebrow}
+          </p>
+          <h2 className="mt-2 text-3xl! font-semibold text-white">{title}</h2>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-white/45">
+            {events.length} event{events.length === 1 ? "" : "s"}
+          </p>
+
+          {hasRailControls && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => scrollRail("previous")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                aria-label={`Scroll ${title} events backward`}
+                title="Previous events"
+              >
+                <ChevronLeft size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollRail("next")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                aria-label={`Scroll ${title} events forward`}
+                title="Next events"
+              >
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-      <p className="text-sm text-white/45">
-        {events.length} event{events.length === 1 ? "" : "s"}
-      </p>
-    </div>
 
-    <div className="grid gap-5 lg:grid-cols-2">
-      {events.map((event) => (
-        <PublicEventCard key={event.id} event={event} />
-      ))}
-    </div>
-  </section>
-);
+      {layout === "rail" ? (
+        <div
+          ref={railRef}
+          className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-3 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
+        >
+          {events.map((event) => (
+            <PublicEventCard
+              key={event.id}
+              event={event}
+              className="w-[min(88vw,590px)] shrink-0 snap-start"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {events.map((event) => (
+            <PublicEventCard key={event.id} event={event} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
 
-const PublicEventCard = ({ event }: { event: PublicEvent }) => {
+const PublicEventCard = ({
+  event,
+  className = "",
+}: {
+  event: PublicEvent;
+  className?: string;
+}) => {
   const artistName = getArtistName(event.artist);
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:-translate-y-0.5 hover:border-white/20 hover:shadow-2xl">
+    <article
+      className={`group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:-translate-y-0.5 hover:border-white/20 hover:shadow-2xl ${className}`}
+    >
       <div className="grid min-h-[260px] sm:grid-cols-[210px_minmax(0,1fr)]">
         <div className="relative min-h-[220px] overflow-hidden bg-black/30">
           {event.thumbnailUrl ? (
@@ -485,45 +553,41 @@ const PublicEventCard = ({ event }: { event: PublicEvent }) => {
   );
 };
 
-const FeaturedEvent = ({ event }: { event: PublicEvent }) => (
-  <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.035]">
-    <div className="relative aspect-[16/11] bg-black/40">
-      {event.thumbnailUrl ? (
-        <img
-          src={event.thumbnailUrl}
-          alt={event.title}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <CalendarDays className="text-white/25" size={42} />
-        </div>
-      )}
-
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-4">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/45">
-          Next event
-        </p>
-        <h3 className="mt-1 line-clamp-2 text-xl! font-semibold text-white">
+const FeaturedEventSummary = ({ event }: { event: PublicEvent }) => (
+  <div className="rounded-xl border border-white/10 bg-black/25 p-4">
+    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
+      Next event
+    </p>
+    <div className="mt-3 flex items-center gap-3">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
+        {event.thumbnailUrl ? (
+          <img
+            src={event.thumbnailUrl}
+            alt={event.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <CalendarDays className="text-white/25" size={24} />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0">
+        <h3 className="line-clamp-2 text-base! font-semibold text-white">
           {event.title}
         </h3>
+        <p className="mt-1 truncate text-sm text-white/45">
+          {formatEventDate(event)}
+        </p>
       </div>
     </div>
-
-    <div className="space-y-2 p-4 text-sm text-white/60">
-      <EventMeta
-        icon={<CalendarDays size={16} />}
-        text={formatEventDate(event)}
-      />
-      <EventMeta icon={<MapPin size={16} />} text={getLocationLabel(event)} />
-      <Link
-        to={`/artists/${event.artistId}`}
-        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white transition hover:text-[var(--color-primary)]"
-      >
-        View {getArtistName(event.artist)}
-        <ChevronRight size={16} />
-      </Link>
-    </div>
+    <Link
+      to={`/artists/${event.artistId}`}
+      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"
+    >
+      View {getArtistName(event.artist)}
+      <ChevronRight size={16} />
+    </Link>
   </div>
 );
 
@@ -617,6 +681,33 @@ const getEventTime = (event: ArtistEvent) => {
   if (!event.startDate) return Number.MAX_SAFE_INTEGER;
   return new Date(`${event.startDate}T${event.startTime || "00:00"}`).getTime();
 };
+
+const getCreatedTime = (event: ArtistEvent) => {
+  const createdAt = event.createdAt;
+
+  if (!createdAt) return Number.MAX_SAFE_INTEGER;
+  if (createdAt instanceof Date) return createdAt.getTime();
+
+  const maybeTimestamp = createdAt as {
+    seconds?: number;
+    toDate?: () => Date;
+  };
+
+  if (typeof maybeTimestamp.toDate === "function") {
+    return maybeTimestamp.toDate().getTime();
+  }
+
+  if (typeof maybeTimestamp.seconds === "number") {
+    return maybeTimestamp.seconds * 1000;
+  }
+
+  return Number.MAX_SAFE_INTEGER;
+};
+
+const sortEventsChronologically = (a: PublicEvent, b: PublicEvent) =>
+  getEventTime(a) - getEventTime(b) ||
+  getCreatedTime(a) - getCreatedTime(b) ||
+  a.title.localeCompare(b.title);
 
 const isPastEvent = (event: ArtistEvent) => {
   const endDate = event.endDate || event.startDate;
