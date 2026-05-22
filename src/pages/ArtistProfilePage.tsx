@@ -469,7 +469,11 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   return typeof timestamp === "number" ? timestamp : 0;
 };
 
-const getPreviewUrl = (item: GalleryItem) => item.webp90Url || item.thumbUrl || item.fullUrl;
+const getCardPreviewUrl = (item: GalleryItem) =>
+  item.thumbUrl || item.webp90Url || item.fullUrl;
+
+const getLightboxPreviewUrl = (item: GalleryItem) =>
+  item.webp90Url || item.thumbUrl || item.fullUrl;
 
 const getSheetPreviewUrl = (sheet: FlashSheet) => sheet.thumbUrl || sheet.imageUrl;
 
@@ -478,6 +482,12 @@ const getFlashPreviewUrl = (flash: Flash) =>
 
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || "Artist";
+
+const preloadImage = (src?: string) => {
+  if (!src) return;
+  const image = new Image();
+  image.src = src;
+};
 
 const PortfolioPanel = ({
   galleryItems,
@@ -588,13 +598,15 @@ const PortfolioCard = ({
     type="button"
     data-aos="fade-up"
     onClick={onOpen}
+    onMouseEnter={() => preloadImage(item.fullUrl || item.webp90Url)}
+    onFocus={() => preloadImage(item.fullUrl || item.webp90Url)}
     className={`group relative overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       priority ? "sm:col-span-2 lg:col-span-1" : ""
     }`}
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
-      <img
-        src={getPreviewUrl(item)}
+      <FadeInImage
+        src={getCardPreviewUrl(item)}
         alt={item.caption || "Tattoo portfolio piece"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         loading={priority ? "eager" : "lazy"}
@@ -646,7 +658,7 @@ const FlashSheetCard = ({
     }`}
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
-      <img
+      <FadeInImage
         src={getSheetPreviewUrl(sheet)}
         alt={sheet.title || "Flash sheet"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
@@ -679,6 +691,39 @@ const FlashSheetCard = ({
     </div>
   </button>
 );
+
+const FadeInImage = ({
+  src,
+  alt,
+  className,
+  loading = "lazy",
+}: {
+  src: string;
+  alt: string;
+  className: string;
+  loading?: "eager" | "lazy";
+}) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      <div
+        className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.04),rgba(255,255,255,0.11),rgba(255,255,255,0.04))] bg-[length:220%_100%] transition-opacity duration-300 ${
+          loaded ? "opacity-0" : "opacity-100 animate-pulse"
+        }`}
+      />
+      <img
+        src={src}
+        alt={alt}
+        className={`${className} ${loaded ? "opacity-100" : "opacity-0"}`}
+        loading={loading}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+      />
+    </>
+  );
+};
 
 const FlashSheetItemsSection = ({
   sheet,
@@ -848,10 +893,10 @@ const PortfolioLightbox = ({
     <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
       <LightboxImageFrame
         fullUrl={item.fullUrl || item.webp90Url}
-        previewUrl={getPreviewUrl(item)}
+        previewUrl={getLightboxPreviewUrl(item)}
         alt={item.caption || "Full portfolio view"}
         isLoading={modalLoading}
-        loadingLabel="Loading full image"
+        loadingLabel="Loading full resolution"
         onImageLoad={onImageLoad}
       />
 
@@ -1026,13 +1071,14 @@ const LightboxImageFrame = ({
       aria-hidden="true"
       className={`absolute inset-0 h-full w-full object-contain transition duration-500 ${
         isLoading
-          ? "scale-[1.015] opacity-55 blur-md"
+          ? "scale-100 opacity-100 blur-0"
           : "scale-100 opacity-0 blur-none"
       }`}
+      decoding="async"
     />
     <div
       className={`absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
-        isLoading ? "opacity-100 animate-pulse" : "opacity-0"
+        isLoading ? "opacity-40 animate-pulse" : "opacity-0"
       }`}
     />
     <img
@@ -1041,6 +1087,7 @@ const LightboxImageFrame = ({
       className={`relative z-10 h-full w-full object-contain transition duration-500 ${
         isLoading ? "scale-[0.995] opacity-0" : "scale-100 opacity-100"
       }`}
+      decoding="async"
       onLoad={onImageLoad}
       onError={onImageLoad}
     />
