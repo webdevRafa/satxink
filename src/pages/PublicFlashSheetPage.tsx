@@ -313,6 +313,7 @@ const PublicFlashSheetPage = () => {
               <PublicFlashCard
                 key={flash.id}
                 artistId={sheet.artistId}
+                artist={artist}
                 flash={flash}
                 onRequest={() => setSelectedFlash(flash)}
               />
@@ -391,68 +392,87 @@ const FlashPager = ({
 
 const PublicFlashCard = ({
   artistId,
+  artist,
   flash,
   onRequest,
 }: {
   artistId: string;
+  artist?: PublicArtist | null;
   flash: Flash;
   onRequest: () => void;
-}) => (
-  <article className="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-lg transition hover:border-white/20">
-    <div className="relative aspect-[3/2] bg-black/30">
-      {getFlashPreviewUrl(flash) ? (
-        <img
-          src={getFlashPreviewUrl(flash)}
-          alt={getFlashTitle(flash)}
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <ImageOff className="text-white/25" size={36} />
-        </div>
-      )}
-    </div>
+}) => {
+  const artistName = getArtistName(artist);
 
-    <div className="p-3">
-      <h3 className="line-clamp-2 text-sm! font-semibold text-white">
-        {getFlashTitle(flash)}
-      </h3>
-      <div className="mt-2.5 text-xs font-semibold text-white/70">
-        {formatFlashPrice(flash.price)}
-      </div>
-      {flash.tags && flash.tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {flash.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/50"
-            >
-              <Tag size={11} />
-              {tag}
-            </span>
-          ))}
+  return (
+    <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20">
+      <div className="relative aspect-[3/2] bg-black/30">
+        {getFlashPreviewUrl(flash) ? (
+          <img
+            src={getFlashPreviewUrl(flash)}
+            alt={getFlashTitle(flash)}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <ImageOff className="text-white/25" size={36} />
+          </div>
+        )}
+        <div className="absolute right-2 top-2 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-bold leading-none text-white shadow-lg backdrop-blur-md">
+          {formatFlashPrice(flash.price)}
         </div>
-      )}
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Link
-          to={`/artists/${artistId}`}
-          className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
-        >
-          View artist
-        </Link>
-        <button
-          type="button"
-          onClick={onRequest}
-          className="h-8 whitespace-nowrap rounded-full bg-[var(--color-primary)] px-2! py-0! text-[11px]! font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
-          aria-label={`Request this flash: ${getFlashTitle(flash)}`}
-        >
-          Request
-        </button>
       </div>
-    </div>
-  </article>
-);
+
+      <div className="p-3">
+        <div className="flex min-h-[42px] items-start gap-2">
+          <img
+            src={artist?.avatarUrl || "/default-avatar.png"}
+            alt={artistName}
+            className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
+          />
+          <div className="min-w-0">
+            <h3 className="my-0! line-clamp-1 text-sm! font-semibold text-white">
+              {getFlashTitle(flash)}
+            </h3>
+            <p className="mt-0.5 truncate text-xs text-white/50">
+              by {artistName}
+            </p>
+          </div>
+        </div>
+
+        {flash.tags && flash.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {flash.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/50"
+              >
+                <Tag size={11} />
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Link
+            to={`/artists/${artistId}`}
+            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+          >
+            View artist
+          </Link>
+          <button
+            type="button"
+            onClick={onRequest}
+            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+            aria-label={`Request this flash: ${getFlashTitle(flash)}`}
+          >
+            Request
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+};
 
 const getArtistName = (artist?: PublicArtist | null) =>
   artist?.displayName || artist?.name || "SATX Ink artist";

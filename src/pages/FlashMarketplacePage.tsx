@@ -504,13 +504,13 @@ const FlashCard = ({
   const artistName = getArtistName(flash.artist);
 
   return (
-    <article className="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-lg transition hover:border-white/20">
+    <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20">
       <div className="relative aspect-[3/2] bg-black/30">
         {previewUrl ? (
           <img
             src={previewUrl}
             alt={getFlashTitle(flash)}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             loading="lazy"
           />
         ) : (
@@ -518,17 +518,20 @@ const FlashCard = ({
             <ImageOff className="text-white/25" size={36} />
           </div>
         )}
+        <div className="absolute right-2 top-2 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-bold leading-none text-white shadow-lg backdrop-blur-md">
+          {formatFlashPrice(flash.price)}
+        </div>
       </div>
 
       <div className="p-3">
-        <div className="flex items-start gap-2">
+        <div className="flex min-h-[42px] items-start gap-2">
           <img
             src={flash.artist?.avatarUrl || "/default-avatar.png"}
             alt={artistName}
-            className="h-7 w-7 rounded-full border border-white/10 object-cover"
+            className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
           />
           <div className="min-w-0">
-            <h3 className="line-clamp-2 text-sm! font-semibold text-white">
+            <h3 className="my-0! line-clamp-1 text-sm! font-semibold text-white">
               {getFlashTitle(flash)}
             </h3>
             <p className="mt-0.5 truncate text-xs text-white/50">
@@ -537,23 +540,19 @@ const FlashCard = ({
           </div>
         </div>
 
-        <div className="mt-2.5 text-xs font-semibold text-white/70">
-          {formatFlashPrice(flash.price)}
-        </div>
-
         <TagList tags={flash.tags} />
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
             to={`/artists/${flash.artistId}`}
-            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
           >
             View artist
           </Link>
           <button
             type="button"
             onClick={onRequest}
-            className="h-8 whitespace-nowrap rounded-full bg-[var(--color-primary)] px-2! py-0! text-[11px]! font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
             aria-label={`Request this flash: ${getFlashTitle(flash)}`}
           >
             Request
