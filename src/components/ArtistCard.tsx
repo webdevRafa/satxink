@@ -30,7 +30,7 @@ const ArtistCard = ({
     0
   );
   const layoutClass = previewUrl
-    ? "grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]"
+    ? "grid h-full grid-cols-[72px_minmax(0,1fr)_72px] gap-4 p-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]"
     : "grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4 p-4";
 
   return (
@@ -75,7 +75,7 @@ const ArtistCard = ({
         </div>
 
         {previewUrl && (
-          <div className="hidden h-full overflow-hidden rounded-md border border-white/10 bg-black/30 sm:block">
+          <div className="h-full overflow-hidden rounded-md border border-white/10 bg-black/30">
             <img
               src={previewUrl}
               alt={previewAlt || `${displayName} portfolio preview`}
