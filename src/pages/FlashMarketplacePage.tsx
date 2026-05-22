@@ -47,7 +47,8 @@ type MarketFlashSheet = FlashSheet & {
   artist?: PublicArtist;
 };
 
-const FLASH_ITEMS_PER_PAGE = 18;
+const DEFAULT_FLASH_ITEMS_PER_PAGE = 18;
+const FLASH_ITEMS_PER_PAGE_OPTIONS = [18, 36, 54];
 
 const FlashMarketplacePage = () => {
   const [activeTab, setActiveTab] = useState<MarketplaceTab>("flashes");
@@ -62,6 +63,9 @@ const FlashMarketplacePage = () => {
   const [client, setClient] = useState<FlashRequestClient | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<MarketFlash | null>(null);
   const [flashPage, setFlashPage] = useState(0);
+  const [flashItemsPerPage, setFlashItemsPerPage] = useState(
+    DEFAULT_FLASH_ITEMS_PER_PAGE
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -219,11 +223,11 @@ const FlashMarketplacePage = () => {
     activeTab === "flashes" ? filteredFlashes.length : filteredSheets.length;
   const flashPageCount = Math.max(
     1,
-    Math.ceil(filteredFlashes.length / FLASH_ITEMS_PER_PAGE)
+    Math.ceil(filteredFlashes.length / flashItemsPerPage)
   );
   const pagedFlashes = filteredFlashes.slice(
-    flashPage * FLASH_ITEMS_PER_PAGE,
-    flashPage * FLASH_ITEMS_PER_PAGE + FLASH_ITEMS_PER_PAGE
+    flashPage * flashItemsPerPage,
+    flashPage * flashItemsPerPage + flashItemsPerPage
   );
 
   useEffect(() => {
@@ -378,12 +382,12 @@ const FlashMarketplacePage = () => {
               {visibleItems} result{visibleItems === 1 ? "" : "s"}
             </p>
             {activeTab === "flashes" &&
-              filteredFlashes.length > FLASH_ITEMS_PER_PAGE && (
+              filteredFlashes.length > DEFAULT_FLASH_ITEMS_PER_PAGE && (
                 <FlashPager
                   currentPage={flashPage}
                   pageCount={flashPageCount}
                   totalItems={filteredFlashes.length}
-                  pageSize={FLASH_ITEMS_PER_PAGE}
+                  pageSize={flashItemsPerPage}
                   onPrevious={() =>
                     setFlashPage((page) => Math.max(0, page - 1))
                   }
@@ -392,6 +396,10 @@ const FlashMarketplacePage = () => {
                       Math.min(flashPageCount - 1, page + 1)
                     )
                   }
+                  onPageSizeChange={(pageSize) => {
+                    setFlashItemsPerPage(pageSize);
+                    setFlashPage(0);
+                  }}
                 />
               )}
           </div>
@@ -501,6 +509,7 @@ const FlashPager = ({
   pageSize,
   onPrevious,
   onNext,
+  onPageSizeChange,
 }: {
   currentPage: number;
   pageCount: number;
@@ -508,15 +517,38 @@ const FlashPager = ({
   pageSize: number;
   onPrevious: () => void;
   onNext: () => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) => {
   const firstItem = currentPage * pageSize + 1;
   const lastItem = Math.min(totalItems, (currentPage + 1) * pageSize);
 
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-2 py-1">
-      <span className="px-2 text-xs font-semibold text-white/45">
+    <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-2 py-1">
+      <span className="px-2 text-xs font-semibold text-white/50">
         {firstItem}-{lastItem} of {totalItems}
       </span>
+      <span className="hidden h-4 w-px bg-white/10 sm:block" />
+      <span className="hidden px-1 text-xs font-semibold text-white/35 sm:inline">
+        Page {currentPage + 1} of {pageCount}
+      </span>
+      <label className="relative">
+        <span className="sr-only">Items per page</span>
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          className="h-8 appearance-none rounded-full border border-white/10 bg-black/30 pl-3 pr-7 text-xs font-semibold text-white/60 outline-none transition hover:border-white/20 focus:border-white/35"
+        >
+          {FLASH_ITEMS_PER_PAGE_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}/page
+            </option>
+          ))}
+        </select>
+        <ChevronRight
+          size={13}
+          className="pointer-events-none absolute right-2 top-1/2 rotate-90 -translate-y-1/2 text-white/35"
+        />
+      </label>
       <button
         type="button"
         onClick={onPrevious}
@@ -550,7 +582,10 @@ const FlashCard = ({
   const artistName = getArtistName(flash.artist);
 
   return (
-    <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20">
+    <article
+      tabIndex={0}
+      className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-white/20"
+    >
       <div className="relative aspect-[3/2] bg-black/30">
         {previewUrl ? (
           <img
@@ -600,7 +635,7 @@ const FlashCard = ({
           <button
             type="button"
             onClick={onRequest}
-            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+            className="pointer-events-none !inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white opacity-0 transition hover:bg-[var(--color-primary-hover)] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
             aria-label={`Request this flash: ${getFlashTitle(flash)}`}
           >
             Request

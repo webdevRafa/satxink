@@ -404,7 +404,10 @@ const PublicFlashCard = ({
   const artistName = getArtistName(artist);
 
   return (
-    <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20">
+    <article
+      tabIndex={0}
+      className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-white/20"
+    >
       <div className="relative aspect-[3/2] bg-black/30">
         {getFlashPreviewUrl(flash) ? (
           <img
@@ -465,7 +468,7 @@ const PublicFlashCard = ({
           <button
             type="button"
             onClick={onRequest}
-            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+            className="pointer-events-none !inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white opacity-0 transition hover:bg-[var(--color-primary-hover)] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
             aria-label={`Request this flash: ${getFlashTitle(flash)}`}
           >
             Request
