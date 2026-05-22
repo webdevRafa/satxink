@@ -15,7 +15,17 @@ import toast from "react-hot-toast";
 import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
-import { Camera, DollarSign, Expand, ImageOff, Layers, Send, X } from "lucide-react";
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  DollarSign,
+  Expand,
+  ImageOff,
+  Layers,
+  Send,
+  X,
+} from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
@@ -52,6 +62,7 @@ type Shop = {
   address?: string;
   mapLink?: string;
 };
+type SlideDirection = "next" | "prev";
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -71,6 +82,7 @@ export const ArtistProfilePage = () => {
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<FlashSheet | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
+  const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
@@ -223,6 +235,27 @@ export const ArtistProfilePage = () => {
     fetchSheetFlashes();
   }, [focusedSheet, id]);
 
+  const selectedItemIndex = selectedItem
+    ? galleryItems.findIndex((item) => item.id === selectedItem.id)
+    : -1;
+  const canNavigatePortfolio = galleryItems.length > 1 && selectedItemIndex >= 0;
+
+  const navigatePortfolio = (direction: SlideDirection) => {
+    if (!canNavigatePortfolio) return;
+
+    const offset = direction === "next" ? 1 : -1;
+    const nextIndex =
+      (selectedItemIndex + offset + galleryItems.length) % galleryItems.length;
+
+    setSlideDirection(direction);
+    setSelectedItem(galleryItems[nextIndex]);
+  };
+
+  const openPortfolioItem = (item: GalleryItem) => {
+    setSlideDirection("next");
+    setSelectedItem(item);
+  };
+
   useEffect(() => {
     if (!selectedItem && !selectedSheet) return;
 
@@ -232,11 +265,19 @@ export const ArtistProfilePage = () => {
         setSelectedItem(null);
         setSelectedSheet(null);
       }
+      if (selectedItem && event.key === "ArrowRight") {
+        event.preventDefault();
+        navigatePortfolio("next");
+      }
+      if (selectedItem && event.key === "ArrowLeft") {
+        event.preventDefault();
+        navigatePortfolio("prev");
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedItem, selectedSheet]);
+  }, [selectedItem, selectedSheet, selectedItemIndex, galleryItems.length]);
 
   const handleSelectSheet = (sheet: FlashSheet) => {
     setFocusedSheet(sheet);
@@ -401,7 +442,7 @@ export const ArtistProfilePage = () => {
           <PortfolioPanel
             galleryItems={galleryItems}
             galleryLoading={galleryLoading}
-            onOpenItem={setSelectedItem}
+            onOpenItem={openPortfolioItem}
           />
         ) : (
           <FlashSheetsPanel
@@ -431,8 +472,12 @@ export const ArtistProfilePage = () => {
         <PortfolioLightbox
           item={selectedItem}
           artist={artist}
+          slideDirection={slideDirection}
+          canNavigate={canNavigatePortfolio}
           modalLoading={modalLoading}
           onImageLoad={() => setModalLoading(false)}
+          onNext={() => navigatePortfolio("next")}
+          onPrev={() => navigatePortfolio("prev")}
           onClose={() => setSelectedItem(null)}
         />
       )}
@@ -874,82 +919,149 @@ const FlashItemCard = ({
 const PortfolioLightbox = ({
   item,
   artist,
+  slideDirection,
+  canNavigate,
   modalLoading,
   onImageLoad,
+  onNext,
+  onPrev,
   onClose,
 }: {
   item: GalleryItem;
   artist: Artist;
+  slideDirection: SlideDirection;
+  canNavigate: boolean;
   modalLoading: boolean;
   onImageLoad: () => void;
+  onNext: () => void;
+  onPrev: () => void;
   onClose: () => void;
-}) => (
-  <div
-    onClick={onClose}
-    className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/85 px-5 py-6 backdrop-blur-xs md:flex-row md:px-10"
-    role="dialog"
-    aria-modal="true"
-  >
-    <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
-      <LightboxImageFrame
-        fullUrl={item.fullUrl || item.webp90Url}
-        previewUrl={getLightboxPreviewUrl(item)}
-        alt={item.caption || "Full portfolio view"}
-        isLoading={modalLoading}
-        loadingLabel="Loading full resolution"
-        onImageLoad={onImageLoad}
-      />
+}) => {
+  const slideClass =
+    slideDirection === "next"
+      ? "portfolio-slide-in-next"
+      : "portfolio-slide-in-prev";
 
-      <div className="absolute right-3 top-3" onClick={(event) => event.stopPropagation()}>
-        <button
-          type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-          onClick={onClose}
-          aria-label="Close portfolio image"
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/85 px-5 py-6 backdrop-blur-xs md:flex-row md:px-10"
+      role="dialog"
+      aria-modal="true"
+    >
+      <style>
+        {`
+          @keyframes portfolioSlideInNext {
+            from { opacity: 0; transform: translateX(42px) scale(0.992); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+          }
+          @keyframes portfolioSlideInPrev {
+            from { opacity: 0; transform: translateX(-42px) scale(0.992); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+          }
+          .portfolio-slide-in-next {
+            animation: portfolioSlideInNext 320ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          .portfolio-slide-in-prev {
+            animation: portfolioSlideInPrev 320ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+        `}
+      </style>
+
+      <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
+        <LightboxImageFrame
+          key={item.id}
+          fullUrl={item.fullUrl || item.webp90Url}
+          previewUrl={getLightboxPreviewUrl(item)}
+          alt={item.caption || "Full portfolio view"}
+          isLoading={modalLoading}
+          loadingLabel="Loading full resolution"
+          slideClass={slideClass}
+          onImageLoad={onImageLoad}
+        />
+
+        {canNavigate && (
+          <>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPrev();
+              }}
+              className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+              aria-label="Previous portfolio image"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onNext();
+              }}
+              className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+              aria-label="Next portfolio image"
+            >
+              <ChevronRight size={22} />
+            </button>
+          </>
+        )}
+
+        <div
+          className="absolute right-3 top-3 z-20"
+          onClick={(event) => event.stopPropagation()}
         >
-          <X size={18} />
-        </button>
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+            onClick={onClose}
+            aria-label="Close portfolio image"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {!modalLoading && (
+          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
+            <img
+              src={artist.avatarUrl || "/default-avatar.png"}
+              alt={getArtistDisplayName(artist)}
+              className="h-9 w-9 rounded-full border border-white/40 object-cover"
+            />
+            <span className="text-sm font-semibold text-white">
+              {getArtistDisplayName(artist)}
+            </span>
+          </div>
+        )}
       </div>
 
-      {!modalLoading && (
-        <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
-          <img
-            src={artist.avatarUrl || "/default-avatar.png"}
-            alt={getArtistDisplayName(artist)}
-            className="h-9 w-9 rounded-full border border-white/40 object-cover"
-          />
-          <span className="text-sm font-semibold text-white">
-            {getArtistDisplayName(artist)}
-          </span>
-        </div>
-      )}
+      <div
+        key={item.id}
+        data-aos="fade-in"
+        className={`max-w-sm text-center md:text-left ${slideClass}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+          Portfolio piece
+        </p>
+        <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
+          {item.caption || "Untitled piece"}
+        </h1>
+        {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 && (
+          <div className="mt-5 max-w-sm">
+            <TagMarqueeModal tags={item.tags} compact />
+          </div>
+        )}
+        {modalLoading && (
+          <div className="mt-4 space-y-2">
+            <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
+            <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
+          </div>
+        )}
+      </div>
     </div>
-
-    <div
-      data-aos="fade-in"
-      className="max-w-sm text-center md:text-left"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-        Portfolio piece
-      </p>
-      <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
-        {item.caption || "Untitled piece"}
-      </h1>
-      {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 && (
-        <div className="mt-5 max-w-sm">
-          <TagMarqueeModal tags={item.tags} compact />
-        </div>
-      )}
-      {modalLoading && (
-        <div className="mt-4 space-y-2">
-          <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
-          <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
-        </div>
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
 const FlashSheetLightbox = ({
   sheet,
@@ -1046,6 +1158,7 @@ const LightboxImageFrame = ({
   alt,
   isLoading,
   loadingLabel,
+  slideClass,
   onImageLoad,
 }: {
   fullUrl: string;
@@ -1053,6 +1166,7 @@ const LightboxImageFrame = ({
   alt: string;
   isLoading: boolean;
   loadingLabel: string;
+  slideClass?: string;
   onImageLoad: () => void;
 }) => (
   <div
@@ -1068,7 +1182,7 @@ const LightboxImageFrame = ({
         isLoading
           ? "scale-100 opacity-100 blur-0"
           : "scale-100 opacity-0 blur-none"
-      }`}
+      } ${slideClass || ""}`}
       decoding="async"
     />
     <div
@@ -1081,7 +1195,7 @@ const LightboxImageFrame = ({
       alt={alt}
       className={`relative z-10 h-full w-full object-contain transition duration-500 ${
         isLoading ? "scale-[0.995] opacity-0" : "scale-100 opacity-100"
-      }`}
+      } ${slideClass || ""}`}
       decoding="async"
       onLoad={onImageLoad}
       onError={onImageLoad}
