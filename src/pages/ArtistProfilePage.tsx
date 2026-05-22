@@ -900,20 +900,10 @@ const PortfolioLightbox = ({
         onImageLoad={onImageLoad}
       />
 
-      <div
-        className="absolute left-3 right-3 top-3 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-md"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 ? (
-          <TagMarqueeModal tags={item.tags} />
-        ) : (
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-white/65">
-            {modalLoading ? "Preparing image" : "Portfolio piece"}
-          </span>
-        )}
+      <div className="absolute right-3 top-3" onClick={(event) => event.stopPropagation()}>
         <button
           type="button"
-          className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
           onClick={onClose}
           aria-label="Close portfolio image"
         >
@@ -946,6 +936,11 @@ const PortfolioLightbox = ({
       <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
         {item.caption || "Untitled piece"}
       </h1>
+      {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 && (
+        <div className="mt-5 max-w-sm">
+          <TagMarqueeModal tags={item.tags} compact />
+        </div>
+      )}
       {modalLoading && (
         <div className="mt-4 space-y-2">
           <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
@@ -1412,7 +1407,13 @@ const FlashRequestModal = ({
   );
 };
 
-const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
+const TagMarqueeModal = ({
+  tags,
+  compact = false,
+}: {
+  tags: string[];
+  compact?: boolean;
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [duration, setDuration] = useState("60s");
@@ -1437,6 +1438,21 @@ const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium text-white/70"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
