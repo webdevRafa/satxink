@@ -6,6 +6,7 @@ import {
   Filter,
   ImageOff,
   Search,
+  SlidersHorizontal,
   Tag,
 } from "lucide-react";
 import {
@@ -27,7 +28,7 @@ import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 
 type MarketplaceTab = "flashes" | "sheets";
-type PriceFilter = "all" | "under_100" | "under_200" | "under_400";
+type PriceSort = "newest" | "price_asc" | "price_desc";
 
 type PublicArtist = {
   id: string;
@@ -46,13 +47,6 @@ type MarketFlashSheet = FlashSheet & {
   artist?: PublicArtist;
 };
 
-const priceFilters: { label: string; value: PriceFilter; max?: number }[] = [
-  { label: "Any price", value: "all" },
-  { label: "$100 and under", value: "under_100", max: 100 },
-  { label: "$200 and under", value: "under_200", max: 200 },
-  { label: "$400 and under", value: "under_400", max: 400 },
-];
-
 const FLASH_ITEMS_PER_PAGE = 18;
 
 const FlashMarketplacePage = () => {
@@ -62,7 +56,9 @@ const FlashMarketplacePage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
-  const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
+  const [minBudget, setMinBudget] = useState("");
+  const [maxBudget, setMaxBudget] = useState("");
+  const [priceSort, setPriceSort] = useState<PriceSort>("newest");
   const [client, setClient] = useState<FlashRequestClient | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<MarketFlash | null>(null);
   const [flashPage, setFlashPage] = useState(0);
@@ -198,18 +194,18 @@ const FlashMarketplacePage = () => {
   }, [flashes, sheets]);
 
   const filteredFlashes = useMemo(() => {
-    return flashes.filter((flash) => {
-      const maxPrice = priceFilters.find(
-        (filter) => filter.value === priceFilter
-      )?.max;
+    const minPrice = parseBudgetValue(minBudget);
+    const maxPrice = parseBudgetValue(maxBudget);
 
-      const matchesPrice =
-        !maxPrice ||
-        (typeof flash.price === "number" && flash.price <= maxPrice);
-
-      return matchesPrice && matchesSearchAndTag(flash, searchTerm, selectedTag);
-    });
-  }, [flashes, priceFilter, searchTerm, selectedTag]);
+    return flashes
+      .filter((flash) => {
+        const matchesBudget = matchesBudgetRange(flash, minPrice, maxPrice);
+        return (
+          matchesBudget && matchesSearchAndTag(flash, searchTerm, selectedTag)
+        );
+      })
+      .sort((a, b) => sortFlashes(a, b, priceSort));
+  }, [flashes, maxBudget, minBudget, priceSort, searchTerm, selectedTag]);
 
   const filteredSheets = useMemo(
     () =>
@@ -232,7 +228,7 @@ const FlashMarketplacePage = () => {
 
   useEffect(() => {
     setFlashPage(0);
-  }, [activeTab, priceFilter, searchTerm, selectedTag]);
+  }, [activeTab, maxBudget, minBudget, priceSort, searchTerm, selectedTag]);
 
   useEffect(() => {
     if (flashPage >= flashPageCount) {
@@ -267,7 +263,7 @@ const FlashMarketplacePage = () => {
         </div>
 
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_360px]">
             <label className="relative block">
               <Search
                 size={18}
@@ -282,25 +278,46 @@ const FlashMarketplacePage = () => {
             </label>
 
             <label className="relative block">
-              <Filter
+              <SlidersHorizontal
                 size={18}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
               />
               <select
-                value={priceFilter}
-                onChange={(event) =>
-                  setPriceFilter(event.target.value as PriceFilter)
-                }
+                value={priceSort}
+                onChange={(event) => setPriceSort(event.target.value as PriceSort)}
                 disabled={activeTab === "sheets"}
                 className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-40 focus:border-white/30"
               >
-                {priceFilters.map((filter) => (
-                  <option key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </option>
-                ))}
+                <option value="newest">Sort: newest</option>
+                <option value="price_asc">Price: low to high</option>
+                <option value="price_desc">Price: high to low</option>
               </select>
             </label>
+
+            <div
+              className={`rounded-xl border border-white/10 bg-black/25 p-2 transition ${
+                activeTab === "sheets" ? "opacity-40" : ""
+              }`}
+            >
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-white/35">
+                  <Filter size={16} />
+                </div>
+                <BudgetInput
+                  label="Min"
+                  value={minBudget}
+                  disabled={activeTab === "sheets"}
+                  onChange={setMinBudget}
+                />
+                <span className="text-xs font-semibold text-white/35">to</span>
+                <BudgetInput
+                  label="Max"
+                  value={maxBudget}
+                  disabled={activeTab === "sheets"}
+                  onChange={setMaxBudget}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -446,6 +463,35 @@ const TagButton = ({
   >
     {label}
   </button>
+);
+
+const BudgetInput = ({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) => (
+  <label className="relative block">
+    <span className="sr-only">{label} budget</span>
+    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/35">
+      $
+    </span>
+    <input
+      type="number"
+      min={0}
+      inputMode="numeric"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={label}
+      className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.035] pl-5 pr-2 text-xs font-semibold text-white outline-none transition placeholder:text-white/30 disabled:cursor-not-allowed focus:border-white/30 focus:bg-white/[0.06]"
+    />
+  </label>
 );
 
 const FlashPager = ({
@@ -744,5 +790,45 @@ const getCreatedTime = (item: Flash | FlashSheet) => {
 
 const sortByNewest = <T extends Flash | FlashSheet>(a: T, b: T) =>
   getCreatedTime(b) - getCreatedTime(a);
+
+const parseBudgetValue = (value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return null;
+
+  const parsedValue = Number(trimmedValue);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+};
+
+const matchesBudgetRange = (
+  flash: Flash,
+  minPrice: number | null,
+  maxPrice: number | null
+) => {
+  if (minPrice === null && maxPrice === null) return true;
+  if (typeof flash.price !== "number") return false;
+
+  const meetsMin = minPrice === null || flash.price >= minPrice;
+  const meetsMax = maxPrice === null || flash.price <= maxPrice;
+
+  return meetsMin && meetsMax;
+};
+
+const getSortablePrice = (flash: Flash) =>
+  typeof flash.price === "number" ? flash.price : null;
+
+const sortFlashes = (a: Flash, b: Flash, priceSort: PriceSort) => {
+  if (priceSort === "newest") return sortByNewest(a, b);
+
+  const aPrice = getSortablePrice(a);
+  const bPrice = getSortablePrice(b);
+  if (aPrice === null && bPrice === null) return sortByNewest(a, b);
+  if (aPrice === null) return 1;
+  if (bPrice === null) return -1;
+
+  const priceDifference =
+    priceSort === "price_asc" ? aPrice - bPrice : bPrice - aPrice;
+
+  return priceDifference || sortByNewest(a, b);
+};
 
 export default FlashMarketplacePage;
