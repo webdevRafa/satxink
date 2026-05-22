@@ -21,6 +21,7 @@ import { TbLayoutGridAdd } from "react-icons/tb";
 
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import { formatTagsInput, parseTags } from "../utils/tags";
 
 // ─────────────────────────────────────────────
 // Edit Modal
@@ -31,10 +32,16 @@ const EditFlashModal = ({
 }: {
   flash: Flash;
   onClose: () => void;
-  onSave: (id: string, title: string, price: number | null) => void;
+  onSave: (
+    id: string,
+    title: string,
+    price: number | null,
+    tags: string[]
+  ) => void;
 }) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
+  const [tagsInput, setTagsInput] = useState(formatTagsInput(flash.tags));
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -59,9 +66,6 @@ const EditFlashModal = ({
           />
         </div>
         <div>
-          <label htmlFor="tags">tags</label>
-        </div>
-        <div>
           <label className="block text-sm mb-1">Price</label>
           <input
             type="number"
@@ -69,6 +73,15 @@ const EditFlashModal = ({
             onChange={(e) => setPrice(e.target.value)}
             className="max-w-[100px] px-3 py-2 rounded bg-zinc-800 text-white text-sm"
             placeholder="$"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Tags</label>
+          <input
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            className="w-full px-3 py-2 rounded bg-zinc-800 text-white text-sm"
+            placeholder="traditional, rose, color"
           />
         </div>
 
@@ -81,7 +94,12 @@ const EditFlashModal = ({
           </button>
           <button
             onClick={() =>
-              onSave(flash.id, title, price ? parseFloat(price) : null)
+              onSave(
+                flash.id,
+                title,
+                price ? parseFloat(price) : null,
+                parseTags(tagsInput)
+              )
             }
             className="px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm"
           >
@@ -109,6 +127,7 @@ const FlashSheetDetailPage = () => {
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
+  const [newFlashTags, setNewFlashTags] = useState("");
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -127,9 +146,10 @@ const FlashSheetDetailPage = () => {
   const handleSaveEdit = async (
     flashId: string,
     title: string,
-    price: number | null
+    price: number | null,
+    tags: string[]
   ) => {
-    await updateDoc(doc(db, "flashes", flashId), { title, price });
+    await updateDoc(doc(db, "flashes", flashId), { title, price, tags });
     setEditingFlash(null);
     if (id) fetchFlashes(id);
   };
@@ -211,7 +231,7 @@ const FlashSheetDetailPage = () => {
         sheetId: sheet.id,
         title: newFlashTitle || "Untitled Flash",
         price: newFlashPrice ? parseFloat(newFlashPrice) : null,
-        tags: [],
+        tags: parseTags(newFlashTags),
         fullUrl,
         thumbUrl,
         webp90Url,
@@ -222,6 +242,7 @@ const FlashSheetDetailPage = () => {
       setShowCropModal(false);
       setNewFlashTitle("");
       setNewFlashPrice("");
+      setNewFlashTags("");
       if (id) fetchFlashes(id);
     } catch (err) {
       console.error("Flash creation failed:", err);
@@ -338,6 +359,13 @@ const FlashSheetDetailPage = () => {
               onChange={(e) => setNewFlashPrice(e.target.value)}
               placeholder="$"
               className="w-full bg-zinc-800 rounded px-3 py-2 max-w-[100px] text-sm"
+            />
+            <input
+              type="text"
+              value={newFlashTags}
+              onChange={(e) => setNewFlashTags(e.target.value)}
+              placeholder="Tags (comma or space separated)"
+              className="bg-zinc-800 rounded px-3 py-2 text-sm w-[80%]"
             />
 
             <div className="flex justify-between mt-4">

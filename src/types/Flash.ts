@@ -16,9 +16,11 @@ export type Flash = {
   fullPath: string;                // Firebase Storage path to full image
 
   title?: string;                  // Optional artist-provided title
+  caption?: string | null;         // Legacy upload modal title field
   isAvailable?: boolean;           // Optional: mark flash as available or sold
-  price?: number;                  // Optional: for marketplace support
+  price?: number | null;           // Optional: for marketplace support
   tags?: string[];                 // Optional: for search/filter
+  status?: string;                 // Optional processing status for uploaded files
   isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp
   sheetId?: string;

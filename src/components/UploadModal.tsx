@@ -5,6 +5,7 @@ import { collection, addDoc } from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
 import { serverTimestamp } from "firebase/firestore";
 import { X, Upload } from "lucide-react";
+import { parseTags } from "../utils/tags";
 
 type Props = {
   uid: string;
@@ -26,6 +27,7 @@ const UploadModal: React.FC<Props> = ({
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
+  const [priceInput, setPriceInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
@@ -51,6 +53,7 @@ const UploadModal: React.FC<Props> = ({
     setCroppedFile(null);
     setPreviewUrl(null);
     setCaptionOrTitle("");
+    setPriceInput("");
     setTagsInput("");
     setIsUploading(false);
     onClose();
@@ -81,19 +84,25 @@ const UploadModal: React.FC<Props> = ({
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
 
-      const tags = tagsInput
-        ? tagsInput
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [];
+      const tags = parseTags(tagsInput);
+      const price =
+        collectionType === "flashes" && priceInput
+          ? parseFloat(priceInput)
+          : null;
 
       await addDoc(collection(db, collectionType), {
         artistId: uid,
         caption: captionOrTitle || null,
+        title:
+          collectionType === "flashes"
+            ? captionOrTitle || "Untitled Flash"
+            : null,
+        price,
         tags,
         fileName: baseName,
         timestamp,
+        isAvailable: collectionType === "flashes" ? true : null,
+        isFromSheet: collectionType === "flashes" ? false : null,
         status: "processing",
         createdAt: serverTimestamp(),
       });
@@ -183,6 +192,16 @@ const UploadModal: React.FC<Props> = ({
               onChange={(e) => setCaptionOrTitle(e.target.value)}
               className="w-full px-3 py-2 rounded bg-[var(--color-bg-card)] text-white mb-3"
             />
+
+            {collectionType === "flashes" && (
+              <input
+                type="number"
+                placeholder="Optional price"
+                value={priceInput}
+                onChange={(e) => setPriceInput(e.target.value)}
+                className="w-full px-3 py-2 rounded bg-[var(--color-bg-card)] text-white mb-3"
+              />
+            )}
 
             <input
               type="text"

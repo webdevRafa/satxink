@@ -20,6 +20,7 @@ import type { Area } from "react-easy-crop";
 import { getCroppedImg } from "../utils/cropImage";
 import UploadModal from "./UploadModal";
 import { Plus, Scissors } from "lucide-react";
+import { parseTags } from "../utils/tags";
 
 // Optional but nice: tiny status toasts (Toaster already mounted in App.tsx)
 import toast from "react-hot-toast";
@@ -40,6 +41,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
+  const [sheetTagsInput, setSheetTagsInput] = useState("");
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
   // ── State for cropping from uploaded sheet
@@ -51,6 +53,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [showFlashDetailsModal, setShowFlashDetailsModal] = useState(false);
   const [titleInput, setTitleInput] = useState("");
   const [priceInput, setPriceInput] = useState("");
+  const [flashTagsInput, setFlashTagsInput] = useState("");
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [isSavingFlash, setIsSavingFlash] = useState(false);
 
@@ -167,6 +170,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
       const docRef = await addDoc(collection(db, "flashSheets"), {
         artistId: uid,
         title: sheetTitleInput,
+        tags: parseTags(sheetTagsInput),
         fileName: baseName,
         imageUrl,
         thumbUrl,
@@ -176,6 +180,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
       setSheetDocId(docRef.id);
       setSheetTitleInput("");
+      setSheetTagsInput("");
       setPendingSheetFile(null);
       setShowSheetTitleModal(false);
       toast.success("Flash sheet uploaded!");
@@ -244,7 +249,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
         artistId: uid,
         title: titleInput || "Untitled Flash",
         price: priceInput ? parseFloat(priceInput) : null,
-        tags: [],
+        tags: parseTags(flashTagsInput),
         fullUrl,
         thumbUrl,
         webp90Url,
@@ -256,6 +261,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
       // Reset UI
       setTitleInput("");
       setPriceInput("");
+      setFlashTagsInput("");
       setCurrentCrop(null);
       setPendingBlob(null);
       setShowFlashDetailsModal(false);
@@ -328,11 +334,19 @@ const FlashManager = ({ uid }: { uid: string }) => {
               placeholder="Flash Sheet Title"
               className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
             />
+            <input
+              type="text"
+              value={sheetTagsInput}
+              onChange={(e) => setSheetTagsInput(e.target.value)}
+              placeholder="Tags (traditional, dragon, color)"
+              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
+            />
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowSheetTitleModal(false);
                   setSheetTitleInput("");
+                  setSheetTagsInput("");
                   setPendingSheetFile(null);
                 }}
                 className="bg-rose-600 text-white px-4 py-2 rounded hover:bg-rose-700"
@@ -421,9 +435,19 @@ const FlashManager = ({ uid }: { uid: string }) => {
               placeholder="Price (optional)"
               className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
             />
+            <input
+              type="text"
+              value={flashTagsInput}
+              onChange={(e) => setFlashTagsInput(e.target.value)}
+              placeholder="Tags (comma or space separated)"
+              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
+            />
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowFlashDetailsModal(false)}
+                onClick={() => {
+                  setShowFlashDetailsModal(false);
+                  setFlashTagsInput("");
+                }}
                 className="bg-zinc-700 text-white px-4 py-2 rounded"
                 disabled={isSavingFlash}
               >
