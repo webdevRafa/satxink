@@ -20,6 +20,7 @@ import MakeOfferModal from "../components/MakeOfferModal";
 import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
+import EventsManager from "../components/EventsManager";
 import type { Booking } from "../types/Booking";
 
 const ArtistDashboardView = () => {
@@ -37,6 +38,7 @@ const ArtistDashboardView = () => {
     | "calendar"
     | "flashes"
     | "gallery"
+    | "events"
   >("gallery");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -215,6 +217,9 @@ const ArtistDashboardView = () => {
 
         {activeTab === "flashes" && uid && <FlashManager uid={uid} />}
         {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
+        {activeTab === "events" && uid && (
+          <EventsManager uid={uid} artist={artist} />
+        )}
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel
             feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${

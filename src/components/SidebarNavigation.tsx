@@ -11,7 +11,8 @@ type ViewTab =
   | "cancelled"
   | "calendar"
   | "flashes"
-  | "gallery";
+  | "gallery"
+  | "events";
 
 interface SidebarProps {
   activeTab: ViewTab;
@@ -30,6 +31,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "bookings", label: "Bookings" },
     { key: "flashes", label: "Flashes" },
     { key: "gallery", label: "Gallery" },
+    { key: "events", label: "Events" },
     { key: "calendar", label: "Calendar Sync" },
   ];
 
