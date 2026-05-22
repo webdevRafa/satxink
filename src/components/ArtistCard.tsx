@@ -25,15 +25,18 @@ const ArtistCard = ({
   const displayName = name || "Artist";
   const visibleSpecialties = specialties?.slice(0, 3) || [];
   const hiddenSpecialtyCount = Math.max((specialties?.length || 0) - 3, 0);
+  const layoutClass = previewUrl
+    ? "grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]"
+    : "grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4 p-4";
 
   return (
     <div className="group min-h-[128px] overflow-hidden rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] text-white shadow-md transition duration-300 hover:border-white/15 hover:from-[#171717] hover:to-[#282828]">
-      <div className="grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]">
-      <img
-        src={avatarUrl || "/fallback.jpg"}
-        alt={displayName}
+      <div className={layoutClass}>
+        <img
+          src={avatarUrl || "/fallback.jpg"}
+          alt={displayName}
           className="my-auto h-16 w-16 rounded-full border border-white/10 object-cover shadow-lg"
-      />
+        />
 
         <div className="flex min-w-0 flex-col justify-center">
           <h3 className="truncate text-base font-semibold text-neutral-100">
@@ -67,22 +70,16 @@ const ArtistCard = ({
           </span>
         </div>
 
-        <div className="hidden h-full min-h-[88px] overflow-hidden rounded-md border border-white/10 bg-black/30 sm:block">
-          {previewUrl ? (
+        {previewUrl && (
+          <div className="hidden h-full min-h-[88px] overflow-hidden rounded-md border border-white/10 bg-black/30 sm:block">
             <img
               src={previewUrl}
               alt={previewAlt || `${displayName} portfolio preview`}
               loading="lazy"
               className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
             />
-          ) : (
-            <div className="flex h-full w-full items-end bg-gradient-to-br from-white/[0.08] via-transparent to-black px-3 py-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/25">
-                SATX
-              </span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
