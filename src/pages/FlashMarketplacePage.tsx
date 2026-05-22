@@ -413,7 +413,7 @@ const FlashSheetMarketCard = ({ sheet }: { sheet: MarketFlashSheet }) => {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
-      <Link to={`/flash-sheet/${sheet.id}`} className="block">
+      <Link to={`/flash/sheets/${sheet.id}`} className="block">
         <div className="relative aspect-[4/5] bg-black/30">
           <img
             src={sheet.thumbUrl || sheet.imageUrl}
@@ -435,10 +435,10 @@ const FlashSheetMarketCard = ({ sheet }: { sheet: MarketFlashSheet }) => {
         <TagList tags={sheet.tags} />
         <div className="mt-5 flex justify-end">
           <Link
-            to={`/flash-sheet/${sheet.id}`}
+            to={`/flash/sheets/${sheet.id}`}
             className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/85"
           >
-            Open sheet
+            View sheet
             <ChevronRight size={16} />
           </Link>
         </div>

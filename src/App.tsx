@@ -36,6 +36,7 @@ import Dashboard from "./pages/Dashboard";
 import FlashSheetDetailPage from "./pages/FlashSheetDetailPage";
 import EventsPage from "./pages/EventsPage";
 import FlashMarketplacePage from "./pages/FlashMarketplacePage";
+import PublicFlashSheetPage from "./pages/PublicFlashSheetPage";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -76,6 +77,7 @@ function App() {
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/flash" element={<FlashMarketplacePage />} />
+        <Route path="/flash/sheets/:sheetId" element={<PublicFlashSheetPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />
         <Route path="/dashboard" element={<DashboardRedirectPage />} />
         <Route path="/signup" element={<SignupSelection />} />
