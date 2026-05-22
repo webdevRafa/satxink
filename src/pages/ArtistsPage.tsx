@@ -1,27 +1,22 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // @ts-ignore
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  startAfter,
-  limit,
-  orderBy,
-  QueryDocumentSnapshot,
-} from "firebase/firestore";
-import type { DocumentData } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
-import ArtistCard from "../components/ArtistCard";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { Link } from "react-router-dom";
-import sa from "../assets/san-antonio.svg";
+import ArtistCard from "../components/ArtistCard";
 import gun from "../assets/white-gun.svg";
-
+import sa from "../assets/san-antonio.svg";
+import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
+import type { GalleryItem } from "../types/GalleryItem";
+
+type ArtistPreview = {
+  url: string;
+  alt?: string;
+};
 
 const PAGE_SIZE = 6;
 const SPECIALTIES = [
@@ -40,6 +35,31 @@ const SPECIALTIES = [
   "Fine Line",
   "Color Realism",
 ];
+
+const getArtistDisplayName = (artist: Artist) =>
+  artist.displayName || artist.name || artist.email || "Artist";
+
+const isVisibleArtist = (artist: Artist) =>
+  artist.role === "artist" &&
+  (artist.isVerified === true ||
+    artist.isVerified === "true" ||
+    typeof artist.isVerified === "undefined");
+
+const getGalleryItemTime = (item: GalleryItem) => {
+  const createdAt = item.createdAt as any;
+  if (createdAt?.toMillis) return createdAt.toMillis();
+  if (createdAt instanceof Date) return createdAt.getTime();
+  return 0;
+};
+
+const getGalleryPreviewUrl = (item: GalleryItem) =>
+  item.thumbUrl || item.webp90Url || item.fullUrl;
+
+const chunkArray = <T,>(items: T[], size: number) =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, index * size + size)
+  );
+
 function useStickyReveal(threshold = 10) {
   const [visible, setVisible] = useState(true);
   const lastY = useRef(window.scrollY);
@@ -73,42 +93,48 @@ function useStickyReveal(threshold = 10) {
 }
 
 export const ArtistsPage = () => {
-  const isStylesVisible = useStickyReveal(5); // feel free to test 10, 15, etc.
+  const isStylesVisible = useStickyReveal(5);
 
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [lastDoc, setLastDoc] =
-    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
+    Record<string, ArtistPreview | null>
+  >({});
+  const [loading, setLoading] = useState(true);
+  const [showInitialSkeleton, setShowInitialSkeleton] = useState(true);
+  const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
-  // ⬇️ add this right under the existing hooks in ArtistsPage.tsx
+
   useEffect(() => {
     if (!loading) {
-      // give React time to paint the newly-fetched cards
-      const t = setTimeout(() => AOS.refreshHard(), 50);
-      return () => clearTimeout(t);
+      const timeout = setTimeout(() => AOS.refreshHard(), 50);
+      return () => clearTimeout(timeout);
     }
-  }, [artists.length, loading]);
-  // ✅ Fetch first page (only once)
+  }, [artists.length, loading, visibleCount]);
+
   useEffect(() => {
     const initialFetch = async () => {
       setLoading(true);
+
       try {
-        const q = query(
+        const artistsQuery = query(
           collection(db, "users"),
-          where("role", "==", "artist"),
-          orderBy("name"),
-          limit(PAGE_SIZE)
+          where("role", "==", "artist")
         );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<Artist, "id">),
-        }));
+        const snapshot = await getDocs(artistsQuery);
+        const docs = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Artist, "id">),
+          }))
+          .filter(isVisibleArtist)
+          .sort((a, b) =>
+            getArtistDisplayName(a).localeCompare(getArtistDisplayName(b))
+          );
+
         setArtists(docs);
-        setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-        setHasMore(snapshot.docs.length === PAGE_SIZE);
-        console.log("🔰 Initial fetch:", docs.length, "docs");
+        setVisibleCount(PAGE_SIZE);
+        console.log("Artists fetched:", docs.length, "visible artist docs");
       } catch (err) {
         console.error("Initial fetch error:", err);
       } finally {
@@ -119,36 +145,126 @@ export const ArtistsPage = () => {
     initialFetch();
   }, []);
 
-  // ✅ Fetch more when scrolling
-  const fetchMore = useCallback(async () => {
-    if (loading || !hasMore || !lastDoc) return;
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [specialtyFilter]);
 
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, "users"),
-        where("role", "==", "artist"),
-        orderBy("name"),
-        startAfter(lastDoc),
-        limit(PAGE_SIZE)
-      );
-      const snapshot = await getDocs(q);
-      const newDocs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Artist, "id">),
-      }));
-      setArtists((prev) => [...prev, ...newDocs]);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
-      console.log("📦 Fetched more:", newDocs.length, "docs");
-    } catch (err) {
-      console.error("Fetch more error:", err);
-    } finally {
-      setLoading(false);
+  const filteredArtists = specialtyFilter
+    ? artists.filter((artist) =>
+        artist.specialties?.some((tag) =>
+          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
+        )
+      )
+    : artists;
+
+  const visibleArtists = filteredArtists.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredArtists.length;
+  const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
+  const isInitialLoading = loading && artists.length === 0;
+  const previewLookupsPending =
+    visibleArtists.length > 0 &&
+    visibleArtists.some((artist) => !(artist.id in galleryPreviewByArtist));
+  const shouldHoldInitialSkeleton =
+    isInitialLoading || (showInitialSkeleton && previewLookupsPending);
+
+  useEffect(() => {
+    if (shouldHoldInitialSkeleton) {
+      setShowInitialSkeleton(true);
+      setIsSkeletonExiting(false);
+      return;
     }
-  }, [lastDoc, loading, hasMore]);
 
-  // ✅ Infinite scroll observer
+    if (!showInitialSkeleton) return;
+
+    setIsSkeletonExiting(true);
+    const timeout = window.setTimeout(() => {
+      setShowInitialSkeleton(false);
+    }, 360);
+
+    return () => clearTimeout(timeout);
+  }, [shouldHoldInitialSkeleton, showInitialSkeleton]);
+
+  useEffect(() => {
+    const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
+    const missingArtistIds = artistIds.filter(
+      (artistId) => !(artistId in galleryPreviewByArtist)
+    );
+
+    if (missingArtistIds.length === 0) return;
+
+    let ignore = false;
+
+    const fetchGalleryPreviews = async () => {
+      try {
+        const previewByArtist: Record<string, ArtistPreview | null> = {};
+        missingArtistIds.forEach((artistId) => {
+          previewByArtist[artistId] = null;
+        });
+
+        const chunks = chunkArray(missingArtistIds, 10);
+        const snapshots = await Promise.all(
+          chunks.map((artistIdChunk) =>
+            getDocs(
+              query(
+                collection(db, "gallery"),
+                where("artistId", "in", artistIdChunk)
+              )
+            )
+          )
+        );
+
+        snapshots
+          .flatMap((snapshot) =>
+            snapshot.docs.map(
+              (doc) => ({ id: doc.id, ...doc.data() } as GalleryItem)
+            )
+          )
+          .filter((item) => item.status !== "processing")
+          .sort((a, b) => getGalleryItemTime(b) - getGalleryItemTime(a))
+          .forEach((item) => {
+            const previewUrl = getGalleryPreviewUrl(item);
+            if (!previewUrl || previewByArtist[item.artistId]) return;
+
+            previewByArtist[item.artistId] = {
+              url: previewUrl,
+              alt: item.caption,
+            };
+          });
+
+        if (!ignore) {
+          setGalleryPreviewByArtist((current) => ({
+            ...current,
+            ...previewByArtist,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch artist gallery previews:", err);
+        if (!ignore) {
+          setGalleryPreviewByArtist((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              missingArtistIds.map((artistId) => [artistId, null])
+            ),
+          }));
+        }
+      }
+    };
+
+    fetchGalleryPreviews();
+
+    return () => {
+      ignore = true;
+    };
+  }, [galleryPreviewByArtist, visibleArtistIdKey]);
+
+  const fetchMore = useCallback(() => {
+    if (loading || !hasMore) return;
+
+    setVisibleCount((count) =>
+      Math.min(count + PAGE_SIZE, filteredArtists.length)
+    );
+  }, [filteredArtists.length, hasMore, loading]);
+
   const observer = useRef<IntersectionObserver | null>(null);
   const lastArtistRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -164,20 +280,11 @@ export const ArtistsPage = () => {
     [fetchMore, loading]
   );
 
-  const filteredArtists = specialtyFilter
-    ? artists.filter((a) =>
-        a.specialties?.some((tag) =>
-          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-        )
-      )
-    : artists;
-
   return (
-    <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
+    <main className="px-4 py-12 max-w-[1300px] mx-auto relative min-h-[calc(100vh-4rem)]">
       <div data-aos="fade-in">
-        {/* flex container for 'find an artist' and the sa imagery */}
         <div
-          className="flex gap-0 flex-col items-center mt-30 
+          className="flex gap-0 flex-col items-center mt-30
         justify-center"
         >
           <img
@@ -192,7 +299,6 @@ export const ArtistsPage = () => {
             <img className="h-8 translate-y-[-14px]" src={gun} alt="" />
           </div>
         </div>
-        {/* paragraph right beneath it */}
         <p className="text-neutral-500! mb-0 text-center translate-y-[-15px]">
           Discover talented artists from San Antonio, browse by style, and view
           their work.
@@ -223,34 +329,53 @@ export const ArtistsPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-5">
-        {filteredArtists.map((artist, index) => {
-          const isLast = index === filteredArtists.length - 1;
-          return (
-            <div
-              data-aos="fade-in"
-              key={artist.id}
-              ref={isLast ? lastArtistRef : null}
-            >
-              <Link to={`/artists/${artist.id}`}>
-                <ArtistCard
-                  name={artist.name}
-                  avatarUrl={artist.avatarUrl}
-                  specialties={artist.specialties}
-                  likedBy={artist.likedBy || []}
-                />
-              </Link>
-            </div>
-          );
-        })}
+      <div className="relative mt-5 min-h-[520px]">
+        {!isInitialLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {visibleArtists.map((artist, index) => {
+              const isLast = index === visibleArtists.length - 1;
+              const galleryPreview =
+                galleryPreviewByArtist[artist.id] || undefined;
+
+              return (
+                <div
+                  data-aos="fade-in"
+                  key={artist.id}
+                  ref={isLast ? lastArtistRef : null}
+                >
+                  <Link to={`/artists/${artist.id}`}>
+                    <ArtistCard
+                      name={getArtistDisplayName(artist)}
+                      avatarUrl={artist.avatarUrl}
+                      specialties={artist.specialties}
+                      likedBy={artist.likedBy || []}
+                      previewUrl={galleryPreview?.url}
+                      previewAlt={galleryPreview?.alt}
+                    />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showInitialSkeleton && (
+          <div
+            className={`transition-opacity duration-300 ease-out ${
+              isSkeletonExiting
+                ? "pointer-events-none absolute inset-0 opacity-0"
+                : "opacity-100"
+            }`}
+          >
+            <ArtistsPageSkeleton />
+          </div>
+        )}
       </div>
 
-      {loading && (
-        <p className="text-center text-gray-400 mt-6">
-          Loading more artists...
-        </p>
+      {loading && !isInitialLoading && (
+        <p className="text-center text-gray-400 mt-6">Loading artists...</p>
       )}
-      {!hasMore && !loading && (
+      {!hasMore && !loading && visibleArtists.length > 0 && (
         <p className="text-center text-gray-500 mt-6">
           No more artists to show.
         </p>
@@ -258,3 +383,32 @@ export const ArtistsPage = () => {
     </main>
   );
 };
+
+const ArtistsPageSkeleton = () => (
+  <div
+    className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3"
+    aria-busy="true"
+  >
+    {Array.from({ length: 9 }).map((_, index) => (
+      <div
+        key={index}
+        className="skeleton-sheen h-[148px] rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] p-4 shadow-md"
+      >
+        <div className="grid h-full grid-cols-[72px_minmax(0,1fr)_72px] gap-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]">
+          <div className="my-auto h-16 w-16 rounded-full border border-white/10 bg-gradient-to-br from-white/[0.11] to-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+          <div className="flex h-full min-w-0 flex-col justify-center">
+            <div className="h-5 w-36 rounded-md bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" />
+            <div className="mt-3 flex h-[48px] flex-wrap content-start gap-1.5 overflow-hidden">
+              <div className="h-6 w-20 rounded-full border border-white/10 bg-white/[0.05]" />
+              <div className="h-6 w-16 rounded-full border border-white/10 bg-white/[0.05]" />
+              <div className="hidden h-6 w-24 rounded-full border border-white/10 bg-white/[0.05] sm:block" />
+            </div>
+            <div className="h-9 w-24 rounded-md bg-white/[0.06] opacity-0" />
+          </div>
+          <div className="h-full overflow-hidden rounded-md border border-white/10 bg-gradient-to-br from-white/[0.09] via-white/[0.035] to-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
+        </div>
+      </div>
+    ))}
+    <span className="sr-only">Loading artists</span>
+  </div>
+);

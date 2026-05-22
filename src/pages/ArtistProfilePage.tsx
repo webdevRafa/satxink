@@ -289,10 +289,8 @@ export const ArtistProfilePage = () => {
     }, 80);
   };
 
-  if (loading)
-    return (
-      <p className="text-center text-gray-400 mt-10">Loading profile...</p>
-    );
+  if (loading) return <ArtistProfilePageSkeleton />;
+
   if (!artist)
     return <p className="text-center text-gray-400 mt-10">Artist not found.</p>;
 
@@ -504,6 +502,63 @@ export const ArtistProfilePage = () => {
   );
 };
 
+const ArtistProfilePageSkeleton = () => (
+  <div
+    className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[calc(100vh-5rem)]"
+    aria-busy="true"
+    aria-live="polite"
+  >
+    <div className="rounded-xl border border-white/5 bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] p-6 shadow-lg">
+      <div className="flex animate-pulse flex-col items-center gap-6 md:flex-row md:items-start">
+        <div className="h-32 w-32 rounded-full border-4 border-neutral-800 bg-white/[0.07] md:h-40 md:w-40" />
+        <div className="flex w-full flex-1 flex-col items-center md:items-start">
+          <div className="h-8 w-44 rounded-md bg-white/[0.08]" />
+          <div className="mt-3 h-4 w-36 rounded-full bg-white/[0.06]" />
+          <div className="mt-5 h-4 w-full max-w-sm rounded-full bg-white/[0.06]" />
+          <div className="mt-3 h-4 w-2/3 max-w-xs rounded-full bg-white/[0.04]" />
+          <div className="mt-5 flex gap-3">
+            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
+            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
+          </div>
+          <div className="mt-6 flex w-full flex-wrap justify-center gap-2 md:justify-start">
+            {[96, 84, 92, 88, 76, 124].map((width) => (
+              <div
+                key={width}
+                className="h-8 rounded-full border border-white/10 bg-white/[0.04]"
+                style={{ width }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-10 animate-pulse">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="h-4 w-32 rounded-full bg-white/[0.06]" />
+          <div className="mt-4 flex items-center gap-3">
+            <div className="h-8 w-28 rounded-md bg-white/[0.08]" />
+            <div className="h-6 w-px bg-white/10" />
+            <div className="h-8 w-32 rounded-md bg-white/[0.05]" />
+          </div>
+        </div>
+        <div className="h-8 w-24 rounded-full border border-white/10 bg-white/[0.04]" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="aspect-[4/5] rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.03] to-transparent"
+          />
+        ))}
+      </div>
+    </div>
+
+    <span className="sr-only">Loading artist profile</span>
+  </div>
+);
+
 const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   const createdAt = item.createdAt as any;
   if (createdAt?.toMillis) return createdAt.toMillis();
@@ -660,22 +715,25 @@ const PortfolioCard = ({
       <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100">
         <Expand size={17} />
       </div>
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
-          {item.caption || "Untitled piece"}
-        </h3>
-        {Array.isArray(item.tags) && item.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item.tags.slice(0, 3).map((tag) => (
+      {Array.isArray(item.tags) && item.tags.length > 0 && (
+        <div className="absolute inset-x-0 top-0 p-4 opacity-0 transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/75 via-black/35 to-transparent" />
+          <div className="relative flex flex-wrap gap-2">
+            {item.tags.slice(0, 5).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs text-white/75 backdrop-blur-sm"
+                className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs font-medium text-white/80 backdrop-blur-sm"
               >
                 {tag}
               </span>
             ))}
           </div>
-        )}
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
+          {item.caption || "Untitled piece"}
+        </h3>
       </div>
     </div>
   </button>
@@ -1035,47 +1093,55 @@ const PortfolioLightbox = ({
           </button>
         </div>
 
-        {!modalLoading && (
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
-            <img
-              src={artist.avatarUrl || "/default-avatar.png"}
-              alt={getArtistDisplayName(artist)}
-              className="h-9 w-9 rounded-full border border-white/40 object-cover"
-            />
-            <span className="text-sm font-semibold text-white">
-              {getArtistDisplayName(artist)}
-            </span>
-          </div>
-        )}
       </div>
 
       <div
-        key={item.id}
         data-aos="fade-in"
-        className={`max-w-sm text-center md:text-left ${
-          slideDirection === "next"
-            ? "portfolio-meta-in-next"
-            : "portfolio-meta-in-prev"
-        }`}
+        className="w-full max-w-sm text-center md:text-left"
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="mb-6 flex items-center justify-center gap-3 md:justify-start">
+          <img
+            src={artist.avatarUrl || "/default-avatar.png"}
+            alt={getArtistDisplayName(artist)}
+            className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
+          />
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Artist
+            </p>
+            <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
+              {getArtistDisplayName(artist)}
+            </p>
+          </div>
+        </div>
+
         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
           Portfolio piece
         </p>
-        <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
-          {item.caption || "Untitled piece"}
-        </h1>
-        {Array.isArray(item.tags) && item.tags.length > 0 && (
-          <div className="mt-5 max-w-sm">
-            <TagMarqueeModal tags={item.tags} compact />
-          </div>
-        )}
-        {modalLoading && (
-          <div className="mt-4 space-y-2">
-            <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
-            <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
-          </div>
-        )}
+        <div
+          key={item.id}
+          className={
+            slideDirection === "next"
+              ? "portfolio-meta-in-next"
+              : "portfolio-meta-in-prev"
+          }
+        >
+          <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
+            {item.caption || "Untitled piece"}
+          </h1>
+          {Array.isArray(item.tags) && item.tags.length > 0 && (
+            <div className="mt-5 max-w-sm">
+              <TagMarqueeModal tags={item.tags} compact />
+            </div>
+          )}
+          {modalLoading && (
+            <div className="mt-4 space-y-2">
+              <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
+              <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
