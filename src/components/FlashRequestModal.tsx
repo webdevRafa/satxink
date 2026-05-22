@@ -1,0 +1,340 @@
+import { type FormEvent, useState } from "react";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import toast from "react-hot-toast";
+import { Send, X } from "lucide-react";
+import { db } from "../firebase/firebaseConfig";
+import type { Flash } from "../types/Flash";
+
+export type FlashRequestArtist = {
+  id: string;
+  name?: string;
+  displayName?: string;
+  avatarUrl?: string;
+};
+
+export type FlashRequestClient = {
+  id: string;
+  name: string;
+  avatarUrl: string;
+};
+
+type FlashRequestModalProps = {
+  artist: FlashRequestArtist;
+  client: FlashRequestClient | null;
+  flash: Flash;
+  onClose: () => void;
+};
+
+const FlashRequestModal = ({
+  artist,
+  client,
+  flash,
+  onClose,
+}: FlashRequestModalProps) => {
+  const [description, setDescription] = useState(
+    `I would like to request this flash design: ${getFlashTitle(flash)}.`
+  );
+  const [bodyPlacement, setBodyPlacement] = useState("");
+  const [size, setSize] = useState("");
+  const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
+  const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [budget, setBudget] = useState(
+    typeof flash.price === "number" ? String(flash.price) : ""
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!client) {
+      toast.error("Please sign in as a client before requesting this flash.");
+      return;
+    }
+
+    if (!bodyPlacement || !size) {
+      toast.error("Please add placement and size.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const numericBudget = Number(budget);
+      const finalBudget =
+        budget.trim() && !Number.isNaN(numericBudget) ? numericBudget : null;
+
+      await addDoc(collection(db, "bookingRequests"), {
+        artistId: artist.id,
+        clientId: client.id,
+        clientName: client.name,
+        clientAvatar: client.avatarUrl,
+        description,
+        bodyPlacement,
+        size,
+        preferredDateRange,
+        budget: finalBudget,
+        availableTime,
+        availableDays,
+        status: "pending",
+        createdAt: serverTimestamp(),
+
+        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl,
+        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+        sourceType: "flash",
+        flashId: flash.id,
+        flashTitle: getFlashTitle(flash),
+        flashPrice: flash.price ?? null,
+        flashSheetId: flash.sheetId || null,
+        isFromSheet: flash.isFromSheet,
+      });
+
+      toast.success("Flash request sent!");
+      onClose();
+    } catch (err) {
+      console.error("Failed to submit flash request:", err);
+      toast.error("Something went wrong while sending your request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+              Flash request
+            </p>
+            <h2 className="mt-1 text-xl! font-semibold! text-white">
+              {getFlashTitle(flash)}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
+            aria-label="Close flash request"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 gap-6 p-5 md:grid-cols-[0.9fr_1.1fr]"
+        >
+          <div>
+            <img
+              src={getFlashPreviewUrl(flash)}
+              alt={getFlashTitle(flash)}
+              className="max-h-[420px] w-full rounded-xl border border-white/10 bg-black object-contain"
+            />
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center gap-3">
+                <img
+                  src={artist.avatarUrl || "/default-avatar.png"}
+                  alt={getArtistName(artist)}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {getArtistName(artist)}
+                  </p>
+                  {typeof flash.price === "number" && (
+                    <p className="text-sm text-white/55">
+                      Listed at ${flash.price}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {!client && (
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
+                Sign in as a client to send this request.
+              </div>
+            )}
+
+            <label className="block">
+              <span className="mb-1 block text-sm text-white/70">Message</span>
+              <textarea
+                required
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="min-h-28 w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+              />
+            </label>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Body placement
+                </span>
+                <input
+                  required
+                  value={bodyPlacement}
+                  onChange={(event) => setBodyPlacement(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Forearm, thigh, shoulder..."
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">Size</span>
+                <select
+                  required
+                  value={size}
+                  onChange={(event) => setSize(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                >
+                  <option value="">Select size</option>
+                  <option value="Small">Small</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Large">Large</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Earliest date
+                </span>
+                <input
+                  type="date"
+                  value={preferredDateRange[0]}
+                  onChange={(event) =>
+                    setPreferredDateRange([
+                      event.target.value,
+                      preferredDateRange[1],
+                    ])
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Latest date
+                </span>
+                <input
+                  type="date"
+                  value={preferredDateRange[1]}
+                  onChange={(event) =>
+                    setPreferredDateRange([
+                      preferredDateRange[0],
+                      event.target.value,
+                    ])
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">From</span>
+                <input
+                  type="time"
+                  value={availableTime.from}
+                  onChange={(event) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      from: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">To</span>
+                <input
+                  type="time"
+                  value={availableTime.to}
+                  onChange={(event) =>
+                    setAvailableTime((prev) => ({
+                      ...prev,
+                      to: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-white/70">
+                  Budget
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={budget}
+                  onChange={(event) => setBudget(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="$"
+                />
+              </label>
+            </div>
+
+            <div>
+              <span className="mb-2 block text-sm text-white/70">
+                Available days
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                  "Sunday",
+                ].map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`rounded-full border px-3! py-1! text-sm! transition ${
+                      availableDays.includes(day)
+                        ? "border-white/40 bg-white text-black"
+                        : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/10"
+                    }`}
+                    onClick={() =>
+                      setAvailableDays((prev) =>
+                        prev.includes(day)
+                          ? prev.filter((item) => item !== day)
+                          : [...prev, day]
+                      )
+                    }
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !client}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#b6382d] px-4! py-3! text-sm! font-semibold text-white transition hover:bg-[#cf4639] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? "Sending..." : "Send flash request"}
+              <Send size={16} />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const getFlashTitle = (flash: Flash) =>
+  flash.title || flash.caption || "Untitled flash";
+
+const getFlashPreviewUrl = (flash: Flash) =>
+  flash.fullUrl || flash.webp90Url || flash.thumbUrl || "";
+
+const getArtistName = (artist: FlashRequestArtist) =>
+  artist.displayName || artist.name || "SATX Ink artist";
+
+export default FlashRequestModal;

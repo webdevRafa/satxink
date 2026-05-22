@@ -11,11 +11,18 @@ import {
 import {
   collection,
   documentId,
+  doc,
+  getDoc,
   getDocs,
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../firebase/firebaseConfig";
+import FlashRequestModal, {
+  type FlashRequestArtist,
+  type FlashRequestClient,
+} from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 
@@ -54,6 +61,45 @@ const FlashMarketplacePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [priceFilter, setPriceFilter] = useState<PriceFilter>("all");
+  const [client, setClient] = useState<FlashRequestClient | null>(null);
+  const [selectedFlash, setSelectedFlash] = useState<MarketFlash | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setClient(null);
+        return;
+      }
+
+      try {
+        const clientRef = doc(db, "users", user.uid);
+        const clientSnap = await getDoc(clientRef);
+        const data = clientSnap.exists() ? clientSnap.data() : {};
+
+        setClient({
+          id: user.uid,
+          name:
+            (data.name as string) ||
+            (data.displayName as string) ||
+            user.displayName ||
+            "Client",
+          avatarUrl:
+            (data.avatarUrl as string) ||
+            user.photoURL ||
+            "/default-avatar.png",
+        });
+      } catch (err) {
+        console.error("Failed to fetch client profile:", err);
+        setClient({
+          id: user.uid,
+          name: user.displayName || "Client",
+          avatarUrl: user.photoURL || "/default-avatar.png",
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -298,9 +344,13 @@ const FlashMarketplacePage = () => {
           <MarketplaceSkeleton />
         ) : activeTab === "flashes" ? (
           filteredFlashes.length > 0 ? (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
               {filteredFlashes.map((flash) => (
-                <FlashCard key={flash.id} flash={flash} />
+                <FlashCard
+                  key={flash.id}
+                  flash={flash}
+                  onRequest={() => setSelectedFlash(flash)}
+                />
               ))}
             </div>
           ) : (
@@ -316,6 +366,15 @@ const FlashMarketplacePage = () => {
           <EmptyMarketplaceState />
         )}
       </section>
+
+      {selectedFlash && (
+        <FlashRequestModal
+          artist={getRequestArtist(selectedFlash)}
+          client={client}
+          flash={selectedFlash}
+          onClose={() => setSelectedFlash(null)}
+        />
+      )}
     </main>
   );
 };
@@ -349,13 +408,19 @@ const TagButton = ({
   </button>
 );
 
-const FlashCard = ({ flash }: { flash: MarketFlash }) => {
+const FlashCard = ({
+  flash,
+  onRequest,
+}: {
+  flash: MarketFlash;
+  onRequest: () => void;
+}) => {
   const previewUrl = getFlashPreviewUrl(flash);
   const artistName = getArtistName(flash.artist);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
-      <div className="relative aspect-square bg-black/30">
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-lg transition hover:border-white/20">
+      <div className="relative aspect-[4/3] bg-black/30">
         {previewUrl ? (
           <img
             src={previewUrl}
@@ -370,38 +435,44 @@ const FlashCard = ({ flash }: { flash: MarketFlash }) => {
         )}
       </div>
 
-      <div className="p-4">
-        <div className="flex items-start gap-3">
+      <div className="p-3">
+        <div className="flex items-start gap-2">
           <img
             src={flash.artist?.avatarUrl || "/default-avatar.png"}
             alt={artistName}
-            className="h-10 w-10 rounded-full border border-white/10 object-cover"
+            className="h-8 w-8 rounded-full border border-white/10 object-cover"
           />
           <div className="min-w-0">
-            <h3 className="line-clamp-2 text-lg! font-semibold text-white">
+            <h3 className="line-clamp-2 text-sm! font-semibold text-white">
               {getFlashTitle(flash)}
             </h3>
-            <p className="mt-1 truncate text-sm text-white/50">
+            <p className="mt-0.5 truncate text-xs text-white/50">
               by {artistName}
             </p>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-white/70">
-          <DollarSign size={15} className="text-white/35" />
+        <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+          <DollarSign size={13} className="text-white/35" />
           {typeof flash.price === "number" ? `$${flash.price}` : "Price TBD"}
         </div>
 
         <TagList tags={flash.tags} />
 
-        <div className="mt-5 flex justify-end">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <Link
             to={`/artists/${flash.artistId}`}
-            className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+            className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
           >
             View artist
-            <ChevronRight size={16} />
           </Link>
+          <button
+            type="button"
+            onClick={onRequest}
+            className="h-9 rounded-full bg-[var(--color-primary)] px-3! py-0! text-xs! font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+          >
+            Request this
+          </button>
         </div>
       </div>
     </article>
@@ -452,12 +523,12 @@ const TagList = ({ tags }: { tags?: string[] }) => {
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
-      {tags.slice(0, 5).map((tag) => (
+      {tags.slice(0, 3).map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-white/50"
+          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/50"
         >
-          <Tag size={12} />
+          <Tag size={11} />
           {tag}
         </span>
       ))}
@@ -546,6 +617,13 @@ const chunkArray = <T,>(items: T[], size: number) => {
 
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "SATX Ink artist";
+
+const getRequestArtist = (flash: MarketFlash): FlashRequestArtist => ({
+  id: flash.artist?.id || flash.artistId,
+  name: flash.artist?.name,
+  displayName: flash.artist?.displayName,
+  avatarUrl: flash.artist?.avatarUrl,
+});
 
 const getFlashTitle = (flash: Flash) =>
   flash.title || flash.caption || "Untitled flash";
