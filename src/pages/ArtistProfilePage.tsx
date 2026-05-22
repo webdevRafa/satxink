@@ -660,22 +660,25 @@ const PortfolioCard = ({
       <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100">
         <Expand size={17} />
       </div>
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
-          {item.caption || "Untitled piece"}
-        </h3>
-        {Array.isArray(item.tags) && item.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {item.tags.slice(0, 3).map((tag) => (
+      {Array.isArray(item.tags) && item.tags.length > 0 && (
+        <div className="absolute inset-x-0 top-0 p-4 opacity-0 transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/75 via-black/35 to-transparent" />
+          <div className="relative flex flex-wrap gap-2">
+            {item.tags.slice(0, 5).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs text-white/75 backdrop-blur-sm"
+                className="rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-xs font-medium text-white/80 backdrop-blur-sm"
               >
                 {tag}
               </span>
             ))}
           </div>
-        )}
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
+          {item.caption || "Untitled piece"}
+        </h3>
       </div>
     </div>
   </button>
