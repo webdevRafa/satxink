@@ -395,7 +395,7 @@ const EventSection = ({
               <button
                 type="button"
                 onClick={() => scrollRail("previous")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-lg shadow-black/30 transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/50"
                 aria-label={`Scroll ${title} events backward`}
                 title="Previous events"
               >
@@ -404,7 +404,7 @@ const EventSection = ({
               <button
                 type="button"
                 onClick={() => scrollRail("next")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-lg shadow-black/30 transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/50"
                 aria-label={`Scroll ${title} events forward`}
                 title="Next events"
               >
@@ -452,7 +452,7 @@ const PublicEventCard = ({
 
   return (
     <article
-      className={`group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:-translate-y-0.5 hover:border-white/20 hover:shadow-2xl ${className}`}
+      className={`group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20 hover:shadow-2xl ${className}`}
     >
       <div className="grid min-h-[260px] sm:grid-cols-[210px_minmax(0,1fr)]">
         <div className="relative min-h-[220px] overflow-hidden bg-black/30">
@@ -495,7 +495,11 @@ const PublicEventCard = ({
               icon={<CalendarDays size={16} />}
               text={formatEventDate(event)}
             />
-            <EventMeta icon={<MapPin size={16} />} text={locationLabel} />
+            <EventMeta
+              href={event.mapLink}
+              icon={<MapPin size={16} />}
+              text={locationLabel}
+            />
             <EventMeta icon={<DollarSign size={16} />} text={priceLabel} />
             <EventMeta
               icon={<Users size={16} />}
@@ -525,20 +529,7 @@ const PublicEventCard = ({
             </div>
           )}
 
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-5">
-            {event.mapLink ? (
-              <a
-                href={event.mapLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-white/55 transition hover:text-white"
-              >
-                View map
-              </a>
-            ) : (
-              <span className="text-sm text-white/30">Map unavailable</span>
-            )}
-
+          <div className="mt-auto flex justify-end pt-5">
             <Link
               to={`/artists/${event.artistId}`}
               className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
@@ -598,10 +589,29 @@ const HeroStat = ({ label, value }: { label: string; value: number }) => (
   </div>
 );
 
-const EventMeta = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
+const EventMeta = ({
+  href,
+  icon,
+  text,
+}: {
+  href?: string;
+  icon: React.ReactNode;
+  text: string;
+}) => (
   <div className="flex min-w-0 items-center gap-2">
     <span className="shrink-0 text-white/35">{icon}</span>
-    <span className="truncate">{text}</span>
+    {href ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="truncate transition hover:text-white hover:underline"
+      >
+        {text}
+      </a>
+    ) : (
+      <span className="truncate">{text}</span>
+    )}
   </div>
 );
 
