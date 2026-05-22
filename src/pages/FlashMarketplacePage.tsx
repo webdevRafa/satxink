@@ -368,7 +368,7 @@ const FlashMarketplacePage = () => {
           )}
         </section>
 
-        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="sticky top-20 z-30 mt-10 flex flex-col gap-4 border-y border-white/10 bg-[#0d0d0d]/92 py-4 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
               {activeTab === "flashes" ? "Available designs" : "Browse sheets"}
@@ -519,11 +519,12 @@ const FlashPager = ({
   onNext: () => void;
   onPageSizeChange: (pageSize: number) => void;
 }) => {
+  const [pageSizeMenuOpen, setPageSizeMenuOpen] = useState(false);
   const firstItem = currentPage * pageSize + 1;
   const lastItem = Math.min(totalItems, (currentPage + 1) * pageSize);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-2 py-1">
+    <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-[#151515]/95 px-2 py-1 shadow-xl shadow-black/25">
       <span className="px-2 text-xs font-semibold text-white/50">
         {firstItem}-{lastItem} of {totalItems}
       </span>
@@ -531,24 +532,64 @@ const FlashPager = ({
       <span className="hidden px-1 text-xs font-semibold text-white/35 sm:inline">
         Page {currentPage + 1} of {pageCount}
       </span>
-      <label className="relative">
-        <span className="sr-only">Items per page</span>
-        <select
-          value={pageSize}
-          onChange={(event) => onPageSizeChange(Number(event.target.value))}
-          className="h-8 appearance-none rounded-full border border-white/10 bg-black/30 pl-3 pr-7 text-xs font-semibold text-white/60 outline-none transition hover:border-white/20 focus:border-white/35"
+      <div
+        className="relative"
+        onBlur={(event) => {
+          const nextFocusedElement = event.relatedTarget as Node | null;
+          if (!event.currentTarget.contains(nextFocusedElement)) {
+            setPageSizeMenuOpen(false);
+          }
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setPageSizeMenuOpen((open) => !open)}
+          className="!inline-flex !h-8 !items-center !justify-center !gap-1.5 !rounded-full !border !border-white/10 !bg-black/30 !px-3 !py-0 !text-xs font-semibold text-white/65 outline-none transition hover:!border-white/20 hover:!bg-white/[0.06] focus:!border-white/35"
+          aria-haspopup="listbox"
+          aria-expanded={pageSizeMenuOpen}
         >
-          {FLASH_ITEMS_PER_PAGE_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}/page
-            </option>
-          ))}
-        </select>
-        <ChevronRight
-          size={13}
-          className="pointer-events-none absolute right-2 top-1/2 rotate-90 -translate-y-1/2 text-white/35"
-        />
-      </label>
+          {pageSize}/page
+          <ChevronRight
+            size={13}
+            className={`transition ${pageSizeMenuOpen ? "-rotate-90" : "rotate-90"}`}
+          />
+        </button>
+        {pageSizeMenuOpen && (
+          <div
+            role="listbox"
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[9rem] overflow-hidden rounded-xl border border-white/10 bg-[#151515] p-1 shadow-2xl shadow-black/40"
+          >
+            {FLASH_ITEMS_PER_PAGE_OPTIONS.map((option) => {
+              const active = option === pageSize;
+
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onPageSizeChange(option);
+                    setPageSizeMenuOpen(false);
+                  }}
+                  className={`!flex !h-9 !w-full !items-center !justify-between !rounded-lg !px-3 !py-0 !text-xs font-semibold transition ${
+                    active
+                      ? "!bg-white !text-black"
+                      : "!bg-transparent text-white/65 hover:!bg-white/[0.08] hover:text-white"
+                  }`}
+                >
+                  {option}/page
+                  {active && (
+                    <span className="text-[10px] uppercase tracking-[0.16em]">
+                      Active
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <button
         type="button"
         onClick={onPrevious}
