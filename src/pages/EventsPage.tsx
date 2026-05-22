@@ -68,7 +68,8 @@ const dateFilters: { label: string; value: DateFilter }[] = [
   { label: "This month", value: "this_month" },
 ];
 
-const EVENT_RAIL_SCROLL_DISTANCE = 640;
+const EVENT_CARD_WIDTH = "min(88vw, 590px)";
+const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
 
 export const EventsPage = () => {
   const [events, setEvents] = useState<PublicEvent[]>([]);
@@ -366,11 +367,34 @@ const EventSection = ({
   const hasRailControls = layout === "rail" && events.length > 1;
 
   const scrollRail = (direction: "previous" | "next") => {
-    railRef.current?.scrollBy({
-      left:
-        direction === "previous"
-          ? -EVENT_RAIL_SCROLL_DISTANCE
-          : EVENT_RAIL_SCROLL_DISTANCE,
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const cards = Array.from(rail.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement
+    );
+
+    if (!cards.length) return;
+
+    const railLeft = rail.getBoundingClientRect().left;
+    const cardPositions = cards.map(
+      (card) => card.getBoundingClientRect().left - railLeft + rail.scrollLeft
+    );
+
+    const currentIndex = cardPositions.reduce((closestIndex, position, index) =>
+      Math.abs(position - rail.scrollLeft) <
+      Math.abs(cardPositions[closestIndex] - rail.scrollLeft)
+        ? index
+        : closestIndex
+    , 0);
+
+    const targetIndex =
+      direction === "previous"
+        ? Math.max(currentIndex - 1, 0)
+        : Math.min(currentIndex + 1, cards.length - 1);
+
+    rail.scrollTo({
+      left: cardPositions[targetIndex],
       behavior: "smooth",
     });
   };
@@ -421,12 +445,14 @@ const EventSection = ({
         <div
           ref={railRef}
           className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-3 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
+          style={{ paddingRight: EVENT_RAIL_END_PADDING }}
         >
           {events.map((event) => (
             <PublicEventCard
               key={event.id}
               event={event}
-              className="w-[min(88vw,590px)] shrink-0 snap-start"
+              className="shrink-0 snap-start"
+              style={{ width: EVENT_CARD_WIDTH }}
             />
           ))}
         </div>
@@ -464,9 +490,11 @@ const RailButton = ({
 const PublicEventCard = ({
   event,
   className = "",
+  style,
 }: {
   event: PublicEvent;
   className?: string;
+  style?: React.CSSProperties;
 }) => {
   const artistName = getArtistName(event.artist);
   const locationLabel = getLocationLabel(event);
@@ -475,6 +503,7 @@ const PublicEventCard = ({
   return (
     <article
       className={`group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20 hover:shadow-2xl ${className}`}
+      style={style}
     >
       <div className="grid min-h-[260px] sm:grid-cols-[210px_minmax(0,1fr)]">
         <div className="relative min-h-[220px] overflow-hidden bg-black/30">
