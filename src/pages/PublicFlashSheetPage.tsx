@@ -427,7 +427,7 @@ const PublicFlashCard = ({
             alt={artistName}
             className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-start gap-2">
               <h3 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
                 {getFlashTitle(flash)}
