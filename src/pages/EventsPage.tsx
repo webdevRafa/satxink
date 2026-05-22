@@ -392,24 +392,26 @@ const EventSection = ({
 
           {hasRailControls && (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <RailButton
+                label={`Scroll ${title} events backward`}
                 onClick={() => scrollRail("previous")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-lg shadow-black/30 transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/50"
-                aria-label={`Scroll ${title} events backward`}
-                title="Previous events"
               >
-                <ChevronLeft size={17} />
-              </button>
-              <button
-                type="button"
+                <ChevronLeft
+                  aria-hidden="true"
+                  className="h-4 w-4 stroke-current"
+                  strokeWidth={2.75}
+                />
+              </RailButton>
+              <RailButton
+                label={`Scroll ${title} events forward`}
                 onClick={() => scrollRail("next")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white text-black shadow-lg shadow-black/30 transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/50"
-                aria-label={`Scroll ${title} events forward`}
-                title="Next events"
               >
-                <ChevronRight size={17} />
-              </button>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="h-4 w-4 stroke-current"
+                  strokeWidth={2.75}
+                />
+              </RailButton>
             </div>
           )}
         </div>
@@ -438,6 +440,26 @@ const EventSection = ({
     </section>
   );
 };
+
+const RailButton = ({
+  children,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="!flex !h-9 !w-9 !items-center !justify-center !rounded-full !border !border-white/25 !bg-white !p-0 !text-black !shadow-lg !shadow-black/35 transition hover:!bg-white/85 focus:!outline-none focus:!ring-2 focus:!ring-white/55"
+    aria-label={label}
+    title={label}
+  >
+    {children}
+  </button>
+);
 
 const PublicEventCard = ({
   event,
