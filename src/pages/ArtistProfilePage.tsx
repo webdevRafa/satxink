@@ -1038,18 +1038,6 @@ const PortfolioLightbox = ({
           </button>
         </div>
 
-        {!modalLoading && (
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
-            <img
-              src={artist.avatarUrl || "/default-avatar.png"}
-              alt={getArtistDisplayName(artist)}
-              className="h-9 w-9 rounded-full border border-white/40 object-cover"
-            />
-            <span className="text-sm font-semibold text-white">
-              {getArtistDisplayName(artist)}
-            </span>
-          </div>
-        )}
       </div>
 
       <div
@@ -1062,6 +1050,21 @@ const PortfolioLightbox = ({
         }`}
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="mb-7 flex flex-col items-center gap-3 md:items-start">
+          <img
+            src={artist.avatarUrl || "/default-avatar.png"}
+            alt={getArtistDisplayName(artist)}
+            className="h-16 w-16 rounded-full border border-white/20 object-cover shadow-[0_12px_34px_rgba(0,0,0,0.35)]"
+          />
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Artist
+            </p>
+            <p className="mt-1 text-lg! font-semibold! leading-tight text-white">
+              {getArtistDisplayName(artist)}
+            </p>
+          </div>
+        </div>
         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
           Portfolio piece
         </p>
