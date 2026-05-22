@@ -1041,47 +1041,52 @@ const PortfolioLightbox = ({
       </div>
 
       <div
-        key={item.id}
         data-aos="fade-in"
-        className={`max-w-sm text-center md:text-left ${
-          slideDirection === "next"
-            ? "portfolio-meta-in-next"
-            : "portfolio-meta-in-prev"
-        }`}
+        className="w-full max-w-sm text-center md:text-left"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-7 flex flex-col items-center gap-3 md:items-start">
+        <div className="mb-6 flex items-center justify-center gap-3 md:justify-start">
           <img
             src={artist.avatarUrl || "/default-avatar.png"}
             alt={getArtistDisplayName(artist)}
-            className="h-16 w-16 rounded-full border border-white/20 object-cover shadow-[0_12px_34px_rgba(0,0,0,0.35)]"
+            className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
           />
-          <div>
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.18em] text-white/35">
               Artist
             </p>
-            <p className="mt-1 text-lg! font-semibold! leading-tight text-white">
+            <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
               {getArtistDisplayName(artist)}
             </p>
           </div>
         </div>
+
         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
           Portfolio piece
         </p>
-        <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
-          {item.caption || "Untitled piece"}
-        </h1>
-        {Array.isArray(item.tags) && item.tags.length > 0 && (
-          <div className="mt-5 max-w-sm">
-            <TagMarqueeModal tags={item.tags} compact />
-          </div>
-        )}
-        {modalLoading && (
-          <div className="mt-4 space-y-2">
-            <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
-            <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
-          </div>
-        )}
+        <div
+          key={item.id}
+          className={
+            slideDirection === "next"
+              ? "portfolio-meta-in-next"
+              : "portfolio-meta-in-prev"
+          }
+        >
+          <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
+            {item.caption || "Untitled piece"}
+          </h1>
+          {Array.isArray(item.tags) && item.tags.length > 0 && (
+            <div className="mt-5 max-w-sm">
+              <TagMarqueeModal tags={item.tags} compact />
+            </div>
+          )}
+          {modalLoading && (
+            <div className="mt-4 space-y-2">
+              <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
+              <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
