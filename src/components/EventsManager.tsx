@@ -25,7 +25,12 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 import { db, storage } from "../firebase/firebaseConfig";
 import type {
   ArtistEvent,
@@ -51,10 +56,11 @@ type EventFormState = {
   mapLink: string;
   priceType: EventPriceType;
   price: string;
+  depositRequired: boolean;
   depositAmount: string;
-  capacityType: "unlimited" | "limited";
   capacity: string;
-  tagsInput: string;
+  tags: string[];
+  tagDraft: string;
   status: EventStatus;
   visibility: "public" | "private";
 };
@@ -85,10 +91,11 @@ const emptyForm: EventFormState = {
   mapLink: "",
   priceType: "varies",
   price: "",
+  depositRequired: false,
   depositAmount: "",
-  capacityType: "unlimited",
   capacity: "",
-  tagsInput: "",
+  tags: [],
+  tagDraft: "",
   status: "draft",
   visibility: "public",
 };
@@ -107,7 +114,6 @@ const priceTypeLabels: Record<EventPriceType, string> = {
   free: "Free",
   fixed: "Fixed Price",
   starting_at: "Starting At",
-  deposit_required: "Deposit Required",
   varies: "Varies",
 };
 
@@ -147,11 +153,10 @@ const EventsManager = ({
         where("artistId", "==", uid)
       );
       const snapshot = await getDocs(eventsQuery);
-      const result = snapshot.docs
-        .map((eventDoc) => ({
-          id: eventDoc.id,
-          ...eventDoc.data(),
-        })) as ArtistEvent[];
+      const result = snapshot.docs.map((eventDoc) => ({
+        id: eventDoc.id,
+        ...eventDoc.data(),
+      })) as ArtistEvent[];
 
       setEvents(result.sort((a, b) => getEventTime(a) - getEventTime(b)));
     } catch (err) {
@@ -251,15 +256,25 @@ const EventsManager = ({
       shopName: event.shopName || "",
       address: event.address || "",
       mapLink: event.mapLink || "",
-      priceType: event.priceType || "varies",
+      priceType:
+        (event.priceType as string) === "deposit_required"
+          ? "fixed"
+          : event.priceType || "varies",
       price: typeof event.price === "number" ? String(event.price) : "",
+      depositRequired:
+        Boolean(event.depositRequired) ||
+        (event.priceType as string) === "deposit_required" ||
+        (typeof event.depositAmount === "number" && event.depositAmount > 0),
       depositAmount:
         typeof event.depositAmount === "number"
           ? String(event.depositAmount)
           : "",
-      capacityType: event.capacityType || "unlimited",
-      capacity: typeof event.capacity === "number" ? String(event.capacity) : "",
-      tagsInput: event.tags?.join(", ") || "",
+      capacity:
+        typeof event.capacity === "number" && event.capacity > 0
+          ? String(event.capacity)
+          : "",
+      tags: event.tags || [],
+      tagDraft: "",
       status: event.status || "draft",
       visibility: event.visibility || "public",
     });
@@ -285,6 +300,13 @@ const EventsManager = ({
     }
     if (!form.startDate) {
       toast.error("Choose a start date.");
+      return;
+    }
+
+    const parsedCapacity = parseOptionalNumber(form.capacity);
+
+    if (!parsedCapacity || parsedCapacity <= 0) {
+      toast.error("Add a valid event capacity.");
       return;
     }
 
@@ -314,15 +336,19 @@ const EventsManager = ({
         address: form.address.trim() || "",
         mapLink: form.mapLink.trim() || "",
         priceType: form.priceType,
-        price: parseOptionalNumber(form.price),
-        depositAmount: parseOptionalNumber(form.depositAmount),
-        capacityType: form.capacityType,
-        capacity:
-          form.capacityType === "limited"
-            ? parseOptionalNumber(form.capacity)
+        price:
+          form.priceType === "free" || form.priceType === "varies"
+            ? null
+            : parseOptionalNumber(form.price),
+        depositRequired:
+          form.depositRequired && Number(form.depositAmount || 0) > 0,
+        depositAmount:
+          form.depositRequired && Number(form.depositAmount || 0) > 0
+            ? parseOptionalNumber(form.depositAmount)
             : null,
+        capacity: parsedCapacity,
         spotsClaimed: editingEvent?.spotsClaimed || 0,
-        tags: parseTags(form.tagsInput),
+        tags: form.tags,
         status: form.status,
         visibility: form.visibility,
         ...(imageUpload || {}),
@@ -350,7 +376,10 @@ const EventsManager = ({
     }
   };
 
-  const handleStatusChange = async (event: ArtistEvent, status: EventStatus) => {
+  const handleStatusChange = async (
+    event: ArtistEvent,
+    status: EventStatus
+  ) => {
     try {
       await updateDoc(doc(db, "events", event.id), {
         status,
@@ -398,14 +427,12 @@ const EventsManager = ({
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mt-5 max-w-[800px]">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/40">
             Artist events
           </p>
-          <h2 className="mt-2 text-3xl! font-semibold text-white">
-            Events
-          </h2>
+          <h2 className="mt-2 text-3xl! font-semibold text-white">Events</h2>
           <p className="max-w-2xl text-sm text-white/50">
             Promote flash days, guest spots, conventions, pop-ups, and shop
             events from one place.
@@ -421,29 +448,35 @@ const EventsManager = ({
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3 max-w-[500px]">
         <EventStat label="Published" value={stats.published} />
         <EventStat label="Drafts" value={stats.draft} />
         <EventStat label="Upcoming" value={stats.upcoming} />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(["all", "published", "draft", "cancelled", "completed"] as EventFilter[]).map(
-          (item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setFilter(item)}
-              className={`rounded-full border px-3! py-1.5! text-xs! font-semibold capitalize transition ${
-                filter === item
-                  ? "border-white bg-white text-black"
-                  : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:text-white"
-              }`}
-            >
-              {item}
-            </button>
-          )
-        )}
+        {(
+          [
+            "all",
+            "published",
+            "draft",
+            "cancelled",
+            "completed",
+          ] as EventFilter[]
+        ).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => setFilter(item)}
+            className={`rounded-full border px-3! py-1.5! text-xs! font-semibold capitalize transition ${
+              filter === item
+                ? "border-white bg-white text-black"
+                : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25 hover:text-white"
+            }`}
+          >
+            {item}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -553,7 +586,9 @@ const EventCard = ({
             </div>
           )}
           <span
-            className={`absolute left-3 top-3 rounded-full border px-2 py-1 text-[11px] font-semibold capitalize backdrop-blur ${statusStyles[event.status]}`}
+            className={`absolute left-3 top-3 rounded-full border px-2 py-1 text-[11px] font-semibold capitalize backdrop-blur ${
+              statusStyles[event.status]
+            }`}
           >
             {event.status}
           </span>
@@ -589,15 +624,18 @@ const EventCard = ({
           </div>
 
           <div className="mt-4 space-y-2 text-sm text-white/60">
-            <EventMeta icon={<CalendarDays size={15} />} text={formatEventDate(event)} />
+            <EventMeta
+              icon={<CalendarDays size={15} />}
+              text={formatEventDate(event)}
+            />
             <EventMeta icon={<MapPin size={15} />} text={locationLabel} />
             <EventMeta icon={<DollarSign size={15} />} text={priceLabel} />
-            {event.capacityType === "limited" && (
-              <EventMeta
-                icon={<Users size={15} />}
-                text={`${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`}
-              />
-            )}
+            <EventMeta
+              icon={<Users size={15} />}
+              text={`${event.spotsClaimed || 0}/${
+                event.capacity || 0
+              } spots claimed`}
+            />
           </div>
 
           {event.description && (
@@ -718,7 +756,9 @@ const EventEditorModal = ({
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(event) => onFileChange(event.target.files?.[0] || null)}
+              onChange={(event) =>
+                onFileChange(event.target.files?.[0] || null)
+              }
             />
           </label>
           {thumbnailFile && (
@@ -738,7 +778,10 @@ const EventEditorModal = ({
               <input
                 value={form.title}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, title: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
                 }
                 className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
                 placeholder="Friday the 13th flash day"
@@ -884,14 +927,17 @@ const EventEditorModal = ({
             <input
               value={form.address}
               onChange={(event) =>
-                setForm((current) => ({ ...current, address: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  address: event.target.value,
+                }))
               }
               className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
               placeholder="Street address, city, state"
             />
           </Field>
 
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]">
             <Field label="Price type">
               <select
                 value={form.priceType}
@@ -899,9 +945,14 @@ const EventEditorModal = ({
                   setForm((current) => ({
                     ...current,
                     priceType: event.target.value as EventPriceType,
+                    price:
+                      event.target.value === "free" ||
+                      event.target.value === "varies"
+                        ? ""
+                        : current.price,
                   }))
                 }
-                className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
+                className="h-[42px] w-full rounded-md border border-white/10 bg-[#171717] px-3 text-white outline-none transition focus:border-white/30"
               >
                 {Object.entries(priceTypeLabels).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -910,36 +961,77 @@ const EventEditorModal = ({
                 ))}
               </select>
             </Field>
+
             <Field label="Price">
               <input
                 type="number"
                 min="0"
+                disabled={
+                  form.priceType === "free" || form.priceType === "varies"
+                }
                 value={form.price}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, price: event.target.value }))
+                  setForm((current) => ({
+                    ...current,
+                    price: event.target.value,
+                  }))
                 }
-                className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
+                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
+                placeholder={
+                  form.priceType === "starting_at"
+                    ? "Starting price"
+                    : form.priceType === "fixed"
+                    ? "Fixed price"
+                    : "N/A"
+                }
               />
             </Field>
+
             <Field label="Deposit">
+              <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
+                <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
+                  <input
+                    type="checkbox"
+                    checked={form.depositRequired}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        depositRequired: event.target.checked,
+                        depositAmount: event.target.checked
+                          ? current.depositAmount
+                          : "",
+                      }))
+                    }
+                    className="h-4 w-4 accent-[var(--color-primary)]"
+                  />
+                  Required
+                </label>
+              </div>
+            </Field>
+
+            <Field label="Deposit amount">
               <input
                 type="number"
                 min="0"
+                disabled={!form.depositRequired}
                 value={form.depositAmount}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
                     depositAmount: event.target.value,
+                    depositRequired: Number(event.target.value || 0) > 0,
                   }))
                 }
-                className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
+                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
+                placeholder={form.depositRequired ? "20" : "Off"}
               />
             </Field>
+
             <Field label="Capacity">
               <input
                 type="number"
-                min="0"
-                disabled={form.capacityType === "unlimited"}
+                min="1"
+                required
                 value={form.capacity}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -947,27 +1039,13 @@ const EventEditorModal = ({
                     capacity: event.target.value,
                   }))
                 }
-                className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none disabled:opacity-35 focus:border-white/30"
+                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+                placeholder="100"
               />
             </Field>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <Field label="Capacity type">
-              <select
-                value={form.capacityType}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    capacityType: event.target.value as "unlimited" | "limited",
-                  }))
-                }
-                className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
-              >
-                <option value="unlimited">Unlimited</option>
-                <option value="limited">Limited</option>
-              </select>
-            </Field>
+          <div className="grid gap-4 md:grid-cols-2">
             <Field label="Status">
               <select
                 value={form.status}
@@ -985,6 +1063,7 @@ const EventEditorModal = ({
                 <option value="completed">Completed</option>
               </select>
             </Field>
+
             <Field label="Visibility">
               <select
                 value={form.visibility}
@@ -1003,17 +1082,73 @@ const EventEditorModal = ({
           </div>
 
           <Field label="Tags">
-            <input
-              value={form.tagsInput}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  tagsInput: event.target.value,
-                }))
-              }
-              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
-              placeholder="flash, walk-ins, traditional"
-            />
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 transition focus-within:border-white/30 focus-within:bg-white/[0.06]">
+              <div className="flex min-h-[32px] flex-wrap items-center gap-2">
+                {form.tags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        tags: current.tags.filter((item) => item !== tag),
+                      }))
+                    }
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.08] px-3! py-1.5! text-xs! font-semibold text-white/75 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
+                  >
+                    #{tag}
+                    <span className="text-white/35 transition group-hover:text-red-200">
+                      ×
+                    </span>
+                  </button>
+                ))}
+
+                <input
+                  value={form.tagDraft}
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    if (value.includes(",") || /\s$/.test(value)) {
+                      commitEventTags(setForm, value);
+                      return;
+                    }
+
+                    setForm((current) => ({
+                      ...current,
+                      tagDraft: value,
+                    }));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitEventTags(setForm, form.tagDraft);
+                    }
+
+                    if (
+                      event.key === "Backspace" &&
+                      !form.tagDraft &&
+                      form.tags.length > 0
+                    ) {
+                      setForm((current) => ({
+                        ...current,
+                        tags: current.tags.slice(0, -1),
+                      }));
+                    }
+                  }}
+                  onBlur={() => commitEventTags(setForm, form.tagDraft)}
+                  className="min-w-[160px] flex-1 bg-transparent px-1 py-1 text-sm text-white outline-none placeholder:text-white/30"
+                  placeholder={
+                    form.tags.length
+                      ? "Add another tag"
+                      : "Type a tag, then press comma or space"
+                  }
+                />
+              </div>
+            </div>
+
+            <p className="mt-2 text-xs text-white/35">
+              Tags become searchable pills for event discovery.
+            </p>
           </Field>
 
           <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
@@ -1030,7 +1165,11 @@ const EventEditorModal = ({
               disabled={isSaving}
               className="rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSaving ? "Saving..." : editingEvent ? "Save Event" : "Create Event"}
+              {isSaving
+                ? "Saving..."
+                : editingEvent
+                ? "Save Event"
+                : "Create Event"}
             </button>
           </div>
         </div>
@@ -1040,19 +1179,13 @@ const EventEditorModal = ({
 );
 
 const EventStat = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-2">
     <p className="text-sm text-white/45">{label}</p>
     <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
   </div>
 );
 
-const EventMeta = ({
-  icon,
-  text,
-}: {
-  icon: React.ReactNode;
-  text: string;
-}) => (
+const EventMeta = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
   <div className="flex items-center gap-2">
     <span className="text-white/35">{icon}</span>
     <span className="truncate">{text}</span>
@@ -1067,13 +1200,12 @@ const Field = ({
   children: React.ReactNode;
 }) => (
   <label className="block">
-    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
+    <span className="mb-2 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
       {label}
     </span>
     {children}
   </label>
 );
-
 const EventsSkeleton = () => (
   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
     {[0, 1, 2, 3].map((item) => (
@@ -1108,11 +1240,26 @@ const parseOptionalNumber = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const parseTags = (value: string) =>
-  value
-    .split(",")
-    .map((tag) => tag.trim())
+const normalizeEventTag = (value: string) =>
+  value.trim().replace(/^#/, "").toLowerCase();
+
+const commitEventTags = (
+  setForm: React.Dispatch<React.SetStateAction<EventFormState>>,
+  rawValue: string
+) => {
+  const nextTags = rawValue
+    .split(/[,\s]+/)
+    .map(normalizeEventTag)
     .filter(Boolean);
+
+  if (!nextTags.length) return;
+
+  setForm((current) => ({
+    ...current,
+    tags: Array.from(new Set([...current.tags, ...nextTags])),
+    tagDraft: "",
+  }));
+};
 
 const getEventTime = (event: ArtistEvent) => {
   if (!event.startDate) return Number.MAX_SAFE_INTEGER;
@@ -1131,7 +1278,9 @@ const formatEventDate = (event: ArtistEvent) => {
     year: "numeric",
   });
 
-  return event.startTime ? `${dateLabel} at ${formatTime(event.startTime)}` : dateLabel;
+  return event.startTime
+    ? `${dateLabel} at ${formatTime(event.startTime)}`
+    : dateLabel;
 };
 
 const formatTime = (time: string) => {
@@ -1151,15 +1300,31 @@ const getLocationLabel = (event: ArtistEvent) => {
 };
 
 const getPriceLabel = (event: ArtistEvent) => {
-  if (event.priceType === "free") return "Free";
-  if (event.priceType === "varies") return "Pricing varies";
-  if (event.priceType === "deposit_required") {
-    return event.depositAmount ? `$${event.depositAmount} deposit` : "Deposit required";
+  const hasDeposit =
+    Boolean(event.depositRequired) ||
+    (event.priceType as string) === "deposit_required" ||
+    (typeof event.depositAmount === "number" && event.depositAmount > 0);
+
+  const depositLabel =
+    hasDeposit && event.depositAmount
+      ? `$${event.depositAmount} deposit`
+      : hasDeposit
+      ? "Deposit required"
+      : "";
+
+  let priceLabel = "Price TBD";
+
+  if (event.priceType === "free") priceLabel = "Free";
+  else if (event.priceType === "varies") priceLabel = "Pricing varies";
+  else if (event.priceType === "starting_at") {
+    priceLabel = event.price
+      ? `Starting at $${event.price}`
+      : "Starting price TBD";
+  } else {
+    priceLabel = event.price ? `$${event.price}` : "Price TBD";
   }
-  if (event.priceType === "starting_at") {
-    return event.price ? `Starting at $${event.price}` : "Starting price TBD";
-  }
-  return event.price ? `$${event.price}` : "Price TBD";
+
+  return depositLabel ? `${priceLabel} • ${depositLabel}` : priceLabel;
 };
 
 export default EventsManager;

@@ -15,7 +15,6 @@ export type EventPriceType =
   | "free"
   | "fixed"
   | "starting_at"
-  | "deposit_required"
   | "varies";
 
 export type EventStatus = "draft" | "published" | "cancelled" | "completed";
@@ -42,10 +41,10 @@ export type ArtistEvent = {
 
   priceType: EventPriceType;
   price?: number | null;
+  depositRequired?: boolean;
   depositAmount?: number | null;
 
-  capacityType: "unlimited" | "limited";
-  capacity?: number | null;
+  capacity: number;
   spotsClaimed?: number;
 
   thumbnailUrl?: string;

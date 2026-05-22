@@ -34,6 +34,7 @@ import PaymentPage from "./pages/payment/PaymentPage";
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import Dashboard from "./pages/Dashboard";
 import FlashSheetDetailPage from "./pages/FlashSheetDetailPage";
+import EventsPage from "./pages/EventsPage";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -72,6 +73,7 @@ function App() {
         <Route path="/artist-dashboard" element={<ArtistDashboard />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
         <Route path="/artists" element={<ArtistsPage />} />
+        <Route path="/events" element={<EventsPage />} />
         <Route path="/client-posts" element={<ClientPostsPage />} />
         <Route path="/dashboard" element={<DashboardRedirectPage />} />
         <Route path="/signup" element={<SignupSelection />} />

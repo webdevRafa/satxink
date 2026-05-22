@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import { LogOut, Home, Users, Info, Menu } from "lucide-react";
+import { CalendarDays, LogOut, Home, Users, Info, Menu } from "lucide-react";
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -81,6 +81,11 @@ export const Navbar = () => {
           >
             Artists
           </Link>
+
+          <Link to="/events" className="text-neutral-300 hover:text-orange-400">
+            Events
+          </Link>
+
           <Link to="/about" className="text-neutral-300 hover:text-orange-400">
             About
           </Link>
@@ -175,6 +180,15 @@ export const Navbar = () => {
             >
               <Users size={18} /> Artists
             </Link>
+
+            <Link
+              to="/events"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2 hover:text-orange-400"
+            >
+              <CalendarDays size={18} /> Events
+            </Link>
+
             <Link
               to="/about"
               onClick={() => setIsOpen(false)}
