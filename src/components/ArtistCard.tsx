@@ -69,7 +69,7 @@ const ArtistCard = ({
               </span>
             )}
           </div>
-          <span className="inline-flex w-fit rounded-md bg-white/[0.08] px-4 py-2 text-sm font-medium text-neutral-300 transition group-hover:bg-white/[0.12] group-hover:text-white">
+          <span className="inline-flex w-fit translate-y-1 rounded-md bg-white/[0.08] px-4 py-2 text-sm font-medium text-neutral-300 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:bg-white/[0.12] group-hover:text-white group-hover:opacity-100">
             View Page
           </span>
         </div>
