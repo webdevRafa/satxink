@@ -1,17 +1,24 @@
 // EditFlashModal.tsx
 import { useState } from "react";
 import type { Flash } from "../types/Flash";
+import { formatTagsInput, parseTags } from "../utils/tags";
 
 type Props = {
   flash: Flash;
   onClose: () => void;
-  onSave: (id: string, title: string, price: number | null) => void;
+  onSave: (
+    id: string,
+    title: string,
+    price: number | null,
+    tags: string[]
+  ) => void;
   onDelete?: (flash: Flash) => void;
 };
 
 const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
+  const [tagsInput, setTagsInput] = useState(formatTagsInput(flash.tags));
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -45,6 +52,15 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
             placeholder="Price (optional)"
           />
         </div>
+        <div>
+          <label className="block text-sm mb-1">Tags</label>
+          <input
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            className="w-full px-3 py-2 rounded bg-zinc-800 text-white"
+            placeholder="traditional, rose, blackwork"
+          />
+        </div>
 
         <div className="flex justify-between mt-6">
           {onDelete && (
@@ -64,7 +80,12 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
             </button>
             <button
               onClick={() =>
-                onSave(flash.id, title, price ? parseFloat(price) : null)
+                onSave(
+                  flash.id,
+                  title,
+                  price ? parseFloat(price) : null,
+                  parseTags(tagsInput)
+                )
               }
               className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
             >
