@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ChevronLeft,
   ChevronRight,
-  DollarSign,
   ImageOff,
   Tag,
 } from "lucide-react";
@@ -32,6 +32,8 @@ type PublicArtist = {
   studioName?: string;
 };
 
+const FLASH_ITEMS_PER_PAGE = 18;
+
 const PublicFlashSheetPage = () => {
   const { sheetId } = useParams<{ sheetId: string }>();
   const [sheet, setSheet] = useState<FlashSheet | null>(null);
@@ -40,6 +42,7 @@ const PublicFlashSheetPage = () => {
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<FlashRequestClient | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
+  const [flashPage, setFlashPage] = useState(0);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -153,6 +156,24 @@ const PublicFlashSheetPage = () => {
 
   const artistName = getArtistName(artist);
   const tags = useMemo(() => sheet?.tags || [], [sheet]);
+  const flashPageCount = Math.max(
+    1,
+    Math.ceil(flashes.length / FLASH_ITEMS_PER_PAGE)
+  );
+  const pagedFlashes = flashes.slice(
+    flashPage * FLASH_ITEMS_PER_PAGE,
+    flashPage * FLASH_ITEMS_PER_PAGE + FLASH_ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setFlashPage(0);
+  }, [sheetId]);
+
+  useEffect(() => {
+    if (flashPage >= flashPageCount) {
+      setFlashPage(Math.max(0, flashPageCount - 1));
+    }
+  }, [flashPage, flashPageCount]);
 
   if (loading) {
     return (
@@ -254,7 +275,7 @@ const PublicFlashSheetPage = () => {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
               Sheet items
@@ -263,14 +284,32 @@ const PublicFlashSheetPage = () => {
               Itemized flash
             </h2>
           </div>
-          <p className="text-sm text-white/45">
-            {flashes.length} result{flashes.length === 1 ? "" : "s"}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-white/45">
+              {flashes.length} result{flashes.length === 1 ? "" : "s"}
+            </p>
+            {flashes.length > FLASH_ITEMS_PER_PAGE && (
+              <FlashPager
+                currentPage={flashPage}
+                pageCount={flashPageCount}
+                totalItems={flashes.length}
+                pageSize={FLASH_ITEMS_PER_PAGE}
+                onPrevious={() =>
+                  setFlashPage((page) => Math.max(0, page - 1))
+                }
+                onNext={() =>
+                  setFlashPage((page) =>
+                    Math.min(flashPageCount - 1, page + 1)
+                  )
+                }
+              />
+            )}
+          </div>
         </div>
 
         {flashes.length > 0 ? (
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-            {flashes.map((flash) => (
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+            {pagedFlashes.map((flash) => (
               <PublicFlashCard
                 key={flash.id}
                 artistId={sheet.artistId}
@@ -305,6 +344,51 @@ const PublicFlashSheetPage = () => {
   );
 };
 
+const FlashPager = ({
+  currentPage,
+  pageCount,
+  totalItems,
+  pageSize,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  pageCount: number;
+  totalItems: number;
+  pageSize: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) => {
+  const firstItem = currentPage * pageSize + 1;
+  const lastItem = Math.min(totalItems, (currentPage + 1) * pageSize);
+
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-2 py-1">
+      <span className="px-2 text-xs font-semibold text-white/45">
+        {firstItem}-{lastItem} of {totalItems}
+      </span>
+      <button
+        type="button"
+        onClick={onPrevious}
+        disabled={currentPage === 0}
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white p-0! text-black shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/25"
+        aria-label="Previous flash page"
+      >
+        <ChevronLeft size={16} strokeWidth={2.5} />
+      </button>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={currentPage >= pageCount - 1}
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white p-0! text-black shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/25"
+        aria-label="Next flash page"
+      >
+        <ChevronRight size={16} strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+};
+
 const PublicFlashCard = ({
   artistId,
   flash,
@@ -315,7 +399,7 @@ const PublicFlashCard = ({
   onRequest: () => void;
 }) => (
   <article className="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-lg transition hover:border-white/20">
-    <div className="relative aspect-[4/3] bg-black/30">
+    <div className="relative aspect-[3/2] bg-black/30">
       {getFlashPreviewUrl(flash) ? (
         <img
           src={getFlashPreviewUrl(flash)}
@@ -334,9 +418,8 @@ const PublicFlashCard = ({
       <h3 className="line-clamp-2 text-sm! font-semibold text-white">
         {getFlashTitle(flash)}
       </h3>
-      <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-white/70">
-        <DollarSign size={13} className="text-white/35" />
-        {typeof flash.price === "number" ? `$${flash.price}` : "Price TBD"}
+      <div className="mt-2.5 text-xs font-semibold text-white/70">
+        {formatFlashPrice(flash.price)}
       </div>
       {flash.tags && flash.tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -354,16 +437,17 @@ const PublicFlashCard = ({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Link
           to={`/artists/${artistId}`}
-          className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
         >
           View artist
         </Link>
         <button
           type="button"
           onClick={onRequest}
-          className="h-9 rounded-full bg-[var(--color-primary)] px-3! py-0! text-xs! font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+          className="h-8 whitespace-nowrap rounded-full bg-[var(--color-primary)] px-2! py-0! text-[11px]! font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+          aria-label={`Request this flash: ${getFlashTitle(flash)}`}
         >
-          Request this
+          Request
         </button>
       </div>
     </div>
@@ -385,6 +469,9 @@ const getRequestArtist = (
 
 const getFlashTitle = (flash: Flash) =>
   flash.title || flash.caption || "Untitled flash";
+
+const formatFlashPrice = (price?: number | null) =>
+  typeof price === "number" ? `$${price}` : "Price TBD";
 
 const getFlashPreviewUrl = (flash: Flash) =>
   flash.thumbUrl || flash.webp90Url || flash.fullUrl || "";
