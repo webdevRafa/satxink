@@ -846,39 +846,35 @@ const PortfolioLightbox = ({
     aria-modal="true"
   >
     <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
-      {modalLoading && (
-        <div className="absolute inset-0 min-h-[55vh] animate-pulse rounded-xl bg-white/10" />
-      )}
-
-      <img
-        data-aos="zoom-out-up"
-        src={item.fullUrl || item.webp90Url}
+      <LightboxImageFrame
+        fullUrl={item.fullUrl || item.webp90Url}
+        previewUrl={getPreviewUrl(item)}
         alt={item.caption || "Full portfolio view"}
-        className={`max-h-[72vh] max-w-full rounded-xl object-contain shadow-2xl transition-opacity duration-300 ${
-          modalLoading ? "opacity-0" : "opacity-100"
-        }`}
-        onLoad={onImageLoad}
-        onClick={(event) => event.stopPropagation()}
+        isLoading={modalLoading}
+        loadingLabel="Loading full image"
+        onImageLoad={onImageLoad}
       />
 
-      {!modalLoading && (
-        <div
-          className="absolute left-3 right-3 top-3 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-md"
-          onClick={(event) => event.stopPropagation()}
+      <div
+        className="absolute left-3 right-3 top-3 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-md"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 ? (
+          <TagMarqueeModal tags={item.tags} />
+        ) : (
+          <span className="text-xs font-medium uppercase tracking-[0.16em] text-white/65">
+            {modalLoading ? "Preparing image" : "Portfolio piece"}
+          </span>
+        )}
+        <button
+          type="button"
+          className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
+          onClick={onClose}
+          aria-label="Close portfolio image"
         >
-          {Array.isArray(item.tags) && item.tags.length > 0 && (
-            <TagMarqueeModal tags={item.tags} />
-          )}
-          <button
-            type="button"
-            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
-            onClick={onClose}
-            aria-label="Close portfolio image"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      )}
+          <X size={18} />
+        </button>
+      </div>
 
       {!modalLoading && (
         <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-md">
@@ -894,20 +890,24 @@ const PortfolioLightbox = ({
       )}
     </div>
 
-    {!modalLoading && (
-      <div
-        data-aos="fade-in"
-        className="max-w-sm text-center md:text-left"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-          Portfolio piece
-        </p>
-        <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
-          {item.caption || "Untitled piece"}
-        </h1>
-      </div>
-    )}
+    <div
+      data-aos="fade-in"
+      className="max-w-sm text-center md:text-left"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+        Portfolio piece
+      </p>
+      <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
+        {item.caption || "Untitled piece"}
+      </h1>
+      {modalLoading && (
+        <div className="mt-4 space-y-2">
+          <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
+          <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
+        </div>
+      )}
+    </div>
   </div>
 );
 
@@ -995,6 +995,59 @@ const FlashSheetLightbox = ({
         <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
           {sheet.title || "Untitled flash sheet"}
         </h1>
+      </div>
+    )}
+  </div>
+);
+
+const LightboxImageFrame = ({
+  fullUrl,
+  previewUrl,
+  alt,
+  isLoading,
+  loadingLabel,
+  onImageLoad,
+}: {
+  fullUrl: string;
+  previewUrl: string;
+  alt: string;
+  isLoading: boolean;
+  loadingLabel: string;
+  onImageLoad: () => void;
+}) => (
+  <div
+    data-aos="zoom-out-up"
+    className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
+    onClick={(event) => event.stopPropagation()}
+  >
+    <img
+      src={previewUrl}
+      alt=""
+      aria-hidden="true"
+      className={`absolute inset-0 h-full w-full object-contain transition duration-500 ${
+        isLoading
+          ? "scale-[1.015] opacity-55 blur-md"
+          : "scale-100 opacity-0 blur-none"
+      }`}
+    />
+    <div
+      className={`absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
+        isLoading ? "opacity-100 animate-pulse" : "opacity-0"
+      }`}
+    />
+    <img
+      src={fullUrl}
+      alt={alt}
+      className={`relative z-10 h-full w-full object-contain transition duration-500 ${
+        isLoading ? "scale-[0.995] opacity-0" : "scale-100 opacity-100"
+      }`}
+      onLoad={onImageLoad}
+      onError={onImageLoad}
+    />
+    {isLoading && (
+      <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
+        <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        {loadingLabel}
       </div>
     )}
   </div>
