@@ -952,25 +952,39 @@ const PortfolioLightbox = ({
       <style>
         {`
           @keyframes portfolioSlideInNext {
-            from { opacity: 0; transform: translateX(42px) scale(0.992); }
-            to { opacity: 1; transform: translateX(0) scale(1); }
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
           }
           @keyframes portfolioSlideInPrev {
-            from { opacity: 0; transform: translateX(-42px) scale(0.992); }
-            to { opacity: 1; transform: translateX(0) scale(1); }
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
           }
           .portfolio-slide-in-next {
-            animation: portfolioSlideInNext 320ms cubic-bezier(0.22, 1, 0.36, 1);
+            animation: portfolioSlideInNext 360ms cubic-bezier(0.22, 1, 0.36, 1);
           }
           .portfolio-slide-in-prev {
-            animation: portfolioSlideInPrev 320ms cubic-bezier(0.22, 1, 0.36, 1);
+            animation: portfolioSlideInPrev 360ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          @keyframes portfolioMetaInNext {
+            from { opacity: 0; transform: translateX(24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes portfolioMetaInPrev {
+            from { opacity: 0; transform: translateX(-24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          .portfolio-meta-in-next {
+            animation: portfolioMetaInNext 260ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          .portfolio-meta-in-prev {
+            animation: portfolioMetaInPrev 260ms cubic-bezier(0.22, 1, 0.36, 1);
           }
         `}
       </style>
 
       <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
         <LightboxImageFrame
-          key={item.id}
+          imageKey={item.id}
           fullUrl={item.fullUrl || item.webp90Url}
           previewUrl={getLightboxPreviewUrl(item)}
           alt={item.caption || "Full portfolio view"}
@@ -1038,7 +1052,11 @@ const PortfolioLightbox = ({
       <div
         key={item.id}
         data-aos="fade-in"
-        className={`max-w-sm text-center md:text-left ${slideClass}`}
+        className={`max-w-sm text-center md:text-left ${
+          slideDirection === "next"
+            ? "portfolio-meta-in-next"
+            : "portfolio-meta-in-prev"
+        }`}
         onClick={(event) => event.stopPropagation()}
       >
         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -1047,7 +1065,7 @@ const PortfolioLightbox = ({
         <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
           {item.caption || "Untitled piece"}
         </h1>
-        {!modalLoading && Array.isArray(item.tags) && item.tags.length > 0 && (
+        {Array.isArray(item.tags) && item.tags.length > 0 && (
           <div className="mt-5 max-w-sm">
             <TagMarqueeModal tags={item.tags} compact />
           </div>
@@ -1153,6 +1171,7 @@ const FlashSheetLightbox = ({
 );
 
 const LightboxImageFrame = ({
+  imageKey,
   fullUrl,
   previewUrl,
   alt,
@@ -1161,6 +1180,7 @@ const LightboxImageFrame = ({
   slideClass,
   onImageLoad,
 }: {
+  imageKey: string;
   fullUrl: string;
   previewUrl: string;
   alt: string;
@@ -1170,35 +1190,34 @@ const LightboxImageFrame = ({
   onImageLoad: () => void;
 }) => (
   <div
-    data-aos="zoom-out-up"
     className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
     onClick={(event) => event.stopPropagation()}
   >
-    <img
-      src={previewUrl}
-      alt=""
-      aria-hidden="true"
-      className={`absolute inset-0 h-full w-full object-contain transition duration-500 ${
-        isLoading
-          ? "scale-100 opacity-100 blur-0"
-          : "scale-100 opacity-0 blur-none"
-      } ${slideClass || ""}`}
-      decoding="async"
-    />
+    <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
+      <img
+        src={previewUrl}
+        alt=""
+        aria-hidden="true"
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          isLoading ? "opacity-100" : "opacity-0"
+        }`}
+        decoding="async"
+      />
+      <img
+        src={fullUrl}
+        alt={alt}
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          isLoading ? "opacity-0" : "opacity-100"
+        }`}
+        decoding="async"
+        onLoad={onImageLoad}
+        onError={onImageLoad}
+      />
+    </div>
     <div
-      className={`absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
-        isLoading ? "opacity-40 animate-pulse" : "opacity-0"
+      className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
+        isLoading ? "opacity-25 animate-pulse" : "opacity-0"
       }`}
-    />
-    <img
-      src={fullUrl}
-      alt={alt}
-      className={`relative z-10 h-full w-full object-contain transition duration-500 ${
-        isLoading ? "scale-[0.995] opacity-0" : "scale-100 opacity-100"
-      } ${slideClass || ""}`}
-      decoding="async"
-      onLoad={onImageLoad}
-      onError={onImageLoad}
     />
     {isLoading && (
       <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
