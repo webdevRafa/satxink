@@ -11,6 +11,12 @@ import gun from "../assets/white-gun.svg";
 import sa from "../assets/san-antonio.svg";
 import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
+import type { GalleryItem } from "../types/GalleryItem";
+
+type ArtistPreview = {
+  url: string;
+  alt?: string;
+};
 
 const PAGE_SIZE = 6;
 const SPECIALTIES = [
@@ -38,6 +44,21 @@ const isVisibleArtist = (artist: Artist) =>
   (artist.isVerified === true ||
     artist.isVerified === "true" ||
     typeof artist.isVerified === "undefined");
+
+const getGalleryItemTime = (item: GalleryItem) => {
+  const createdAt = item.createdAt as any;
+  if (createdAt?.toMillis) return createdAt.toMillis();
+  if (createdAt instanceof Date) return createdAt.getTime();
+  return 0;
+};
+
+const getGalleryPreviewUrl = (item: GalleryItem) =>
+  item.thumbUrl || item.webp90Url || item.fullUrl;
+
+const chunkArray = <T,>(items: T[], size: number) =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, index * size + size)
+  );
 
 function useStickyReveal(threshold = 10) {
   const [visible, setVisible] = useState(true);
@@ -75,6 +96,9 @@ export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
 
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
+    Record<string, ArtistPreview | null>
+  >({});
   const [loading, setLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
@@ -133,6 +157,72 @@ export const ArtistsPage = () => {
 
   const visibleArtists = filteredArtists.slice(0, visibleCount);
   const hasMore = visibleCount < filteredArtists.length;
+  const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
+
+  useEffect(() => {
+    const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
+    const missingArtistIds = artistIds.filter(
+      (artistId) => !(artistId in galleryPreviewByArtist)
+    );
+
+    if (missingArtistIds.length === 0) return;
+
+    let ignore = false;
+
+    const fetchGalleryPreviews = async () => {
+      try {
+        const previewByArtist: Record<string, ArtistPreview | null> = {};
+        missingArtistIds.forEach((artistId) => {
+          previewByArtist[artistId] = null;
+        });
+
+        const chunks = chunkArray(missingArtistIds, 10);
+        const snapshots = await Promise.all(
+          chunks.map((artistIdChunk) =>
+            getDocs(
+              query(
+                collection(db, "gallery"),
+                where("artistId", "in", artistIdChunk)
+              )
+            )
+          )
+        );
+
+        snapshots
+          .flatMap((snapshot) =>
+            snapshot.docs.map(
+              (doc) => ({ id: doc.id, ...doc.data() } as GalleryItem)
+            )
+          )
+          .filter((item) => item.status !== "processing")
+          .sort((a, b) => getGalleryItemTime(b) - getGalleryItemTime(a))
+          .forEach((item) => {
+            const previewUrl = getGalleryPreviewUrl(item);
+            if (!previewUrl || previewByArtist[item.artistId]) return;
+
+            previewByArtist[item.artistId] = {
+              url: previewUrl,
+              alt: item.caption,
+            };
+          });
+
+        if (!ignore) {
+          setGalleryPreviewByArtist((current) => ({
+            ...current,
+            ...previewByArtist,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch artist gallery previews:", err);
+      }
+    };
+
+    fetchGalleryPreviews();
+
+    return () => {
+      ignore = true;
+    };
+  }, [galleryPreviewByArtist, visibleArtistIdKey]);
 
   const fetchMore = useCallback(() => {
     if (loading || !hasMore) return;
@@ -209,6 +299,7 @@ export const ArtistsPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-5">
         {visibleArtists.map((artist, index) => {
           const isLast = index === visibleArtists.length - 1;
+          const galleryPreview = galleryPreviewByArtist[artist.id] || undefined;
 
           return (
             <div
@@ -222,6 +313,8 @@ export const ArtistsPage = () => {
                   avatarUrl={artist.avatarUrl}
                   specialties={artist.specialties}
                   likedBy={artist.likedBy || []}
+                  previewUrl={galleryPreview?.url}
+                  previewAlt={galleryPreview?.alt}
                 />
               </Link>
             </div>
