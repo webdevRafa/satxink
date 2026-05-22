@@ -99,7 +99,9 @@ export const ArtistsPage = () => {
   const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
     Record<string, ArtistPreview | null>
   >({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showInitialSkeleton, setShowInitialSkeleton] = useState(true);
+  const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
 
@@ -159,6 +161,23 @@ export const ArtistsPage = () => {
   const hasMore = visibleCount < filteredArtists.length;
   const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
   const isInitialLoading = loading && artists.length === 0;
+
+  useEffect(() => {
+    if (isInitialLoading) {
+      setShowInitialSkeleton(true);
+      setIsSkeletonExiting(false);
+      return;
+    }
+
+    if (!showInitialSkeleton) return;
+
+    setIsSkeletonExiting(true);
+    const timeout = window.setTimeout(() => {
+      setShowInitialSkeleton(false);
+    }, 360);
+
+    return () => clearTimeout(timeout);
+  }, [isInitialLoading, showInitialSkeleton]);
 
   useEffect(() => {
     const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
@@ -297,10 +316,8 @@ export const ArtistsPage = () => {
         </div>
       </div>
 
-      <div className="mt-5 min-h-[520px]">
-        {isInitialLoading ? (
-          <ArtistsPageSkeleton />
-        ) : (
+      <div className="relative mt-5 min-h-[520px]">
+        {!isInitialLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {visibleArtists.map((artist, index) => {
               const isLast = index === visibleArtists.length - 1;
@@ -326,6 +343,18 @@ export const ArtistsPage = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {showInitialSkeleton && (
+          <div
+            className={`transition-opacity duration-300 ease-out ${
+              isSkeletonExiting
+                ? "pointer-events-none absolute inset-0 opacity-0"
+                : "opacity-100"
+            }`}
+          >
+            <ArtistsPageSkeleton />
           </div>
         )}
       </div>
