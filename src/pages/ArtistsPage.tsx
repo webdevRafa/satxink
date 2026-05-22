@@ -1,26 +1,15 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // @ts-ignore
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  startAfter,
-  limit,
-  orderBy,
-  QueryDocumentSnapshot,
-} from "firebase/firestore";
-import type { DocumentData } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
-import ArtistCard from "../components/ArtistCard";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { Link } from "react-router-dom";
-import sa from "../assets/san-antonio.svg";
+import ArtistCard from "../components/ArtistCard";
 import gun from "../assets/white-gun.svg";
-
+import sa from "../assets/san-antonio.svg";
+import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
 
 const PAGE_SIZE = 6;
@@ -40,6 +29,16 @@ const SPECIALTIES = [
   "Fine Line",
   "Color Realism",
 ];
+
+const getArtistDisplayName = (artist: Artist) =>
+  artist.displayName || artist.name || artist.email || "Artist";
+
+const isVisibleArtist = (artist: Artist) =>
+  artist.role === "artist" &&
+  (artist.isVerified === true ||
+    artist.isVerified === "true" ||
+    typeof artist.isVerified === "undefined");
+
 function useStickyReveal(threshold = 10) {
   const [visible, setVisible] = useState(true);
   const lastY = useRef(window.scrollY);
@@ -73,42 +72,43 @@ function useStickyReveal(threshold = 10) {
 }
 
 export const ArtistsPage = () => {
-  const isStylesVisible = useStickyReveal(5); // feel free to test 10, 15, etc.
+  const isStylesVisible = useStickyReveal(5);
 
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [lastDoc, setLastDoc] =
-    useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState("");
-  // ⬇️ add this right under the existing hooks in ArtistsPage.tsx
+
   useEffect(() => {
     if (!loading) {
-      // give React time to paint the newly-fetched cards
-      const t = setTimeout(() => AOS.refreshHard(), 50);
-      return () => clearTimeout(t);
+      const timeout = setTimeout(() => AOS.refreshHard(), 50);
+      return () => clearTimeout(timeout);
     }
-  }, [artists.length, loading]);
-  // ✅ Fetch first page (only once)
+  }, [artists.length, loading, visibleCount]);
+
   useEffect(() => {
     const initialFetch = async () => {
       setLoading(true);
+
       try {
-        const q = query(
+        const artistsQuery = query(
           collection(db, "users"),
-          where("role", "==", "artist"),
-          orderBy("name"),
-          limit(PAGE_SIZE)
+          where("role", "==", "artist")
         );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<Artist, "id">),
-        }));
+        const snapshot = await getDocs(artistsQuery);
+        const docs = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Artist, "id">),
+          }))
+          .filter(isVisibleArtist)
+          .sort((a, b) =>
+            getArtistDisplayName(a).localeCompare(getArtistDisplayName(b))
+          );
+
         setArtists(docs);
-        setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-        setHasMore(snapshot.docs.length === PAGE_SIZE);
-        console.log("🔰 Initial fetch:", docs.length, "docs");
+        setVisibleCount(PAGE_SIZE);
+        console.log("Artists fetched:", docs.length, "visible artist docs");
       } catch (err) {
         console.error("Initial fetch error:", err);
       } finally {
@@ -119,36 +119,29 @@ export const ArtistsPage = () => {
     initialFetch();
   }, []);
 
-  // ✅ Fetch more when scrolling
-  const fetchMore = useCallback(async () => {
-    if (loading || !hasMore || !lastDoc) return;
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [specialtyFilter]);
 
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, "users"),
-        where("role", "==", "artist"),
-        orderBy("name"),
-        startAfter(lastDoc),
-        limit(PAGE_SIZE)
-      );
-      const snapshot = await getDocs(q);
-      const newDocs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Artist, "id">),
-      }));
-      setArtists((prev) => [...prev, ...newDocs]);
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
-      console.log("📦 Fetched more:", newDocs.length, "docs");
-    } catch (err) {
-      console.error("Fetch more error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [lastDoc, loading, hasMore]);
+  const filteredArtists = specialtyFilter
+    ? artists.filter((artist) =>
+        artist.specialties?.some((tag) =>
+          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
+        )
+      )
+    : artists;
 
-  // ✅ Infinite scroll observer
+  const visibleArtists = filteredArtists.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredArtists.length;
+
+  const fetchMore = useCallback(() => {
+    if (loading || !hasMore) return;
+
+    setVisibleCount((count) =>
+      Math.min(count + PAGE_SIZE, filteredArtists.length)
+    );
+  }, [filteredArtists.length, hasMore, loading]);
+
   const observer = useRef<IntersectionObserver | null>(null);
   const lastArtistRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -164,20 +157,11 @@ export const ArtistsPage = () => {
     [fetchMore, loading]
   );
 
-  const filteredArtists = specialtyFilter
-    ? artists.filter((a) =>
-        a.specialties?.some((tag) =>
-          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-        )
-      )
-    : artists;
-
   return (
     <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
       <div data-aos="fade-in">
-        {/* flex container for 'find an artist' and the sa imagery */}
         <div
-          className="flex gap-0 flex-col items-center mt-30 
+          className="flex gap-0 flex-col items-center mt-30
         justify-center"
         >
           <img
@@ -192,7 +176,6 @@ export const ArtistsPage = () => {
             <img className="h-8 translate-y-[-14px]" src={gun} alt="" />
           </div>
         </div>
-        {/* paragraph right beneath it */}
         <p className="text-neutral-500! mb-0 text-center translate-y-[-15px]">
           Discover talented artists from San Antonio, browse by style, and view
           their work.
@@ -224,8 +207,9 @@ export const ArtistsPage = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-5">
-        {filteredArtists.map((artist, index) => {
-          const isLast = index === filteredArtists.length - 1;
+        {visibleArtists.map((artist, index) => {
+          const isLast = index === visibleArtists.length - 1;
+
           return (
             <div
               data-aos="fade-in"
@@ -234,7 +218,7 @@ export const ArtistsPage = () => {
             >
               <Link to={`/artists/${artist.id}`}>
                 <ArtistCard
-                  name={artist.name}
+                  name={getArtistDisplayName(artist)}
                   avatarUrl={artist.avatarUrl}
                   specialties={artist.specialties}
                   likedBy={artist.likedBy || []}
@@ -246,9 +230,7 @@ export const ArtistsPage = () => {
       </div>
 
       {loading && (
-        <p className="text-center text-gray-400 mt-6">
-          Loading more artists...
-        </p>
+        <p className="text-center text-gray-400 mt-6">Loading artists...</p>
       )}
       {!hasMore && !loading && (
         <p className="text-center text-gray-500 mt-6">

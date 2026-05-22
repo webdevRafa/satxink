@@ -15,7 +15,7 @@ export type SocialLinks = {
     id: string;                 
     avatarUrl: string;
     name?: string;
-    displayName: string;
+    displayName?: string;
     bio: string;
     email: string;
     phoneNumber?: string;
@@ -23,7 +23,7 @@ export type SocialLinks = {
     shopId?: string;            
     specialties: string[];      
     featured: boolean;
-    isVerified: boolean;
+    isVerified?: boolean | "true" | "false";
     profileComplete: boolean;
     paymentType: "internal" | "external";
     depositPolicy: DepositPolicy;
