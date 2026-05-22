@@ -158,6 +158,7 @@ export const ArtistsPage = () => {
   const visibleArtists = filteredArtists.slice(0, visibleCount);
   const hasMore = visibleCount < filteredArtists.length;
   const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
+  const isInitialLoading = loading && artists.length === 0;
 
   useEffect(() => {
     const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
@@ -248,7 +249,7 @@ export const ArtistsPage = () => {
   );
 
   return (
-    <main className="px-4 py-12 max-w-[1300px] mx-auto relative">
+    <main className="px-4 py-12 max-w-[1300px] mx-auto relative min-h-[calc(100vh-4rem)]">
       <div data-aos="fade-in">
         <div
           className="flex gap-0 flex-col items-center mt-30
@@ -296,36 +297,43 @@ export const ArtistsPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-5">
-        {visibleArtists.map((artist, index) => {
-          const isLast = index === visibleArtists.length - 1;
-          const galleryPreview = galleryPreviewByArtist[artist.id] || undefined;
+      <div className="mt-5 min-h-[520px]">
+        {isInitialLoading ? (
+          <ArtistsPageSkeleton />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {visibleArtists.map((artist, index) => {
+              const isLast = index === visibleArtists.length - 1;
+              const galleryPreview =
+                galleryPreviewByArtist[artist.id] || undefined;
 
-          return (
-            <div
-              data-aos="fade-in"
-              key={artist.id}
-              ref={isLast ? lastArtistRef : null}
-            >
-              <Link to={`/artists/${artist.id}`}>
-                <ArtistCard
-                  name={getArtistDisplayName(artist)}
-                  avatarUrl={artist.avatarUrl}
-                  specialties={artist.specialties}
-                  likedBy={artist.likedBy || []}
-                  previewUrl={galleryPreview?.url}
-                  previewAlt={galleryPreview?.alt}
-                />
-              </Link>
-            </div>
-          );
-        })}
+              return (
+                <div
+                  data-aos="fade-in"
+                  key={artist.id}
+                  ref={isLast ? lastArtistRef : null}
+                >
+                  <Link to={`/artists/${artist.id}`}>
+                    <ArtistCard
+                      name={getArtistDisplayName(artist)}
+                      avatarUrl={artist.avatarUrl}
+                      specialties={artist.specialties}
+                      likedBy={artist.likedBy || []}
+                      previewUrl={galleryPreview?.url}
+                      previewAlt={galleryPreview?.alt}
+                    />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {loading && (
+      {loading && !isInitialLoading && (
         <p className="text-center text-gray-400 mt-6">Loading artists...</p>
       )}
-      {!hasMore && !loading && (
+      {!hasMore && !loading && visibleArtists.length > 0 && (
         <p className="text-center text-gray-500 mt-6">
           No more artists to show.
         </p>
@@ -333,3 +341,31 @@ export const ArtistsPage = () => {
     </main>
   );
 };
+
+const ArtistsPageSkeleton = () => (
+  <div
+    className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3"
+    aria-busy="true"
+  >
+    {Array.from({ length: 9 }).map((_, index) => (
+      <div
+        key={index}
+        className="h-[148px] rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] p-4 shadow-md"
+      >
+        <div className="grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4">
+          <div className="my-auto h-16 w-16 animate-pulse rounded-full border border-white/10 bg-white/[0.07]" />
+          <div className="flex h-full min-w-0 animate-pulse flex-col justify-center">
+            <div className="h-5 w-36 rounded-md bg-white/[0.08]" />
+            <div className="mt-3 flex h-[48px] flex-wrap content-start gap-1.5 overflow-hidden">
+              <div className="h-6 w-20 rounded-full border border-white/10 bg-white/[0.04]" />
+              <div className="h-6 w-16 rounded-full border border-white/10 bg-white/[0.04]" />
+              <div className="h-6 w-24 rounded-full border border-white/10 bg-white/[0.04]" />
+            </div>
+            <div className="h-9 w-24 rounded-md bg-white/[0.06]" />
+          </div>
+        </div>
+      </div>
+    ))}
+    <span className="sr-only">Loading artists</span>
+  </div>
+);
