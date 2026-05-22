@@ -161,9 +161,14 @@ export const ArtistsPage = () => {
   const hasMore = visibleCount < filteredArtists.length;
   const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
   const isInitialLoading = loading && artists.length === 0;
+  const previewLookupsPending =
+    visibleArtists.length > 0 &&
+    visibleArtists.some((artist) => !(artist.id in galleryPreviewByArtist));
+  const shouldHoldInitialSkeleton =
+    isInitialLoading || (showInitialSkeleton && previewLookupsPending);
 
   useEffect(() => {
-    if (isInitialLoading) {
+    if (shouldHoldInitialSkeleton) {
       setShowInitialSkeleton(true);
       setIsSkeletonExiting(false);
       return;
@@ -177,7 +182,7 @@ export const ArtistsPage = () => {
     }, 360);
 
     return () => clearTimeout(timeout);
-  }, [isInitialLoading, showInitialSkeleton]);
+  }, [shouldHoldInitialSkeleton, showInitialSkeleton]);
 
   useEffect(() => {
     const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
@@ -234,6 +239,14 @@ export const ArtistsPage = () => {
         }
       } catch (err) {
         console.error("Failed to fetch artist gallery previews:", err);
+        if (!ignore) {
+          setGalleryPreviewByArtist((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              missingArtistIds.map((artistId) => [artistId, null])
+            ),
+          }));
+        }
       }
     };
 
