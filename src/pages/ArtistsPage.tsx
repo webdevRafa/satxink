@@ -350,19 +350,20 @@ const ArtistsPageSkeleton = () => (
     {Array.from({ length: 9 }).map((_, index) => (
       <div
         key={index}
-        className="h-[148px] rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] p-4 shadow-md"
+        className="skeleton-sheen h-[148px] rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] p-4 shadow-md"
       >
-        <div className="grid h-full grid-cols-[72px_minmax(0,1fr)] gap-4">
-          <div className="my-auto h-16 w-16 animate-pulse rounded-full border border-white/10 bg-white/[0.07]" />
-          <div className="flex h-full min-w-0 animate-pulse flex-col justify-center">
-            <div className="h-5 w-36 rounded-md bg-white/[0.08]" />
+        <div className="grid h-full grid-cols-[72px_minmax(0,1fr)_72px] gap-4 sm:grid-cols-[72px_minmax(0,1fr)_86px]">
+          <div className="my-auto h-16 w-16 rounded-full border border-white/10 bg-gradient-to-br from-white/[0.11] to-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" />
+          <div className="flex h-full min-w-0 flex-col justify-center">
+            <div className="h-5 w-36 rounded-md bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" />
             <div className="mt-3 flex h-[48px] flex-wrap content-start gap-1.5 overflow-hidden">
-              <div className="h-6 w-20 rounded-full border border-white/10 bg-white/[0.04]" />
-              <div className="h-6 w-16 rounded-full border border-white/10 bg-white/[0.04]" />
-              <div className="h-6 w-24 rounded-full border border-white/10 bg-white/[0.04]" />
+              <div className="h-6 w-20 rounded-full border border-white/10 bg-white/[0.05]" />
+              <div className="h-6 w-16 rounded-full border border-white/10 bg-white/[0.05]" />
+              <div className="hidden h-6 w-24 rounded-full border border-white/10 bg-white/[0.05] sm:block" />
             </div>
-            <div className="h-9 w-24 rounded-md bg-white/[0.06]" />
+            <div className="h-9 w-24 rounded-md bg-white/[0.06] opacity-0" />
           </div>
+          <div className="h-full overflow-hidden rounded-md border border-white/10 bg-gradient-to-br from-white/[0.09] via-white/[0.035] to-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
         </div>
       </div>
     ))}
