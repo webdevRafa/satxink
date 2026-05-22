@@ -289,10 +289,8 @@ export const ArtistProfilePage = () => {
     }, 80);
   };
 
-  if (loading)
-    return (
-      <p className="text-center text-gray-400 mt-10">Loading profile...</p>
-    );
+  if (loading) return <ArtistProfilePageSkeleton />;
+
   if (!artist)
     return <p className="text-center text-gray-400 mt-10">Artist not found.</p>;
 
@@ -503,6 +501,63 @@ export const ArtistProfilePage = () => {
     </div>
   );
 };
+
+const ArtistProfilePageSkeleton = () => (
+  <div
+    className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[calc(100vh-5rem)]"
+    aria-busy="true"
+    aria-live="polite"
+  >
+    <div className="rounded-xl border border-white/5 bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] p-6 shadow-lg">
+      <div className="flex animate-pulse flex-col items-center gap-6 md:flex-row md:items-start">
+        <div className="h-32 w-32 rounded-full border-4 border-neutral-800 bg-white/[0.07] md:h-40 md:w-40" />
+        <div className="flex w-full flex-1 flex-col items-center md:items-start">
+          <div className="h-8 w-44 rounded-md bg-white/[0.08]" />
+          <div className="mt-3 h-4 w-36 rounded-full bg-white/[0.06]" />
+          <div className="mt-5 h-4 w-full max-w-sm rounded-full bg-white/[0.06]" />
+          <div className="mt-3 h-4 w-2/3 max-w-xs rounded-full bg-white/[0.04]" />
+          <div className="mt-5 flex gap-3">
+            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
+            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
+          </div>
+          <div className="mt-6 flex w-full flex-wrap justify-center gap-2 md:justify-start">
+            {[96, 84, 92, 88, 76, 124].map((width) => (
+              <div
+                key={width}
+                className="h-8 rounded-full border border-white/10 bg-white/[0.04]"
+                style={{ width }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-10 animate-pulse">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="h-4 w-32 rounded-full bg-white/[0.06]" />
+          <div className="mt-4 flex items-center gap-3">
+            <div className="h-8 w-28 rounded-md bg-white/[0.08]" />
+            <div className="h-6 w-px bg-white/10" />
+            <div className="h-8 w-32 rounded-md bg-white/[0.05]" />
+          </div>
+        </div>
+        <div className="h-8 w-24 rounded-full border border-white/10 bg-white/[0.04]" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="aspect-[4/5] rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.03] to-transparent"
+          />
+        ))}
+      </div>
+    </div>
+
+    <span className="sr-only">Loading artist profile</span>
+  </div>
+);
 
 const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   const createdAt = item.createdAt as any;
