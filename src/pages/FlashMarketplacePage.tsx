@@ -518,9 +518,6 @@ const FlashCard = ({
             <ImageOff className="text-white/25" size={36} />
           </div>
         )}
-        <div className="absolute right-2 top-2 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-bold leading-none text-white shadow-lg backdrop-blur-md">
-          {formatFlashPrice(flash.price)}
-        </div>
       </div>
 
       <div className="p-3">
@@ -531,9 +528,14 @@ const FlashCard = ({
             className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
           />
           <div className="min-w-0">
-            <h3 className="my-0! line-clamp-1 text-sm! font-semibold text-white">
-              {getFlashTitle(flash)}
-            </h3>
+            <div className="flex items-start gap-2">
+              <h3 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
+                {getFlashTitle(flash)}
+              </h3>
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
+                {formatFlashPrice(flash.price)}
+              </span>
+            </div>
             <p className="mt-0.5 truncate text-xs text-white/50">
               by {artistName}
             </p>
