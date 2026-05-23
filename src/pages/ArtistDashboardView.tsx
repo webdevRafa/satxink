@@ -74,7 +74,6 @@ type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
 
 type ArtistProfileFormState = {
   displayName: string;
-  name: string;
   email: string;
   avatarUrl: string;
   bio: string;
@@ -116,7 +115,6 @@ const isValidOptionalUrl = (value: string) => {
 
 const createProfileFormState = (artist: Partial<Artist> | null): ArtistProfileFormState => ({
   displayName: artist?.displayName || artist?.name || "",
-  name: artist?.name || artist?.displayName || "",
   email: artist?.email || "",
   avatarUrl: artist?.avatarUrl || "",
   bio: artist?.bio || "",
@@ -456,7 +454,6 @@ const ArtistDashboardView = () => {
     const profileUpdate = {
       displayName,
       slug: nextSlug,
-      name: profileForm.name.trim() || displayName,
       email,
       bio,
       specialties: profileForm.specialties,
@@ -702,21 +699,6 @@ const ArtistDashboardView = () => {
                         {displayNameStatus === "idle" &&
                           "Changing this also updates your public profile handle."}
                       </span>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Account name
-                      </span>
-                      <input
-                        type="text"
-                        value={profileForm.name}
-                        onChange={(event) =>
-                          updateProfileForm({ name: event.target.value })
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="Your name"
-                      />
                     </label>
 
                     <label className="space-y-2">
