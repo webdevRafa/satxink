@@ -230,7 +230,7 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-marquee-track {
-            animation: satx-home-marquee 92s linear infinite;
+            animation: satx-home-marquee 180s linear infinite;
             will-change: transform;
             width: max-content;
           }
@@ -558,7 +558,7 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
         <MissingImage />
       )}
     </div>
-    <div className="flex min-h-[118px] flex-1 flex-col p-3">
+    <div className="flex min-h-[136px] flex-1 flex-col p-3">
       <div className="flex min-h-[42px] items-start gap-2">
         <h4 className="min-w-0 flex-1 truncate text-sm! font-semibold text-white">
           {getFlashTitle(flash)}
@@ -590,7 +590,7 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
         <MissingImage />
       )}
     </div>
-    <div className="flex min-h-[118px] flex-1 flex-col p-3">
+    <div className="flex min-h-[136px] flex-1 flex-col p-3">
       <div className="flex min-h-[42px] items-start gap-2">
         <h4 className="min-w-0 flex-1 truncate text-sm! font-semibold text-white">
           {sheet.title || "Untitled flash sheet"}
@@ -608,23 +608,29 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
 
 const ArtistByline = ({ artist }: { artist?: PublicArtist }) => {
   const artistName = getArtistName(artist);
+  const artistSubtitle = artist?.studioName || "SATX Ink artist";
 
   return (
-    <div className="mt-1.5 flex min-w-0 items-center gap-2">
+    <div className="mt-3 flex h-11 min-w-0 items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.045] px-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition group-hover:border-white/[0.14] group-hover:bg-white/[0.065]">
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
           alt=""
-          className="h-6 w-6 shrink-0 rounded-full border border-white/10 object-cover"
+          className="h-8 w-8 shrink-0 rounded-full border border-white/15 object-cover shadow-sm"
           loading="lazy"
         />
       ) : (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-bold text-white/45">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.07] text-xs font-bold text-white/55 shadow-sm">
           {artistName.charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="min-w-0 truncate text-xs text-white/45">
-        by {artistName}
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] font-semibold leading-4 text-white/80">
+          {artistName}
+        </span>
+        <span className="block truncate text-[10px] font-medium leading-3 text-white/35">
+          {artistSubtitle}
+        </span>
       </span>
     </div>
   );
