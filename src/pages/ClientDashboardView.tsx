@@ -1,98 +1,117 @@
-import { useState, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { CalendarCheck, Heart, Inbox, ReceiptText } from "lucide-react";
 import ClientSidebarNavigation from "../components/ClientSidebarNavigation";
 import LikedArtistsList from "../components/LikedArtistsList";
 import ClientOffersList from "../components/ClientOffersList";
 import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
-import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import ClientRequestsList from "../components/ClientRequestsList";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
 
+type ClientView = "liked" | "requests" | "offers" | "bookings";
+
+const activeViewLabels: Record<ClientView, string> = {
+  liked: "Liked artists",
+  requests: "My requests",
+  offers: "Offers",
+  bookings: "Bookings",
+};
+
 const ClientDashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
-
-  const [activeView, setActiveView] = useState<
-    "liked" | "requests" | "offers" | "bookings"
-  >("liked");
+  const [activeView, setActiveView] = useState<ClientView>("liked");
   const [client, setClient] = useState<any>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Sync avatar only for Google logins
-        if (user.providerData.some((p) => p.providerId === "google.com")) {
-          await syncGoogleAvatar();
-        }
-
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) setClient({ id: user.uid, ...snap.data() });
+      if (!user) {
+        setClient(null);
+        return;
       }
+
+      if (user.providerData.some((provider) => provider.providerId === "google.com")) {
+        await syncGoogleAvatar();
+      }
+
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) setClient({ id: user.uid, ...snap.data() });
     });
 
     return () => unsubscribe();
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white pt-20">
-      <ClientSidebarNavigation
-        activeView={activeView}
-        onViewChange={(view) => setActiveView(view)}
-      />
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] pt-20 text-white md:flex-row">
+      <ClientSidebarNavigation activeView={activeView} onViewChange={setActiveView} />
 
       <main className="flex-1 overflow-y-auto p-6">
         {client && (
-          <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              {/* Avatar */}
-              <div className="relative group">
-                <img
-                  src={client.avatarUrl || "/fallback-avatar.jpg"}
-                  alt={client.name}
-                  className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
-                />
-                <span className="absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
-                  Client
-                </span>
-              </div>
+          <section className="relative mx-auto mb-8 max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
+                <div className="relative">
+                  <img
+                    src={client.avatarUrl || "/fallback-avatar.jpg"}
+                    alt={client.name || "Client"}
+                    className="h-28 w-28 rounded-full border border-white/10 object-cover shadow-lg md:h-32 md:w-32"
+                  />
+                  <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] text-white ring-1 ring-white/10">
+                    Client
+                  </span>
+                </div>
 
-              {/* Info */}
-              <div className="text-center md:text-left flex-1">
-                <h1 className="text-3xl! font-bold text-white">
-                  Welcome, {client.name}
-                </h1>
-                <p className="text-gray-400 italic">
-                  Here’s your dashboard — track offers, find artists, and book
-                  with confidence.
-                </p>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                    Client dashboard
+                  </p>
+                  <h1 className="mt-2 text-3xl! font-semibold text-white">
+                    Welcome, {client.name || "client"}
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+                    Track offers, follow artists, manage requests, and book with
+                    confidence.
+                  </p>
 
-                {/* Preferred Styles */}
-                {client.preferredStyles &&
-                  client.preferredStyles.length > 0 && (
-                    <div className="mt-6">
-                      <h2 className="text-sm! font-light! text-white mb-2">
-                        My Preferred Styles
-                      </h2>
-                      <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                        {client.preferredStyles.map(
-                          (style: string, index: number) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 text-sm rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-sm hover:bg-white/10 transition"
-                            >
-                              {style}
-                            </span>
-                          )
-                        )}
-                      </div>
+                  {client.preferredStyles?.length > 0 && (
+                    <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+                      {client.preferredStyles.map((style: string, index: number) => (
+                        <span
+                          key={`${style}-${index}`}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                        >
+                          {style}
+                        </span>
+                      ))}
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+                <ClientMetric
+                  icon={<Heart size={17} />}
+                  label="Liked"
+                  value={client.likedArtists?.length || 0}
+                />
+                <ClientMetric
+                  icon={<Inbox size={17} />}
+                  label="Viewing"
+                  value={activeViewLabels[activeView]}
+                />
+                <ClientMetric icon={<ReceiptText size={17} />} label="Offers" value="Live" />
+                <ClientMetric
+                  icon={<CalendarCheck size={17} />}
+                  label="Bookings"
+                  value="Ready"
+                />
               </div>
             </div>
-          </div>
+          </section>
         )}
 
         {client && (
@@ -106,18 +125,13 @@ const ClientDashboardView = () => {
                 }}
               />
             )}
-            {activeView === "requests" && (
-              <ClientRequestsList clientId={client.id} />
-            )}
-            {activeView === "offers" && (
-              <ClientOffersList clientId={client.id} />
-            )}
-            {activeView === "bookings" && (
-              <ClientBookingsList clientId={client.id} />
-            )}
+            {activeView === "requests" && <ClientRequestsList clientId={client.id} />}
+            {activeView === "offers" && <ClientOffersList clientId={client.id} />}
+            {activeView === "bookings" && <ClientBookingsList clientId={client.id} />}
           </>
         )}
       </main>
+
       {client && selectedArtist && (
         <RequestTattooModal
           isOpen={isModalOpen}
@@ -132,5 +146,23 @@ const ClientDashboardView = () => {
     </div>
   );
 };
+
+const ClientMetric = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="mt-2 truncate text-lg font-semibold text-white">{value}</p>
+  </div>
+);
 
 export default ClientDashboardView;
