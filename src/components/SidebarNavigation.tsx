@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 type ViewTab =
+  | "profile"
   | "requests"
   | "offers"
   | "bookings"
@@ -27,6 +28,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
 
   const tabs = [
+    { key: "profile", label: "Profile" },
     { key: "requests", label: "Requests" },
     { key: "offers", label: "Offers" },
     { key: "bookings", label: "Bookings" },

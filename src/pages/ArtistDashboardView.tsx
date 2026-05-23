@@ -1,11 +1,27 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
+import { toast } from "react-hot-toast";
+import {
+  Check,
+  CreditCard,
+  Globe,
+  Image as ImageIcon,
+  Instagram,
+  Mail,
+  RefreshCcw,
+  Save,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import { db, auth } from "../firebase/firebaseConfig";
 import {
   doc,
   getDoc,
+  updateDoc,
+  serverTimestamp,
   collection,
   query,
   where,
@@ -23,6 +39,100 @@ import GalleryManager from "../components/GalleryManager";
 import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { Booking } from "../types/Booking";
+import type { Artist } from "../types/Artist";
+
+const SPECIALTY_OPTIONS = [
+  "Blackwork",
+  "Linework",
+  "Dotwork",
+  "Color",
+  "Realism",
+  "Neo-Traditional",
+  "Micro",
+  "Geometric",
+  "Anime",
+  "Traditional",
+  "Japanese",
+  "Ornamental",
+  "Fine Line",
+  "Color Realism",
+];
+
+type PaymentType = "internal" | "external";
+type FinalPaymentTiming = "before" | "after";
+
+type ArtistProfileFormState = {
+  displayName: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+  bio: string;
+  specialties: string[];
+  socialLinks: {
+    instagram: string;
+    facebook: string;
+    website: string;
+  };
+  paymentType: PaymentType;
+  externalPaymentDetails: {
+    method: string;
+    handle: string;
+  };
+  depositPolicy: {
+    amount: string;
+    depositRequired: boolean;
+    nonRefundable: boolean;
+  };
+  finalPaymentTiming: FinalPaymentTiming;
+};
+
+const normalizeUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+const isValidOptionalUrl = (value: string) => {
+  if (!value.trim()) return true;
+
+  try {
+    new URL(normalizeUrl(value));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const createProfileFormState = (artist: Partial<Artist> | null): ArtistProfileFormState => ({
+  displayName: artist?.displayName || artist?.name || "",
+  name: artist?.name || artist?.displayName || "",
+  email: artist?.email || "",
+  avatarUrl: artist?.avatarUrl || "",
+  bio: artist?.bio || "",
+  specialties: Array.isArray(artist?.specialties) ? artist.specialties : [],
+  socialLinks: {
+    instagram: artist?.socialLinks?.instagram || "",
+    facebook: artist?.socialLinks?.facebook || "",
+    website: (artist?.socialLinks as { website?: string } | undefined)?.website || "",
+  },
+  paymentType: artist?.paymentType || "internal",
+  externalPaymentDetails: {
+    method:
+      (artist as { externalPaymentDetails?: { method?: string } } | null)
+        ?.externalPaymentDetails?.method || "",
+    handle:
+      (artist as { externalPaymentDetails?: { handle?: string } } | null)
+        ?.externalPaymentDetails?.handle || "",
+  },
+  depositPolicy: {
+    amount: String(
+      (artist?.depositPolicy as { amount?: number } | undefined)?.amount ?? ""
+    ),
+    depositRequired: artist?.depositPolicy?.depositRequired ?? true,
+    nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
+  },
+  finalPaymentTiming: artist?.finalPaymentTiming || "after",
+});
 
 const ArtistDashboardView = () => {
   const [artist, setArtist] = useState<any>(null);
@@ -30,6 +140,7 @@ const ArtistDashboardView = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [activeTab, setActiveTab] = useState<
     | "requests"
+    | "profile"
     | "offers"
     | "bookings"
     | "pending"
@@ -41,11 +152,17 @@ const ArtistDashboardView = () => {
     | "gallery"
     | "events"
     | "payments"
-  >("gallery");
+  >("profile");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
+  const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
+    createProfileFormState(null)
+  );
+  const [isProfileDirty, setIsProfileDirty] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [customSpecialty, setCustomSpecialty] = useState("");
 
   const [offerPrice, setOfferPrice] = useState(0);
   const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
@@ -73,12 +190,168 @@ const ArtistDashboardView = () => {
         setUid(user.uid);
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
-        if (snap.exists()) setArtist(snap.data());
+        if (snap.exists()) {
+          const artistData = snap.data();
+          setArtist(artistData);
+          setProfileForm(createProfileFormState(artistData));
+          setIsProfileDirty(false);
+        }
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const updateProfileForm = (
+    updater:
+      | Partial<ArtistProfileFormState>
+      | ((current: ArtistProfileFormState) => ArtistProfileFormState)
+  ) => {
+    setProfileForm((current) =>
+      typeof updater === "function" ? updater(current) : { ...current, ...updater }
+    );
+    setIsProfileDirty(true);
+  };
+
+  const toggleSpecialty = (specialty: string) => {
+    updateProfileForm((current) => {
+      const exists = current.specialties.includes(specialty);
+      return {
+        ...current,
+        specialties: exists
+          ? current.specialties.filter((item) => item !== specialty)
+          : [...current.specialties, specialty],
+      };
+    });
+  };
+
+  const addCustomSpecialty = () => {
+    const specialty = customSpecialty.trim();
+    if (!specialty) return;
+
+    updateProfileForm((current) => ({
+      ...current,
+      specialties: current.specialties.some(
+        (item) => item.toLowerCase() === specialty.toLowerCase()
+      )
+        ? current.specialties
+        : [...current.specialties, specialty],
+    }));
+    setCustomSpecialty("");
+  };
+
+  const removeSpecialty = (specialty: string) => {
+    updateProfileForm((current) => ({
+      ...current,
+      specialties: current.specialties.filter((item) => item !== specialty),
+    }));
+  };
+
+  const resetProfileForm = () => {
+    setProfileForm(createProfileFormState(artist));
+    setCustomSpecialty("");
+    setIsProfileDirty(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!uid) return;
+
+    const displayName = profileForm.displayName.trim();
+    const email = profileForm.email.trim();
+    const avatarUrl = profileForm.avatarUrl.trim();
+    const bio = profileForm.bio.trim();
+    const depositAmount = Number(profileForm.depositPolicy.amount || 0);
+
+    if (!displayName) {
+      toast.error("Display name is required.");
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+
+    if (!bio) {
+      toast.error("Bio is required.");
+      return;
+    }
+
+    if (profileForm.specialties.length === 0) {
+      toast.error("Choose at least one specialty.");
+      return;
+    }
+
+    if (
+      !isValidOptionalUrl(avatarUrl) ||
+      !isValidOptionalUrl(profileForm.socialLinks.instagram) ||
+      !isValidOptionalUrl(profileForm.socialLinks.facebook) ||
+      !isValidOptionalUrl(profileForm.socialLinks.website)
+    ) {
+      toast.error("One or more links are not valid URLs.");
+      return;
+    }
+
+    if (Number.isNaN(depositAmount) || depositAmount < 0) {
+      toast.error("Deposit amount must be zero or greater.");
+      return;
+    }
+
+    if (
+      profileForm.paymentType === "external" &&
+      (!profileForm.externalPaymentDetails.method ||
+        !profileForm.externalPaymentDetails.handle.trim())
+    ) {
+      toast.error("Add external payment details or switch to Stripe.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    const profileUpdate = {
+      displayName,
+      name: profileForm.name.trim() || displayName,
+      email,
+      avatarUrl: normalizeUrl(avatarUrl),
+      bio,
+      specialties: profileForm.specialties,
+      socialLinks: {
+        instagram: normalizeUrl(profileForm.socialLinks.instagram),
+        facebook: normalizeUrl(profileForm.socialLinks.facebook),
+        website: normalizeUrl(profileForm.socialLinks.website),
+      },
+      paymentType: profileForm.paymentType,
+      externalPaymentDetails:
+        profileForm.paymentType === "external"
+          ? {
+              method: profileForm.externalPaymentDetails.method,
+              handle: profileForm.externalPaymentDetails.handle.trim(),
+            }
+          : null,
+      depositPolicy: {
+        amount: depositAmount,
+        depositRequired: profileForm.depositPolicy.depositRequired,
+        nonRefundable: profileForm.depositPolicy.nonRefundable,
+      },
+      finalPaymentTiming: profileForm.finalPaymentTiming,
+      profileComplete: true,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      await updateDoc(doc(db, "users", uid), profileUpdate);
+      const nextArtist = { ...(artist || {}), ...profileUpdate };
+      setArtist(nextArtist);
+      setProfileForm(createProfileFormState(nextArtist));
+      setIsProfileDirty(false);
+      toast.success("Profile updated.");
+    } catch (error) {
+      console.error("Artist profile update failed:", error);
+      toast.error("Profile update failed.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Fetch booking requests
   useEffect(() => {
@@ -130,6 +403,24 @@ const ArtistDashboardView = () => {
     fetchBookings();
   }, [uid, activeTab]);
 
+  const profileCompletionItems = [
+    Boolean(profileForm.displayName.trim()),
+    Boolean(profileForm.email.trim()),
+    Boolean(profileForm.bio.trim()),
+    Boolean(profileForm.avatarUrl.trim()),
+    profileForm.specialties.length > 0,
+    Boolean(
+      profileForm.socialLinks.instagram.trim() ||
+        profileForm.socialLinks.facebook.trim() ||
+        profileForm.socialLinks.website.trim()
+    ),
+    Boolean(profileForm.paymentType),
+  ];
+  const profileCompletion = Math.round(
+    (profileCompletionItems.filter(Boolean).length / profileCompletionItems.length) *
+      100
+  );
+
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
       <SidebarNavigation
@@ -139,6 +430,566 @@ const ArtistDashboardView = () => {
 
       <main className="relative flex-1 p-6 h-full">
         {artist && <ArtistProfileHeader artist={artist} />}
+
+        {activeTab === "profile" && (
+          <section className="mx-auto mt-6 max-w-6xl space-y-6">
+            <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Artist account
+                </p>
+                <h1 className="mt-2 text-3xl! font-semibold text-white">
+                  Profile settings
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+                  Keep your public profile, booking preferences, and payment
+                  details polished from one place.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="min-w-44">
+                  <div className="flex items-center justify-between text-xs text-neutral-400">
+                    <span>Profile strength</span>
+                    <span>{profileCompletion}%</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all"
+                      style={{ width: `${profileCompletion}%` }}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetProfileForm}
+                  disabled={!isProfileDirty || isSavingProfile}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <RefreshCcw size={16} aria-hidden="true" />
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={!isProfileDirty || isSavingProfile}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Save size={16} aria-hidden="true" />
+                  {isSavingProfile ? "Saving..." : "Save changes"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="space-y-6">
+                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <UserRound size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Public identity</h2>
+                      <p className="text-sm text-neutral-400">
+                        This is what clients see across SATX Ink.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Display name
+                      </span>
+                      <input
+                        type="text"
+                        value={profileForm.displayName}
+                        onChange={(event) =>
+                          updateProfileForm({ displayName: event.target.value })
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="Ink by Alex"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Account name
+                      </span>
+                      <input
+                        type="text"
+                        value={profileForm.name}
+                        onChange={(event) =>
+                          updateProfileForm({ name: event.target.value })
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="Your name"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                        <Mail size={15} aria-hidden="true" />
+                        Email
+                      </span>
+                      <input
+                        type="email"
+                        value={profileForm.email}
+                        onChange={(event) =>
+                          updateProfileForm({ email: event.target.value })
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="artist@example.com"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                        <ImageIcon size={15} aria-hidden="true" />
+                        Avatar URL
+                      </span>
+                      <input
+                        type="url"
+                        value={profileForm.avatarUrl}
+                        onChange={(event) =>
+                          updateProfileForm({ avatarUrl: event.target.value })
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="https://..."
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-4 block space-y-2">
+                    <span className="text-sm font-medium text-neutral-200">
+                      Bio
+                    </span>
+                    <textarea
+                      value={profileForm.bio}
+                      onChange={(event) =>
+                        updateProfileForm({ bio: event.target.value })
+                      }
+                      rows={5}
+                      maxLength={700}
+                      className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                      placeholder="Tell clients about your style, process, and booking vibe."
+                    />
+                    <span className="block text-right text-xs text-neutral-500">
+                      {profileForm.bio.length}/700
+                    </span>
+                  </label>
+                </section>
+
+                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <Check size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Specialties</h2>
+                      <p className="text-sm text-neutral-400">
+                        Choose the styles clients should associate with your work.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {SPECIALTY_OPTIONS.map((specialty) => {
+                      const selected = profileForm.specialties.includes(specialty);
+                      return (
+                        <button
+                          key={specialty}
+                          type="button"
+                          onClick={() => toggleSpecialty(specialty)}
+                          className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                            selected
+                              ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                          }`}
+                        >
+                          {specialty}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={customSpecialty}
+                      onChange={(event) => setCustomSpecialty(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addCustomSpecialty();
+                        }
+                      }}
+                      className="min-w-0 flex-1 rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                      placeholder="Add a custom specialty"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomSpecialty}
+                      className="rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white"
+                    >
+                      Add style
+                    </button>
+                  </div>
+
+                  {profileForm.specialties.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {profileForm.specialties.map((specialty) => (
+                        <span
+                          key={specialty}
+                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-200"
+                        >
+                          {specialty}
+                          <button
+                            type="button"
+                            onClick={() => removeSpecialty(specialty)}
+                            className="text-neutral-500 transition hover:text-white"
+                            aria-label={`Remove ${specialty}`}
+                          >
+                            <X size={13} aria-hidden="true" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <CreditCard size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Booking and payments</h2>
+                      <p className="text-sm text-neutral-400">
+                        Set expectations before clients accept an offer.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Payment type
+                      </span>
+                      <div className="grid grid-cols-2 rounded-md border border-white/10 bg-[#101010] p-1">
+                        {(["internal", "external"] as PaymentType[]).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => updateProfileForm({ paymentType: type })}
+                            className={`rounded px-3 py-2 text-sm capitalize transition ${
+                              profileForm.paymentType === type
+                                ? "bg-white text-black"
+                                : "text-neutral-400 hover:text-white"
+                            }`}
+                          >
+                            {type === "internal" ? "Stripe" : "External"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Default deposit amount
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={profileForm.depositPolicy.amount}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            depositPolicy: {
+                              ...current.depositPolicy,
+                              amount: event.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="0"
+                      />
+                    </label>
+                  </div>
+
+                  {profileForm.paymentType === "external" && (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          External method
+                        </span>
+                        <select
+                          value={profileForm.externalPaymentDetails.method}
+                          onChange={(event) =>
+                            updateProfileForm((current) => ({
+                              ...current,
+                              externalPaymentDetails: {
+                                ...current.externalPaymentDetails,
+                                method: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        >
+                          <option value="">Select a method</option>
+                          <option value="cashapp">CashApp</option>
+                          <option value="venmo">Venmo</option>
+                          <option value="zelle">Zelle</option>
+                          <option value="paypal">PayPal</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          External handle
+                        </span>
+                        <input
+                          type="text"
+                          value={profileForm.externalPaymentDetails.handle}
+                          onChange={(event) =>
+                            updateProfileForm((current) => ({
+                              ...current,
+                              externalPaymentDetails: {
+                                ...current.externalPaymentDetails,
+                                handle: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          placeholder="$cashtag, @handle, email, or phone"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
+                      <input
+                        type="checkbox"
+                        checked={profileForm.depositPolicy.depositRequired}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            depositPolicy: {
+                              ...current.depositPolicy,
+                              depositRequired: event.target.checked,
+                            },
+                          }))
+                        }
+                        className="mt-1 accent-[var(--color-primary)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-white">
+                          Deposit required
+                        </span>
+                        <span className="text-xs text-neutral-500">
+                          Applies to new offers.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
+                      <input
+                        type="checkbox"
+                        checked={profileForm.depositPolicy.nonRefundable}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            depositPolicy: {
+                              ...current.depositPolicy,
+                              nonRefundable: event.target.checked,
+                            },
+                          }))
+                        }
+                        className="mt-1 accent-[var(--color-primary)]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-white">
+                          Non-refundable
+                        </span>
+                        <span className="text-xs text-neutral-500">
+                          Shown in booking terms.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label className="space-y-2 rounded-md border border-white/10 bg-[#101010] p-3">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Final payment
+                      </span>
+                      <select
+                        value={profileForm.finalPaymentTiming}
+                        onChange={(event) =>
+                          updateProfileForm({
+                            finalPaymentTiming: event.target
+                              .value as FinalPaymentTiming,
+                          })
+                        }
+                        className="w-full rounded border border-white/10 bg-[#151515] px-2 py-2 text-sm text-white outline-none focus:border-[var(--color-primary)]"
+                      >
+                        <option value="before">Before appointment</option>
+                        <option value="after">After appointment</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <Globe size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Social links</h2>
+                      <p className="text-sm text-neutral-400">
+                        Make it easy for clients to verify your work and vibe.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label className="space-y-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                        <Instagram size={15} aria-hidden="true" />
+                        Instagram
+                      </span>
+                      <input
+                        type="url"
+                        value={profileForm.socialLinks.instagram}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            socialLinks: {
+                              ...current.socialLinks,
+                              instagram: event.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="instagram.com/artist"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Facebook
+                      </span>
+                      <input
+                        type="url"
+                        value={profileForm.socialLinks.facebook}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            socialLinks: {
+                              ...current.socialLinks,
+                              facebook: event.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="facebook.com/artist"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Website
+                      </span>
+                      <input
+                        type="url"
+                        value={profileForm.socialLinks.website}
+                        onChange={(event) =>
+                          updateProfileForm((current) => ({
+                            ...current,
+                            socialLinks: {
+                              ...current.socialLinks,
+                              website: event.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="yourportfolio.com"
+                      />
+                    </label>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="h-fit rounded-lg border border-white/10 bg-[#101010] p-5 xl:sticky xl:top-28">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={
+                      profileForm.avatarUrl.trim() ||
+                      artist?.avatarUrl ||
+                      "/fallback-avatar.jpg"
+                    }
+                    alt={profileForm.displayName || "Artist avatar preview"}
+                    className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold text-white">
+                      {profileForm.displayName || "Display name"}
+                    </p>
+                    <p className="truncate text-sm text-neutral-400">
+                      {profileForm.email || "email@example.com"}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-5 line-clamp-5 text-sm leading-6 text-neutral-300">
+                  {profileForm.bio ||
+                    "Your bio preview will appear here as clients browse your profile."}
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {profileForm.specialties.length > 0 ? (
+                    profileForm.specialties.slice(0, 6).map((specialty) => (
+                      <span
+                        key={specialty}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                      >
+                        {specialty}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-neutral-500">
+                      No specialties selected yet.
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Payments</span>
+                    <span className="capitalize text-white">
+                      {profileForm.paymentType === "internal"
+                        ? "Stripe"
+                        : "External"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Deposit</span>
+                    <span className="text-white">
+                      {profileForm.depositPolicy.depositRequired
+                        ? `$${profileForm.depositPolicy.amount || "0"}`
+                        : "Not required"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-md border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+                    <ShieldCheck size={16} aria-hidden="true" />
+                    Saves to your users collection profile.
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+        )}
 
         {activeTab === "requests" && (
           <BookingRequestsList
