@@ -81,7 +81,7 @@ export default function SignupSelection() {
         )}
 
         {selectedRole === "artist" && (
-          <div className="w-full max-w-4xl relative z-20 rounded-lg p-4">
+          <div className="w-full max-w-7xl relative z-20 rounded-lg p-4">
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}
