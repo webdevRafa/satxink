@@ -5,7 +5,7 @@ import AOS from "aos";
 import "aos/dist/aos.css";
 
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
 import gun from "../assets/white-gun.svg";
 import sa from "../assets/san-antonio.svg";
@@ -94,6 +94,8 @@ function useStickyReveal(threshold = 10) {
 
 export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
+  const [searchParams] = useSearchParams();
+  const styleFromUrl = searchParams.get("style") || "";
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
@@ -103,7 +105,7 @@ export const ArtistsPage = () => {
   const [showInitialSkeleton, setShowInitialSkeleton] = useState(true);
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [specialtyFilter, setSpecialtyFilter] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState(styleFromUrl);
 
   useEffect(() => {
     if (!loading) {
@@ -148,6 +150,10 @@ export const ArtistsPage = () => {
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [specialtyFilter]);
+
+  useEffect(() => {
+    setSpecialtyFilter(styleFromUrl);
+  }, [styleFromUrl]);
 
   const filteredArtists = specialtyFilter
     ? artists.filter((artist) =>
