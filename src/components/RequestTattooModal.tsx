@@ -1,13 +1,22 @@
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  DollarSign,
+  ImageIcon,
+  MapPin,
+  Ruler,
+  Send,
+  Upload,
+  X,
+} from "lucide-react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   addDoc,
   collection,
-  updateDoc,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -21,8 +30,20 @@ interface Props {
   artist: {
     id: string;
     name: string;
+    avatarUrl?: string;
+    studioName?: string;
   };
 }
+
+const availableDayOptions = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
@@ -39,7 +60,20 @@ const RequestTattooModal: React.FC<Props> = ({
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [budget, setBudget] = useState("");
-  const [customBudget, setCustomBudget] = useState(""); // Manual input
+  const [customBudget, setCustomBudget] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const referencePreviewUrl = useMemo(
+    () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
+    [referenceImage]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+    };
+  }, [referencePreviewUrl]);
+
   const reset = () => {
     setStep(1);
     setDescription("");
@@ -49,27 +83,45 @@ const RequestTattooModal: React.FC<Props> = ({
     setAvailableTime({ from: "", to: "" });
     setAvailableDays([]);
     setReferenceImage(null);
+    setBudget("");
+    setCustomBudget("");
+    setIsSubmitting(false);
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const handleNext = () => {
+    if (!description.trim() || !bodyPlacement.trim() || !size) {
+      toast.error("Please add the idea, placement, and size first.");
+      return;
+    }
+
+    setStep(2);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Determine final budget (either a selected range string or a custom number)
+
     let finalBudget: string | number | null = null;
 
     if (budget === "custom") {
       const parsed = Number(customBudget);
       finalBudget =
-        !isNaN(parsed) && parsed > 0 && parsed <= 5000 ? parsed : null;
-      // ✅ Guard clause for bad input
+        !Number.isNaN(parsed) && parsed > 0 && parsed <= 5000 ? parsed : null;
+
       if (finalBudget === null) {
         toast.error("Please enter a valid custom budget under $5,000.");
-        return; // Stop form submission
+        return;
       }
     } else {
       finalBudget = budget || null;
     }
 
     try {
+      setIsSubmitting(true);
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
         clientId: client.id,
@@ -86,15 +138,12 @@ const RequestTattooModal: React.FC<Props> = ({
         createdAt: serverTimestamp(),
       });
 
-      // 🟢 Immediately toast and close modal
       toast.success("Request sent!");
       reset();
       onClose();
 
-      // 🟡 THEN process optional image upload in the background
       if (referenceImage) {
         const fileName = referenceImage.name;
-
         const originalRef = ref(
           storage,
           `bookingRequests/${reqRef.id}/originals/${fileName}`
@@ -111,22 +160,24 @@ const RequestTattooModal: React.FC<Props> = ({
         );
 
         const waitForURL = (
-          ref: any,
+          imageRef: ReturnType<typeof ref>,
           maxRetries = 10,
           delay = 500
-        ): Promise<string> => {
-          return new Promise((resolve, reject) => {
+        ): Promise<string> =>
+          new Promise((resolve, reject) => {
             const attempt = (retries: number) => {
-              getDownloadURL(ref)
+              getDownloadURL(imageRef)
                 .then(resolve)
                 .catch((err) => {
-                  if (retries >= maxRetries) return reject(err);
+                  if (retries >= maxRetries) {
+                    reject(err);
+                    return;
+                  }
                   setTimeout(() => attempt(retries + 1), delay);
                 });
             };
             attempt(0);
           });
-        };
 
         try {
           const [fullUrl, thumbUrl] = await Promise.all([
@@ -140,106 +191,188 @@ const RequestTattooModal: React.FC<Props> = ({
           });
         } catch (error) {
           console.warn("Image not ready after retry:", error);
-          // optional: toast.error("Image processing failed")
         }
       }
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 transition-opacity duration-300 px-4">
-      <div className="w-full max-w-[800px] max-h-[90vh] overflow-y-auto bg-[#121212]/80 text-white rounded-lg p-6 shadow-lg relative">
-        <button
-          onClick={() => {
-            onClose();
-            reset();
-          }}
-          className="absolute top-0 right-0 text-white text-xl"
-        >
-          <X />
-        </button>
-
-        <h2 className="text-2xl font-bold mb-6">
-          {step === 1 ? (
-            <>
-              Tell <span className="text-white">{artist.name}</span> what you
-              need
-            </>
-          ) : (
-            "What’s your availability?"
-          )}
-        </h2>
-
-        {step === 1 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md">
+      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-4">
+            <img
+              src={artist.avatarUrl || "/default-avatar.png"}
+              alt={artist.name}
+              className="h-14 w-14 rounded-full border border-white/15 object-cover"
+            />
             <div>
-              <textarea
-                required
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                placeholder="Describe your tattoo..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Body Placement"
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                value={bodyPlacement}
-                onChange={(e) => setBodyPlacement(e.target.value)}
-              />
-              <label className="text-sm text-white mb-1 block">Size</label>
-              <select
-                required
-                className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-              >
-                <option value="">Select size</option>
-                <option value="Small">Small (up to 3x3 inches)</option>
-                <option value="Medium">Medium (up to 6x6 inches)</option>
-                <option value="Large">Large (over 6x6 inches)</option>
-              </select>
-              <label className="text-sm mb-1">Optional Budget</label>
-              <select
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                className="w-full p-2 mb-2 rounded bg-[var(--color-bg-card)] text-white border border-neutral-700"
-              >
-                <option value="">Have a budget?</option>
-                <option value="0-100">$0–$100</option>
-                <option value="100-200">$100–$200</option>
-                <option value="200-350">$200–$350</option>
-                <option value="350-500">$350–$500</option>
-                <option value="500-750">$500-$750</option>
-                <option value="750-1000">$750-$1000</option>
-                <option value="1000+">$1000+</option>
-                <option value="custom">Other (enter manually)</option>
-              </select>
-
-              {budget === "custom" && (
-                <input
-                  type="number"
-                  placeholder="Enter your budget (USD)"
-                  value={customBudget}
-                  onChange={(e) => setCustomBudget(e.target.value)}
-                  className="w-full p-2 mb-4 rounded bg-[var(--color-bg-card)] text-white border border-neutral-700"
-                  min={0}
-                  step={5}
-                />
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                Tattoo request
+              </p>
+              <h2 className="mt-1 text-xl! font-semibold! text-white">
+                Tell {artist.name} what you have in mind
+              </h2>
+              {artist.studioName && (
+                <p className="mt-1 text-sm text-white/50">
+                  {artist.studioName}
+                </p>
               )}
             </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+            aria-label="Close request modal"
+          >
+            <X size={18} />
+          </button>
+        </div>
 
-            <div className="flex flex-col justify-between">
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Reference Image (optional)
+        <div className="grid border-b border-white/10 bg-black/20 px-5 py-3 text-sm text-white/55 sm:grid-cols-2 sm:px-6">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                step === 1 ? "bg-[#19d69b]" : "bg-white/30"
+              }`}
+            />
+            Details
+          </div>
+          <div className="mt-2 flex items-center gap-2 sm:mt-0">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                step === 2 ? "bg-[#19d69b]" : "bg-white/30"
+              }`}
+            />
+            Schedule
+          </div>
+        </div>
+
+        <div className="overflow-y-auto p-5 request-modal-scrollbar sm:p-6">
+          {step === 1 && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                    <ImageIcon size={19} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Design details
+                    </h3>
+                    <p className="text-sm text-white/55">
+                      Share the idea, placement, size, and any budget range.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-white/65">
+                    Tattoo idea
+                  </span>
+                  <textarea
+                    required
+                    className="min-h-36 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                    placeholder="Describe the subject, style, mood, and any details that matter."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
                 </label>
-                <div className="relative mb-4">
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                      <MapPin size={15} />
+                      Body placement
+                    </span>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Forearm, thigh, shoulder..."
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                      value={bodyPlacement}
+                      onChange={(e) => setBodyPlacement(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                      <Ruler size={15} />
+                      Size
+                    </span>
+                    <select
+                      required
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                    >
+                      <option value="">Select size</option>
+                      <option value="Small">Small (up to 3x3 inches)</option>
+                      <option value="Medium">Medium (up to 6x6 inches)</option>
+                      <option value="Large">Large (over 6x6 inches)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                    <DollarSign size={15} />
+                    Optional budget
+                  </span>
+                  <select
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                  >
+                    <option value="">Have a budget?</option>
+                    <option value="0-100">$0-$100</option>
+                    <option value="100-200">$100-$200</option>
+                    <option value="200-350">$200-$350</option>
+                    <option value="350-500">$350-$500</option>
+                    <option value="500-750">$500-$750</option>
+                    <option value="750-1000">$750-$1000</option>
+                    <option value="1000+">$1000+</option>
+                    <option value="custom">Other (enter manually)</option>
+                  </select>
+                </label>
+
+                {budget === "custom" && (
+                  <input
+                    type="number"
+                    placeholder="Enter your budget (USD)"
+                    value={customBudget}
+                    onChange={(e) => setCustomBudget(e.target.value)}
+                    className="mt-3 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                    min={0}
+                    step={5}
+                  />
+                )}
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                    <Upload size={19} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Reference image
+                    </h3>
+                    <p className="text-sm text-white/55">
+                      Optional, but helpful for composition or style direction.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="group relative flex min-h-72 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed border-white/20 bg-black/35 p-5 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
                   <input
                     type="file"
                     accept="image/*"
@@ -247,153 +380,193 @@ const RequestTattooModal: React.FC<Props> = ({
                       const file = e.target.files?.[0];
                       if (file) setReferenceImage(file);
                     }}
-                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    className="sr-only"
                   />
-                  <div className="px-6 py-2 text-white border-2 border-neutral-500 hover:bg-neutral-300 rounded max-w-[200px]">
-                    Upload reference
+                  {referencePreviewUrl ? (
+                    <img
+                      src={referencePreviewUrl}
+                      alt="Reference preview"
+                      className="absolute inset-0 h-full w-full object-cover opacity-80"
+                    />
+                  ) : (
+                    <>
+                      <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white">
+                        <Upload size={20} />
+                      </span>
+                      <span className="text-sm font-semibold text-white">
+                        Upload reference
+                      </span>
+                      <span className="mt-1 text-xs text-white/45">
+                        JPG, PNG, or WebP
+                      </span>
+                    </>
+                  )}
+                  {referencePreviewUrl && (
+                    <span className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+                      Click to replace image
+                    </span>
+                  )}
+                </label>
+
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Continue
+                    <CalendarDays size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <form
+              onSubmit={handleSubmit}
+              className="grid grid-cols-1 gap-6 lg:grid-cols-[0.9fr_1.1fr]"
+            >
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                    <CalendarDays size={19} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Preferred timing
+                    </h3>
+                    <p className="text-sm text-white/55">
+                      These details help the artist respond with realistic
+                      appointment options.
+                    </p>
                   </div>
                 </div>
 
-                {referenceImage && (
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-300 mb-1">Preview:</p>
-                    <img
-                      src={URL.createObjectURL(referenceImage)}
-                      alt="Preview"
-                      className="w-32 h-32 object-cover rounded border border-neutral-600 mb-5"
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-white/65">
+                      Earliest date
+                    </span>
+                    <input
+                      type="date"
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                      value={preferredDateRange[0]}
+                      onChange={(e) =>
+                        setPreferredDateRange([
+                          e.target.value,
+                          preferredDateRange[1],
+                        ])
+                      }
                     />
-                  </div>
-                )}
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-white/65">
+                      Latest date
+                    </span>
+                    <input
+                      type="date"
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                      value={preferredDateRange[1]}
+                      onChange={(e) =>
+                        setPreferredDateRange([
+                          preferredDateRange[0],
+                          e.target.value,
+                        ])
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-white/65">
+                      From
+                    </span>
+                    <input
+                      type="time"
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                      value={availableTime.from}
+                      onChange={(e) =>
+                        setAvailableTime((prev) => ({
+                          ...prev,
+                          from: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-white/65">
+                      To
+                    </span>
+                    <input
+                      type="time"
+                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                      value={availableTime.to}
+                      onChange={(e) =>
+                        setAvailableTime((prev) => ({
+                          ...prev,
+                          to: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
               </div>
 
-              <div className="flex justify-end mt-auto">
-                <button
-                  onClick={() => setStep(2)}
-                  className="px-6 py-2 text-white border-2 border-neutral-500 hover:bg-neutral-300 hover:text-[#121212] hover:border-white rounded transition"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <h3 className="text-lg! font-semibold! text-white">
+                  Days that usually work
+                </h3>
+                <p className="mt-1 text-sm text-white/55">
+                  Select any days you are normally available. You can confirm
+                  exact times after the artist replies.
+                </p>
 
-        {step === 2 && (
-          <form
-            onSubmit={handleSubmit}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
-          >
-            <div>
-              <label className="text-sm text-white mb-1 block">
-                Date Range
-              </label>
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="date"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={preferredDateRange[0]}
-                  onChange={(e) =>
-                    setPreferredDateRange([
-                      e.target.value,
-                      preferredDateRange[1],
-                    ])
-                  }
-                />
-                <input
-                  type="date"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={preferredDateRange[1]}
-                  onChange={(e) =>
-                    setPreferredDateRange([
-                      preferredDateRange[0],
-                      e.target.value,
-                    ])
-                  }
-                />
-              </div>
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {availableDayOptions.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      className={`rounded-md border px-3! py-3! text-left text-sm! font-medium transition ${
+                        availableDays.includes(day)
+                          ? "border-[#19d69b]/55 bg-[#19d69b]/15 text-white"
+                          : "border-white/10 bg-black/30 text-white/65 hover:border-white/25 hover:bg-white/[0.05]"
+                      }`}
+                      onClick={() =>
+                        setAvailableDays((prev) =>
+                          prev.includes(day)
+                            ? prev.filter((d) => d !== day)
+                            : [...prev, day]
+                        )
+                      }
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
 
-              <label className="text-sm text-white mb-2 block">
-                Time Range
-              </label>
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="time"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={availableTime.from}
-                  onChange={(e) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      from: e.target.value,
-                    }))
-                  }
-                />
-                <input
-                  type="time"
-                  className="w-full p-2 rounded bg-neutral-800 text-white"
-                  value={availableTime.to}
-                  onChange={(e) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      to: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm text-white mb-2 block">
-                Available Days
-              </label>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {[
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                  "Sunday",
-                ].map((day) => (
+                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                   <button
-                    key={day}
                     type="button"
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      availableDays.includes(day)
-                        ? "bg-neutral-300 text-[#121212]"
-                        : "bg-neutral-700 text-white"
-                    }`}
-                    onClick={() =>
-                      setAvailableDays((prev) =>
-                        prev.includes(day)
-                          ? prev.filter((d) => d !== day)
-                          : [...prev, day]
-                      )
-                    }
+                    onClick={() => setStep(1)}
+                    className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
                   >
-                    {day}
+                    Back
                   </button>
-                ))}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmitting ? "Sending..." : "Send request"}
+                    <Send size={16} />
+                  </button>
+                </div>
               </div>
-
-              <div className="flex justify-between gap-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="w-full py-2 border border-white rounded"
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-[#b6382d] text-white rounded"
-                >
-                  Submit
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );
