@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
+import slugify from "slugify";
 import {
+  Camera,
   Check,
   CreditCard,
   Globe,
   Image as ImageIcon,
   Instagram,
+  LoaderCircle,
   Mail,
   RefreshCcw,
   Save,
-  ShieldCheck,
   UserRound,
   X,
 } from "lucide-react";
 
-import { db, auth } from "../firebase/firebaseConfig";
+import { db, auth, storage } from "../firebase/firebaseConfig";
 import {
   doc,
   getDoc,
@@ -28,9 +31,16 @@ import {
   orderBy,
   getDocs,
 } from "firebase/firestore";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 
 import SidebarNavigation from "../components/SidebarNavigation";
 import ArtistProfileHeader from "../components/ArtistProfileHeader";
+import ImageCropperModal from "../components/ImageCropperModal";
 import BookingRequestsList from "../components/BookingRequestsList";
 import MakeOfferModal from "../components/MakeOfferModal";
 import OffersList from "../components/OffersList";
@@ -60,6 +70,7 @@ const SPECIALTY_OPTIONS = [
 
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
+type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
 
 type ArtistProfileFormState = {
   displayName: string;
@@ -163,6 +174,11 @@ const ArtistDashboardView = () => {
   const [isProfileDirty, setIsProfileDirty] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [customSpecialty, setCustomSpecialty] = useState("");
+  const [currentSlug, setCurrentSlug] = useState("");
+  const [displayNameStatus, setDisplayNameStatus] =
+    useState<DisplayNameStatus>("idle");
+  const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const [offerPrice, setOfferPrice] = useState(0);
   const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
@@ -194,6 +210,14 @@ const ArtistDashboardView = () => {
           const artistData = snap.data();
           setArtist(artistData);
           setProfileForm(createProfileFormState(artistData));
+          setCurrentSlug(
+            artistData.slug ||
+              slugify(artistData.displayName || artistData.name || "", {
+                lower: true,
+                strict: true,
+              })
+          );
+          setDisplayNameStatus("idle");
           setIsProfileDirty(false);
         }
       }
@@ -212,6 +236,44 @@ const ArtistDashboardView = () => {
     );
     setIsProfileDirty(true);
   };
+
+  const checkDisplayNameAvailability = async (displayName: string) => {
+    if (!uid) return "idle" as DisplayNameStatus;
+
+    const slug = slugify(displayName, { lower: true, strict: true });
+    if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
+
+    const nameQuery = query(collection(db, "users"), where("slug", "==", slug));
+    const snapshot = await getDocs(nameQuery);
+    const belongsToAnotherArtist = snapshot.docs.some((docSnap) => docSnap.id !== uid);
+
+    return belongsToAnotherArtist
+      ? ("taken" as DisplayNameStatus)
+      : ("available" as DisplayNameStatus);
+  };
+
+  useEffect(() => {
+    const displayName = profileForm.displayName.trim();
+    const slug = slugify(displayName, { lower: true, strict: true });
+
+    if (!uid || !displayName || slug === currentSlug) {
+      setDisplayNameStatus("idle");
+      return;
+    }
+
+    setDisplayNameStatus("checking");
+
+    const timeoutId = window.setTimeout(() => {
+      checkDisplayNameAvailability(displayName)
+        .then((status) => setDisplayNameStatus(status))
+        .catch((error) => {
+          console.error("Display name availability check failed:", error);
+          setDisplayNameStatus("idle");
+        });
+    }, 650);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [profileForm.displayName, uid, currentSlug]);
 
   const toggleSpecialty = (specialty: string) => {
     updateProfileForm((current) => {
@@ -247,9 +309,86 @@ const ArtistDashboardView = () => {
     }));
   };
 
+  const handleAvatarFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Choose an image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleAvatarCropSave = async (croppedFile: File) => {
+    if (!uid) return;
+
+    const originalRef = ref(storage, `users/${uid}/avatar-original.jpg`);
+    const processedRef = ref(storage, `users/${uid}/avatar.jpg`);
+
+    setIsUploadingAvatar(true);
+
+    try {
+      await Promise.allSettled([
+        deleteObject(originalRef),
+        deleteObject(processedRef),
+      ]);
+
+      await uploadBytes(originalRef, croppedFile, {
+        contentType: croppedFile.type,
+      });
+
+      let avatarUrl = "";
+      for (let attempt = 0; attempt < 12; attempt++) {
+        try {
+          avatarUrl = await getDownloadURL(processedRef);
+          break;
+        } catch {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!avatarUrl) {
+        throw new Error("Processed avatar was not ready.");
+      }
+
+      await updateDoc(doc(db, "users", uid), {
+        avatarUrl,
+        updatedAt: serverTimestamp(),
+      });
+
+      const previewAvatarUrl = `${avatarUrl}${
+        avatarUrl.includes("?") ? "&" : "?"
+      }t=${Date.now()}`;
+      const nextArtist = {
+        ...(artist || {}),
+        avatarUrl: previewAvatarUrl,
+      };
+
+      setArtist(nextArtist);
+      setProfileForm((current) => ({
+        ...current,
+        avatarUrl: previewAvatarUrl,
+      }));
+      setAvatarCropSrc(null);
+      toast.success("Profile photo updated.");
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      toast.error("Profile photo update failed.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const resetProfileForm = () => {
     setProfileForm(createProfileFormState(artist));
     setCustomSpecialty("");
+    setDisplayNameStatus("idle");
     setIsProfileDirty(false);
   };
 
@@ -258,9 +397,9 @@ const ArtistDashboardView = () => {
 
     const displayName = profileForm.displayName.trim();
     const email = profileForm.email.trim();
-    const avatarUrl = profileForm.avatarUrl.trim();
     const bio = profileForm.bio.trim();
     const depositAmount = Number(profileForm.depositPolicy.amount || 0);
+    const nextSlug = slugify(displayName, { lower: true, strict: true });
 
     if (!displayName) {
       toast.error("Display name is required.");
@@ -283,7 +422,6 @@ const ArtistDashboardView = () => {
     }
 
     if (
-      !isValidOptionalUrl(avatarUrl) ||
       !isValidOptionalUrl(profileForm.socialLinks.instagram) ||
       !isValidOptionalUrl(profileForm.socialLinks.facebook) ||
       !isValidOptionalUrl(profileForm.socialLinks.website)
@@ -306,13 +444,20 @@ const ArtistDashboardView = () => {
       return;
     }
 
+    const latestNameStatus = await checkDisplayNameAvailability(displayName);
+    if (latestNameStatus === "taken") {
+      setDisplayNameStatus("taken");
+      toast.error("That display name is already taken.");
+      return;
+    }
+
     setIsSavingProfile(true);
 
     const profileUpdate = {
       displayName,
+      slug: nextSlug,
       name: profileForm.name.trim() || displayName,
       email,
-      avatarUrl: normalizeUrl(avatarUrl),
       bio,
       specialties: profileForm.specialties,
       socialLinks: {
@@ -343,6 +488,8 @@ const ArtistDashboardView = () => {
       const nextArtist = { ...(artist || {}), ...profileUpdate };
       setArtist(nextArtist);
       setProfileForm(createProfileFormState(nextArtist));
+      setCurrentSlug(nextSlug);
+      setDisplayNameStatus("idle");
       setIsProfileDirty(false);
       toast.success("Profile updated.");
     } catch (error) {
@@ -420,9 +567,30 @@ const ArtistDashboardView = () => {
     (profileCompletionItems.filter(Boolean).length / profileCompletionItems.length) *
       100
   );
+  const profileStrengthColor =
+    profileCompletion === 100
+      ? "bg-emerald-400"
+      : profileCompletion >= 70
+      ? "bg-amber-400"
+      : "bg-[var(--color-primary)]";
+  const isSaveDisabled =
+    !isProfileDirty ||
+    isSavingProfile ||
+    isUploadingAvatar ||
+    displayNameStatus === "checking" ||
+    displayNameStatus === "taken";
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
+      {avatarCropSrc && (
+        <ImageCropperModal
+          imageSrc={avatarCropSrc}
+          aspect={1}
+          onCancel={() => setAvatarCropSrc(null)}
+          onSave={handleAvatarCropSave}
+        />
+      )}
+
       <SidebarNavigation
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}
@@ -455,7 +623,7 @@ const ArtistDashboardView = () => {
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-white/10">
                     <div
-                      className="h-full rounded-full bg-[var(--color-primary)] transition-all"
+                      className={`h-full rounded-full transition-all ${profileStrengthColor}`}
                       style={{ width: `${profileCompletion}%` }}
                     />
                   </div>
@@ -472,10 +640,10 @@ const ArtistDashboardView = () => {
                 <button
                   type="button"
                   onClick={handleSaveProfile}
-                  disabled={!isProfileDirty || isSavingProfile}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isSaveDisabled}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Save size={16} aria-hidden="true" />
+                  <Save size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
                   {isSavingProfile ? "Saving..." : "Save changes"}
                 </button>
               </div>
@@ -507,9 +675,33 @@ const ArtistDashboardView = () => {
                         onChange={(event) =>
                           updateProfileForm({ displayName: event.target.value })
                         }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        className={`w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
+                          displayNameStatus === "taken"
+                            ? "border-red-400 focus:border-red-400"
+                            : displayNameStatus === "available"
+                            ? "border-emerald-400 focus:border-emerald-400"
+                            : "border-white/10 focus:border-[var(--color-primary)]"
+                        }`}
                         placeholder="Ink by Alex"
                       />
+                      <span
+                        className={`block text-xs ${
+                          displayNameStatus === "taken"
+                            ? "text-red-300"
+                            : displayNameStatus === "available"
+                            ? "text-emerald-300"
+                            : "text-neutral-500"
+                        }`}
+                      >
+                        {displayNameStatus === "checking" &&
+                          "Checking name availability..."}
+                        {displayNameStatus === "available" &&
+                          "This display name is available."}
+                        {displayNameStatus === "taken" &&
+                          "This display name is already taken."}
+                        {displayNameStatus === "idle" &&
+                          "Changing this also updates your public profile handle."}
+                      </span>
                     </label>
 
                     <label className="space-y-2">
@@ -543,21 +735,46 @@ const ArtistDashboardView = () => {
                       />
                     </label>
 
-                    <label className="space-y-2">
+                    <div className="space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                         <ImageIcon size={15} aria-hidden="true" />
-                        Avatar URL
+                        Profile photo
                       </span>
-                      <input
-                        type="url"
-                        value={profileForm.avatarUrl}
-                        onChange={(event) =>
-                          updateProfileForm({ avatarUrl: event.target.value })
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="https://..."
-                      />
-                    </label>
+                      <div className="flex items-center gap-4 rounded-md border border-white/10 bg-[#101010] p-3">
+                        <img
+                          src={profileForm.avatarUrl || "/fallback-avatar.jpg"}
+                          alt="Current artist avatar"
+                          className="h-16 w-16 rounded-full border border-white/10 object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-white">
+                            Update your avatar
+                          </p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            Upload and crop a square image for the platform.
+                          </p>
+                        </div>
+                        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white">
+                          {isUploadingAvatar ? (
+                            <LoaderCircle
+                              size={15}
+                              className="animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Camera size={15} aria-hidden="true" />
+                          )}
+                          {isUploadingAvatar ? "Uploading" : "Edit"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            disabled={isUploadingAvatar}
+                            onChange={handleAvatarFileSelect}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   <label className="mt-4 block space-y-2">
@@ -980,10 +1197,6 @@ const ArtistDashboardView = () => {
                         ? `$${profileForm.depositPolicy.amount || "0"}`
                         : "Not required"}
                     </span>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-md border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
-                    <ShieldCheck size={16} aria-hidden="true" />
-                    Saves to your users collection profile.
                   </div>
                 </div>
               </aside>
