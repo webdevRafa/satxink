@@ -19,6 +19,7 @@ import type { Area } from "react-easy-crop";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { getCroppedImgFromElement } from "../utils/getCroppedImgFromElement";
+import { isStripeConnectReady } from "../utils/stripeConnect";
 
 const FlashSheetEditor = () => {
   const { sheetId } = useParams();
@@ -32,6 +33,7 @@ const FlashSheetEditor = () => {
   const [price, setPrice] = useState("");
   const [tags, setTags] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [stripeReady, setStripeReady] = useState(false);
   const uidRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -52,6 +54,11 @@ const FlashSheetEditor = () => {
         });
 
         uidRef.current = data.artistId;
+
+        const artistSnap = await getDoc(doc(db, "users", data.artistId));
+        setStripeReady(
+          isStripeConnectReady(artistSnap.exists() ? artistSnap.data() : null)
+        );
       } catch (err) {
         console.error("fetchSheet error:", err);
         alert("Could not load image. Please try again.");
@@ -89,6 +96,10 @@ const FlashSheetEditor = () => {
 
   const handleSaveCrop = async () => {
     if (!imageRef.current || !croppedAreaPixels) return;
+    if (!stripeReady) {
+      alert("Connect Stripe before adding flash to the marketplace.");
+      return;
+    }
 
     try {
       const blob = await getCroppedImgFromElement(
@@ -105,6 +116,10 @@ const FlashSheetEditor = () => {
 
   const handleFlashSubmit = async () => {
     if (!pendingBlob || !uidRef.current) return;
+    if (!stripeReady) {
+      alert("Connect Stripe before adding flash to the marketplace.");
+      return;
+    }
 
     const timestamp = Date.now();
     const baseName = `flash-${timestamp}`;
@@ -147,6 +162,8 @@ const FlashSheetEditor = () => {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
+      artistStripeConnectReady: true,
+      marketplaceVisible: true,
       isFromSheet: true,
       sheetId,
       createdAt: serverTimestamp(),
@@ -182,7 +199,9 @@ const FlashSheetEditor = () => {
         <div className="absolute bottom-4 left-4 flex gap-4 z-10">
           <button
             onClick={handleSaveCrop}
-            className="bg-emerald-600 text-white px-4 py-2 rounded"
+            className={`bg-emerald-600 text-white px-4 py-2 rounded ${
+              !stripeReady ? "opacity-50" : ""
+            }`}
           >
             Save Crop as Flash
           </button>

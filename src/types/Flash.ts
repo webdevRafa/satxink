@@ -20,6 +20,8 @@ export type Flash = {
   isAvailable?: boolean;           // Optional: mark flash as available or sold
   price?: number | null;           // Optional: for marketplace support
   tags?: string[];                 // Optional: for search/filter
+  artistStripeConnectReady?: boolean;
+  marketplaceVisible?: boolean;
   status?: string;                 // Optional processing status for uploaded files
   isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp

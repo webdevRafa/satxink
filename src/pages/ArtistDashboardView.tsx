@@ -217,10 +217,20 @@ const ArtistDashboardView = () => {
           </div>
         )}
 
-        {activeTab === "flashes" && uid && <FlashManager uid={uid} />}
+        {activeTab === "flashes" && uid && (
+          <FlashManager
+            uid={uid}
+            artist={artist}
+            onOpenPayments={() => setActiveTab("payments")}
+          />
+        )}
         {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
         {activeTab === "events" && uid && (
-          <EventsManager uid={uid} artist={artist} />
+          <EventsManager
+            uid={uid}
+            artist={artist}
+            onOpenPayments={() => setActiveTab("payments")}
+          />
         )}
         {activeTab === "payments" && <StripeConnectPanel artist={artist} />}
         {activeTab === "calendar" && uid && (

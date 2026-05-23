@@ -33,7 +33,8 @@ import {
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import type { ArtistEvent, EventType } from "../types/Event";
+import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 interface Artist {
   id: string;
@@ -51,6 +52,7 @@ interface Artist {
   isAvailable: boolean;
   socialLinks?: SocialLinks;
 }
+type StripeReadyArtist = Artist & StripeConnectLike;
 interface SocialLinks {
   facebook?: string;
   instagram?: string;
@@ -82,7 +84,7 @@ const eventTypeLabels: Record<EventType, string> = {
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
-  const [artist, setArtist] = useState<Artist | null>(null);
+  const [artist, setArtist] = useState<StripeReadyArtist | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [activeTab, setActiveTab] = useState<ArtistWorkTab>("portfolio");
@@ -145,7 +147,7 @@ export const ArtistProfilePage = () => {
         const ref = doc(db, "users", id as string);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const artistData = snap.data() as Omit<Artist, "id">;
+          const artistData = snap.data() as Omit<StripeReadyArtist, "id">;
           setArtist({ id: snap.id, ...artistData });
 
           if (artistData.shopId) {
@@ -210,6 +212,7 @@ export const ArtistProfilePage = () => {
         const snapshot = await getDocs(sheetsQuery);
         const sheets = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as FlashSheet))
+          .filter((sheet) => isMarketplaceReady(sheet, artist))
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
         setFlashSheets(sheets);
@@ -221,7 +224,7 @@ export const ArtistProfilePage = () => {
     };
 
     fetchFlashSheets();
-  }, [id]);
+  }, [id, artist]);
 
   useEffect(() => {
     const fetchArtistEvents = async () => {
@@ -243,6 +246,7 @@ export const ArtistProfilePage = () => {
             (event) =>
               event.status === "published" &&
               event.visibility === "public" &&
+              isPublicEventBookable(event, artist) &&
               !isPastEvent(event)
           )
           .sort(sortArtistEvents);
@@ -257,7 +261,7 @@ export const ArtistProfilePage = () => {
     };
 
     fetchArtistEvents();
-  }, [id]);
+  }, [id, artist]);
 
   useEffect(() => {
     const fetchSheetFlashes = async () => {
@@ -273,6 +277,7 @@ export const ArtistProfilePage = () => {
         const snapshot = await getDocs(flashesQuery);
         const flashes = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as Flash))
+          .filter((flash) => isMarketplaceReady(flash, artist))
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
         setSheetFlashes(flashes);
@@ -285,7 +290,7 @@ export const ArtistProfilePage = () => {
     };
 
     fetchSheetFlashes();
-  }, [focusedSheet, id]);
+  }, [focusedSheet, id, artist]);
 
   const selectedItemIndex = selectedItem
     ? galleryItems.findIndex((item) => item.id === selectedItem.id)
@@ -1933,6 +1938,28 @@ const isPastEvent = (event: ArtistEvent) => {
   const endDate = event.endDate || event.startDate;
   const endTime = event.endTime || "23:59";
   return new Date(`${endDate}T${endTime}`).getTime() < startOfToday().getTime();
+};
+
+const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
+  bookingMode === "deposit_required" ||
+  bookingMode === "flash_reservation" ||
+  bookingMode === "paid_ticket";
+
+const isPublicEventBookable = (
+  event: ArtistEvent,
+  artist?: StripeReadyArtist | null
+) => {
+  if (!eventModeRequiresPayment(event.bookingMode)) return true;
+  return isStripeConnectReady(artist);
+};
+
+const isMarketplaceReady = (
+  item: Flash | FlashSheet,
+  artist?: StripeReadyArtist | null
+) => {
+  if (item.marketplaceVisible === false) return false;
+  if (item.artistStripeConnectReady === true) return true;
+  return isStripeConnectReady(artist);
 };
 
 const formatEventDate = (event: ArtistEvent) => {

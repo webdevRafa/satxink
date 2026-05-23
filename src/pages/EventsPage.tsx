@@ -20,7 +20,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-import type { ArtistEvent, EventType } from "../types/Event";
+import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type DateFilter = "all" | "today" | "this_week" | "this_month";
 
@@ -34,7 +35,7 @@ type PublicArtist = {
   studioName?: string;
   role?: string;
   isVerified?: boolean | "true" | "false";
-};
+} & StripeConnectLike;
 
 type PublicEvent = ArtistEvent & {
   artist?: PublicArtist;
@@ -117,6 +118,7 @@ export const EventsPage = () => {
             artist: artistsById[event.artistId],
           }))
           .filter((event) => Boolean(event.artist))
+          .filter((event) => isPublicEventBookable(event))
           .filter((event) => !isPastEvent(event))
           .sort(sortEventsChronologically);
 
@@ -737,6 +739,16 @@ const isArtistVerified = (artist?: PublicArtist) =>
 
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "Verified artist";
+
+const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
+  bookingMode === "deposit_required" ||
+  bookingMode === "flash_reservation" ||
+  bookingMode === "paid_ticket";
+
+const isPublicEventBookable = (event: PublicEvent) => {
+  if (!eventModeRequiresPayment(event.bookingMode)) return true;
+  return isStripeConnectReady(event.artist);
+};
 
 const getEventTime = (event: ArtistEvent) => {
   if (!event.startDate) return Number.MAX_SAFE_INTEGER;
