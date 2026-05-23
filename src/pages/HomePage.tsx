@@ -230,7 +230,8 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-marquee-track {
-            animation: satx-home-marquee 42s linear infinite;
+            animation: satx-home-marquee 92s linear infinite;
+            will-change: transform;
             width: max-content;
           }
 
@@ -518,7 +519,7 @@ const PreviewRail = <T,>({
       {items.length > 0 ? (
         <div className="satx-home-marquee overflow-x-auto md:overflow-hidden">
           <div
-            className="satx-home-marquee-track flex snap-x gap-4 pb-2"
+            className="satx-home-marquee-track flex snap-x items-stretch gap-4 pb-2"
             style={{
               animationDirection: reverse ? "reverse" : "normal",
             }}
@@ -526,7 +527,7 @@ const PreviewRail = <T,>({
             {trackItems.map((item, index) => (
               <div
                 key={index}
-                className="w-[220px] shrink-0 snap-start sm:w-[240px]"
+                className="flex w-[220px] shrink-0 snap-start sm:w-[240px]"
               >
                 {renderItem(item, index)}
               </div>
@@ -543,9 +544,9 @@ const PreviewRail = <T,>({
 const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
   <Link
     to={flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash"}
-    className="group block overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
+    className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
   >
-    <div className="relative aspect-[4/3] bg-black/30">
+    <div className="relative aspect-[4/3] shrink-0 bg-black/30">
       {getFlashPreviewUrl(flash) ? (
         <img
           src={getFlashPreviewUrl(flash)}
@@ -560,13 +561,15 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
         {formatFlashPrice(flash.price)}
       </span>
     </div>
-    <div className="p-3">
-      <h4 className="truncate text-sm! font-semibold text-white">
-        {getFlashTitle(flash)}
-      </h4>
-      <p className="mt-1 truncate text-xs text-white/45">
-        by {getArtistName(flash.artist)}
-      </p>
+    <div className="flex min-h-[104px] flex-1 flex-col p-3">
+      <div className="min-h-[42px]">
+        <h4 className="truncate text-sm! font-semibold text-white">
+          {getFlashTitle(flash)}
+        </h4>
+        <p className="mt-1 truncate text-xs text-white/45">
+          by {getArtistName(flash.artist)}
+        </p>
+      </div>
       <TagList tags={flash.tags} />
     </div>
   </Link>
@@ -575,9 +578,9 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
 const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
   <Link
     to={`/flash/sheets/${sheet.id}`}
-    className="group block overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
+    className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
   >
-    <div className="relative aspect-[4/3] bg-black/30">
+    <div className="relative aspect-[4/3] shrink-0 bg-black/30">
       {sheet.thumbUrl || sheet.imageUrl ? (
         <img
           src={sheet.thumbUrl || sheet.imageUrl}
@@ -593,13 +596,15 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
         Sheet
       </span>
     </div>
-    <div className="p-3">
-      <h4 className="truncate text-sm! font-semibold text-white">
-        {sheet.title || "Untitled flash sheet"}
-      </h4>
-      <p className="mt-1 truncate text-xs text-white/45">
-        by {getArtistName(sheet.artist)}
-      </p>
+    <div className="flex min-h-[104px] flex-1 flex-col p-3">
+      <div className="min-h-[42px]">
+        <h4 className="truncate text-sm! font-semibold text-white">
+          {sheet.title || "Untitled flash sheet"}
+        </h4>
+        <p className="mt-1 truncate text-xs text-white/45">
+          by {getArtistName(sheet.artist)}
+        </p>
+      </div>
       <TagList tags={sheet.tags} />
     </div>
   </Link>
@@ -650,17 +655,20 @@ const MetaRow = ({ icon, text }: { icon: ReactNode; text: string }) => (
 );
 
 const TagList = ({ tags }: { tags?: string[] }) => {
-  if (!tags?.length) return null;
+  const visibleTags = tags?.slice(0, 2) || [];
 
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
-      {tags.slice(0, 2).map((tag) => (
+    <div
+      className="mt-auto flex h-6 min-w-0 flex-nowrap gap-1.5 overflow-hidden pt-1"
+      aria-hidden={visibleTags.length === 0}
+    >
+      {visibleTags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/45"
+          className="inline-flex min-w-0 max-w-[104px] shrink items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/45"
         >
-          <Tag size={11} />
-          {tag}
+          <Tag size={11} className="shrink-0" />
+          <span className="truncate">{tag}</span>
         </span>
       ))}
     </div>
