@@ -141,10 +141,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${offer.price}`} />
                 <DetailTile icon={<ReceiptText size={17} />} label="Deposit" value={`$${offer.depositPolicy?.amount || 0}`} />
-                <DetailTile icon={<DollarSign size={17} />} label="Fallback" value={typeof offer.fallbackPrice === "number" ? `$${offer.fallbackPrice}` : "None"} />
                 <DetailTile icon={<Store size={17} />} label="Studio" value={offer.shopName || "Unavailable"} />
               </div>
 
