@@ -94,16 +94,12 @@ export const HomePage: FC = () => {
             getDocs(
               query(
                 collection(db, "flashes"),
-                where("marketplaceVisible", "==", true),
-                where("artistStripeConnectReady", "==", true),
                 limit(HOME_FLASH_FETCH_LIMIT)
               )
             ),
             getDocs(
               query(
                 collection(db, "flashSheets"),
-                where("marketplaceVisible", "==", true),
-                where("artistStripeConnectReady", "==", true),
                 limit(HOME_SHEET_FETCH_LIMIT)
               )
             ),
