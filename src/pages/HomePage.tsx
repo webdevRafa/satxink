@@ -230,7 +230,7 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-marquee-track {
-            animation: satx-home-marquee 92s linear infinite;
+            animation: satx-home-marquee 180s linear infinite;
             will-change: transform;
             width: max-content;
           }
@@ -275,10 +275,10 @@ export const HomePage: FC = () => {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
               >
                 Browse artists
-                <ArrowRight size={17} />
+                <ArrowRight size={17} className="text-[#0b0b0b]!" />
               </Link>
               <Link
                 to="/flash"
@@ -365,10 +365,10 @@ export const HomePage: FC = () => {
             />
             <Link
               to="/flash"
-              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Browse marketplace
-              <ArrowRight size={16} />
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
             </Link>
           </div>
 
@@ -433,10 +433,10 @@ export const HomePage: FC = () => {
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
               to="/artists"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Find artists
-              <ArrowRight size={16} />
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
             </Link>
             <Link
               to="/events"
@@ -541,74 +541,119 @@ const PreviewRail = <T,>({
   );
 };
 
-const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
-  <Link
-    to={flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash"}
-    className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
-  >
-    <div className="relative aspect-[4/3] shrink-0 bg-black/30">
-      {getFlashPreviewUrl(flash) ? (
-        <img
-          src={getFlashPreviewUrl(flash)}
-          alt={getFlashTitle(flash)}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
-          loading="lazy"
-        />
-      ) : (
-        <MissingImage />
-      )}
-      <span className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/65 px-2 py-1 text-[11px] font-bold text-white/80 backdrop-blur">
-        {formatFlashPrice(flash.price)}
-      </span>
-    </div>
-    <div className="flex min-h-[104px] flex-1 flex-col p-3">
-      <div className="min-h-[42px]">
-        <h4 className="truncate text-sm! font-semibold text-white">
-          {getFlashTitle(flash)}
-        </h4>
-        <p className="mt-1 truncate text-xs text-white/45">
-          by {getArtistName(flash.artist)}
-        </p>
-      </div>
-      <TagList tags={flash.tags} />
-    </div>
-  </Link>
-);
+const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
+  const artistName = getArtistName(flash.artist);
 
-const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
-  <Link
-    to={`/flash/sheets/${sheet.id}`}
-    className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
-  >
-    <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#f4f1ea] sm:h-[184px]">
-      {sheet.thumbUrl || sheet.imageUrl ? (
+  return (
+    <Link
+      to={flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash"}
+      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
+    >
+      <div className="relative aspect-[3/2] shrink-0 bg-black/30">
+        {getFlashPreviewUrl(flash) ? (
+          <img
+            src={getFlashPreviewUrl(flash)}
+            alt={getFlashTitle(flash)}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
+        ) : (
+          <MissingImage />
+        )}
+      </div>
+      <div className="flex min-h-[132px] flex-1 flex-col p-3">
+        <div className="flex min-h-[46px] items-start gap-2">
+          <ArtistAvatar artist={flash.artist} name={artistName} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <h4 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
+                {getFlashTitle(flash)}
+              </h4>
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
+                {formatFlashPrice(flash.price)}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-white/50">
+              by {artistName}
+            </p>
+          </div>
+        </div>
+        <TagList tags={flash.tags} />
+      </div>
+    </Link>
+  );
+};
+
+const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => {
+  const artistName = getArtistName(sheet.artist);
+
+  return (
+    <Link
+      to={`/flash/sheets/${sheet.id}`}
+      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
+    >
+      <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#f4f1ea] sm:h-[184px]">
+        {sheet.thumbUrl || sheet.imageUrl ? (
+          <img
+            src={sheet.thumbUrl || sheet.imageUrl}
+            alt={sheet.title || "Flash sheet"}
+            className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
+            loading="lazy"
+          />
+        ) : (
+          <MissingImage />
+        )}
+      </div>
+      <div className="flex min-h-[132px] flex-1 flex-col p-3">
+        <div className="flex min-h-[46px] items-start gap-2">
+          <ArtistAvatar artist={sheet.artist} name={artistName} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <h4 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
+                {sheet.title || "Untitled flash sheet"}
+              </h4>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">
+                <Layers size={10} />
+                Sheet
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-white/50">
+              by {artistName}
+            </p>
+          </div>
+        </div>
+        <TagList tags={sheet.tags} />
+      </div>
+    </Link>
+  );
+};
+
+const ArtistAvatar = ({
+  artist,
+  name,
+}: {
+  artist?: PublicArtist;
+  name: string;
+}) => {
+  const artistName = getArtistName(artist);
+
+  return (
+    <span className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+      {artist?.avatarUrl ? (
         <img
-          src={sheet.thumbUrl || sheet.imageUrl}
-          alt={sheet.title || "Flash sheet"}
-          className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
+          src={artist.avatarUrl}
+          alt={artistName}
+          className="h-full w-full object-cover"
           loading="lazy"
         />
       ) : (
-        <MissingImage />
+        <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white/55">
+          {name.charAt(0).toUpperCase()}
+        </span>
       )}
-      <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/65 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/75 backdrop-blur">
-        <Layers size={12} />
-        Sheet
-      </span>
-    </div>
-    <div className="flex min-h-[104px] flex-1 flex-col p-3">
-      <div className="min-h-[42px]">
-        <h4 className="truncate text-sm! font-semibold text-white">
-          {sheet.title || "Untitled flash sheet"}
-        </h4>
-        <p className="mt-1 truncate text-xs text-white/45">
-          by {getArtistName(sheet.artist)}
-        </p>
-      </div>
-      <TagList tags={sheet.tags} />
-    </div>
-  </Link>
-);
+    </span>
+  );
+};
 
 const EventTeaserCard = ({ event }: { event: HomeEvent }) => (
   <Link
