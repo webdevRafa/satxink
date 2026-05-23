@@ -1,4 +1,23 @@
-import React from "react";
+import {
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  CalendarDays,
+  DollarSign,
+  ImageIcon,
+  Info,
+  MapPin,
+  MessageSquareText,
+  Ruler,
+  Send,
+  Upload,
+  X,
+} from "lucide-react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   addDoc,
@@ -6,9 +25,11 @@ import {
   doc,
   getDoc,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
+import toast from "react-hot-toast";
 
 type BookingRequest = {
   id: string;
@@ -18,9 +39,10 @@ type BookingRequest = {
   description: string;
   preferredDateRange?: string[];
   bodyPlacement: string;
-  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large";
-  fullUrl: string;
-  thumbUrl: string;
+  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
+  fullUrl?: string;
+  thumbUrl?: string;
+  budget?: string | number;
 };
 
 type Props = {
@@ -30,17 +52,15 @@ type Props = {
   uid: string;
   selectedRequest: BookingRequest;
   depositAmount: number;
-  setDepositAmount: React.Dispatch<React.SetStateAction<number>>;
+  setDepositAmount: Dispatch<SetStateAction<number>>;
   offerPrice: number;
-  setOfferPrice: React.Dispatch<React.SetStateAction<number>>;
+  setOfferPrice: Dispatch<SetStateAction<number>>;
   fallbackPrice: number | null;
-  setFallbackPrice: React.Dispatch<React.SetStateAction<number | null>>;
+  setFallbackPrice: Dispatch<SetStateAction<number | null>>;
   offerMessage: string;
-  setOfferMessage: React.Dispatch<React.SetStateAction<string>>;
+  setOfferMessage: Dispatch<SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
-  setDateOptions: React.Dispatch<
-    React.SetStateAction<{ date: string; time: string }[]>
-  >;
+  setDateOptions: Dispatch<SetStateAction<{ date: string; time: string }[]>>;
 };
 
 const MakeOfferModal = ({
@@ -60,84 +80,32 @@ const MakeOfferModal = ({
   uid,
   artist,
 }: Props) => {
-  if (!isOpen || !selectedRequest) return null;
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-  const [offerImage, setOfferImage] = React.useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [offerImage, setOfferImage] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleOfferSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
+  const completedDateOptions = useMemo(
+    () => dateOptions.filter((option) => option.date && option.time),
+    [dateOptions]
+  );
+  const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
 
-    if (!selectedRequest || !uid) return;
-
-    if (!["internal", "external"].includes(artist.paymentType)) {
-      throw new Error("Artist has invalid or missing paymentType.");
+  useEffect(() => {
+    if (isOpen && artistDefaultDeposit > 0 && depositAmount === 0) {
+      setDepositAmount(artistDefaultDeposit);
     }
+  }, [artistDefaultDeposit, depositAmount, isOpen, setDepositAmount]);
 
-    let filename: string | null = null;
-    let fullUrl: string | null = null;
-    let thumbUrl: string | null = null;
-
-    if (offerImage) {
-      filename = `${uuidv4()}-${offerImage.name}`;
-      const fullPath = `users/${uid}/offers/full/${filename}`;
-      const fullRef = ref(storage, fullPath);
-      await uploadBytes(fullRef, offerImage);
-      fullUrl = await getDownloadURL(fullRef);
-
-      const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
-      try {
-        thumbUrl = await getDownloadURL(thumbRef);
-      } catch {
-        console.warn("Thumbnail not yet generated.");
-      }
-    }
-
-    let shop = null;
-    if (artist.shopId) {
-      const shopRef = doc(db, "shops", artist.shopId);
-      const shopSnap = await getDoc(shopRef);
-      if (shopSnap.exists()) {
-        shop = shopSnap.data();
-      }
-    }
-
-    const offerData = {
-      artistId: uid,
-      displayName: artist.displayName,
-      artistAvatar: artist.avatarUrl || null,
-      shopId: artist.shopId || null,
-      shopName: shop?.name || "Unavailable",
-      shopAddress: shop?.address || "Unavailable",
-      shopMapLink: shop?.mapLink || null,
-      clientId: selectedRequest.clientId,
-      clientName: selectedRequest.clientName,
-      clientAvatar: selectedRequest.clientAvatar,
-      requestId: selectedRequest.id,
-      price: offerPrice,
-      fallbackPrice: fallbackPrice ?? null,
-      message: offerMessage,
-      dateOptions,
-      imageFilename: filename || null,
-      fullUrl: fullUrl || null,
-      thumbUrl: thumbUrl || null,
-      paymentType: artist.paymentType,
-      externalPaymentDetails:
-        artist.paymentType === "external"
-          ? artist.externalPaymentDetails || null
-          : null,
-      depositPolicy: {
-        amount: depositAmount,
-        depositRequired: true,
-        nonRefundable: true,
-      },
-      finalPaymentTiming: artist.finalPaymentTiming || "after",
-      status: "pending",
-      createdAt: serverTimestamp(),
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
+  }, [previewUrl]);
 
-    await addDoc(collection(db, "offers"), offerData);
+  if (!isOpen || !selectedRequest) return null;
 
-    // Reset
+  const resetOfferForm = () => {
     setOfferPrice(0);
     setFallbackPrice(null);
     setOfferMessage("");
@@ -148,147 +116,473 @@ const MakeOfferModal = ({
     ]);
     setOfferImage(null);
     setPreviewUrl(null);
+  };
+
+  const handleClose = () => {
     onClose();
   };
 
+  const handleOfferSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!selectedRequest || !uid) return;
+
+    if (!["internal", "external"].includes(artist.paymentType)) {
+      toast.error("Set a valid payment type before sending an offer.");
+      return;
+    }
+
+    if (!offerPrice || offerPrice <= 0) {
+      toast.error("Enter a valid offer price.");
+      return;
+    }
+
+    if (fallbackPrice !== null && fallbackPrice >= offerPrice) {
+      toast.error("Fallback price should be lower than the main offer.");
+      return;
+    }
+
+    if (depositAmount < 0 || depositAmount > offerPrice) {
+      toast.error("Deposit must be between $0 and the offer price.");
+      return;
+    }
+
+    if (completedDateOptions.length === 0) {
+      toast.error("Add at least one appointment option.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      let filename: string | null = null;
+      let fullUrl: string | null = null;
+      let thumbUrl: string | null = null;
+
+      if (offerImage) {
+        filename = `${uuidv4()}-${offerImage.name}`;
+        const fullPath = `users/${uid}/offers/full/${filename}`;
+        const fullRef = ref(storage, fullPath);
+        await uploadBytes(fullRef, offerImage);
+        fullUrl = await getDownloadURL(fullRef);
+
+        const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
+        try {
+          thumbUrl = await getDownloadURL(thumbRef);
+        } catch {
+          console.warn("Thumbnail not yet generated.");
+        }
+      }
+
+      let shop: any = null;
+      if (artist.shopId) {
+        const shopRef = doc(db, "shops", artist.shopId);
+        const shopSnap = await getDoc(shopRef);
+        if (shopSnap.exists()) {
+          shop = shopSnap.data();
+        }
+      }
+
+      const offerData = {
+        artistId: uid,
+        displayName: artist.displayName,
+        artistAvatar: artist.avatarUrl || null,
+        shopId: artist.shopId || null,
+        shopName: shop?.name || "Unavailable",
+        shopAddress: shop?.address || "Unavailable",
+        shopMapLink: shop?.mapLink || null,
+        clientId: selectedRequest.clientId,
+        clientName: selectedRequest.clientName,
+        clientAvatar: selectedRequest.clientAvatar,
+        requestId: selectedRequest.id,
+        price: offerPrice,
+        fallbackPrice: fallbackPrice ?? null,
+        message: offerMessage,
+        dateOptions: completedDateOptions,
+        imageFilename: filename || null,
+        fullUrl: fullUrl || null,
+        thumbUrl: thumbUrl || null,
+        paymentType: artist.paymentType,
+        externalPaymentDetails:
+          artist.paymentType === "external"
+            ? artist.externalPaymentDetails || null
+            : null,
+        depositPolicy: {
+          amount: depositAmount,
+          depositRequired: true,
+          nonRefundable: true,
+        },
+        finalPaymentTiming: artist.finalPaymentTiming || "after",
+        status: "pending",
+        createdAt: serverTimestamp(),
+      };
+
+      await addDoc(collection(db, "offers"), offerData);
+      await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
+        status: "offered",
+        offeredAt: serverTimestamp(),
+      });
+
+      toast.success("Offer sent.");
+      resetOfferForm();
+      onClose();
+    } catch (error) {
+      console.error("Failed to send offer:", error);
+      toast.error("Could not send this offer.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center backdrop-blur-sm bg-[#121212]/60 px-4">
-      <div className="bg-[#121212] text-white rounded-lg p-6 w-full max-w-xl relative">
-        <button onClick={onClose} className="absolute top-2 right-3 text-xl">
-          <span>X</span>
-        </button>
-
-        <h2 className="text-2xl font-bold mb-4">
-          Create Offer for {selectedRequest.clientName}
-        </h2>
-
-        <form onSubmit={handleOfferSubmit} data-aos="fade-in">
-          <label className="text-sm font-medium mb-1">Price</label>
-          <input
-            type="number"
-            required
-            value={offerPrice === 0 ? "" : offerPrice}
-            onChange={(e) =>
-              setOfferPrice(e.target.value ? Number(e.target.value) : 0)
-            }
-            className="w-full p-2 mb-4 rounded bg-neutral-800"
-          />
-          <label className="text-sm font-medium mb-1">
-            Fallback Price (optional)
-          </label>
-          <input
-            type="number"
-            value={fallbackPrice ?? ""}
-            onChange={(e) =>
-              setFallbackPrice(e.target.value ? Number(e.target.value) : null)
-            }
-            className="w-full p-2 mb-4 rounded bg-neutral-800"
-          />
-          <p className="text-xs text-neutral-400 italic mb-4">
-            This is the lowest price you're willing to accept. If the client
-            declines your main offer, they’ll be shown this fallback option. By
-            setting it, you’re pre-approving to do the tattoo at this rate if
-            they accept it.
-          </p>
-
-          <textarea
-            placeholder="Optional message"
-            value={offerMessage}
-            onChange={(e) => setOfferMessage(e.target.value)}
-            className="w-full p-2 mb-4 rounded bg-neutral-800"
-          />
-          <p className="text-xs text-neutral-400 mb-2 italic">
-            (Optional) Upload a sample image to show the client a reference.
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0] || null;
-              setOfferImage(file);
-              if (file) {
-                const reader = new FileReader();
-                reader.onloadend = () => setPreviewUrl(reader.result as string);
-                reader.readAsDataURL(file);
-              } else {
-                setPreviewUrl(null);
-              }
-            }}
-            className="mb-4"
-          />
-
-          {previewUrl && (
-            <div className="mb-4">
-              <p className="text-sm mb-1">Sample Image Preview:</p>
-              <img
-                src={previewUrl}
-                alt="Sample"
-                className="rounded max-h-48 object-contain"
-              />
-            </div>
-          )}
-
-          <label className="text-sm text-white mb-1 block">
-            Available Appointment Options
-          </label>
-
-          {dateOptions.map((option, idx) => (
-            <div key={idx} className="flex gap-2 mb-2">
-              <input
-                type="date"
-                value={option.date}
-                onChange={(e) =>
-                  setDateOptions((prev) => {
-                    const updated = [...prev];
-                    updated[idx].date = e.target.value;
-                    return updated;
-                  })
-                }
-                className="w-1/2 p-2 rounded bg-neutral-800"
-              />
-              <input
-                type="time"
-                step="900"
-                min="00:00"
-                max="23:45"
-                value={option.time}
-                onChange={(e) =>
-                  setDateOptions((prev) => {
-                    const updated = [...prev];
-                    updated[idx].time = e.target.value;
-                    return updated;
-                  })
-                }
-                className="w-1/2 p-2 rounded bg-neutral-800"
-              />
-            </div>
-          ))}
-
-          <label className="text-sm font-medium mb-1">Deposit Amount</label>
-          <input
-            type="number"
-            required
-            value={depositAmount === 0 ? "" : depositAmount}
-            onChange={(e) =>
-              setDepositAmount(e.target.value ? Number(e.target.value) : 0)
-            }
-            className="w-full p-2 mb-4 rounded bg-neutral-800"
-          />
-          <p className="text-xs text-neutral-400 italic mb-4">
-            Clients will be required to pay this non-refundable deposit to
-            confirm the appointment.
-          </p>
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md">
+      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+              Artist offer
+            </p>
+            <h2 className="mt-1 text-xl! font-semibold! text-white">
+              Create offer for {selectedRequest.clientName}
+            </h2>
+          </div>
           <button
-            type="submit"
-            className="w-full py-2 mt-4 text-white rounded border-2 border-neutral-400"
+            type="button"
+            onClick={handleClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+            aria-label="Close offer modal"
           >
-            Send Offer
+            <X size={18} />
           </button>
+        </div>
+
+        <form
+          onSubmit={handleOfferSubmit}
+          className="overflow-y-auto request-modal-scrollbar"
+        >
+          <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
+            <aside className="border-b border-white/10 bg-black/25 p-5 lg:border-b-0 lg:border-r lg:p-6">
+              <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+                {requestImageUrl ? (
+                  <img
+                    src={requestImageUrl}
+                    alt="Client request reference"
+                    className="h-64 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                    <ImageIcon size={28} />
+                    <span className="text-sm">No request image</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={selectedRequest.clientAvatar || "/default-avatar.png"}
+                    alt={selectedRequest.clientName}
+                    className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                  />
+                  <div>
+                    <p className="font-semibold text-white">
+                      {selectedRequest.clientName}
+                    </p>
+                    <p className="text-sm text-neutral-500">Client request</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                  <SummaryRow
+                    icon={<MapPin size={15} />}
+                    label="Placement"
+                    value={selectedRequest.bodyPlacement || "Not specified"}
+                  />
+                  <SummaryRow
+                    icon={<Ruler size={15} />}
+                    label="Size"
+                    value={selectedRequest.size || "Not specified"}
+                  />
+                </div>
+
+                <p className="mt-4 line-clamp-5 text-sm leading-6 text-neutral-300">
+                  {selectedRequest.description || "No description provided."}
+                </p>
+              </div>
+            </aside>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                    <DollarSign size={19} />
+                  </span>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Pricing
+                    </h3>
+                    <p className="text-sm text-neutral-400">
+                      Set the offer price and the deposit required to lock in
+                      the appointment.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <MoneyInput
+                    label="Offer price"
+                    value={offerPrice === 0 ? "" : offerPrice}
+                    onChange={(value) => setOfferPrice(value ? Number(value) : 0)}
+                    required
+                  />
+                  <MoneyInput
+                    label="Fallback price"
+                    value={fallbackPrice ?? ""}
+                    onChange={(value) =>
+                      setFallbackPrice(value ? Number(value) : null)
+                    }
+                  />
+                  <MoneyInput
+                    label="Deposit amount"
+                    value={depositAmount === 0 ? "" : depositAmount}
+                    onChange={(value) =>
+                      setDepositAmount(value ? Number(value) : 0)
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
+                  <div className="flex gap-2 text-sm text-neutral-300">
+                    <Info
+                      size={16}
+                      className="mt-0.5 shrink-0 text-[var(--color-primary)]"
+                    />
+                    <p>
+                      The fallback price is only shown if the client declines
+                      the main offer. The deposit is non-refundable and required
+                      to confirm the appointment.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                    <CalendarDays size={19} />
+                  </span>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Appointment options
+                    </h3>
+                    <p className="text-sm text-neutral-400">
+                      Give the client a few clear times to choose from.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  {dateOptions.map((option, index) => (
+                    <div
+                      key={index}
+                      className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-3 md:grid-cols-[auto_1fr_1fr]"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-sm font-semibold text-neutral-300">
+                        {index + 1}
+                      </div>
+                      <input
+                        type="date"
+                        value={option.date}
+                        onChange={(event) =>
+                          setDateOptions((prev) => {
+                            const updated = [...prev];
+                            updated[index] = {
+                              ...updated[index],
+                              date: event.target.value,
+                            };
+                            return updated;
+                          })
+                        }
+                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                      />
+                      <input
+                        type="time"
+                        step="900"
+                        min="00:00"
+                        max="23:45"
+                        value={option.time}
+                        onChange={(event) =>
+                          setDateOptions((prev) => {
+                            const updated = [...prev];
+                            updated[index] = {
+                              ...updated[index],
+                              time: event.target.value,
+                            };
+                            return updated;
+                          })
+                        }
+                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="grid gap-5 lg:grid-cols-2">
+                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                  <div className="mb-4 flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                      <MessageSquareText size={19} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Message
+                      </h3>
+                      <p className="text-sm text-neutral-400">
+                        Add context, prep notes, or expectations.
+                      </p>
+                    </div>
+                  </div>
+                  <textarea
+                    placeholder="Optional message to the client..."
+                    value={offerMessage}
+                    onChange={(event) => setOfferMessage(event.target.value)}
+                    className="min-h-40 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                  <div className="mb-4 flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                      <Upload size={19} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Sample image
+                      </h3>
+                      <p className="text-sm text-neutral-400">
+                        Optional visual reference for the offer.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="group relative flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        if (previewUrl) URL.revokeObjectURL(previewUrl);
+                        setOfferImage(file);
+                        setPreviewUrl(file ? URL.createObjectURL(file) : null);
+                      }}
+                      className="sr-only"
+                    />
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Offer sample preview"
+                        className="absolute inset-0 h-full w-full object-cover opacity-80"
+                      />
+                    ) : (
+                      <>
+                        <Upload size={22} className="mb-2 text-white" />
+                        <span className="text-sm font-semibold text-white">
+                          Upload sample
+                        </span>
+                        <span className="mt-1 text-xs text-neutral-500">
+                          JPG, PNG, or WebP
+                        </span>
+                      </>
+                    )}
+                    {previewUrl && (
+                      <span className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+                        Click to replace image
+                      </span>
+                    )}
+                  </label>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-sm text-neutral-500">
+              {completedDateOptions.length} appointment option
+              {completedDateOptions.length === 1 ? "" : "s"} ready
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? "Sending..." : "Send offer"}
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
         </form>
       </div>
     </div>
   );
 };
+
+const MoneyInput = ({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) => (
+  <label className="space-y-2">
+    <span className="text-sm font-medium text-neutral-200">{label}</span>
+    <div className="relative">
+      <DollarSign
+        size={16}
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+      />
+      <input
+        type="number"
+        min="0"
+        required={required}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+        placeholder="0"
+      />
+    </div>
+  </label>
+);
+
+const SummaryRow = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-md border border-white/10 bg-black/25 p-3">
+    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="text-sm font-medium text-white">{value}</p>
+  </div>
+);
 
 export default MakeOfferModal;
