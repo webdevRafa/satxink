@@ -80,7 +80,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
@@ -496,28 +495,14 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   </div>
 
                   {currentStep === 0 && (
-                    <div data-aos="fade-in" className="relative z-50 space-y-4">
+                    <div data-aos="fade-in" className="space-y-4">
                       <Listbox
                         value={selectedShop}
-                        onChange={(shop) => {
-                          setSelectedShop(shop);
-                          setIsShopDropdownOpen(false);
-                        }}
+                        onChange={(shop) => setSelectedShop(shop)}
                       >
-                        {() => (
-                          <div
-                            className="relative z-50"
-                            onBlur={() =>
-                              window.setTimeout(
-                                () => setIsShopDropdownOpen(false),
-                                120
-                              )
-                            }
-                          >
+                        {({ open }) => (
+                          <div className="space-y-3">
                             <Listbox.Button
-                              onClick={() =>
-                                setIsShopDropdownOpen((open) => !open)
-                              }
                               className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]"
                             >
                               <span className="block truncate">
@@ -526,16 +511,25 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                   : "Select your shop"}
                               </span>
                               <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                                <ChevronDown className="h-4 w-4 text-gray-400" />
+                                <ChevronDown
+                                  className={`h-4 w-4 text-gray-400 transition-transform ${
+                                    open ? "rotate-180" : ""
+                                  }`}
+                                />
                               </span>
                             </Listbox.Button>
-                            <Listbox.Options className="absolute z-[120] mt-2 max-h-64 w-full overflow-auto rounded-md border border-white/10 bg-[#050505] py-1 text-white shadow-2xl shadow-black ring-1 ring-black before:absolute before:inset-0 before:-z-10 before:rounded-md before:bg-[#050505]">
+                            <Listbox.Options className="shop-picker-scrollbar max-h-72 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
+                              <div className="mb-2 border-b border-white/10 px-2 pb-2">
+                                <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                                  Available shops
+                                </p>
+                              </div>
                               {shops.map((shop) => (
                                 <Listbox.Option
                                   key={shop.id}
                                   value={shop}
                                   className={({ active, selected }) =>
-                                    `relative cursor-pointer select-none px-4 py-3 text-sm ${
+                                    `relative cursor-pointer select-none rounded-md px-4 py-3 text-sm transition ${
                                       active || selected
                                         ? "bg-white/10 text-white"
                                         : "text-neutral-300"
@@ -791,13 +785,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   )}
                 </section>
 
-                <div
-                  className={`relative z-0 flex items-center justify-between ${
-                    currentStep === 0 && isShopDropdownOpen
-                      ? "invisible pointer-events-none"
-                      : ""
-                  }`}
-                >
+                <div className="flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() =>
