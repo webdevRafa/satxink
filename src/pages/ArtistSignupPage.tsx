@@ -758,7 +758,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             Instagram
                           </span>
                           <input
-                            type="url"
+                            type="text"
+                            inputMode="url"
+                            autoCapitalize="none"
                             name="instagram"
                             value={instagram}
                             onChange={(e) => setInstagram(e.target.value)}
@@ -772,7 +774,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             Facebook
                           </span>
                           <input
-                            type="url"
+                            type="text"
+                            inputMode="url"
+                            autoCapitalize="none"
                             name="facebook"
                             value={facebook}
                             onChange={(e) => setFacebook(e.target.value)}

@@ -1059,7 +1059,9 @@ const ArtistDashboardView = () => {
                         Instagram
                       </span>
                       <input
-                        type="url"
+                        type="text"
+                        inputMode="url"
+                        autoCapitalize="none"
                         value={profileForm.socialLinks.instagram}
                         onChange={(event) =>
                           updateProfileForm((current) => ({
@@ -1080,7 +1082,9 @@ const ArtistDashboardView = () => {
                         Facebook
                       </span>
                       <input
-                        type="url"
+                        type="text"
+                        inputMode="url"
+                        autoCapitalize="none"
                         value={profileForm.socialLinks.facebook}
                         onChange={(event) =>
                           updateProfileForm((current) => ({
@@ -1101,7 +1105,9 @@ const ArtistDashboardView = () => {
                         Website
                       </span>
                       <input
-                        type="url"
+                        type="text"
+                        inputMode="url"
+                        autoCapitalize="none"
                         value={profileForm.socialLinks.website}
                         onChange={(event) =>
                           updateProfileForm((current) => ({
