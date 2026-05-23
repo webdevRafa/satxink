@@ -13,6 +13,12 @@ export type Booking = {
   
     price: number;
     depositAmount: number;
+    platformFeeAmount?: number;
+    platformFeeCents?: number;
+    artistPayoutAmount?: number;
+    stripeCheckoutSessionId?: string;
+    stripePaymentIntentId?: string;
+    stripeConnectedAccountId?: string;
   
     paymentType: "internal" | "external";
     externalPaymentDetails?: {

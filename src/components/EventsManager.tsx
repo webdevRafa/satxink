@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import {
   CalendarDays,
+  CreditCard,
   DollarSign,
   Eye,
   EyeOff,
@@ -34,6 +35,7 @@ import {
 import { db, storage } from "../firebase/firebaseConfig";
 import type {
   ArtistEvent,
+  EventBookingMode,
   EventLocationType,
   EventPriceType,
   EventStatus,
@@ -55,6 +57,7 @@ type EventFormState = {
   address: string;
   mapLink: string;
   priceType: EventPriceType;
+  bookingMode: EventBookingMode;
   price: string;
   depositRequired: boolean;
   depositAmount: string;
@@ -90,6 +93,7 @@ const emptyForm: EventFormState = {
   address: "",
   mapLink: "",
   priceType: "varies",
+  bookingMode: "deposit_required",
   price: "",
   depositRequired: false,
   depositAmount: "",
@@ -115,6 +119,14 @@ const priceTypeLabels: Record<EventPriceType, string> = {
   fixed: "Fixed Price",
   starting_at: "Starting At",
   varies: "Varies",
+};
+
+const bookingModeLabels: Record<EventBookingMode, string> = {
+  info_only: "Info only",
+  rsvp: "Free RSVP",
+  deposit_required: "Deposit required",
+  flash_reservation: "Flash reservation",
+  paid_ticket: "Paid ticket",
 };
 
 const statusStyles: Record<EventStatus, string> = {
@@ -260,6 +272,7 @@ const EventsManager = ({
         (event.priceType as string) === "deposit_required"
           ? "fixed"
           : event.priceType || "varies",
+      bookingMode: event.bookingMode || getDefaultBookingMode(event.eventType),
       price: typeof event.price === "number" ? String(event.price) : "",
       depositRequired:
         Boolean(event.depositRequired) ||
@@ -310,6 +323,26 @@ const EventsManager = ({
       return;
     }
 
+    const bookingRequiresDeposit =
+      form.bookingMode === "deposit_required" ||
+      form.bookingMode === "flash_reservation";
+
+    if (
+      bookingRequiresDeposit &&
+      (!Number(form.depositAmount || 0) || Number(form.depositAmount || 0) <= 10)
+    ) {
+      toast.error("Paid event deposits must be greater than the $10 platform fee.");
+      return;
+    }
+
+    if (
+      form.bookingMode === "paid_ticket" &&
+      (!Number(form.price || 0) || Number(form.price || 0) <= 10)
+    ) {
+      toast.error("Paid event prices must be greater than the $10 platform fee.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       const eventId = editingEvent?.id || `event_${Date.now()}`;
@@ -336,14 +369,17 @@ const EventsManager = ({
         address: form.address.trim() || "",
         mapLink: form.mapLink.trim() || "",
         priceType: form.priceType,
+        bookingMode: form.bookingMode,
         price:
           form.priceType === "free" || form.priceType === "varies"
             ? null
             : parseOptionalNumber(form.price),
         depositRequired:
-          form.depositRequired && Number(form.depositAmount || 0) > 0,
+          bookingRequiresDeposit ||
+          (form.depositRequired && Number(form.depositAmount || 0) > 0),
         depositAmount:
-          form.depositRequired && Number(form.depositAmount || 0) > 0
+          (bookingRequiresDeposit || form.depositRequired) &&
+          Number(form.depositAmount || 0) > 0
             ? parseOptionalNumber(form.depositAmount)
             : null,
         capacity: parsedCapacity,
@@ -631,6 +667,10 @@ const EventCard = ({
             <EventMeta icon={<MapPin size={15} />} text={locationLabel} />
             <EventMeta icon={<DollarSign size={15} />} text={priceLabel} />
             <EventMeta
+              icon={<CreditCard size={15} />}
+              text={bookingModeLabels[event.bookingMode || getDefaultBookingMode(event.eventType)]}
+            />
+            <EventMeta
               icon={<Users size={15} />}
               text={`${event.spotsClaimed || 0}/${
                 event.capacity || 0
@@ -790,12 +830,17 @@ const EventEditorModal = ({
             <Field label="Event type">
               <select
                 value={form.eventType}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const eventType = event.target.value as EventType;
                   setForm((current) => ({
                     ...current,
-                    eventType: event.target.value as EventType,
-                  }))
-                }
+                    eventType,
+                    bookingMode:
+                      current.bookingMode === getDefaultBookingMode(current.eventType)
+                        ? getDefaultBookingMode(eventType)
+                        : current.bookingMode,
+                  }));
+                }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
                 {Object.entries(eventTypeLabels).map(([value, label]) => (
@@ -805,6 +850,40 @@ const EventEditorModal = ({
                 ))}
               </select>
             </Field>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+            <Field label="Booking mode">
+              <select
+                value={form.bookingMode}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    bookingMode: event.target.value as EventBookingMode,
+                    depositRequired:
+                      event.target.value === "deposit_required" ||
+                      event.target.value === "flash_reservation"
+                        ? true
+                        : current.depositRequired,
+                  }))
+                }
+                className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
+              >
+                {Object.entries(bookingModeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-sm font-semibold text-white">
+                {bookingModeLabels[form.bookingMode]}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-white/50">
+                {getBookingModeHelp(form.bookingMode)}
+              </p>
+            </div>
           </div>
 
           <Field label="Description">
@@ -1259,6 +1338,38 @@ const commitEventTags = (
     tags: Array.from(new Set([...current.tags, ...nextTags])),
     tagDraft: "",
   }));
+};
+
+const getDefaultBookingMode = (eventType: EventType): EventBookingMode => {
+  if (eventType === "flash_day" || eventType === "guest_spot") {
+    return "deposit_required";
+  }
+
+  if (eventType === "pop_up" || eventType === "convention") {
+    return "info_only";
+  }
+
+  return "rsvp";
+};
+
+const getBookingModeHelp = (bookingMode: EventBookingMode) => {
+  if (bookingMode === "info_only") {
+    return "Best for pop-ups and convention appearances where clients just show up.";
+  }
+
+  if (bookingMode === "rsvp") {
+    return "Clients can claim a free spot so you can track interest and capacity.";
+  }
+
+  if (bookingMode === "deposit_required") {
+    return "Clients reserve a general event spot by paying a deposit through Stripe Connect.";
+  }
+
+  if (bookingMode === "flash_reservation") {
+    return "Use this for Flash Days where clients will reserve specific flash from event-selected sheets.";
+  }
+
+  return "Clients pay a fixed event price through Stripe Connect before attending.";
 };
 
 const getEventTime = (event: ArtistEvent) => {

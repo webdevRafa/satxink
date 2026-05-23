@@ -27,11 +27,12 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   if (!isOpen || !offer) return null;
 
-  const handleCheckout = async (
-    chosenDate: { date: string; time: string },
-    bookingId?: string
-  ) => {
+  const handleCheckout = async (bookingId?: string) => {
     if (!offer) return;
+    if (!bookingId) {
+      alert("Booking could not be created. Please try again.");
+      return;
+    }
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
@@ -44,16 +45,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       const createSession = httpsCallable(functions, "createCheckoutSession");
 
       const response = await createSession({
-        offerId: offer.id,
         bookingId,
-        clientId: offer.clientId,
-        artistId: offer.artistId,
-        price: offer.price,
-        displayName: offer.displayName,
-        artistAvatar: offer.artistAvatar ?? "",
-        shopName: offer.shopName ?? "",
-        shopAddress: offer.shopAddress ?? "",
-        selectedDate: chosenDate,
+        successUrl: `${window.location.origin}/payment-success?bookingId=${bookingId}`,
+        cancelUrl: `${window.location.origin}/payment/${bookingId}`,
       });
 
       const { sessionUrl } = response.data as { sessionUrl: string };
@@ -173,7 +167,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
                     if (bookingId) {
                       onClose(); // ✅ close the modal
-                      await handleCheckout(chosenDate, bookingId); // ✅ only call once with bookingId
+                      await handleCheckout(bookingId); // ✅ only call once with bookingId
                     }
                   } catch (error) {
                     console.error(
