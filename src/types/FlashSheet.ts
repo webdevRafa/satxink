@@ -1,13 +1,14 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type FlashSheet = {
-    id: string;             // Firestore doc ID
-    artistId: string;       // UID of the artist
-    imageUrl: string;       // Full uncropped image
-    thumbUrl?: string;      // Optional thumb from Sharp
-    fullPath?: string;
-    tags?: string[];
-    title?: string;         // Optional title (e.g. “Traditional Snakes”)
-    createdAt?: Timestamp | Date | FieldValue | null;
-  };
-  
+  id: string;
+  artistId: string;
+  imageUrl: string;
+  thumbUrl?: string;
+  fullPath?: string;
+  tags?: string[];
+  artistStripeConnectReady?: boolean;
+  marketplaceVisible?: boolean;
+  title?: string;
+  createdAt?: Timestamp | Date | FieldValue | null;
+};

@@ -12,6 +12,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   collectionType: "flashes" | "gallery";
+  artistStripeConnectReady?: boolean;
   onUploadComplete: () => void;
 };
 
@@ -20,6 +21,7 @@ const UploadModal: React.FC<Props> = ({
   isOpen,
   onClose,
   collectionType,
+  artistStripeConnectReady = false,
   onUploadComplete,
 }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -75,6 +77,10 @@ const UploadModal: React.FC<Props> = ({
   const handleFinalUpload = async () => {
     // Only allow cropped files
     if (!croppedFile || isUploading) return;
+    if (collectionType === "flashes" && !artistStripeConnectReady) {
+      console.error("Stripe Connect is required before uploading flash.");
+      return;
+    }
 
     setIsUploading(true);
 
@@ -99,6 +105,10 @@ const UploadModal: React.FC<Props> = ({
             : null,
         price,
         tags,
+        artistStripeConnectReady:
+          collectionType === "flashes" ? artistStripeConnectReady : null,
+        marketplaceVisible:
+          collectionType === "flashes" ? artistStripeConnectReady : null,
         fileName: baseName,
         timestamp,
         isAvailable: collectionType === "flashes" ? true : null,

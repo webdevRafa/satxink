@@ -26,6 +26,7 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
@@ -37,7 +38,7 @@ type PublicArtist = {
   avatarUrl?: string;
   studioName?: string;
   role?: string;
-};
+} & StripeConnectLike;
 
 type MarketFlash = Flash & {
   artist?: PublicArtist;
@@ -161,6 +162,7 @@ const FlashMarketplacePage = () => {
               ...flash,
               artist: artistsById[flash.artistId],
             }))
+            .filter(isMarketplaceReady)
             .sort(sortByNewest)
         );
         setSheets(
@@ -169,6 +171,7 @@ const FlashMarketplacePage = () => {
               ...sheet,
               artist: artistsById[sheet.artistId],
             }))
+            .filter(isMarketplaceReady)
             .sort(sortByNewest)
         );
       } catch (err) {
@@ -786,6 +789,12 @@ const matchesSearchAndTag = (
     .toLowerCase();
 
   return matchesTag && (!normalizedSearch || searchableText.includes(normalizedSearch));
+};
+
+const isMarketplaceReady = (item: MarketFlash | MarketFlashSheet) => {
+  if (item.marketplaceVisible === false) return false;
+  if (item.artistStripeConnectReady === true) return true;
+  return isStripeConnectReady(item.artist);
 };
 
 const fetchArtistsById = async (artistIds: string[]) => {

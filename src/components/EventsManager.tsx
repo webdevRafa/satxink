@@ -41,6 +41,7 @@ import type {
   EventStatus,
   EventType,
 } from "../types/Event";
+import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type EventFilter = "all" | EventStatus;
 
@@ -71,7 +72,7 @@ type EventFormState = {
 type ArtistLite = {
   shopId?: string;
   studioName?: string;
-};
+} & StripeConnectLike;
 
 type ShopDefaults = {
   id: string;
@@ -139,9 +140,11 @@ const statusStyles: Record<EventStatus, string> = {
 const EventsManager = ({
   uid,
   artist,
+  onOpenPayments,
 }: {
   uid: string;
   artist?: ArtistLite | null;
+  onOpenPayments?: () => void;
 }) => {
   const [events, setEvents] = useState<ArtistEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +157,7 @@ const EventsManager = ({
   const [isSaving, setIsSaving] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<ArtistEvent | null>(null);
   const [shopDefaults, setShopDefaults] = useState<ShopDefaults | null>(null);
+  const stripeReady = isStripeConnectReady(artist);
 
   const fetchEvents = async () => {
     if (!uid) return;
@@ -326,6 +330,7 @@ const EventsManager = ({
     const bookingRequiresDeposit =
       form.bookingMode === "deposit_required" ||
       form.bookingMode === "flash_reservation";
+    const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
 
     if (
       bookingRequiresDeposit &&
@@ -340,6 +345,11 @@ const EventsManager = ({
       (!Number(form.price || 0) || Number(form.price || 0) <= 10)
     ) {
       toast.error("Paid event prices must be greater than the $10 platform fee.");
+      return;
+    }
+
+    if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
+      toast.error("Connect Stripe before publishing paid events.");
       return;
     }
 
@@ -416,6 +426,17 @@ const EventsManager = ({
     event: ArtistEvent,
     status: EventStatus
   ) => {
+    if (
+      status === "published" &&
+      eventModeRequiresPayment(
+        event.bookingMode || getDefaultBookingMode(event.eventType)
+      ) &&
+      !stripeReady
+    ) {
+      toast.error("Connect Stripe before publishing paid events.");
+      return;
+    }
+
     try {
       await updateDoc(doc(db, "events", event.id), {
         status,
@@ -542,6 +563,7 @@ const EventsManager = ({
               onEdit={() => openEditModal(event)}
               onDelete={() => setEventToDelete(event)}
               onStatusChange={(status) => handleStatusChange(event, status)}
+              canPublishPaidEvent={stripeReady}
             />
           ))}
         </div>
@@ -558,6 +580,8 @@ const EventsManager = ({
           onClose={closeModal}
           onSave={handleSave}
           isSaving={isSaving}
+          stripeReady={stripeReady}
+          onOpenPayments={onOpenPayments}
         />
       )}
 
@@ -597,14 +621,19 @@ const EventCard = ({
   onEdit,
   onDelete,
   onStatusChange,
+  canPublishPaidEvent,
 }: {
   event: ArtistEvent;
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: EventStatus) => void;
+  canPublishPaidEvent: boolean;
 }) => {
   const priceLabel = getPriceLabel(event);
   const locationLabel = getLocationLabel(event);
+  const requiresPayment = eventModeRequiresPayment(
+    event.bookingMode || getDefaultBookingMode(event.eventType)
+  );
 
   return (
     <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
@@ -688,8 +717,18 @@ const EventCard = ({
             {event.status !== "published" && (
               <button
                 type="button"
-                onClick={() => onStatusChange("published")}
-                className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3! py-1.5! text-xs! font-semibold text-emerald-200 hover:bg-emerald-400/15"
+                onClick={() => {
+                  if (requiresPayment && !canPublishPaidEvent) {
+                    toast.error("Connect Stripe before publishing paid events.");
+                    return;
+                  }
+                  onStatusChange("published");
+                }}
+                className={`inline-flex items-center gap-1 rounded-full border px-3! py-1.5! text-xs! font-semibold ${
+                  requiresPayment && !canPublishPaidEvent
+                    ? "border-white/10 bg-white/[0.04] text-white/35"
+                    : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+                }`}
               >
                 <Eye size={14} />
                 Publish
@@ -740,6 +779,8 @@ const EventEditorModal = ({
   onClose,
   onSave,
   isSaving,
+  stripeReady,
+  onOpenPayments,
 }: {
   form: EventFormState;
   setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
@@ -750,6 +791,8 @@ const EventEditorModal = ({
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
+  stripeReady: boolean;
+  onOpenPayments?: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
     <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
@@ -885,6 +928,32 @@ const EventEditorModal = ({
               </p>
             </div>
           </div>
+
+          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
+            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-amber-100">
+                    Stripe Connect is required for paid event booking.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-100/70">
+                    You can save this event as a draft, but publishing it with
+                    deposits, flash reservations, or paid tickets requires a
+                    connected Stripe account.
+                  </p>
+                </div>
+                {onOpenPayments && (
+                  <button
+                    type="button"
+                    onClick={onOpenPayments}
+                    className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Go to Payments
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <Field label="Description">
             <textarea
@@ -1351,6 +1420,11 @@ const getDefaultBookingMode = (eventType: EventType): EventBookingMode => {
 
   return "rsvp";
 };
+
+const eventModeRequiresPayment = (bookingMode: EventBookingMode) =>
+  bookingMode === "deposit_required" ||
+  bookingMode === "flash_reservation" ||
+  bookingMode === "paid_ticket";
 
 const getBookingModeHelp = (bookingMode: EventBookingMode) => {
   if (bookingMode === "info_only") {

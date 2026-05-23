@@ -21,11 +21,20 @@ import { getCroppedImg } from "../utils/cropImage";
 import UploadModal from "./UploadModal";
 import { Plus, Scissors } from "lucide-react";
 import { parseTags } from "../utils/tags";
+import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 // Optional but nice: tiny status toasts (Toaster already mounted in App.tsx)
 import toast from "react-hot-toast";
 
-const FlashManager = ({ uid }: { uid: string }) => {
+const FlashManager = ({
+  uid,
+  artist,
+  onOpenPayments,
+}: {
+  uid: string;
+  artist?: StripeConnectLike | null;
+  onOpenPayments?: () => void;
+}) => {
   // ── State for modes & modals
   const [mode, setMode] = useState<"sheet" | "individual">("individual");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -58,6 +67,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [isSavingFlash, setIsSavingFlash] = useState(false);
 
   const navigate = useNavigate();
+  const stripeReady = isStripeConnectReady(artist);
 
   // ──────────────────────────────────────────────────────────────
   // Helpers
@@ -117,6 +127,12 @@ const FlashManager = ({ uid }: { uid: string }) => {
   // ──────────────────────────────────────────────────────────────
   // New sheet selection (kept identical behavior + better errors)
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!stripeReady) {
+      toast.error("Connect Stripe before adding flash to the marketplace.");
+      e.target.value = "";
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -143,6 +159,11 @@ const FlashManager = ({ uid }: { uid: string }) => {
   // ──────────────────────────────────────────────────────────────
   // Submit sheet to Storage -> wait for CF derivatives -> create doc
   const handleSubmitFlashSheet = async () => {
+    if (!stripeReady) {
+      toast.error("Connect Stripe before adding flash sheets to the marketplace.");
+      return;
+    }
+
     if (!pendingSheetFile || !uid || !sheetTitleInput) {
       toast("Please provide a title and image.");
       return;
@@ -171,6 +192,8 @@ const FlashManager = ({ uid }: { uid: string }) => {
         artistId: uid,
         title: sheetTitleInput,
         tags: parseTags(sheetTagsInput),
+        artistStripeConnectReady: true,
+        marketplaceVisible: true,
         fileName: baseName,
         imageUrl,
         thumbUrl,
@@ -218,6 +241,10 @@ const FlashManager = ({ uid }: { uid: string }) => {
   // Save cropped flash (same storage & Firestore logic you use)
   const handleFlashSubmit = async () => {
     if (!pendingBlob || !uid) return;
+    if (!stripeReady) {
+      toast.error("Connect Stripe before adding flash to the marketplace.");
+      return;
+    }
 
     try {
       setIsSavingFlash(true);
@@ -250,6 +277,8 @@ const FlashManager = ({ uid }: { uid: string }) => {
         title: titleInput || "Untitled Flash",
         price: priceInput ? parseFloat(priceInput) : null,
         tags: parseTags(flashTagsInput),
+        artistStripeConnectReady: true,
+        marketplaceVisible: true,
         fullUrl,
         thumbUrl,
         webp90Url,
@@ -279,6 +308,10 @@ const FlashManager = ({ uid }: { uid: string }) => {
   return (
     <div className="space-y-6">
       {/* Top controls */}
+      {!stripeReady && (
+        <StripeRequiredNotice onOpenPayments={onOpenPayments} />
+      )}
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <select
           value={mode}
@@ -291,20 +324,34 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
         {mode === "individual" ? (
           <button
-            onClick={() => setIsUploadOpen(true)}
-            className="bg-[var(--color-primary)] text-sm! text-white px-2! py-2! rounded-md hover:bg-gray-700 flex items-center gap-2"
+            onClick={() => {
+              if (!stripeReady) {
+                toast.error("Connect Stripe before adding flash to the marketplace.");
+                return;
+              }
+              setIsUploadOpen(true);
+            }}
+            className={`bg-[var(--color-primary)] text-sm! text-white px-2! py-2! rounded-md hover:bg-gray-700 flex items-center gap-2 ${
+              !stripeReady ? "opacity-50" : ""
+            }`}
           >
             Add <Plus size={18} />
           </button>
         ) : (
-          <label className="flex items-center gap-2 cursor-pointer bg-[var(--color-bg-card)] text-white px-4 py-2 rounded hover:bg-gray-700">
+          <label
+            className={`flex items-center gap-2 bg-[var(--color-bg-card)] text-white px-4 py-2 rounded hover:bg-gray-700 ${
+              stripeReady ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+            }`}
+          >
             <Scissors size={18} /> Upload Flash Sheet
-            <input
-              type="file"
-              onChange={handleSheetUpload}
-              accept="image/*"
-              className="hidden"
-            />
+            {stripeReady && (
+              <input
+                type="file"
+                onChange={handleSheetUpload}
+                accept="image/*"
+                className="hidden"
+              />
+            )}
           </label>
         )}
       </div>
@@ -316,6 +363,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
           isOpen={isUploadOpen}
           onClose={() => setIsUploadOpen(false)}
           collectionType="flashes"
+          artistStripeConnectReady={stripeReady}
           onUploadComplete={() => toast.success("Flash uploaded!")}
         />
       )}
@@ -524,5 +572,34 @@ const FlashManager = ({ uid }: { uid: string }) => {
     </div>
   );
 };
+
+const StripeRequiredNotice = ({
+  onOpenPayments,
+}: {
+  onOpenPayments?: () => void;
+}) => (
+  <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold text-amber-100">
+          Connect Stripe before adding marketplace flash.
+        </p>
+        <p className="mt-1 text-sm leading-6 text-amber-100/70">
+          Flash items and flash sheets can be requested by clients, so artists
+          need Stripe Connect ready before new designs appear in the marketplace.
+        </p>
+      </div>
+      {onOpenPayments && (
+        <button
+          type="button"
+          onClick={onOpenPayments}
+          className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
+        >
+          Go to Payments
+        </button>
+      )}
+    </div>
+  </div>
+);
 
 export default FlashManager;
