@@ -80,6 +80,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
@@ -88,6 +89,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [instagram, setInstagram] = useState<string>("");
   const [facebook, setFacebook] = useState<string>("");
+  const [defaultDepositAmount, setDefaultDepositAmount] =
+    useState<string>("100");
 
   const navigate = useNavigate();
 
@@ -254,9 +257,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
     const sanitizedInstagram = sanitizeUrl(instagram);
     const sanitizedFacebook = sanitizeUrl(facebook);
+    const depositAmount = Number(defaultDepositAmount || 0);
 
     if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
       toast.error("One or more of your social links are not valid URLs.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (Number.isNaN(depositAmount) || depositAmount < 0) {
+      toast.error("Default deposit must be zero or greater.");
       setSubmitting(false);
       return;
     }
@@ -304,7 +314,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           createdAt: serverTimestamp(),
           paymentType,
           depositPolicy: {
-            amount: 100,
+            amount: depositAmount,
             depositRequired: true,
             nonRefundable: true,
           },
@@ -487,10 +497,29 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
                   {currentStep === 0 && (
                     <div data-aos="fade-in" className="relative z-50 space-y-4">
-                      <Listbox value={selectedShop} onChange={setSelectedShop}>
+                      <Listbox
+                        value={selectedShop}
+                        onChange={(shop) => {
+                          setSelectedShop(shop);
+                          setIsShopDropdownOpen(false);
+                        }}
+                      >
                         {() => (
-                          <div className="relative z-50">
-                            <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]">
+                          <div
+                            className="relative z-50"
+                            onBlur={() =>
+                              window.setTimeout(
+                                () => setIsShopDropdownOpen(false),
+                                120
+                              )
+                            }
+                          >
+                            <Listbox.Button
+                              onClick={() =>
+                                setIsShopDropdownOpen((open) => !open)
+                              }
+                              className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]"
+                            >
                               <span className="block truncate">
                                 {selectedShop
                                   ? selectedShop.name
@@ -562,36 +591,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         })}
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <label className="space-y-2">
-                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                            <Instagram size={15} aria-hidden="true" />
-                            Instagram
-                          </span>
-                          <input
-                            type="url"
-                            name="instagram"
-                            value={instagram}
-                            onChange={(e) => setInstagram(e.target.value)}
-                            placeholder="instagram.com/artist"
-                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          />
-                        </label>
-                        <label className="space-y-2">
-                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                            <Globe size={15} aria-hidden="true" />
-                            Facebook
-                          </span>
-                          <input
-                            type="url"
-                            name="facebook"
-                            value={facebook}
-                            onChange={(e) => setFacebook(e.target.value)}
-                            placeholder="facebook.com/artist"
-                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          />
-                        </label>
-                      </div>
                     </div>
                   )}
 
@@ -674,6 +673,26 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           </label>
                         </div>
                       )}
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Default deposit amount
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={defaultDepositAmount}
+                          onChange={(e) =>
+                            setDefaultDepositAmount(e.target.value)
+                          }
+                          placeholder="100"
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        />
+                        <span className="block text-xs text-neutral-500">
+                          This is your default client deposit for new offers,
+                          not a signup charge.
+                        </span>
+                      </label>
                     </div>
                   )}
 
@@ -737,11 +756,48 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           {bio.length}/700
                         </span>
                       </label>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <label className="space-y-2">
+                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                            <Instagram size={15} aria-hidden="true" />
+                            Instagram
+                          </span>
+                          <input
+                            type="url"
+                            name="instagram"
+                            value={instagram}
+                            onChange={(e) => setInstagram(e.target.value)}
+                            placeholder="instagram.com/artist"
+                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                            <Globe size={15} aria-hidden="true" />
+                            Facebook
+                          </span>
+                          <input
+                            type="url"
+                            name="facebook"
+                            value={facebook}
+                            onChange={(e) => setFacebook(e.target.value)}
+                            placeholder="facebook.com/artist"
+                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          />
+                        </label>
+                      </div>
                     </div>
                   )}
                 </section>
 
-                <div className="relative z-0 flex items-center justify-between">
+                <div
+                  className={`relative z-0 flex items-center justify-between ${
+                    currentStep === 0 && isShopDropdownOpen
+                      ? "invisible pointer-events-none"
+                      : ""
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() =>
@@ -852,8 +908,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Deposit</span>
-                    <span className="text-white">$100</span>
+                    <span className="text-neutral-400">Default deposit</span>
+                    <span className="text-white">
+                      ${defaultDepositAmount || "0"}
+                    </span>
                   </div>
                 </div>
               </aside>
