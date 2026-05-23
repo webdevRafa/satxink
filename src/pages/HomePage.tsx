@@ -580,12 +580,12 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
     to={`/flash/sheets/${sheet.id}`}
     className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-xl transition hover:border-white/25"
   >
-    <div className="relative aspect-[4/3] shrink-0 bg-black/30">
+    <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#f4f1ea] sm:h-[184px]">
       {sheet.thumbUrl || sheet.imageUrl ? (
         <img
           src={sheet.thumbUrl || sheet.imageUrl}
           alt={sheet.title || "Flash sheet"}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
           loading="lazy"
         />
       ) : (
