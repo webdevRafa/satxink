@@ -345,7 +345,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   return (
     <div
       data-aos="fade-up"
-      className="min-h-screen w-full overflow-y-auto px-4 pb-10 pt-24 text-white md:pt-28"
+      className="w-full px-4 pb-24 pt-4 text-white"
     >
       <div className="mx-auto w-full max-w-6xl">
         <button
