@@ -275,10 +275,10 @@ export const HomePage: FC = () => {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
               >
                 Browse artists
-                <ArrowRight size={17} />
+                <ArrowRight size={17} className="text-[#0b0b0b]!" />
               </Link>
               <Link
                 to="/flash"
@@ -365,10 +365,10 @@ export const HomePage: FC = () => {
             />
             <Link
               to="/flash"
-              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Browse marketplace
-              <ArrowRight size={16} />
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
             </Link>
           </div>
 
@@ -433,10 +433,10 @@ export const HomePage: FC = () => {
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
               to="/artists"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Find artists
-              <ArrowRight size={16} />
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
             </Link>
             <Link
               to="/events"
@@ -557,19 +557,17 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => (
       ) : (
         <MissingImage />
       )}
-      <span className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/65 px-2 py-1 text-[11px] font-bold text-white/80 backdrop-blur">
-        {formatFlashPrice(flash.price)}
-      </span>
     </div>
-    <div className="flex min-h-[104px] flex-1 flex-col p-3">
-      <div className="min-h-[42px]">
-        <h4 className="truncate text-sm! font-semibold text-white">
+    <div className="flex min-h-[118px] flex-1 flex-col p-3">
+      <div className="flex min-h-[42px] items-start gap-2">
+        <h4 className="min-w-0 flex-1 truncate text-sm! font-semibold text-white">
           {getFlashTitle(flash)}
         </h4>
-        <p className="mt-1 truncate text-xs text-white/45">
-          by {getArtistName(flash.artist)}
-        </p>
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold text-white/75">
+          {formatFlashPrice(flash.price)}
+        </span>
       </div>
+      <ArtistByline artist={flash.artist} />
       <TagList tags={flash.tags} />
     </div>
   </Link>
@@ -591,24 +589,46 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => (
       ) : (
         <MissingImage />
       )}
-      <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/65 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/75 backdrop-blur">
-        <Layers size={12} />
-        Sheet
-      </span>
     </div>
-    <div className="flex min-h-[104px] flex-1 flex-col p-3">
-      <div className="min-h-[42px]">
-        <h4 className="truncate text-sm! font-semibold text-white">
+    <div className="flex min-h-[118px] flex-1 flex-col p-3">
+      <div className="flex min-h-[42px] items-start gap-2">
+        <h4 className="min-w-0 flex-1 truncate text-sm! font-semibold text-white">
           {sheet.title || "Untitled flash sheet"}
         </h4>
-        <p className="mt-1 truncate text-xs text-white/45">
-          by {getArtistName(sheet.artist)}
-        </p>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-white/60">
+          <Layers size={11} />
+          Sheet
+        </span>
       </div>
+      <ArtistByline artist={sheet.artist} />
       <TagList tags={sheet.tags} />
     </div>
   </Link>
 );
+
+const ArtistByline = ({ artist }: { artist?: PublicArtist }) => {
+  const artistName = getArtistName(artist);
+
+  return (
+    <div className="mt-1.5 flex min-w-0 items-center gap-2">
+      {artist?.avatarUrl ? (
+        <img
+          src={artist.avatarUrl}
+          alt=""
+          className="h-6 w-6 shrink-0 rounded-full border border-white/10 object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-bold text-white/45">
+          {artistName.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className="min-w-0 truncate text-xs text-white/45">
+        by {artistName}
+      </span>
+    </div>
+  );
+};
 
 const EventTeaserCard = ({ event }: { event: HomeEvent }) => (
   <Link
