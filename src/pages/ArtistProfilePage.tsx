@@ -2,12 +2,15 @@ import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "rea
 import { useParams } from "react-router-dom";
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   getDoc,
   getDocs,
   query,
   serverTimestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -22,9 +25,11 @@ import {
   ChevronRight,
   DollarSign,
   Expand,
+  Heart,
   ImageOff,
   Layers,
   MapPin,
+  MessageCircle,
   Send,
   Tag,
   Users,
@@ -35,6 +40,7 @@ import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import RequestTattooModal from "../components/RequestTattooModal";
 
 interface Artist {
   id: string;
@@ -62,6 +68,7 @@ type ClientProfile = {
   id: string;
   name: string;
   avatarUrl: string;
+  likedArtists: string[];
 };
 type Shop = {
   id: string;
@@ -100,6 +107,8 @@ export const ArtistProfilePage = () => {
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<FlashSheet | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [isFollowUpdating, setIsFollowUpdating] = useState(false);
   const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -127,6 +136,9 @@ export const ArtistProfilePage = () => {
             (data.avatarUrl as string) ||
             user.photoURL ||
             "/default-avatar.png",
+          likedArtists: Array.isArray(data.likedArtists)
+            ? (data.likedArtists as string[])
+            : [],
         });
       } catch (err) {
         console.error("Failed to fetch client profile:", err);
@@ -134,6 +146,7 @@ export const ArtistProfilePage = () => {
           id: user.uid,
           name: user.displayName || "Client",
           avatarUrl: user.photoURL || "/default-avatar.png",
+          likedArtists: [],
         });
       }
     });
@@ -346,6 +359,79 @@ export const ArtistProfilePage = () => {
     }, 80);
   };
 
+  const handleRequestTattoo = () => {
+    if (!client) {
+      toast.error("Please sign in as a client before requesting a tattoo.");
+      return;
+    }
+
+    setIsRequestModalOpen(true);
+  };
+
+  const handleToggleFollow = async () => {
+    if (!artist) return;
+
+    if (!client) {
+      toast.error("Please sign in as a client to follow artists.");
+      return;
+    }
+
+    if (client.id === artist.id) {
+      toast.error("You are viewing your own artist profile.");
+      return;
+    }
+
+    const currentlyFollowing = client.likedArtists.includes(artist.id);
+
+    try {
+      setIsFollowUpdating(true);
+      await Promise.all([
+        updateDoc(doc(db, "users", client.id), {
+          likedArtists: currentlyFollowing
+            ? arrayRemove(artist.id)
+            : arrayUnion(artist.id),
+        }),
+        updateDoc(doc(db, "users", artist.id), {
+          likedBy: currentlyFollowing
+            ? arrayRemove(client.id)
+            : arrayUnion(client.id),
+        }),
+      ]);
+
+      setClient((current) =>
+        current
+          ? {
+              ...current,
+              likedArtists: currentlyFollowing
+                ? current.likedArtists.filter((artistId) => artistId !== artist.id)
+                : [...new Set([...current.likedArtists, artist.id])],
+            }
+          : current
+      );
+      setArtist((current) =>
+        current
+          ? {
+              ...current,
+              likedBy: currentlyFollowing
+                ? (current.likedBy || []).filter((clientId) => clientId !== client.id)
+                : [...new Set([...(current.likedBy || []), client.id])],
+            }
+          : current
+      );
+
+      toast.success(
+        currentlyFollowing
+          ? "Artist removed from your liked artists."
+          : "Artist added to your liked artists."
+      );
+    } catch (err) {
+      console.error("Failed to update liked artist:", err);
+      toast.error("Could not update this artist right now.");
+    } finally {
+      setIsFollowUpdating(false);
+    }
+  };
+
   if (loading) return <ArtistProfilePageSkeleton />;
 
   if (!artist)
@@ -353,6 +439,7 @@ export const ArtistProfilePage = () => {
 
   const artistDisplayName = getArtistDisplayName(artist);
   const artistShopName = shop?.name || artist.studioName;
+  const isFollowingArtist = Boolean(client?.likedArtists.includes(artist.id));
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[80vh]">
@@ -429,6 +516,42 @@ export const ArtistProfilePage = () => {
                 ))}
               </ul>
             </div>
+          </div>
+
+          <div className="w-full rounded-lg border border-white/10 bg-white/[0.035] p-4 shadow-lg md:w-[250px]">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/40">
+              Start here
+            </p>
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={handleRequestTattoo}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+              >
+                <MessageCircle size={17} />
+                Request tattoo
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleFollow}
+                disabled={isFollowUpdating}
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-4! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isFollowingArtist
+                    ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
+                    : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <Heart
+                  size={17}
+                  className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
+                />
+                {isFollowingArtist ? "Following" : "Follow artist"}
+              </button>
+            </div>
+            <p className="mt-4 text-xs leading-relaxed text-white/45">
+              Following saves this artist to your client dashboard for quick
+              requests later.
+            </p>
           </div>
         </div>
       </div>
@@ -581,6 +704,20 @@ export const ArtistProfilePage = () => {
           artist={artist}
           client={client}
           onClose={() => setSelectedFlash(null)}
+        />
+      )}
+
+      {client && (
+        <RequestTattooModal
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          client={client}
+          artist={{
+            id: artist.id,
+            name: artistDisplayName,
+            avatarUrl: artist.avatarUrl,
+            studioName: artistShopName,
+          }}
         />
       )}
     </div>

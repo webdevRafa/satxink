@@ -61,6 +61,33 @@
     rgba(204, 63, 50, 0.9)
   );
 }
+.request-modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.32) rgba(255, 255, 255, 0.06);
+}
+.request-modal-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+.request-modal-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+.request-modal-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.48),
+    rgba(25, 214, 155, 0.68)
+  );
+  border: 2px solid #111111;
+  border-radius: 999px;
+}
+.request-modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.65),
+    rgba(25, 214, 155, 0.86)
+  );
+}
 .animate-scroll {
   animation: scroll-horizontal 15s linear infinite;
   will-change: transform;
