@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react";
-import { GoogleSignupButton } from "../components/GoogleSignupButton";
-import logo from "../assets/satx-short-sep.svg";
 import type { User } from "firebase/auth";
-import slugify from "slugify";
-
-import { auth, db } from "../firebase/firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
+import { Listbox } from "@headlessui/react";
+import slugify from "slugify";
+import { toast } from "react-hot-toast";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Check,
+  ChevronDown,
+  CreditCard,
+  Globe,
+  Instagram,
+  LoaderCircle,
+  Save,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
+
+import { GoogleSignupButton } from "../components/GoogleSignupButton";
+import logo from "../assets/satx-short-sep.svg";
+import { auth, db } from "../firebase/firebaseConfig";
 import {
   collection,
   getDocs,
@@ -16,8 +32,6 @@ import {
   serverTimestamp,
   runTransaction,
 } from "firebase/firestore";
-import { Listbox } from "@headlessui/react";
-import { ChevronDown } from "lucide-react";
 
 type Shop = {
   id: string;
@@ -43,12 +57,16 @@ const SPECIALTIES = [
   "Color Realism",
 ];
 
-const stepHeadings = [
-  "What shop do you rep?",
-  "What Styles Do You Specialize In?",
-  "How Should Clients Pay You?",
-  "Choose Your Display Name & Finish",
+const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
+
+const stepDescriptions = [
+  "Connect your profile to the studio clients should see on your public profile.",
+  "Choose the styles that best describe your work and add your social channels.",
+  "Set how clients should pay deposits and appointment balances.",
+  "Choose the public name and bio clients will remember.",
 ];
+
+const stepIcons = [Building2, Sparkles, CreditCard, UserRound];
 
 const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [paymentType, setPaymentType] = useState<string>("");
@@ -64,19 +82,19 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [readyToSubmit, setReadyToSubmit] = useState<boolean>(false);
 
   const [displayName, setDisplayName] = useState<string>("");
   const [bio, setBio] = useState<string>("");
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [instagram, setInstagram] = useState<string>("");
   const [facebook, setFacebook] = useState<string>("");
+  const [defaultDepositAmount, setDefaultDepositAmount] =
+    useState<string>("100");
 
   const navigate = useNavigate();
 
   useEffect(() => {
     setSubmitting(false);
-    setReadyToSubmit(false);
   }, []);
 
   useEffect(() => {
@@ -94,10 +112,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   }, []);
 
   useEffect(() => {
-    setReadyToSubmit(currentStep === 3);
-  }, [currentStep]);
-
-  useEffect(() => {
     const fetchShops = async () => {
       const snapshot = await getDocs(collection(db, "shops"));
       const shopList = snapshot.docs.map((doc) => ({
@@ -109,28 +123,28 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     fetchShops();
   }, []);
 
-  // Check displayName uniqueness in real-time
   useEffect(() => {
-    if (!displayName.trim()) {
+    if (!displayName.trim() || !user) {
       setIsNameTaken(false);
+      setIsCheckingName(false);
       return;
     }
 
     const slug = slugify(displayName, { lower: true, strict: true });
 
-    const timer = setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       setIsCheckingName(true);
       const nameQuery = query(
         collection(db, "users"),
         where("slug", "==", slug)
       );
       const snapshot = await getDocs(nameQuery);
-      setIsNameTaken(!snapshot.empty);
+      setIsNameTaken(snapshot.docs.some((docSnap) => docSnap.id !== user.uid));
       setIsCheckingName(false);
-    }, 500);
+    }, 650);
 
-    return () => clearTimeout(timer);
-  }, [displayName]);
+    return () => window.clearTimeout(timer);
+  }, [displayName, user]);
 
   const sanitizeUrl = (url: string) => {
     if (!url) return "";
@@ -151,6 +165,78 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     }
   };
 
+  const toggleSpecialty = (style: string) => {
+    setSpecialties((prev) =>
+      prev.includes(style)
+        ? prev.filter((specialty) => specialty !== style)
+        : [...prev, style]
+    );
+  };
+
+  const canContinue =
+    currentStep === 0
+      ? Boolean(selectedShop)
+      : currentStep === 1
+      ? specialties.length > 0
+      : currentStep === 2
+      ? paymentType === "internal" ||
+        Boolean(
+          paymentType === "external" && selectedMethod && externalHandle.trim()
+        )
+      : Boolean(
+          displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
+        );
+
+  const stepCompletion = [
+    Boolean(selectedShop),
+    specialties.length > 0,
+    paymentType === "internal" ||
+      Boolean(
+        paymentType === "external" && selectedMethod && externalHandle.trim()
+      ),
+    Boolean(displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName),
+  ];
+  const allStepsComplete = stepCompletion.every(Boolean);
+  const progress = Math.round(
+    (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
+  );
+  const ActiveStepIcon = stepIcons[currentStep];
+
+  const getStepWarning = (step: number) => {
+    if (step === 0) return "Select your shop before continuing.";
+    if (step === 1) return "Choose at least one specialty before continuing.";
+    if (step === 2) return "Choose a payment option before continuing.";
+    return "Add an available display name and a bio before creating your profile.";
+  };
+
+  const handleStepCardClick = (targetStep: number) => {
+    if (targetStep <= currentStep) {
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    const firstIncompleteStep = stepCompletion.findIndex(
+      (isComplete, index) => index < targetStep && !isComplete
+    );
+
+    if (firstIncompleteStep !== -1) {
+      setCurrentStep(firstIncompleteStep);
+      toast.error(getStepWarning(firstIncompleteStep));
+      return;
+    }
+
+    setCurrentStep(targetStep);
+  };
+
+  const handleNext = () => {
+    if (!canContinue) {
+      toast.error("Complete this step before continuing.");
+      return;
+    }
+
+    setCurrentStep((step) => Math.min(step + 1, stepHeadings.length - 1));
+  };
+
   const handleArtistSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) {
@@ -158,18 +244,39 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       return;
     }
 
-    const sanitizedInstagram = sanitizeUrl(instagram);
-    const sanitizedFacebook = sanitizeUrl(facebook);
-
-    if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
-      alert("One or more of your social links are not valid URLs.");
+    const firstIncompleteStep = stepCompletion.findIndex(
+      (isComplete) => !isComplete
+    );
+    if (firstIncompleteStep !== -1) {
+      setCurrentStep(firstIncompleteStep);
+      toast.error(getStepWarning(firstIncompleteStep));
       setSubmitting(false);
       return;
     }
 
-    // Default final payment to "before"
-    const finalPaymentTiming = "before";
+    const sanitizedInstagram = sanitizeUrl(instagram);
+    const sanitizedFacebook = sanitizeUrl(facebook);
+    const depositAmount = Number(defaultDepositAmount || 0);
 
+    if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
+      toast.error("One or more of your social links are not valid URLs.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (Number.isNaN(depositAmount) || depositAmount < 0) {
+      toast.error("Default deposit must be zero or greater.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (isCheckingName || isNameTaken) {
+      toast.error("Choose an available display name before submitting.");
+      setSubmitting(false);
+      return;
+    }
+
+    const finalPaymentTiming = "before";
     setSubmitting(true);
 
     const slug = slugify(displayName, { lower: true, strict: true });
@@ -181,7 +288,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           where("slug", "==", slug)
         );
         const slugSnapshot = await getDocs(slugQuery);
-        if (!slugSnapshot.empty) {
+        const nameBelongsToAnotherArtist = slugSnapshot.docs.some(
+          (docSnap) => docSnap.id !== user.uid
+        );
+        if (nameBelongsToAnotherArtist) {
           throw new Error("That name is already taken. Please choose another.");
         }
 
@@ -202,12 +312,17 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           role: "artist",
           createdAt: serverTimestamp(),
           paymentType,
+          depositPolicy: {
+            amount: depositAmount,
+            depositRequired: true,
+            nonRefundable: true,
+          },
+          finalPaymentTiming,
           ...(paymentType === "external" && {
             externalPaymentDetails: {
               method: selectedMethod,
               handle: externalHandle,
             },
-            finalPaymentTiming,
           }),
           likedBy: [],
           updatedAt: serverTimestamp(),
@@ -218,10 +333,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
         transaction.set(artistRef, newArtist, { merge: true });
       });
 
-      navigate("/new-artist-dashboard");
+      navigate("/dashboard");
     } catch (err: any) {
       console.error("Artist profile submission failed:", err);
-      alert(err.message || "Something went wrong. Please try again.");
+      toast.error(err.message || "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -230,305 +345,568 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   return (
     <div
       data-aos="fade-up"
-      className="min-h-screen text-white flex items-center justify-center px-4"
+      className="w-full px-4 pb-24 pt-4 text-white"
     >
-      <div className="max-w-2xl w-full text-center">
+      <div className="mx-auto w-full max-w-6xl">
         <button
-          onClick={onBack}
-          className="mb-1 text-neutral-500! hover:text-white! text-sm! underline self-start"
+          type="button"
+          onClick={() => (onBack ? onBack() : navigate("/signup"))}
+          className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
         >
-          ← Back
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back
         </button>
-        <h1 className="flex items-center justify-center flex-wrap text-2xl! font-light! mb-1 gap-2 text-center">
-          <span>Join</span>
-          <img
-            src={logo}
-            alt="SATX Ink logo"
-            className="max-w-[100px] inline-block translate-y-[-2px]"
-          />
-          <span>as an Artist</span>
-        </h1>
 
         {!user && (
-          <>
-            <p className="text-neutral-300 mb-8 text-lg md:text-xl">
+          <section className="mx-auto max-w-xl rounded-lg border border-white/10 bg-[#121212]/90 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+              Artist signup
+            </p>
+            <h1 className="mt-3 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold text-white">
+              <span>Join</span>
+              <img
+                src={logo}
+                alt="SATX Ink logo"
+                className="max-w-[108px] translate-y-[-2px]"
+              />
+              <span>as an Artist</span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-neutral-400">
               Create your artist profile, showcase your portfolio, and connect
               with local clients.
             </p>
-            <GoogleSignupButton role="artist" />
-            <p className="text-xs! text-neutral-400! mt-2 max-w-[300px] mx-auto text-center">
+            <div className="mt-7">
+              <GoogleSignupButton role="artist" />
+            </div>
+            <p className="mx-auto mt-4 max-w-sm text-xs! text-neutral-500!">
               We only collect your name, profile picture, and email from Google
               to set up your account. By signing up, you agree to our{" "}
               <Link
                 to="/terms"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-white transition"
+                className="underline transition hover:text-white"
               >
                 Terms
               </Link>
               .
             </p>
-          </>
+          </section>
         )}
 
-        {formVisible && (
+        {formVisible && user && (
           <form
             autoComplete="off"
             onSubmit={handleArtistSubmit}
-            className="mt-10 space-y-4 text-left bg-[var(--color-bg-footer)]/50 p-6 rounded-lg"
+            className="space-y-6 text-left"
           >
-            <h2 className="text-xl font-semibold text-white mb-2">
-              {stepHeadings[currentStep]}
-            </h2>
-
-            {/* STEP 1 */}
-            {currentStep === 0 && (
-              <div data-aos="fade-in">
-                <Listbox value={selectedShop} onChange={setSelectedShop}>
-                  {() => (
-                    <div className="relative mt-2">
-                      <Listbox.Button className="relative w-full cursor-default rounded bg-[var(--color-bg-card)] z-80 py-2 pl-3 pr-10 text-left text-white">
-                        <span className="block truncate">
-                          {selectedShop
-                            ? selectedShop.name
-                            : "Select Your Shop"}
-                        </span>
-                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                          <ChevronDown className="h-4 w-4 text-gray-400" />
-                        </span>
-                      </Listbox.Button>
-                      <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-[var(--color-bg-card)] text-white">
-                        {shops.map((shop) => (
-                          <Listbox.Option
-                            key={shop.id}
-                            value={shop}
-                            className={({ active }) =>
-                              `relative cursor-pointer select-none py-2 pl-4 pr-4 ${
-                                active
-                                  ? "bg-[var(--color-bg-footer)]/30 text-white"
-                                  : "text-white"
-                              }`
-                            }
-                          >
-                            {shop.name}
-                          </Listbox.Option>
-                        ))}
-                      </Listbox.Options>
-                    </div>
-                  )}
-                </Listbox>
-              </div>
-            )}
-
-            {/* STEP 2 */}
-            {currentStep === 1 && (
-              <div data-aos="fade-in">
-                <label className="block text-sm font-medium text-white mb-1">
-                  Specialties
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {SPECIALTIES.map((style) => (
-                    <label
-                      key={style}
-                      className="flex items-center space-x-2 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        name="specialties"
-                        value={style}
-                        checked={specialties.includes(style)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSpecialties((prev) => [...prev, style]);
-                          } else {
-                            setSpecialties((prev) =>
-                              prev.filter((s) => s !== style)
-                            );
-                          }
-                        }}
-                        className="accent-red-600"
-                        required
-                      />
-                      <span>{style}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mt-4">
-                  <input
-                    type="url"
-                    name="instagram"
-                    value={instagram}
-                    onChange={(e) => setInstagram(e.target.value)}
-                    required
-                    placeholder="Instagram URL"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
+            <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Artist onboarding
+                </p>
+                <h1 className="mt-2 flex flex-wrap items-center gap-2 text-3xl! font-semibold text-white">
+                  <span>Join</span>
+                  <img
+                    src={logo}
+                    alt="SATX Ink logo"
+                    className="max-w-[104px] translate-y-[-2px]"
                   />
-                  <input
-                    type="url"
-                    name="facebook"
-                    value={facebook}
-                    onChange={(e) => setFacebook(e.target.value)}
-                    required
-                    placeholder="Facebook URL"
-                    className="w-full p-2 rounded bg-neutral-800 text-white"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3 */}
-            {currentStep === 2 && (
-              <div data-aos="fade-in" className="space-y-2">
-                <label className="block text-sm font-medium text-white">
-                  How would you like to accept payments?
-                </label>
-                <div className="flex flex-col space-y-1">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="paymentType"
-                      value="internal"
-                      checked={paymentType === "internal"}
-                      onChange={() => {
-                        setPaymentType("internal");
-                        setSelectedMethod("");
-                      }}
-                      className="accent-red-600"
-                      required
-                    />
-                    <span>In-app with Stripe (recommended)</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="paymentType"
-                      value="external"
-                      checked={paymentType === "external"}
-                      onChange={() => setPaymentType("external")}
-                      className="accent-red-600"
-                      required
-                    />
-                    <span>Externally (CashApp, Venmo, Zelle)</span>
-                  </label>
-                </div>
-
-                {paymentType === "external" && (
-                  <div className="space-y-3 mt-4">
-                    <select
-                      name="externalMethod"
-                      value={selectedMethod}
-                      onChange={(e) => setSelectedMethod(e.target.value)}
-                      required
-                      className="w-full p-2 rounded bg-neutral-800 text-white"
-                    >
-                      <option value="">
-                        Select your preferred payment method
-                      </option>
-                      <option value="cashapp">CashApp</option>
-                      <option value="venmo">Venmo</option>
-                      <option value="zelle">Zelle</option>
-                    </select>
-                    {selectedMethod && (
-                      <input
-                        type="text"
-                        name="externalHandle"
-                        value={externalHandle}
-                        onChange={(e) => setExternalHandle(e.target.value)}
-                        required
-                        placeholder={
-                          selectedMethod === "zelle"
-                            ? "Email or phone number"
-                            : selectedMethod === "cashapp"
-                            ? "$YourCashTag"
-                            : "@yourusername or phone"
-                        }
-                        className="w-full p-2 rounded bg-neutral-800 text-white"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* STEP 4 */}
-            {currentStep === 3 && (
-              <div data-aos="fade-in">
-                <input
-                  type="text"
-                  name="displayName"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Choose a unique display name (e.g. @inkbykai)"
-                  required
-                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
-                />
-                {displayName && (
-                  <p
-                    className={`text-sm mt-0 mb-2 ${
-                      isCheckingName
-                        ? "text-gray-400"
-                        : isNameTaken
-                        ? "text-red-400!"
-                        : "text-emerald-400!"
-                    }`}
-                  >
-                    {isCheckingName
-                      ? "Checking availability..."
-                      : isNameTaken
-                      ? "This display name is already taken."
-                      : "This name is available!"}
-                  </p>
-                )}
-                <textarea
-                  name="bio"
-                  placeholder="Your Bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  required
-                  className="w-full p-2 rounded bg-[var(--color-bg-card)] text-white mb-2"
-                />
-                <p className="text-neutral-400 text-sm mt-3">
-                  Almost done! Pick your display name, confirm everything, and
-                  submit your profile.
+                  <span>as an Artist</span>
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+                  Build the profile clients will see before they request,
+                  book, or follow your work.
                 </p>
               </div>
-            )}
 
-            {readyToSubmit && submitting && (
-              <p className="text-sm text-neutral-400 mb-2">
-                Just a sec — saving your profile…
-              </p>
-            )}
+              <div className="min-w-56">
+                <div className="flex items-center justify-between text-xs text-neutral-400">
+                  <span>Setup progress</span>
+                  <span>{progress}%</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      progress === 100 ? "bg-emerald-400" : "bg-white"
+                    }`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
 
-            <div className="flex justify-between pt-6">
-              {currentStep > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(currentStep - 1)}
-                  className="text-white underline"
-                >
-                  ← Back
-                </button>
-              )}
-              {currentStep < 3 ? (
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  className={`px-4 py-2 rounded text-white ${
-                    isNameTaken
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-[var(--color-bg-button)] hover:bg-[var(--color-bg-button-hover)]"
-                  }`}
-                  disabled={isNameTaken}
-                >
-                  Next →
-                </button>
-              ) : (
-                <button type="submit" disabled={!readyToSubmit || submitting}>
-                  {submitting ? "Submitting..." : "Submit Profile"}
-                </button>
-              )}
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="space-y-5">
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {stepHeadings.map((heading, index) => {
+                    const StepIcon = stepIcons[index];
+                    const isActive = currentStep === index;
+                    const isComplete = stepCompletion[index];
+
+                    return (
+                      <button
+                        key={heading}
+                        type="button"
+                        onClick={() => handleStepCardClick(index)}
+                        className={`rounded-lg border p-3 text-left transition ${
+                          isActive
+                            ? "border-white/25 bg-white/[0.08] text-white"
+                            : isComplete
+                            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
+                            : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:text-white"
+                        }`}
+                      >
+                        <span className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-white/5">
+                          {isComplete ? (
+                            <Check size={16} aria-hidden="true" />
+                          ) : (
+                            <StepIcon size={16} aria-hidden="true" />
+                          )}
+                        </span>
+                        <span className="block text-sm font-semibold">
+                          {heading}
+                        </span>
+                        <span
+                          className={`mt-1 block text-xs ${
+                            isComplete ? "text-emerald-200" : "text-neutral-500"
+                          }`}
+                        >
+                          {isComplete ? "Complete" : "Required"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <section className="rounded-lg border border-white/10 bg-[#121212]/90 p-5 shadow-2xl shadow-black/20 backdrop-blur">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <ActiveStepIcon size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">
+                        {stepHeadings[currentStep]}
+                      </h2>
+                      <p className="text-sm text-neutral-400">
+                        {stepDescriptions[currentStep]}
+                      </p>
+                    </div>
+                  </div>
+
+                  {currentStep === 0 && (
+                    <div data-aos="fade-in" className="space-y-4">
+                      <Listbox
+                        value={selectedShop}
+                        onChange={(shop) => setSelectedShop(shop)}
+                      >
+                        {({ open }) => (
+                          <div className="space-y-3">
+                            <Listbox.Button
+                              className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]"
+                            >
+                              <span className="block truncate">
+                                {selectedShop
+                                  ? selectedShop.name
+                                  : "Select your shop"}
+                              </span>
+                              <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                <ChevronDown
+                                  className={`h-4 w-4 text-gray-400 transition-transform ${
+                                    open ? "rotate-180" : ""
+                                  }`}
+                                />
+                              </span>
+                            </Listbox.Button>
+                            <Listbox.Options className="shop-picker-scrollbar max-h-72 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
+                              <div className="mb-2 border-b border-white/10 px-2 pb-2">
+                                <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                                  Available shops
+                                </p>
+                              </div>
+                              {shops.map((shop) => (
+                                <Listbox.Option
+                                  key={shop.id}
+                                  value={shop}
+                                  className={({ active, selected }) =>
+                                    `relative cursor-pointer select-none rounded-md px-4 py-3 text-sm transition ${
+                                      active || selected
+                                        ? "bg-white/10 text-white"
+                                        : "text-neutral-300"
+                                    }`
+                                  }
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <p className="font-medium">{shop.name}</p>
+                                    {selectedShop?.id === shop.id && (
+                                      <Check
+                                        size={16}
+                                        className="mt-1 text-emerald-300"
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                  </div>
+                                </Listbox.Option>
+                              ))}
+                            </Listbox.Options>
+                          </div>
+                        )}
+                      </Listbox>
+
+                      {selectedShop && (
+                        <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-sm font-semibold text-white">
+                            {selectedShop.name}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {currentStep === 1 && (
+                    <div data-aos="fade-in" className="space-y-5">
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                        {SPECIALTIES.map((style) => {
+                          const selected = specialties.includes(style);
+                          return (
+                            <button
+                              key={style}
+                              type="button"
+                              onClick={() => toggleSpecialty(style)}
+                              className={`rounded-md border px-3 py-3 text-left text-sm transition ${
+                                selected
+                                  ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                                  : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                              }`}
+                            >
+                              {style}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                    </div>
+                  )}
+
+                  {currentStep === 2 && (
+                    <div data-aos="fade-in" className="space-y-5">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentType("internal");
+                            setSelectedMethod("");
+                          }}
+                          className={`rounded-lg border p-4 text-left transition ${
+                            paymentType === "internal"
+                              ? "border-white bg-white text-[#0b0b0b]"
+                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold">
+                            Stripe
+                          </span>
+                          <span className="mt-1 block text-xs opacity-70">
+                            In-app deposits and payouts.
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentType("external")}
+                          className={`rounded-lg border p-4 text-left transition ${
+                            paymentType === "external"
+                              ? "border-white bg-white text-[#0b0b0b]"
+                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold">
+                            External
+                          </span>
+                          <span className="mt-1 block text-xs opacity-70">
+                            CashApp, Venmo, Zelle, or similar.
+                          </span>
+                        </button>
+                      </div>
+
+                      {paymentType === "external" && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-neutral-200">
+                              Preferred method
+                            </span>
+                            <select
+                              name="externalMethod"
+                              value={selectedMethod}
+                              onChange={(e) => setSelectedMethod(e.target.value)}
+                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                            >
+                              <option value="">Select a method</option>
+                              <option value="cashapp">CashApp</option>
+                              <option value="venmo">Venmo</option>
+                              <option value="zelle">Zelle</option>
+                            </select>
+                          </label>
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-neutral-200">
+                              Payment handle
+                            </span>
+                            <input
+                              type="text"
+                              name="externalHandle"
+                              value={externalHandle}
+                              onChange={(e) => setExternalHandle(e.target.value)}
+                              placeholder={
+                                selectedMethod === "zelle"
+                                  ? "Email or phone number"
+                                  : selectedMethod === "cashapp"
+                                  ? "$YourCashTag"
+                                  : "@yourusername or phone"
+                              }
+                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Default deposit amount
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={defaultDepositAmount}
+                          onChange={(e) =>
+                            setDefaultDepositAmount(e.target.value)
+                          }
+                          placeholder="100"
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        />
+                        <span className="block text-xs text-neutral-500">
+                          This is your default client deposit for new offers,
+                          not a signup charge.
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
+                  {currentStep === 3 && (
+                    <div data-aos="fade-in" className="space-y-4">
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Display name
+                        </span>
+                        <input
+                          type="text"
+                          name="displayName"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Ink by Alex"
+                          className={`w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
+                            isNameTaken
+                              ? "border-red-400 focus:border-red-400"
+                              : displayName && !isCheckingName
+                              ? "border-emerald-400 focus:border-emerald-400"
+                              : "border-white/10 focus:border-[var(--color-primary)]"
+                          }`}
+                        />
+                        <span
+                          className={`block text-xs ${
+                            isNameTaken
+                              ? "text-red-300"
+                              : displayName && !isCheckingName
+                              ? "text-emerald-300"
+                              : "text-neutral-500"
+                          }`}
+                        >
+                          {isCheckingName && "Checking name availability..."}
+                          {!isCheckingName &&
+                            displayName &&
+                            !isNameTaken &&
+                            "This display name is available."}
+                          {!isCheckingName &&
+                            displayName &&
+                            isNameTaken &&
+                            "This display name is already taken."}
+                          {!displayName &&
+                            "This becomes your public profile name and handle."}
+                        </span>
+                      </label>
+
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Bio
+                        </span>
+                        <textarea
+                          name="bio"
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          rows={6}
+                          maxLength={700}
+                          placeholder="Tell clients about your style, process, and booking vibe."
+                          className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                        />
+                        <span className="block text-right text-xs text-neutral-500">
+                          {bio.length}/700
+                        </span>
+                      </label>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <label className="space-y-2">
+                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                            <Instagram size={15} aria-hidden="true" />
+                            Instagram
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="url"
+                            autoCapitalize="none"
+                            name="instagram"
+                            value={instagram}
+                            onChange={(e) => setInstagram(e.target.value)}
+                            placeholder="instagram.com/artist"
+                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                            <Globe size={15} aria-hidden="true" />
+                            Facebook
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="url"
+                            autoCapitalize="none"
+                            name="facebook"
+                            value={facebook}
+                            onChange={(e) => setFacebook(e.target.value)}
+                            placeholder="facebook.com/artist"
+                            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentStep((step) => Math.max(step - 1, 0))
+                    }
+                    disabled={currentStep === 0}
+                    className="inline-flex items-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    Back
+                  </button>
+
+                  {currentStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      aria-disabled={!canContinue}
+                      className={`inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 ${
+                        !canContinue ? "opacity-60" : ""
+                      }`}
+                    >
+                      Next
+                      <ArrowRight
+                        size={16}
+                        className="text-[#0b0b0b]!"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={!allStepsComplete || submitting}
+                      className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? (
+                        <LoaderCircle
+                          size={16}
+                          className="animate-spin text-[#0b0b0b]!"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Save
+                          size={16}
+                          className="text-[#0b0b0b]!"
+                          aria-hidden="true"
+                        />
+                      )}
+                      {submitting ? "Creating profile..." : "Create profile"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <aside className="h-fit rounded-lg border border-white/10 bg-[#101010]/95 p-5 xl:sticky xl:top-24">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={user.photoURL || "/fallback-avatar.jpg"}
+                    alt={displayName || user.displayName || "Artist avatar"}
+                    className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold text-white">
+                      {displayName || user.displayName || "Display name"}
+                    </p>
+                    <p className="truncate text-sm text-neutral-400">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-5 line-clamp-5 text-sm leading-6 text-neutral-300">
+                  {bio ||
+                    "Your bio preview will appear here as clients browse your profile."}
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {specialties.length > 0 ? (
+                    specialties.slice(0, 6).map((style) => (
+                      <span
+                        key={style}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                      >
+                        {style}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-neutral-500">
+                      No specialties selected yet.
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Shop</span>
+                    <span className="max-w-44 truncate text-right text-white">
+                      {selectedShop?.name || "Not selected"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Payments</span>
+                    <span className="capitalize text-white">
+                      {paymentType === "internal"
+                        ? "Stripe"
+                        : paymentType === "external"
+                        ? "External"
+                        : "Not selected"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Default deposit</span>
+                    <span className="text-white">
+                      ${defaultDepositAmount || "0"}
+                    </span>
+                  </div>
+                </div>
+              </aside>
             </div>
           </form>
         )}

@@ -25,10 +25,7 @@ export default function SignupSelection() {
   const handleBack = () => setSelectedRole(null);
 
   return (
-    <div
-      className="relative flex items-center justify-center w-screen overflow-hidden text-white"
-      style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-    >
+    <div className="relative flex min-h-screen w-screen items-center justify-center overflow-x-hidden text-white">
       {/* Background Video */}
       <video
         src={videoSrc}
@@ -36,13 +33,13 @@ export default function SignupSelection() {
         muted
         loop
         playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover"
+        className="fixed inset-0 h-screen w-full object-cover"
         style={{ minWidth: "100vw", minHeight: "100vh" }}
       />
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-xs"></div>
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-xs"></div>
 
       {/* Foreground Content */}
-      <div className="relative z-10 flex flex-col items-center text-center px-4 w-full">
+      <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center">
         {!selectedRole && (
           <>
             {/* Selection Screen */}
@@ -81,7 +78,7 @@ export default function SignupSelection() {
         )}
 
         {selectedRole === "artist" && (
-          <div className="w-full max-w-4xl relative z-20 rounded-lg p-4">
+          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}

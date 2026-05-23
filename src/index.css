@@ -34,6 +34,33 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+.shop-picker-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.34) rgba(255, 255, 255, 0.06);
+}
+.shop-picker-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+.shop-picker-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+.shop-picker-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5),
+    rgba(182, 56, 45, 0.72)
+  );
+  border: 2px solid #050505;
+  border-radius: 999px;
+}
+.shop-picker-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68),
+    rgba(204, 63, 50, 0.9)
+  );
+}
 .animate-scroll {
   animation: scroll-horizontal 15s linear infinite;
   will-change: transform;
