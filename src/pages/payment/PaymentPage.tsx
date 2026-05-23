@@ -160,16 +160,9 @@ const PaymentPage = () => {
                   );
 
                   const response = await createSession({
-                    offerId: booking.offerId,
                     bookingId: booking.id,
-                    clientId: booking.clientId,
-                    artistId: booking.artistId,
-                    price: booking.depositAmount,
-                    displayName: booking.artistName,
-                    artistAvatar: booking.artistAvatar ?? "",
-                    shopName: booking.shopName ?? "",
-                    shopAddress: booking.shopAddress ?? "",
-                    selectedDate: booking.selectedDate,
+                    successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
+                    cancelUrl: `${window.location.origin}/payment/${booking.id}`,
                   });
 
                   const { sessionUrl } = response.data as {

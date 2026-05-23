@@ -33,6 +33,9 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
+const PLATFORM_FEE_CENTS = 1000;
+const MIN_ARTIST_PAYOUT_CENTS = 100;
+const DEFAULT_APP_URL = "https://satxink.com";
 
 
 
@@ -267,6 +270,221 @@ const handleOfferImageUpload = onObjectFinalized(
   }
 );
 
+const getStripeClient = () =>
+  new Stripe(STRIPE_SECRET_KEY.value(), {
+    apiVersion: '2023-10-16' as any,
+  });
+
+const getBaseUrl = (rawUrl?: unknown) => {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return DEFAULT_APP_URL;
+
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.origin;
+  } catch {
+    return DEFAULT_APP_URL;
+  }
+};
+
+const getArtistStripeStatus = (account: Stripe.Account) => {
+  const disabledReason = account.requirements?.disabled_reason ?? null;
+
+  return {
+    accountId: account.id,
+    chargesEnabled: Boolean(account.charges_enabled),
+    payoutsEnabled: Boolean(account.payouts_enabled),
+    detailsSubmitted: Boolean(account.details_submitted),
+    onboardingComplete: Boolean(
+      account.charges_enabled &&
+        account.payouts_enabled &&
+        account.details_submitted
+    ),
+    disabledReason,
+  };
+};
+
+const syncArtistStripeAccount = async (
+  uid: string,
+  stripe: Stripe,
+  accountId: string
+) => {
+  const account = await stripe.accounts.retrieve(accountId);
+  const status = getArtistStripeStatus(account);
+
+  await db.collection("users").doc(uid).set(
+    {
+      paymentType: "internal",
+      stripeConnect: {
+        ...status,
+        lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return status;
+};
+
+const createArtistConnectedAccount = async (
+  uid: string,
+  artist: admin.firestore.DocumentData,
+  stripe: Stripe
+) => {
+  const account = await stripe.accounts.create({
+    type: "express",
+    country: "US",
+    email: artist.email,
+    business_type: "individual",
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    metadata: {
+      firebaseUid: uid,
+      satxinkRole: "artist",
+    },
+  });
+
+  const status = getArtistStripeStatus(account);
+  await db.collection("users").doc(uid).set(
+    {
+      paymentType: "internal",
+      stripeConnect: {
+        ...status,
+        lastSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return status;
+};
+
+const createStripeConnectAccount = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Artist profile not found.");
+    }
+
+    const artist = userSnap.data() || {};
+    if (artist.role !== "artist") {
+      throw new HttpsError("permission-denied", "Only artists can connect payouts.");
+    }
+
+    const existingAccountId = artist.stripeConnect?.accountId;
+    const stripe = getStripeClient();
+
+    if (existingAccountId) {
+      const status = await syncArtistStripeAccount(uid, stripe, existingAccountId);
+      return { status };
+    }
+
+    const status = await createArtistConnectedAccount(uid, artist, stripe);
+
+    return { status };
+  }
+);
+
+const createStripeConnectOnboardingLink = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const baseUrl = getBaseUrl(req.data?.returnUrl || req.data?.origin);
+    const stripe = getStripeClient();
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    const artist = userSnap.data() || {};
+
+    if (artist.role !== "artist") {
+      throw new HttpsError("permission-denied", "Only artists can connect payouts.");
+    }
+
+    let accountId = artist.stripeConnect?.accountId as string | undefined;
+
+    if (!accountId) {
+      const status = await createArtistConnectedAccount(uid, artist, stripe);
+      accountId = status.accountId;
+    }
+
+    if (!accountId) {
+      throw new HttpsError("internal", "Unable to create connected account.");
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${baseUrl}/dashboard?stripe=refresh`,
+      return_url: `${baseUrl}/dashboard?stripe=return`,
+      type: "account_onboarding",
+    });
+
+    return { url: accountLink.url };
+  }
+);
+
+const getStripeConnectStatus = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const userSnap = await db.collection("users").doc(uid).get();
+    const artist = userSnap.data() || {};
+    const accountId = artist.stripeConnect?.accountId as string | undefined;
+
+    if (!accountId) {
+      return {
+        status: {
+          chargesEnabled: false,
+          payoutsEnabled: false,
+          detailsSubmitted: false,
+          onboardingComplete: false,
+          disabledReason: "account_missing",
+        },
+      };
+    }
+
+    const status = await syncArtistStripeAccount(uid, getStripeClient(), accountId);
+    return { status };
+  }
+);
+
+const createStripeDashboardLoginLink = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const userSnap = await db.collection("users").doc(uid).get();
+    const artist = userSnap.data() || {};
+    const accountId = artist.stripeConnect?.accountId as string | undefined;
+
+    if (!accountId) {
+      throw new HttpsError("failed-precondition", "Connect Stripe before opening the dashboard.");
+    }
+
+    const loginLink = await getStripeClient().accounts.createLoginLink(accountId);
+    return { url: loginLink.url };
+  }
+);
+
 
 const createCheckoutSession = onCall({ cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] }, async (req) => {
 
@@ -275,30 +493,82 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       throw new HttpsError("unauthenticated", "User must be authenticated.");
     }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
-    apiVersion: '2023-10-16' as any,
-  });
+  const stripe = getStripeClient();
 
   try {
     const data = req.data as CheckoutRequestData;
 
-    const {
-      offerId,
-      clientId,
-      artistId,
-      price,
-      displayName,
-      artistAvatar,
-      shopName,
-      shopAddress,
-      selectedDate,
-      bookingId,
-    } = data;
+    const { bookingId } = data;
+
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A bookingId is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      throw new HttpsError("not-found", "Booking not found.");
+    }
+
+    const booking = bookingSnap.data() || {};
+
+    if (booking.clientId !== uid) {
+      throw new HttpsError("permission-denied", "Only the booking client can pay this booking.");
+    }
+
+    if (booking.status === "paid" || booking.status === "confirmed") {
+      throw new HttpsError("failed-precondition", "This booking has already been paid.");
+    }
+
+    const amount = Number(booking.depositAmount || booking.price || 0);
+    const amountCents = Math.round(amount * 100);
+
+    if (!Number.isFinite(amountCents) || amountCents <= PLATFORM_FEE_CENTS) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The payment amount must be greater than the SATX Ink platform fee."
+      );
+    }
+
+    const applicationFeeAmount = PLATFORM_FEE_CENTS;
+    const artistPayoutCents = amountCents - applicationFeeAmount;
+
+    if (artistPayoutCents < MIN_ARTIST_PAYOUT_CENTS) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The artist payout would be too small after the platform fee."
+      );
+    }
+
+    const artistSnap = await db.collection("users").doc(booking.artistId).get();
+    const artist = artistSnap.data() || {};
+    const connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
+
+    if (!connectedAccountId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This artist has not connected Stripe payouts yet."
+      );
+    }
+
+    const connectStatus = await syncArtistStripeAccount(
+      booking.artistId,
+      stripe,
+      connectedAccountId
+    );
+
+    if (!connectStatus.chargesEnabled) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This artist needs to finish Stripe onboarding before accepting payments."
+      );
+    }
     
     let formattedDateTime = '';
 
-    if (selectedDate?.date && selectedDate?.time) {
-      const combinedDateTime = new Date(`${selectedDate.date}T${selectedDate.time}`);
+    if (booking.selectedDate?.date && booking.selectedDate?.time) {
+      const combinedDateTime = new Date(`${booking.selectedDate.date}T${booking.selectedDate.time}`);
       formattedDateTime = combinedDateTime.toLocaleString('en-US', {
         weekday: 'long',    // e.g., "Saturday"
         year: 'numeric',    // e.g., "2025"
@@ -318,32 +588,57 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         {
           price_data: {
             currency: 'usd',
-            unit_amount: price * 100, // Convert dollars to cents
+            unit_amount: amountCents,
             product_data: {
-              name: `${displayName}'s Tattoo Offer`,
-              description: `Studio: ${shopName || 'N/A'} | Address: ${shopAddress || 'N/A'} | Date: ${selectedDate?.date} at ${selectedDate?.time}`,
+              name: `${booking.artistName || artist.displayName || "Artist"}'s Tattoo Booking`,
+              description: `Studio: ${booking.shopName || 'N/A'} | Address: ${booking.shopAddress || 'N/A'} | Date: ${booking.selectedDate?.date || "TBD"} at ${booking.selectedDate?.time || "TBD"}`,
             },
           },
           quantity: 1,
         },
       ],
-      metadata: {
-        offerId: offerId ?? '',
-        bookingId: bookingId ?? "",
-        clientId: clientId ?? '',
-        artistId: artistId ?? '',
-        artistAvatar: artistAvatar ?? '', // convert to string explicitly
-        displayName: displayName ?? '',
-        shopName: shopName ?? '',
-        shopAddress: shopAddress ?? '',
-        selectedDate: formattedDateTime ?? '',
+      payment_intent_data: {
+        application_fee_amount: applicationFeeAmount,
+        metadata: {
+          bookingId,
+          artistId: booking.artistId ?? '',
+          clientId: booking.clientId ?? '',
+          platformFeeCents: String(applicationFeeAmount),
+        },
       },
-      success_url: `http://localhost:5173/payment-success?bookingId=${bookingId}`,
-      cancel_url: 'http://localhost:5173/cancel',
+      metadata: {
+        offerId: booking.offerId ?? data.offerId ?? '',
+        bookingId: bookingId ?? "",
+        clientId: booking.clientId ?? '',
+        artistId: booking.artistId ?? '',
+        artistAvatar: booking.artistAvatar ?? '',
+        displayName: booking.artistName ?? artist.displayName ?? '',
+        shopName: booking.shopName ?? '',
+        shopAddress: booking.shopAddress ?? '',
+        selectedDate: formattedDateTime ?? '',
+        platformFeeCents: String(applicationFeeAmount),
+      },
+      success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
+      cancel_url: data.cancelUrl || `${DEFAULT_APP_URL}/payment/${bookingId}`,
+    }, {
+      stripeAccount: connectedAccountId,
     });
+
+    await bookingRef.set(
+      {
+        stripeCheckoutSessionId: session.id,
+        stripeConnectedAccountId: connectedAccountId,
+        platformFeeAmount: applicationFeeAmount / 100,
+        platformFeeCents: applicationFeeAmount,
+        artistPayoutAmount: artistPayoutCents / 100,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     return { sessionUrl: session.url };
   } catch (error) {
+    if (error instanceof HttpsError) throw error;
     logger.error('Stripe checkout error', error);
     throw new HttpsError('internal', 'Unable to create checkout session');
   }
@@ -409,7 +704,12 @@ const stripeWebhook = onRequest(
         await bookingRef.update({
           status: "paid",
           paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          stripeCheckoutSessionId: session.id,
           stripePaymentIntentId: session.payment_intent,
+          stripeConnectedAccountId: event.account ?? session.metadata?.stripeConnectedAccountId ?? null,
+          platformFeeCents: session.metadata?.platformFeeCents
+            ? Number(session.metadata.platformFeeCents)
+            : PLATFORM_FEE_CENTS,
         });
 
         console.log(`Booking ${bookingId} marked as paid.`);
@@ -586,6 +886,10 @@ module.exports = {
   handleImageUpload,
   processAvatar,
   handleOfferImageUpload,
+  createStripeConnectAccount,
+  createStripeConnectOnboardingLink,
+  getStripeConnectStatus,
+  createStripeDashboardLoginLink,
   createCheckoutSession,
   stripeWebhook,
   processArtistMedia,

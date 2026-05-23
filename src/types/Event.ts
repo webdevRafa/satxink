@@ -19,6 +19,13 @@ export type EventPriceType =
 
 export type EventStatus = "draft" | "published" | "cancelled" | "completed";
 
+export type EventBookingMode =
+  | "info_only"
+  | "rsvp"
+  | "deposit_required"
+  | "flash_reservation"
+  | "paid_ticket";
+
 export type ArtistEvent = {
   id: string;
   artistId: string;
@@ -41,6 +48,7 @@ export type ArtistEvent = {
 
   priceType: EventPriceType;
   price?: number | null;
+  bookingMode?: EventBookingMode;
   depositRequired?: boolean;
   depositAmount?: number | null;
 

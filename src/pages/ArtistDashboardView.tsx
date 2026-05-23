@@ -21,6 +21,7 @@ import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
 import EventsManager from "../components/EventsManager";
+import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { Booking } from "../types/Booking";
 
 const ArtistDashboardView = () => {
@@ -39,6 +40,7 @@ const ArtistDashboardView = () => {
     | "flashes"
     | "gallery"
     | "events"
+    | "payments"
   >("gallery");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -220,6 +222,7 @@ const ArtistDashboardView = () => {
         {activeTab === "events" && uid && (
           <EventsManager uid={uid} artist={artist} />
         )}
+        {activeTab === "payments" && <StripeConnectPanel artist={artist} />}
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel
             feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${

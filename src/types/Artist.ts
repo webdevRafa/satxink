@@ -28,6 +28,15 @@ export type SocialLinks = {
     paymentType: "internal" | "external";
     depositPolicy: DepositPolicy;
     finalPaymentTiming: "before" | "after";
+    stripeConnect?: {
+      accountId?: string;
+      chargesEnabled?: boolean;
+      payoutsEnabled?: boolean;
+      detailsSubmitted?: boolean;
+      onboardingComplete?: boolean;
+      disabledReason?: string | null;
+      lastSyncedAt?: Date | Timestamp | FieldValue | null;
+    };
     socialLinks: SocialLinks;
   
     upvotes?: number;           
