@@ -486,10 +486,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   </div>
 
                   {currentStep === 0 && (
-                    <div data-aos="fade-in" className="space-y-4">
+                    <div data-aos="fade-in" className="relative z-50 space-y-4">
                       <Listbox value={selectedShop} onChange={setSelectedShop}>
                         {() => (
-                          <div className="relative">
+                          <div className="relative z-50">
                             <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]">
                               <span className="block truncate">
                                 {selectedShop
@@ -500,7 +500,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 <ChevronDown className="h-4 w-4 text-gray-400" />
                               </span>
                             </Listbox.Button>
-                            <Listbox.Options className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-white/10 bg-[#0b0b0b] py-1 text-white shadow-2xl shadow-black">
+                            <Listbox.Options className="absolute z-[120] mt-2 max-h-64 w-full overflow-auto rounded-md border border-white/10 bg-[#050505] py-1 text-white shadow-2xl shadow-black ring-1 ring-black before:absolute before:inset-0 before:-z-10 before:rounded-md before:bg-[#050505]">
                               {shops.map((shop) => (
                                 <Listbox.Option
                                   key={shop.id}
@@ -741,7 +741,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   )}
                 </section>
 
-                <div className="flex items-center justify-between">
+                <div className="relative z-0 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() =>
