@@ -173,7 +173,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
   const canContinue =
     currentStep === 0
-      ? true
+      ? Boolean(selectedShop)
       : currentStep === 1
       ? specialties.length > 0
       : currentStep === 2
@@ -185,8 +185,46 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
         );
 
-  const progress = Math.round(((currentStep + 1) / stepHeadings.length) * 100);
+  const stepCompletion = [
+    Boolean(selectedShop),
+    specialties.length > 0,
+    paymentType === "internal" ||
+      Boolean(
+        paymentType === "external" && selectedMethod && externalHandle.trim()
+      ),
+    Boolean(displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName),
+  ];
+  const allStepsComplete = stepCompletion.every(Boolean);
+  const progress = Math.round(
+    (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
+  );
   const ActiveStepIcon = stepIcons[currentStep];
+
+  const getStepWarning = (step: number) => {
+    if (step === 0) return "Select your shop before continuing.";
+    if (step === 1) return "Choose at least one specialty before continuing.";
+    if (step === 2) return "Choose a payment option before continuing.";
+    return "Add an available display name and a bio before creating your profile.";
+  };
+
+  const handleStepCardClick = (targetStep: number) => {
+    if (targetStep <= currentStep) {
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    const firstIncompleteStep = stepCompletion.findIndex(
+      (isComplete, index) => index < targetStep && !isComplete
+    );
+
+    if (firstIncompleteStep !== -1) {
+      setCurrentStep(firstIncompleteStep);
+      toast.error(getStepWarning(firstIncompleteStep));
+      return;
+    }
+
+    setCurrentStep(targetStep);
+  };
 
   const handleNext = () => {
     if (!canContinue) {
@@ -200,6 +238,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const handleArtistSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) {
+      setSubmitting(false);
+      return;
+    }
+
+    const firstIncompleteStep = stepCompletion.findIndex(
+      (isComplete) => !isComplete
+    );
+    if (firstIncompleteStep !== -1) {
+      setCurrentStep(firstIncompleteStep);
+      toast.error(getStepWarning(firstIncompleteStep));
       setSubmitting(false);
       return;
     }
@@ -288,7 +336,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   return (
     <div
       data-aos="fade-up"
-      className="min-h-screen w-full overflow-y-auto px-4 py-10 text-white"
+      className="min-h-screen w-full overflow-y-auto px-4 pb-10 pt-24 text-white md:pt-28"
     >
       <div className="mx-auto w-full max-w-6xl">
         <button
@@ -385,13 +433,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   {stepHeadings.map((heading, index) => {
                     const StepIcon = stepIcons[index];
                     const isActive = currentStep === index;
-                    const isComplete = currentStep > index;
+                    const isComplete = stepCompletion[index];
 
                     return (
                       <button
                         key={heading}
                         type="button"
-                        onClick={() => setCurrentStep(index)}
+                        onClick={() => handleStepCardClick(index)}
                         className={`rounded-lg border p-3 text-left transition ${
                           isActive
                             ? "border-white/25 bg-white/[0.08] text-white"
@@ -409,6 +457,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         </span>
                         <span className="block text-sm font-semibold">
                           {heading}
+                        </span>
+                        <span
+                          className={`mt-1 block text-xs ${
+                            isComplete ? "text-emerald-200" : "text-neutral-500"
+                          }`}
+                        >
+                          {isComplete ? "Complete" : "Required"}
                         </span>
                       </button>
                     );
@@ -445,7 +500,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 <ChevronDown className="h-4 w-4 text-gray-400" />
                               </span>
                             </Listbox.Button>
-                            <Listbox.Options className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-white/10 bg-[#141414] py-1 text-white shadow-2xl">
+                            <Listbox.Options className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-md border border-white/10 bg-[#0b0b0b] py-1 text-white shadow-2xl shadow-black">
                               {shops.map((shop) => (
                                 <Listbox.Option
                                   key={shop.id}
@@ -459,12 +514,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                   }
                                 >
                                   <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-medium">{shop.name}</p>
-                                      <p className="mt-1 text-xs text-neutral-500">
-                                        {shop.address}
-                                      </p>
-                                    </div>
+                                    <p className="font-medium">{shop.name}</p>
                                     {selectedShop?.id === shop.id && (
                                       <Check
                                         size={16}
@@ -484,9 +534,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
                           <p className="text-sm font-semibold text-white">
                             {selectedShop.name}
-                          </p>
-                          <p className="mt-1 text-sm text-neutral-400">
-                            {selectedShop.address}
                           </p>
                         </div>
                       )}
@@ -711,8 +758,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     <button
                       type="button"
                       onClick={handleNext}
-                      disabled={!canContinue}
-                      className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-disabled={!canContinue}
+                      className={`inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 ${
+                        !canContinue ? "opacity-60" : ""
+                      }`}
                     >
                       Next
                       <ArrowRight
@@ -724,7 +773,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   ) : (
                     <button
                       type="submit"
-                      disabled={!canContinue || submitting}
+                      disabled={!allStepsComplete || submitting}
                       className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {submitting ? (
