@@ -6,6 +6,7 @@ type ViewTab =
   | "requests"
   | "offers"
   | "bookings"
+  | "sessions"
   | "pending" // represents pending_payment
   | "confirmed"
   | "paid"
@@ -34,6 +35,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "requests", label: "Requests" },
     { key: "offers", label: "Offers" },
     { key: "bookings", label: "Bookings" },
+    { key: "sessions", label: "Sessions" },
     { key: "flashes", label: "Flashes" },
     { key: "gallery", label: "Gallery" },
     { key: "events", label: "Events" },

@@ -90,6 +90,7 @@ type ArtistDashboardTab =
   | "profile"
   | "offers"
   | "bookings"
+  | "sessions"
   | "pending"
   | "confirmed"
   | "paid"
@@ -147,6 +148,7 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "profile",
     "offers",
     "bookings",
+    "sessions",
     "pending",
     "confirmed",
     "paid",
@@ -166,6 +168,7 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "profile",
     "offers",
     "bookings",
+    "sessions",
     "pending",
     "confirmed",
     "paid",
@@ -222,6 +225,7 @@ const ArtistDashboardView = () => {
     requests: 0,
     offers: 0,
     bookings: 0,
+    sessions: 0,
     pending: 0,
     confirmed: 0,
     paid: 0,
@@ -611,6 +615,7 @@ const ArtistDashboardView = () => {
       deposit_paid: 0,
       paid: 0,
       cancelled: 0,
+      sessions: 0,
     };
 
     const updateCount = (key: string, value: number) => {
@@ -629,9 +634,14 @@ const ArtistDashboardView = () => {
           bookingCountParts.deposit_paid +
           bookingCountParts.paid +
           bookingCountParts.cancelled;
+        next.sessions = bookingCountParts.sessions;
         return next;
       });
     };
+
+    const countActiveBookings = (docs: { data: () => Record<string, unknown> }[]) =>
+      docs.filter((bookingDoc) => !isActiveSessionBooking(bookingDoc.data()))
+        .length;
 
     const unsubs = [
       onSnapshot(
@@ -659,7 +669,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "pending_payment")
         ),
-        (snap) => updateCount("pending", snap.size),
+        (snap) => updateCount("pending", countActiveBookings(snap.docs)),
         (error) =>
           console.error("Artist pending booking count listener failed:", error)
       ),
@@ -669,7 +679,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "confirmed")
         ),
-        (snap) => updateCount("confirmed", snap.size),
+        (snap) => updateCount("confirmed", countActiveBookings(snap.docs)),
         (error) =>
           console.error(
             "Artist confirmed booking count listener failed:",
@@ -682,7 +692,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "deposit_paid")
         ),
-        (snap) => updateCount("deposit_paid", snap.size),
+        (snap) => updateCount("deposit_paid", countActiveBookings(snap.docs)),
         (error) =>
           console.error(
             "Artist deposit-paid booking count listener failed:",
@@ -695,7 +705,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "paid")
         ),
-        (snap) => updateCount("paid", snap.size),
+        (snap) => updateCount("paid", countActiveBookings(snap.docs)),
         (error) =>
           console.error("Artist paid booking count listener failed:", error)
       ),
@@ -705,12 +715,24 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "cancelled")
         ),
-        (snap) => updateCount("cancelled", snap.size),
+        (snap) => updateCount("cancelled", countActiveBookings(snap.docs)),
         (error) =>
           console.error(
             "Artist cancelled booking count listener failed:",
             error
           )
+      ),
+      onSnapshot(
+        query(collection(db, "bookings"), where("artistId", "==", uid)),
+        (snap) =>
+          updateCount(
+            "sessions",
+            snap.docs.filter((bookingDoc) =>
+              isActiveSessionBooking(bookingDoc.data())
+            ).length
+          ),
+        (error) =>
+          console.error("Artist session count listener failed:", error)
       ),
     ];
 
@@ -728,7 +750,9 @@ const ArtistDashboardView = () => {
     const statusToFetch = getFirestoreStatus(activeTab);
 
     const q =
-      activeTab === "confirmed"
+      activeTab === "sessions"
+        ? query(collection(db, "bookings"), where("artistId", "==", uid))
+        : activeTab === "confirmed"
         ? query(
             collection(db, "bookings"),
             where("artistId", "==", uid),
@@ -755,10 +779,14 @@ const ArtistDashboardView = () => {
           id: d.id,
           ...d.data(),
         })) as Booking[];
+        const scopedBookings =
+          activeTab === "sessions"
+            ? rawBookings.filter((booking) => isActiveSessionBooking(booking))
+            : rawBookings.filter((booking) => !isActiveSessionBooking(booking));
 
         const clientIds = Array.from(
           new Set(
-            rawBookings.map((booking) => booking.clientId).filter(Boolean)
+            scopedBookings.map((booking) => booking.clientId).filter(Boolean)
           )
         );
 
@@ -787,7 +815,7 @@ const ArtistDashboardView = () => {
         );
 
         setBookings(
-          rawBookings.map((booking) => {
+          scopedBookings.map((booking) => {
             const user = clientMap.get(booking.clientId);
 
             return {
@@ -1515,7 +1543,7 @@ const ArtistDashboardView = () => {
         {activeTab === "offers" && uid && <OffersList uid={uid} />}
 
         {/* Booking cards */}
-        {["pending", "confirmed", "paid", "cancelled"].includes(activeTab) && (
+        {["pending", "confirmed", "paid", "cancelled", "sessions"].includes(activeTab) && (
           <section className="mt-6 w-full max-w-7xl space-y-6">
             <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -1523,11 +1551,12 @@ const ArtistDashboardView = () => {
                   Artist bookings
                 </p>
                 <h1 className="mt-2 text-3xl! font-semibold text-white capitalize">
-                  {activeTab} bookings
+                  {activeTab === "sessions" ? "Active sessions" : `${activeTab} bookings`}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  Review client appointments, payment status, studio details,
-                  and selected tattoo references.
+                  {activeTab === "sessions"
+                    ? "Manage started appointments, session records, in-shop balances, and completion notes."
+                    : "Review client appointments, payment status, studio details, and selected tattoo references."}
                 </p>
               </div>
 
@@ -1552,11 +1581,14 @@ const ArtistDashboardView = () => {
                   <ReceiptText size={22} />
                 </div>
                 <h2 className="mt-4 text-xl! font-semibold! text-white capitalize">
-                  No {activeTab} bookings yet
+                  {activeTab === "sessions"
+                    ? "No active sessions yet"
+                    : `No ${activeTab} bookings yet`}
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
-                  When a client reaches this booking stage, their appointment
-                  details will appear here.
+                  {activeTab === "sessions"
+                    ? "Start a session from a confirmed booking and it will move here for completion, balance confirmation, and photos."
+                    : "When a client reaches this booking stage, their appointment details will appear here."}
                 </p>
               </div>
             ) : (
@@ -1605,7 +1637,7 @@ const ArtistDashboardView = () => {
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                       Try another client name or clear the search to return to
-                      all {activeTab} bookings.
+                      all {activeTab === "sessions" ? "sessions" : `${activeTab} bookings`}.
                     </p>
                   </div>
                 ) : (
@@ -1751,7 +1783,9 @@ const ArtistDashboardView = () => {
                               className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
                             >
                               <Eye size={16} />
-                              Booking record
+                              {activeTab === "sessions"
+                                ? "Session record"
+                                : "Booking record"}
                             </button>
                           </div>
                         </article>
@@ -1818,6 +1852,11 @@ const ArtistDashboardView = () => {
         <BookingRecordDialog
           booking={selectedBookingRecord}
           onClose={() => setSelectedBookingRecord(null)}
+          isSessionView={activeTab === "sessions"}
+          onSessionStarted={() => {
+            setSelectedBookingRecord(null);
+            setActiveTab("sessions");
+          }}
         />
       </main>
     </div>
@@ -1835,9 +1874,13 @@ type DashboardBooking = Booking & {
 const BookingRecordDialog = ({
   booking,
   onClose,
+  isSessionView,
+  onSessionStarted,
 }: {
   booking: DashboardBooking | null;
   onClose: () => void;
+  isSessionView: boolean;
+  onSessionStarted: () => void;
 }) => {
   const [sessionStatus, setSessionStatus] =
     useState<Booking["sessionStatus"]>("not_started");
@@ -1872,6 +1915,14 @@ const BookingRecordDialog = ({
         );
   const usesExternalRemaining =
     booking?.remainingPaymentMethod === "external" && remainingBalance > 0;
+  const canStartSession =
+    usesExternalRemaining &&
+    booking?.status !== "pending_payment" &&
+    sessionStatus === "not_started";
+  const showSessionWorkspace =
+    usesExternalRemaining &&
+    booking?.status !== "pending_payment" &&
+    (isSessionView || canStartSession);
 
   const upsertSessionRecord = async (
     sessionUpdate: Record<string, unknown>,
@@ -1917,7 +1968,10 @@ const BookingRecordDialog = ({
       { status: "in_progress", startedAt: serverTimestamp() },
       { sessionStatus: "in_progress", sessionStartedAt: serverTimestamp() }
     );
-    if (updated) setSessionStatus("in_progress");
+    if (updated) {
+      setSessionStatus("in_progress");
+      onSessionStarted();
+    }
   };
 
   const handleCompleteSession = async () => {
@@ -2135,19 +2189,25 @@ const BookingRecordDialog = ({
                           </p>
                         </div>
 
-                        {usesExternalRemaining && (
+                        {showSessionWorkspace && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold text-white">
-                                  In-shop balance session
+                                  {isSessionView
+                                    ? "In-shop balance session"
+                                    : "Ready to start session"}
                                 </p>
                                 <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                                  Track the session and confirm the remaining{" "}
+                                  {isSessionView
+                                    ? "Track this session and confirm the remaining "
+                                    : "The deposit is paid. Start this session when the appointment begins, then manage completion and the remaining "}
                                   <span className="font-semibold text-white">
                                     {formatDashboardMoney(remainingBalance)}
                                   </span>{" "}
-                                  after the client pays you directly.
+                                  {isSessionView
+                                    ? "after the client pays you directly."
+                                    : "balance from the Sessions section."}
                                 </p>
                               </div>
                               <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
@@ -2155,63 +2215,72 @@ const BookingRecordDialog = ({
                               </span>
                             </div>
 
-                            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                              <button
-                                type="button"
-                                disabled={
-                                  isUpdatingSession ||
-                                  sessionStatus !== "not_started"
-                                }
-                                onClick={handleStartSession}
-                                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <CalendarDays size={16} />
-                                Start session
-                              </button>
-                              <button
-                                type="button"
-                                disabled={
-                                  isUpdatingSession ||
-                                  sessionStatus !== "in_progress"
-                                }
-                                onClick={handleCompleteSession}
-                                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <Check size={16} />
-                                Complete
-                              </button>
-                              <button
-                                type="button"
-                                disabled={
-                                  isUpdatingSession ||
-                                  sessionStatus !== "completed" ||
-                                  remainingPaymentStatus === "artist_confirmed" ||
-                                  remainingPaymentStatus === "confirmed"
-                                }
-                                onClick={handleArtistConfirmExternalPayment}
-                                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <DollarSign size={16} />
-                                Balance paid
-                              </button>
-                            </div>
-
-                            <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
-                              <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
-                                Remaining payment
-                              </p>
-                              <p className="mt-1 text-sm font-semibold capitalize text-white">
-                                {(remainingPaymentStatus || "due").replace("_", " ")}
-                              </p>
-                              {remainingPaymentStatus === "artist_confirmed" && (
-                                <p className="mt-1 text-xs leading-5 text-emerald-50/70">
-                                  Waiting for the client to confirm the external
-                                  payment from their dashboard.
-                                </p>
+                            <div className={`mt-4 grid gap-3 ${isSessionView ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-1"}`}>
+                              {!isSessionView && (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    isUpdatingSession ||
+                                    sessionStatus !== "not_started"
+                                  }
+                                  onClick={handleStartSession}
+                                  className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <CalendarDays size={16} />
+                                  Start session
+                                </button>
+                              )}
+                              {isSessionView && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      isUpdatingSession ||
+                                      sessionStatus !== "in_progress"
+                                    }
+                                    onClick={handleCompleteSession}
+                                    className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Check size={16} />
+                                    Complete
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      isUpdatingSession ||
+                                      sessionStatus !== "completed" ||
+                                      remainingPaymentStatus === "artist_confirmed" ||
+                                      remainingPaymentStatus === "confirmed"
+                                    }
+                                    onClick={handleArtistConfirmExternalPayment}
+                                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <DollarSign size={16} />
+                                    Balance paid
+                                  </button>
+                                </>
                               )}
                             </div>
 
-                            <div className="mt-4">
+                            {isSessionView && (
+                              <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
+                                <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+                                  Remaining payment
+                                </p>
+                                <p className="mt-1 text-sm font-semibold capitalize text-white">
+                                  {(remainingPaymentStatus || "due").replace("_", " ")}
+                                </p>
+                                {remainingPaymentStatus === "artist_confirmed" && (
+                                  <p className="mt-1 text-xs leading-5 text-emerald-50/70">
+                                    Waiting for the client to confirm the external
+                                    payment from their dashboard.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {isSessionView && (
+                              <div className="mt-4">
                               <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
                                 <Camera size={16} />
                                 {isUploadingSessionPhoto
@@ -2237,7 +2306,8 @@ const BookingRecordDialog = ({
                                   ))}
                                 </div>
                               )}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2358,5 +2428,8 @@ const getBookingCreatedTime = (booking: Booking) => {
   if (createdAt?.seconds) return createdAt.seconds * 1000;
   return 0;
 };
+
+const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unknown>) =>
+  booking.sessionStatus === "in_progress" || booking.sessionStatus === "completed";
 
 export default ArtistDashboardView;
