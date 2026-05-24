@@ -9,6 +9,8 @@ export type Booking = {
     artistAvatar?: string;
   
     clientId: string;
+    clientName?: string;
+    clientAvatar?: string;
     offerId: string;
   
     price: number;

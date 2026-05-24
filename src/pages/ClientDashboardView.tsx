@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
+import { useSearchParams } from "react-router-dom";
 import { CalendarCheck, Heart, Inbox, ReceiptText } from "lucide-react";
 import ClientSidebarNavigation from "../components/ClientSidebarNavigation";
 import LikedArtistsList from "../components/LikedArtistsList";
@@ -20,10 +21,18 @@ const activeViewLabels: Record<ClientView, string> = {
   bookings: "Bookings",
 };
 
+const getClientDashboardView = (view: string | null): ClientView =>
+  ["liked", "requests", "offers", "bookings"].includes(view || "")
+    ? (view as ClientView)
+    : "liked";
+
 const ClientDashboardView = () => {
+  const [searchParams] = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
-  const [activeView, setActiveView] = useState<ClientView>("liked");
+  const [activeView, setActiveView] = useState<ClientView>(() =>
+    getClientDashboardView(searchParams.get("tab"))
+  );
   const [client, setClient] = useState<any>(null);
   const [navCounts, setNavCounts] = useState<Record<ClientView, number>>({
     liked: 0,
@@ -31,6 +40,13 @@ const ClientDashboardView = () => {
     offers: 0,
     bookings: 0,
   });
+
+  useEffect(() => {
+    const requestedView = getClientDashboardView(searchParams.get("tab"));
+    if (requestedView !== activeView) {
+      setActiveView(requestedView);
+    }
+  }, [activeView, searchParams]);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;

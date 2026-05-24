@@ -73,6 +73,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           artistName: offerData.displayName,
           artistAvatar: offerData.artistAvatar ?? null,
           clientId: offerData.clientId,
+          clientName: offerData.clientName ?? null,
+          clientAvatar: offerData.clientAvatar ?? null,
           offerId,
           price: offerData.price,
           depositAmount: offerData.depositPolicy.amount,

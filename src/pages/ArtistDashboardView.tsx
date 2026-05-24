@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
+import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
@@ -80,6 +81,20 @@ const SPECIALTY_OPTIONS = [
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
+type ArtistDashboardTab =
+  | "requests"
+  | "profile"
+  | "offers"
+  | "bookings"
+  | "pending"
+  | "confirmed"
+  | "paid"
+  | "cancelled"
+  | "calendar"
+  | "flashes"
+  | "gallery"
+  | "events"
+  | "payments";
 
 type ArtistProfileFormState = {
   displayName: string;
@@ -122,6 +137,25 @@ const isValidOptionalUrl = (value: string) => {
   }
 };
 
+const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
+  [
+    "requests",
+    "profile",
+    "offers",
+    "bookings",
+    "pending",
+    "confirmed",
+    "paid",
+    "cancelled",
+    "calendar",
+    "flashes",
+    "gallery",
+    "events",
+    "payments",
+  ].includes(tab || "")
+    ? (tab as ArtistDashboardTab)
+    : "profile";
+
 const createProfileFormState = (
   artist: Partial<Artist> | null
 ): ArtistProfileFormState => ({
@@ -156,6 +190,7 @@ const createProfileFormState = (
 });
 
 const ArtistDashboardView = () => {
+  const [searchParams] = useSearchParams();
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -168,21 +203,9 @@ const ArtistDashboardView = () => {
     paid: 0,
     cancelled: 0,
   });
-  const [activeTab, setActiveTab] = useState<
-    | "requests"
-    | "profile"
-    | "offers"
-    | "bookings"
-    | "pending"
-    | "confirmed"
-    | "paid"
-    | "cancelled"
-    | "calendar"
-    | "flashes"
-    | "gallery"
-    | "events"
-    | "payments"
-  >("profile");
+  const [activeTab, setActiveTab] = useState<ArtistDashboardTab>(() =>
+    getArtistDashboardTab(searchParams.get("tab"))
+  );
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [selectedBookingRecord, setSelectedBookingRecord] =
@@ -213,13 +236,20 @@ const ArtistDashboardView = () => {
   ]);
 
   // Translate sidebar tab into actual Firestore status
-  const getFirestoreStatus = (tab: typeof activeTab): Booking["status"] => {
+  const getFirestoreStatus = (tab: ArtistDashboardTab): Booking["status"] => {
     if (tab === "pending") return "pending_payment";
     if (tab === "confirmed") return "confirmed";
     if (tab === "paid") return "paid";
     if (tab === "cancelled") return "cancelled";
     return "confirmed";
   };
+
+  useEffect(() => {
+    const requestedTab = getArtistDashboardTab(searchParams.get("tab"));
+    if (requestedTab !== activeTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [activeTab, searchParams]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
