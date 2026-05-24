@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,23 +13,21 @@ import {
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
+import { httpsCallable } from "firebase/functions";
 
-import { db, storage } from "../firebase/firebaseConfig";
+import { db, functions, storage } from "../firebase/firebaseConfig";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
   query,
-  serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import { getCroppedImgFromElement } from "../utils/getCroppedImgFromElement";
 import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
 
@@ -42,7 +40,6 @@ const FlashSheetDetailPage = () => {
   const [showCropModal, setShowCropModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
-  const cropperImageRef = useRef<HTMLImageElement | null>(null);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -115,32 +112,6 @@ const FlashSheetDetailPage = () => {
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
     setCropArea(areaPixels);
-
-    const cropperImage = document.querySelector(
-      "img.reactEasyCrop_Image"
-    ) as HTMLImageElement | null;
-    if (cropperImage) {
-      cropperImageRef.current = cropperImage;
-    }
-  };
-
-  const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-  const waitForFile = async (
-    storageRef: ReturnType<typeof ref>,
-    retries = 10,
-    delay = 1000
-  ): Promise<string> => {
-    for (let i = 0; i < retries; i += 1) {
-      try {
-        return await getDownloadURL(storageRef);
-      } catch (err) {
-        if (i === retries - 1) throw err;
-        await wait(delay);
-      }
-    }
-
-    throw new Error("File was not ready after retries.");
   };
 
   const handleSaveNewFlash = async () => {
@@ -148,52 +119,14 @@ const FlashSheetDetailPage = () => {
 
     try {
       setIsPublishing(true);
-      const cropperImage =
-        cropperImageRef.current ||
-        (document.querySelector(
-          "img.reactEasyCrop_Image"
-        ) as HTMLImageElement | null);
 
-      if (!cropperImage) {
-        toast.error("Cropper image is not ready yet.");
-        return;
-      }
-
-      const croppedBlob = await getCroppedImgFromElement(
-        cropperImage,
-        cropArea
-      );
-      const timestamp = Date.now();
-      const baseName = `flash_${timestamp}`;
-      const storageBase = `users/${sheet.artistId}/flashes/${baseName}`;
-
-      const originalRef = ref(storage, `${storageBase}.jpg`);
-      await uploadBytes(originalRef, croppedBlob);
-      await wait(1200);
-
-      const fullRef = ref(storage, `${storageBase}_full.jpg`);
-      const thumbRef = ref(storage, `${storageBase}_thumb.webp`);
-      const webp90Ref = ref(storage, `${storageBase}_webp90.webp`);
-
-      const [fullUrl, thumbUrl, webp90Url] = await Promise.all([
-        waitForFile(fullRef),
-        waitForFile(thumbRef),
-        waitForFile(webp90Ref),
-      ]);
-
-      await addDoc(collection(db, "flashes"), {
-        artistId: sheet.artistId,
+      const cropFlashFromSheet = httpsCallable(functions, "cropFlashFromSheet");
+      await cropFlashFromSheet({
         sheetId: sheet.id,
+        crop: cropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
         price: newFlashPrice ? parseFloat(newFlashPrice) : null,
         tags: parseTags(newFlashTags),
-        fullUrl,
-        thumbUrl,
-        webp90Url,
-        isFromSheet: true,
-        artistStripeConnectReady: true,
-        marketplaceVisible: true,
-        createdAt: serverTimestamp(),
       });
 
       setShowCropModal(false);
@@ -504,6 +437,7 @@ const CropFlashModal = ({
             zoom={zoom}
             maxZoom={8}
             aspect={1}
+            objectFit="cover"
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropComplete}
