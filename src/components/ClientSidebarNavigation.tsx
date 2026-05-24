@@ -1,7 +1,7 @@
-import { CalendarCheck, Heart, Inbox, ReceiptText } from "lucide-react";
+import { CalendarCheck, Heart, Inbox, ReceiptText, UserRound } from "lucide-react";
 
 interface Props {
-  activeView: "liked" | "requests" | "offers" | "bookings";
+  activeView: "profile" | "liked" | "requests" | "offers" | "bookings" | "sessions";
   onViewChange: (view: Props["activeView"]) => void;
   counts?: Partial<Record<Props["activeView"], number>>;
 }
@@ -12,10 +12,12 @@ const ClientSidebarNavigation: React.FC<Props> = ({
   counts = {},
 }) => {
   const links = [
+    { key: "profile", label: "Profile", icon: UserRound },
     { key: "liked", label: "Liked Artists", icon: Heart },
     { key: "requests", label: "My Requests", icon: Inbox },
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
+    { key: "sessions", label: "Sessions", icon: CalendarCheck },
   ];
 
   return (
@@ -33,7 +35,8 @@ const ClientSidebarNavigation: React.FC<Props> = ({
           >
             <link.icon size={17} aria-hidden="true" />
             <span className="flex-1">{link.label}</span>
-            {typeof counts[link.key as Props["activeView"]] === "number" && (
+            {link.key !== "profile" &&
+              typeof counts[link.key as Props["activeView"]] === "number" && (
               <span
                 className={`min-w-6 rounded-full px-2 py-0.5 text-center text-xs ${
                   activeView === link.key

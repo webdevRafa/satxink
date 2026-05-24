@@ -56,6 +56,63 @@ const estimateStripeFeeCents = (clientTotalCents: number) =>
 
 type CheckoutPaymentMode = "deposit" | "full" | "remaining";
 
+type CropAreaInput = {
+  x?: unknown;
+  y?: unknown;
+  width?: unknown;
+  height?: unknown;
+};
+
+const parseStoragePathFromDownloadUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const marker = "/o/";
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
+};
+
+const clampCrop = (
+  crop: CropAreaInput,
+  imageWidth: number,
+  imageHeight: number
+) => {
+  const x = Math.max(0, Math.floor(Number(crop.x)));
+  const y = Math.max(0, Math.floor(Number(crop.y)));
+  const width = Math.floor(Number(crop.width));
+  const height = Math.floor(Number(crop.height));
+
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    throw new HttpsError("invalid-argument", "A valid crop area is required.");
+  }
+
+  const safeX = Math.min(x, Math.max(imageWidth - 1, 0));
+  const safeY = Math.min(y, Math.max(imageHeight - 1, 0));
+  const safeWidth = Math.min(width, imageWidth - safeX);
+  const safeHeight = Math.min(height, imageHeight - safeY);
+
+  if (safeWidth <= 0 || safeHeight <= 0) {
+    throw new HttpsError("invalid-argument", "Crop area is outside the image.");
+  }
+
+  return {
+    left: safeX,
+    top: safeY,
+    width: safeWidth,
+    height: safeHeight,
+  };
+};
+
 const calculateClientPaymentBreakdown = (
   artistAmountCents: number,
   platformFeeCents: number
@@ -1152,6 +1209,142 @@ const processArtistMedia = onObjectFinalized(
   }
 );
 
+const cropFlashFromSheet = onCall(
+  { cors: true, region: "us-central1", timeoutSeconds: 120, memory: "1GiB" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to crop flash.");
+    }
+
+    const {
+      sheetId,
+      crop,
+      title,
+      price,
+      tags,
+    } = (req.data || {}) as {
+      sheetId?: string;
+      crop?: CropAreaInput;
+      title?: string;
+      price?: number | null;
+      tags?: string[];
+    };
+
+    if (!sheetId || !crop) {
+      throw new HttpsError("invalid-argument", "Sheet and crop are required.");
+    }
+
+    const sheetRef = db.collection("flashSheets").doc(sheetId);
+    const sheetSnap = await sheetRef.get();
+    if (!sheetSnap.exists) {
+      throw new HttpsError("not-found", "Flash sheet not found.");
+    }
+
+    const sheet = sheetSnap.data() || {};
+    if (sheet.artistId !== uid) {
+      throw new HttpsError("permission-denied", "You can only crop your sheets.");
+    }
+
+    const sourcePath =
+      typeof sheet.fullPath === "string" && sheet.fullPath
+        ? sheet.fullPath
+        : typeof sheet.imageUrl === "string"
+          ? parseStoragePathFromDownloadUrl(sheet.imageUrl)
+          : null;
+
+    if (!sourcePath) {
+      throw new HttpsError("failed-precondition", "Sheet image path is missing.");
+    }
+
+    const [sourceBuffer] = await bucket.file(sourcePath).download();
+    const metadata = await sharp(sourceBuffer).metadata();
+    if (!metadata.width || !metadata.height) {
+      throw new HttpsError("failed-precondition", "Sheet image could not be read.");
+    }
+
+    const extract = clampCrop(crop, metadata.width, metadata.height);
+    const cropped = await sharp(sourceBuffer).extract(extract).toBuffer();
+
+    const timestamp = Date.now();
+    const baseName = `flash_${timestamp}`;
+    const bucketDir = `users/${uid}/flashes`;
+    const uuid = uuidv4();
+    const thumbPath = `${bucketDir}/${baseName}_thumb.webp`;
+    const previewPath = `${bucketDir}/${baseName}_webp90.webp`;
+    const fullPath = `${bucketDir}/${baseName}_full.jpg`;
+
+    const [thumbBuffer, webp90Buffer, fullBuffer] = await Promise.all([
+      sharp(cropped).resize({ width: 300 }).webp({ quality: 70 }).toBuffer(),
+      sharp(cropped).resize({ width: 1080 }).webp({ quality: 90 }).toBuffer(),
+      sharp(cropped).jpeg({ quality: 95 }).toBuffer(),
+    ]);
+
+    await Promise.all([
+      bucket.file(thumbPath).save(thumbBuffer, {
+        metadata: {
+          contentType: "image/webp",
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      }),
+      bucket.file(previewPath).save(webp90Buffer, {
+        metadata: {
+          contentType: "image/webp",
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      }),
+      bucket.file(fullPath).save(fullBuffer, {
+        metadata: {
+          contentType: "image/jpeg",
+          metadata: { firebaseStorageDownloadTokens: uuid },
+        },
+      }),
+    ]);
+
+    const makeUrl = (storagePath: string): string =>
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+        storagePath
+      )}?alt=media&token=${uuid}`;
+
+    const thumbUrl = makeUrl(thumbPath);
+    const webp90Url = makeUrl(previewPath);
+    const fullUrl = makeUrl(fullPath);
+    const parsedPrice = Number(price);
+    const normalizedPrice =
+      price === null || price === undefined || !Number.isFinite(parsedPrice)
+        ? null
+        : parsedPrice;
+
+    const flashRef = await db.collection("flashes").add({
+      artistId: uid,
+      fileName: baseName,
+      sheetId,
+      title: typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash",
+      price: normalizedPrice,
+      tags: Array.isArray(tags) ? tags.filter((tag) => typeof tag === "string") : [],
+      fullUrl,
+      thumbUrl,
+      webp90Url,
+      thumbPath,
+      previewPath,
+      fullPath,
+      isFromSheet: true,
+      isAvailable: true,
+      artistStripeConnectReady: true,
+      marketplaceVisible: true,
+      status: "ready",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      id: flashRef.id,
+      fullUrl,
+      thumbUrl,
+      webp90Url,
+    };
+  }
+);
+
 const cleanupProcessedEvents = onSchedule("every 24 hours", async () => {
   const firestore = admin.firestore();
   const cutoff = admin.firestore.Timestamp.fromDate(
@@ -1191,6 +1384,7 @@ module.exports = {
   syncBookingPaymentStatus,
   stripeWebhook,
   processArtistMedia,
+  cropFlashFromSheet,
   cleanupProcessedEvents,
 };
  
