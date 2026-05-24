@@ -10,6 +10,8 @@ interface Artist {
   displayName?: string;
   avatarUrl: string;
   studioName?: string;
+  shopName?: string;
+  shopAddress?: string;
   shopId?: string;
   specialties?: string[];
   bio?: string;
@@ -40,6 +42,18 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             if (!snap.exists()) return null;
 
             const data = snap.data();
+            let shopName = data.shopName || data.studioName || "";
+            let shopAddress = data.shopAddress || "";
+
+            if (data.shopId) {
+              const shopSnap = await getDoc(doc(db, "shops", data.shopId));
+              if (shopSnap.exists()) {
+                const shopData = shopSnap.data();
+                shopName = shopData.name || shopName;
+                shopAddress = shopData.address || shopAddress;
+              }
+            }
+
             const previewSnap = await getDocs(
               query(collection(db, "gallery"), where("artistId", "==", id))
             );
@@ -52,7 +66,9 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
               name: data.displayName || data.name || "Artist",
               displayName: data.displayName,
               avatarUrl: data.avatarUrl,
-              studioName: data.studioName,
+              studioName: shopName,
+              shopName,
+              shopAddress,
               shopId: data.shopId,
               specialties: Array.isArray(data.specialties) ? data.specialties : [],
               bio: data.bio,
@@ -143,7 +159,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
                 <h3 className="text-lg font-semibold text-white">{artist.name}</h3>
                 <p className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
                   <Store size={14} />
-                  {artist.studioName || "Studio not listed"}
+                  {artist.shopName || artist.studioName || "Studio not listed"}
                 </p>
                 <p className="mt-3 line-clamp-2 min-h-12 text-sm leading-6 text-neutral-300">
                   {artist.bio || "No artist bio yet."}

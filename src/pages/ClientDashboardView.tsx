@@ -39,7 +39,22 @@ const ClientDashboardView = () => {
 
       const ref = doc(db, "users", user.uid);
       const snap = await getDoc(ref);
-      if (snap.exists()) setClient({ id: user.uid, ...snap.data() });
+      const data = snap.exists() ? snap.data() : {};
+
+      setClient({
+        id: user.uid,
+        ...data,
+        name:
+          data.name ||
+          data.displayName ||
+          user.displayName ||
+          "Client",
+        avatarUrl:
+          data.avatarUrl ||
+          user.photoURL ||
+          "/default-avatar.png",
+        likedArtists: Array.isArray(data.likedArtists) ? data.likedArtists : [],
+      });
     });
 
     return () => unsubscribe();

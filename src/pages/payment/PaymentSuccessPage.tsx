@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import type { Booking } from "../../types/Booking";
 
@@ -18,6 +19,13 @@ const PaymentSuccessPage = () => {
       if (!bookingId) return;
 
       try {
+        try {
+          const syncPayment = httpsCallable(functions, "syncBookingPaymentStatus");
+          await syncPayment({ bookingId });
+        } catch (syncError) {
+          console.warn("Payment status sync failed:", syncError);
+        }
+
         const ref = doc(db, "bookings", bookingId);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
@@ -86,7 +94,7 @@ const PaymentSuccessPage = () => {
         </p>
 
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/dashboard")}
           className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded text-white"
         >
           Return to Dashboard
