@@ -156,6 +156,23 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     ? (tab as ArtistDashboardTab)
     : "profile";
 
+const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
+  [
+    "requests",
+    "profile",
+    "offers",
+    "bookings",
+    "pending",
+    "confirmed",
+    "paid",
+    "cancelled",
+    "calendar",
+    "flashes",
+    "gallery",
+    "events",
+    "payments",
+  ].includes(tab || "");
+
 const createProfileFormState = (
   artist: Partial<Artist> | null
 ): ArtistProfileFormState => ({
@@ -245,11 +262,11 @@ const ArtistDashboardView = () => {
   };
 
   useEffect(() => {
-    const requestedTab = getArtistDashboardTab(searchParams.get("tab"));
-    if (requestedTab !== activeTab) {
-      setActiveTab(requestedTab);
+    const tabParam = searchParams.get("tab");
+    if (isArtistDashboardTab(tabParam)) {
+      setActiveTab(tabParam);
     }
-  }, [activeTab, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

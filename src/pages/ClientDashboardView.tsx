@@ -26,6 +26,9 @@ const getClientDashboardView = (view: string | null): ClientView =>
     ? (view as ClientView)
     : "liked";
 
+const isClientDashboardView = (view: string | null): view is ClientView =>
+  ["liked", "requests", "offers", "bookings"].includes(view || "");
+
 const ClientDashboardView = () => {
   const [searchParams] = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,11 +45,11 @@ const ClientDashboardView = () => {
   });
 
   useEffect(() => {
-    const requestedView = getClientDashboardView(searchParams.get("tab"));
-    if (requestedView !== activeView) {
-      setActiveView(requestedView);
+    const viewParam = searchParams.get("tab");
+    if (isClientDashboardView(viewParam)) {
+      setActiveView(viewParam);
     }
-  }, [activeView, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
