@@ -617,6 +617,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         shopAddress: booking.shopAddress ?? '',
         selectedDate: formattedDateTime ?? '',
         platformFeeCents: String(applicationFeeAmount),
+        stripeConnectedAccountId: connectedAccountId,
       },
       success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
       cancel_url: data.cancelUrl || `${DEFAULT_APP_URL}/payment/${bookingId}`,
@@ -644,6 +645,90 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
   }
 });
  
+const syncBookingPaymentStatus = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const bookingId = req.data?.bookingId as string | undefined;
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A bookingId is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      throw new HttpsError("not-found", "Booking not found.");
+    }
+
+    const booking = bookingSnap.data() || {};
+    if (booking.clientId !== uid && booking.artistId !== uid) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the booking client or artist can sync this payment."
+      );
+    }
+
+    if (booking.status === "paid" || booking.status === "confirmed") {
+      return { paid: true, status: booking.status };
+    }
+
+    const sessionId = booking.stripeCheckoutSessionId as string | undefined;
+    if (!sessionId) {
+      return { paid: false, status: booking.status || "pending_payment" };
+    }
+
+    let connectedAccountId =
+      (booking.stripeConnectedAccountId as string | undefined) || undefined;
+
+    if (!connectedAccountId && booking.artistId) {
+      const artistSnap = await db.collection("users").doc(booking.artistId).get();
+      const artist = artistSnap.data() || {};
+      connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
+    }
+
+    if (!connectedAccountId) {
+      return { paid: false, status: booking.status || "pending_payment" };
+    }
+
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(
+      sessionId,
+      { expand: ["payment_intent"] },
+      { stripeAccount: connectedAccountId }
+    );
+
+    const paymentIntent =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
+
+    if (session.payment_status === "paid" || session.status === "complete") {
+      await bookingRef.update({
+        status: "paid",
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntent,
+        stripeConnectedAccountId: connectedAccountId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { paid: true, status: "paid" };
+    }
+
+    return {
+      paid: false,
+      status: booking.status || "pending_payment",
+      stripeSessionStatus: session.status,
+      stripePaymentStatus: session.payment_status,
+    };
+  }
+);
+
 
 const stripeWebhook = onRequest(
   {
@@ -891,6 +976,7 @@ module.exports = {
   getStripeConnectStatus,
   createStripeDashboardLoginLink,
   createCheckoutSession,
+  syncBookingPaymentStatus,
   stripeWebhook,
   processArtistMedia,
   cleanupProcessedEvents,

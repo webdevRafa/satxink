@@ -67,6 +67,9 @@ const RequestTattooModal: React.FC<Props> = ({
     () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
     [referenceImage]
   );
+  const clientName = client.name || "Client";
+  const clientAvatar = client.avatarUrl || "/default-avatar.png";
+  const artistName = artist.name || "Artist";
 
   useEffect(() => {
     return () => {
@@ -124,9 +127,10 @@ const RequestTattooModal: React.FC<Props> = ({
       setIsSubmitting(true);
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
+        artistName,
         clientId: client.id,
-        clientName: client.name,
-        clientAvatar: client.avatarUrl,
+        clientName,
+        clientAvatar,
         description,
         bodyPlacement,
         size,
@@ -218,7 +222,7 @@ const RequestTattooModal: React.FC<Props> = ({
                 Tattoo request
               </p>
               <h2 className="mt-1 text-xl! font-semibold! text-white">
-                Tell {artist.name} what you have in mind
+                Tell {artistName} what you have in mind
               </h2>
               {artist.studioName && (
                 <p className="mt-1 text-sm text-white/50">

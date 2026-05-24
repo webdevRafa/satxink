@@ -2,7 +2,8 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { CalendarDays, DollarSign, Eye, ImageIcon, MapPin, Store, X } from "lucide-react";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../firebase/firebaseConfig";
 import type { Booking } from "../types/Booking";
 
 interface Props {
@@ -24,7 +25,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
           id: bookingDoc.id,
           ...bookingDoc.data(),
         })) as Booking[];
-        setBookings(data);
+        setBookings(await reconcilePendingPayments(data));
       } finally {
         setLoading(false);
       }
@@ -261,6 +262,46 @@ const getBookingTime = (booking: Booking) => {
   if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
   if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
   return 0;
+};
+
+type SyncPaymentResponse = {
+  paid?: boolean;
+  status?: Booking["status"];
+};
+
+const reconcilePendingPayments = async (bookings: Booking[]) => {
+  const syncableBookings = bookings.filter(
+    (booking) =>
+      booking.paymentType === "internal" &&
+      booking.status === "pending_payment" &&
+      booking.stripeCheckoutSessionId
+  );
+
+  if (syncableBookings.length === 0) return bookings;
+
+  const syncPayment = httpsCallable(functions, "syncBookingPaymentStatus");
+  const syncedById = new Map<string, Booking>();
+
+  await Promise.all(
+    syncableBookings.map(async (booking) => {
+      try {
+        const response = await syncPayment({ bookingId: booking.id });
+        const data = response.data as SyncPaymentResponse;
+
+        if (data.status && data.status !== booking.status) {
+          syncedById.set(booking.id, {
+            ...booking,
+            status: data.status,
+          });
+        }
+      } catch (error) {
+        console.warn("Unable to sync booking payment status:", error);
+      }
+    })
+  );
+
+  if (syncedById.size === 0) return bookings;
+  return bookings.map((booking) => syncedById.get(booking.id) || booking);
 };
 
 export default ClientBookingsList;
