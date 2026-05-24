@@ -546,14 +546,30 @@ const ArtistDashboardView = () => {
   useEffect(() => {
     if (!uid) return;
 
+    const bookingCountParts = {
+      pending: 0,
+      confirmed: 0,
+      deposit_paid: 0,
+      paid: 0,
+      cancelled: 0,
+    };
+
     const updateCount = (key: string, value: number) => {
       setNavCounts((current) => {
         const next = { ...current, [key]: value };
+
+        if (key in bookingCountParts) {
+          bookingCountParts[key as keyof typeof bookingCountParts] = value;
+          next.confirmed =
+            bookingCountParts.confirmed + bookingCountParts.deposit_paid;
+        }
+
         next.bookings =
-          (key === "pending" ? value : next.pending || 0) +
-          (key === "confirmed" ? value : next.confirmed || 0) +
-          (key === "paid" ? value : next.paid || 0) +
-          (key === "cancelled" ? value : next.cancelled || 0);
+          bookingCountParts.pending +
+          bookingCountParts.confirmed +
+          bookingCountParts.deposit_paid +
+          bookingCountParts.paid +
+          bookingCountParts.cancelled;
         return next;
       });
     };
@@ -600,6 +616,19 @@ const ArtistDashboardView = () => {
         query(
           collection(db, "bookings"),
           where("artistId", "==", uid),
+          where("status", "==", "deposit_paid")
+        ),
+        (snap) => updateCount("deposit_paid", snap.size),
+        (error) =>
+          console.error(
+            "Artist deposit-paid booking count listener failed:",
+            error
+          )
+      ),
+      onSnapshot(
+        query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
           where("status", "==", "paid")
         ),
         (snap) => updateCount("paid", snap.size),
@@ -635,7 +664,14 @@ const ArtistDashboardView = () => {
     const statusToFetch = getFirestoreStatus(activeTab);
 
     const q =
-      statusToFetch === "paid"
+      activeTab === "confirmed"
+        ? query(
+            collection(db, "bookings"),
+            where("artistId", "==", uid),
+            where("status", "in", ["confirmed", "deposit_paid"]),
+            orderBy("createdAt", "desc")
+          )
+        : statusToFetch === "paid"
         ? query(
             collection(db, "bookings"),
             where("artistId", "==", uid),
@@ -1467,7 +1503,9 @@ const ArtistDashboardView = () => {
                       : "No date set";
 
                   const statusClass =
-                    booking.status === "paid" || booking.status === "confirmed"
+                    booking.status === "paid" ||
+                    booking.status === "confirmed" ||
+                    booking.status === "deposit_paid"
                       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
                       : booking.status === "pending_payment"
                       ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
@@ -1498,7 +1536,9 @@ const ArtistDashboardView = () => {
                         <span
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClass}`}
                         >
-                          {booking.status.replace("_", " ")}
+                          {booking.status === "deposit_paid"
+                            ? "Deposit paid"
+                            : booking.status.replace("_", " ")}
                         </span>
                       </div>
 

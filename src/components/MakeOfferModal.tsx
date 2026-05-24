@@ -97,8 +97,11 @@ const MakeOfferModal = ({
   );
   const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
   const paymentPreview = useMemo(
-    () => calculateClientPaymentBreakdown(Number(depositAmount || 0)),
-    [depositAmount]
+    () =>
+      calculateClientPaymentBreakdown(Number(depositAmount || 0), {
+        platformFeeBaseAmount: Number(offerPrice || depositAmount || 0),
+      }),
+    [depositAmount, offerPrice]
   );
 
   useEffect(() => {

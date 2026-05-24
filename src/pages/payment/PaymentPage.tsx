@@ -20,12 +20,15 @@ import {
   formatMoneyFromCents,
 } from "../../utils/paymentFees";
 
+type PaymentMode = "deposit" | "full" | "remaining";
+
 const PaymentPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("deposit");
 
   useEffect(() => {
     if (!bookingId) return;
@@ -53,10 +56,27 @@ const PaymentPage = () => {
     return () => unsubscribe();
   }, [bookingId, navigate]);
 
+  useEffect(() => {
+    if (!booking) return;
+    const price = Number(booking.price || 0);
+    const deposit = Number(booking.depositAmount || price);
+    setPaymentMode(
+      booking.status === "deposit_paid"
+        ? "remaining"
+        : deposit >= price
+        ? "full"
+        : "deposit"
+    );
+  }, [booking?.id, booking?.status]);
+
   const handleCheckout = async () => {
     if (!booking) return;
 
-    if (booking.status === "paid" || booking.status === "confirmed") {
+    if (
+      booking.status === "paid" ||
+      booking.status === "confirmed" ||
+      booking.status === "cancelled"
+    ) {
       navigate("/dashboard");
       return;
     }
@@ -68,6 +88,7 @@ const PaymentPage = () => {
       const createSession = httpsCallable(functions, "createCheckoutSession");
       const response = await createSession({
         bookingId: booking.id,
+        paymentMode,
         successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
         cancelUrl: `${window.location.origin}/payment/${booking.id}`,
       });
@@ -105,21 +126,47 @@ const PaymentPage = () => {
 
   const isInternalPayment = booking.paymentType === "internal";
   const isPaid = booking.status === "paid" || booking.status === "confirmed";
-  const remainingBalance = Math.max(
-    Number(booking.price || 0) - Number(booking.depositAmount || 0),
-    0
-  );
-  const fallbackBreakdown = calculateClientPaymentBreakdown(
-    Number(booking.depositAmount || booking.price || 0)
-  );
-  const artistReceivesCents =
-    booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
-  const platformFeeCents =
-    booking.platformFeeCents ?? fallbackBreakdown.platformFeeCents;
-  const stripeFeeCents =
-    booking.estimatedStripeFeeCents ?? fallbackBreakdown.stripeFeeCents;
-  const clientTotalCents =
-    booking.clientPaymentAmountCents ?? fallbackBreakdown.clientTotalCents;
+  const price = Number(booking.price || 0);
+  const deposit = Math.min(Number(booking.depositAmount || price), price);
+  const alreadyPaid = Number(booking.totalArtistPaidAmount || 0);
+  const artistAmountDue =
+    paymentMode === "full"
+      ? price
+      : paymentMode === "remaining"
+      ? Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
+      : deposit;
+  const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
+    platformFeeBaseAmount: price,
+    platformFeeCentsOverride: paymentMode === "remaining" ? 0 : undefined,
+  });
+  const remainingAfterPayment =
+    paymentMode === "deposit" ? Math.max(price - deposit, 0) : 0;
+  const paymentOptions =
+    booking.status === "deposit_paid"
+      ? []
+      : [
+          ...(deposit < price
+            ? [
+                {
+                  mode: "deposit" as PaymentMode,
+                  title: "Pay deposit",
+                  description:
+                    "Confirm the appointment now and pay the artist balance later.",
+                  breakdown: calculateClientPaymentBreakdown(deposit, {
+                    platformFeeBaseAmount: price,
+                  }),
+                },
+              ]
+            : []),
+          {
+            mode: "full" as PaymentMode,
+            title: "Pay in full",
+            description: "Take care of the full artist quote in one checkout.",
+            breakdown: calculateClientPaymentBreakdown(price, {
+              platformFeeBaseAmount: price,
+            }),
+          },
+        ];
 
   return (
     <PaymentShell>
@@ -162,16 +209,67 @@ const PaymentPage = () => {
             <StatusBadge status={booking.status} />
           </div>
 
+          {isInternalPayment && !isPaid && booking.status !== "cancelled" && (
+            <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Payment choice
+                </p>
+                <h2 className="mt-1 text-lg! font-semibold text-white">
+                  {booking.status === "deposit_paid"
+                    ? "Pay remaining balance"
+                    : "Choose how much to pay today"}
+                </h2>
+                <p className="mt-1 text-sm text-neutral-400">
+                  {booking.status === "deposit_paid"
+                    ? "Your appointment is confirmed. This payment clears the remaining artist balance."
+                    : "Your artist receives the quoted amount for the option you choose. Service and card fees are shown below."}
+                </p>
+              </div>
+
+              {paymentOptions.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {paymentOptions.map((option) => (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      onClick={() => setPaymentMode(option.mode)}
+                      className={`rounded-lg border p-4! text-left transition ${
+                        paymentMode === option.mode
+                          ? "border-emerald-300/45 bg-emerald-300/10"
+                          : "border-white/10 bg-black/25 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-white">
+                        {option.title}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                        {option.description}
+                      </span>
+                      <span className="mt-3 block text-lg font-semibold text-white">
+                        {formatMoneyFromCents(option.breakdown.clientTotalCents)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                  <p className="text-sm text-emerald-50/85">
+                    Remaining artist balance:{" "}
+                    <span className="font-semibold text-white">
+                      {formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <DetailTile
               icon={<DollarSign size={17} />}
-              label="Artist receives"
-              value={formatMoneyFromCents(artistReceivesCents)}
-            />
-            <DetailTile
-              icon={<DollarSign size={17} />}
-              label="Client pays today"
-              value={formatMoneyFromCents(clientTotalCents)}
+              label="Total due today"
+              value={formatMoneyFromCents(paymentBreakdown.clientTotalCents)}
             />
             <DetailTile
               icon={<CalendarDays size={17} />}
@@ -204,34 +302,48 @@ const PaymentPage = () => {
             </div>
             <div className="space-y-2 text-sm">
               <BreakdownRow
-                label="Deposit to artist"
-                value={formatMoneyFromCents(artistReceivesCents)}
+                label={
+                  paymentMode === "full"
+                    ? "Full artist amount"
+                    : paymentMode === "remaining"
+                    ? "Remaining artist balance"
+                    : "Deposit to artist"
+                }
+                value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
               />
               <BreakdownRow
                 label="SATX Ink platform fee"
-                value={formatMoneyFromCents(platformFeeCents)}
+                value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
               />
               <BreakdownRow
                 label="Estimated Stripe processing"
-                value={formatMoneyFromCents(stripeFeeCents)}
+                value={formatMoneyFromCents(paymentBreakdown.stripeFeeCents)}
               />
               <div className="border-t border-white/10 pt-2">
                 <BreakdownRow
                   label="Total due today"
-                  value={formatMoneyFromCents(clientTotalCents)}
+                  value={formatMoneyFromCents(paymentBreakdown.clientTotalCents)}
                   strong
                 />
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-neutral-400">
-              This non-refundable deposit secures your appointment. The
-              remaining artist balance is{" "}
-              <span className="font-semibold text-white">
-                {formatMoneyFromCents(Math.round(remainingBalance * 100))}
-              </span>
-              {booking.finalPaymentTiming === "before"
-                ? " and may be collected before your appointment."
-                : " and may be collected after the session with your artist."}
+              {paymentMode === "full" &&
+                "This payment covers the full artist quote and secures your appointment."}
+              {paymentMode === "remaining" &&
+                "This payment clears the remaining artist balance on your confirmed booking."}
+              {paymentMode === "deposit" && (
+                <>
+                  This non-refundable deposit secures your appointment. The
+                  remaining artist balance is{" "}
+                  <span className="font-semibold text-white">
+                    {formatMoneyFromCents(Math.round(remainingAfterPayment * 100))}
+                  </span>
+                  {booking.finalPaymentTiming === "before"
+                    ? " and may be collected before your appointment."
+                    : " and may be collected after the session with your artist."}
+                </>
+              )}
             </p>
           </div>
 
@@ -260,7 +372,11 @@ const PaymentPage = () => {
                 ? "Return to dashboard"
                 : isStartingCheckout
                 ? "Redirecting..."
-                : "Proceed to secure checkout"}
+                : booking.status === "deposit_paid"
+                ? "Pay remaining balance"
+                : paymentMode === "full"
+                ? "Pay in full"
+                : "Pay deposit"}
               {isPaid ? <CheckCircle2 size={16} /> : <CreditCard size={16} />}
             </button>
           )}
@@ -323,15 +439,16 @@ const BreakdownRow = ({
 
 const StatusBadge = ({ status }: { status: string }) => {
   const className =
-    status === "paid" || status === "confirmed"
+    status === "paid" || status === "confirmed" || status === "deposit_paid"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
       : status === "cancelled"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
+  const label = status === "deposit_paid" ? "deposit paid" : status.replace("_", " ");
 
   return (
     <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${className}`}>
-      {status.replace("_", " ")}
+      {label}
     </span>
   );
 };

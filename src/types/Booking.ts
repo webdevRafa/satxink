@@ -23,7 +23,18 @@ export type Booking = {
     estimatedStripeFeeCents?: number;
     artistPayoutAmount?: number;
     artistPayoutCents?: number;
+    paymentMode?: "deposit" | "full" | "remaining";
+    checkoutPaymentMode?: "deposit" | "full" | "remaining";
+    depositPaidAmount?: number;
+    depositPaidAmountCents?: number;
+    remainingPaidAmount?: number;
+    remainingPaidAmountCents?: number;
+    totalArtistPaidAmount?: number;
+    totalArtistPaidCents?: number;
+    remainingBalanceAmount?: number;
+    remainingBalanceCents?: number;
     stripeCheckoutSessionId?: string;
+    lastCompletedCheckoutSessionId?: string;
     stripePaymentIntentId?: string;
     stripeConnectedAccountId?: string;
   
@@ -47,8 +58,10 @@ export type Booking = {
   
     sampleImageUrl?: string;
   
-    status: "pending_payment" | "paid" | "confirmed" | "cancelled";
+    status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";
     createdAt: Timestamp; // or FirebaseFirestore.Timestamp if you're using strict typing
     paidAt?: Timestamp; 
+    depositPaidAt?: Timestamp;
+    remainingPaidAt?: Timestamp;
   };
   

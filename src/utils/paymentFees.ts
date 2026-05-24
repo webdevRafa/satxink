@@ -11,6 +11,11 @@ export type PaymentFeeBreakdown = {
   clientTotalCents: number;
 };
 
+export type PaymentFeeOptions = {
+  platformFeeBaseAmount?: number;
+  platformFeeCentsOverride?: number;
+};
+
 export const dollarsToCents = (amount: number) => Math.round(amount * 100);
 
 export const centsToDollars = (amountCents: number) => amountCents / 100;
@@ -35,7 +40,8 @@ export const estimateStripeFeeCents = (clientTotalCents: number) =>
   Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
 
 export const calculateClientPaymentBreakdown = (
-  artistAmount: number
+  artistAmount: number,
+  options: PaymentFeeOptions = {}
 ): PaymentFeeBreakdown => {
   const artistAmountCents = dollarsToCents(artistAmount);
 
@@ -48,7 +54,12 @@ export const calculateClientPaymentBreakdown = (
     };
   }
 
-  const platformFeeCents = calculatePlatformFeeCents(artistAmountCents);
+  const platformFeeCents =
+    typeof options.platformFeeCentsOverride === "number"
+      ? Math.max(Math.round(options.platformFeeCentsOverride), 0)
+      : calculatePlatformFeeCents(
+          dollarsToCents(options.platformFeeBaseAmount ?? artistAmount)
+        );
   let clientTotalCents = Math.ceil(
     (artistAmountCents + platformFeeCents + STRIPE_FIXED_FEE_CENTS) /
       (1 - STRIPE_PERCENT_FEE)

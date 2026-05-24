@@ -54,7 +54,9 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
     [bookings]
   );
   const upcomingCount = bookings.filter((booking) => booking.status !== "cancelled").length;
-  const paidCount = bookings.filter((booking) => booking.status === "paid").length;
+  const confirmedCount = bookings.filter((booking) =>
+    ["deposit_paid", "paid", "confirmed"].includes(booking.status)
+  ).length;
 
   if (loading) return <SectionSkeleton />;
 
@@ -69,7 +71,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Total" value={bookings.length} />
           <MetricCard label="Active" value={upcomingCount} />
-          <MetricCard label="Paid" value={paidCount} />
+          <MetricCard label="Confirmed" value={confirmedCount} />
         </div>
       </div>
 
@@ -110,8 +112,13 @@ const BookingCard = ({
   onOpen: () => void;
   onPay: () => void;
 }) => {
-  const isPendingPayment =
-    booking.status === "pending_payment" && booking.paymentType === "internal";
+  const remainingBalance = getRemainingBalance(booking);
+  const isPayable =
+    booking.paymentType === "internal" &&
+    (booking.status === "pending_payment" ||
+      (booking.status === "deposit_paid" && remainingBalance > 0));
+  const payLabel =
+    booking.status === "deposit_paid" ? "Pay balance" : "Pay deposit";
 
   return (
   <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
@@ -146,7 +153,7 @@ const BookingCard = ({
       </div>
     </button>
     <div className="border-t border-white/10 p-4">
-      {isPendingPayment ? (
+      {isPayable ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
             <Eye size={16} />
@@ -154,7 +161,7 @@ const BookingCard = ({
           </button>
           <button type="button" onClick={onPay} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85">
             <CreditCard size={16} />
-            Pay
+            {payLabel}
           </button>
         </div>
       ) : (
@@ -231,15 +238,19 @@ const BookingDetailsDialog = ({
                           {booking.shopAddress}
                         </a>
                       )}
-                      {booking.status === "pending_payment" &&
-                        booking.paymentType === "internal" && (
+                      {booking.paymentType === "internal" &&
+                        (booking.status === "pending_payment" ||
+                          (booking.status === "deposit_paid" &&
+                            getRemainingBalance(booking) > 0)) && (
                           <button
                             type="button"
                             onClick={() => onPay(booking.id)}
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                           >
                             <CreditCard size={16} />
-                            Continue to payment
+                            {booking.status === "deposit_paid"
+                              ? "Pay remaining balance"
+                              : "Continue to payment"}
                           </button>
                         )}
                     </div>
@@ -270,8 +281,9 @@ const MetricCard = ({ label, value }: { label: string; value: string | number })
 );
 
 const StatusBadge = ({ status }: { status: string }) => {
-  const className = status === "paid" || status === "confirmed" ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : status === "cancelled" ? "border-red-300/25 bg-red-300/10 text-red-100" : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
+  const className = status === "paid" || status === "confirmed" || status === "deposit_paid" ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : status === "cancelled" ? "border-red-300/25 bg-red-300/10 text-red-100" : "border-amber-300/20 bg-amber-300/10 text-amber-100";
+  const label = status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
+  return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{label}</span>;
 };
 
 const InfoPill = ({ icon, label }: { icon: ReactNode; label?: string | number }) => (
@@ -326,6 +338,17 @@ const getBookingTime = (booking: Booking) => {
   return 0;
 };
 
+const getRemainingBalance = (booking: Booking) => {
+  if (typeof booking.remainingBalanceAmount === "number") {
+    return Math.max(booking.remainingBalanceAmount, 0);
+  }
+
+  return Math.max(
+    Number(booking.price || 0) - Number(booking.totalArtistPaidAmount || booking.depositAmount || 0),
+    0
+  );
+};
+
 type SyncPaymentResponse = {
   paid?: boolean;
   status?: Booking["status"];
@@ -335,7 +358,9 @@ const reconcilePendingPayments = async (bookings: Booking[]) => {
   const syncableBookings = bookings.filter(
     (booking) =>
       booking.paymentType === "internal" &&
-      booking.status === "pending_payment" &&
+      (booking.status === "pending_payment" ||
+        (booking.status === "deposit_paid" &&
+          booking.checkoutPaymentMode === "remaining")) &&
       booking.stripeCheckoutSessionId
   );
 
