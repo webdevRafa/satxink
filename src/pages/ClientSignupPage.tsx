@@ -24,7 +24,7 @@ const clientBenefits = [
   },
   {
     title: "Book when it makes sense",
-    body: "Request custom work or claim flash. Payments happen later when you accept an offer.",
+    body: "Request custom work, claim flash, and keep your tattoo ideas organized as you find the right artist.",
     icon: MessageSquareText,
   },
 ];
@@ -84,9 +84,6 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
               <div>
                 <p className="text-sm font-semibold text-white">
                   Start with Google
-                </p>
-                <p className="mt-1 text-sm text-neutral-400">
-                  No Stripe setup. No payment step. Just your client profile.
                 </p>
               </div>
               <GoogleSignupButton role="client" />

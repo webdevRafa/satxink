@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Brush, Search, Sparkles, UserRound } from "lucide-react";
+import { ArrowRight, Brush, Sparkles, UserRound } from "lucide-react";
 
 import logo from "../assets/satx-short-sep.svg";
 import ClientSignupPage from "./ClientSignupPage";
@@ -15,15 +15,15 @@ const roleCards = [
     body: "Find artists, save flash, and build a taste profile that helps SATX Ink show you better matches.",
     eyebrow: "Browse and book",
     icon: UserRound,
-    highlights: ["Personalized discovery", "Pay later per booking"],
+    highlights: ["Local events", "Community art"],
   },
   {
     role: "artist" as const,
     title: "I am an Artist",
-    body: "Create your public profile, connect a shop, set payment preferences, and showcase your work.",
+    body: "Get discovered by local clients, showcase your work, and make it easier for people to connect with you.",
     eyebrow: "Get listed",
     icon: Brush,
-    highlights: ["Portfolio-ready profile", "Client request tools"],
+    highlights: ["Get discovered", "Connect with clients"],
   },
 ];
 
@@ -130,17 +130,6 @@ export default function SignupSelection() {
               })}
             </div>
 
-            <div className="mx-auto mt-7 flex max-w-xl items-center justify-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-neutral-300 backdrop-blur">
-              <Search
-                size={16}
-                className="shrink-0 text-[var(--color-primary)]"
-                aria-hidden="true"
-              />
-              <span>
-                Client signup now collects taste data for future artist and
-                flash recommendations.
-              </span>
-            </div>
           </section>
         )}
 

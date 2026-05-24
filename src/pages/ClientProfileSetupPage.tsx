@@ -115,10 +115,10 @@ const timeframeOptions = [
 const stepHeadings = ["Basics", "Style", "Interests", "Plan"];
 
 const stepDescriptions = [
-  "Add the profile details artists will see when you send requests.",
-  "Choose the tattoo styles that should shape your recommendations.",
-  "Pick interests and tags that can connect you with relevant artist work.",
-  "Tell us what kind of tattoo journey you are starting.",
+  "Choose the name artists and the community will see.",
+  "Optionally choose tattoo styles that can shape your recommendations.",
+  "Optionally pick interests and tags that can connect you with relevant artist work.",
+  "Optionally tell us what kind of tattoo journey you are starting.",
 ];
 
 const stepIcons = [UserRound, Sparkles, Heart, Compass];
@@ -130,7 +130,7 @@ const ClientProfileSetupPage = () => {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [displayName, setDisplayName] = useState(user?.displayName || "");
-  const [location, setLocation] = useState("San Antonio, TX");
+  const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [preferredStyles, setPreferredStyles] = useState<string[]>([]);
   const [selectedInterestCategories, setSelectedInterestCategories] = useState<
@@ -151,17 +151,15 @@ const ClientProfileSetupPage = () => {
   );
 
   const stepCompletion = [
-    Boolean(displayName.trim() && location.trim()),
+    Boolean(displayName.trim()),
     preferredStyles.length > 0,
-    selectedInterestTags.length >= 3,
+    selectedInterestTags.length > 0,
     selectedGoals.length > 0,
   ];
 
-  const allStepsComplete = stepCompletion.every(Boolean);
-  const progress = Math.round(
-    (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
-  );
-  const canContinue = stepCompletion[currentStep];
+  const hasRequiredBasics = Boolean(displayName.trim());
+  const progress = hasRequiredBasics ? 100 : 0;
+  const canContinue = currentStep === 0 ? hasRequiredBasics : true;
   const ActiveStepIcon = stepIcons[currentStep];
 
   const toggleValue = (
@@ -182,28 +180,11 @@ const ClientProfileSetupPage = () => {
   };
 
   const getStepWarning = (step: number) => {
-    if (step === 0) return "Add your display name and location before continuing.";
-    if (step === 1) return "Choose at least one preferred style.";
-    if (step === 2) return "Pick at least three interest tags.";
-    return "Choose at least one tattoo plan.";
+    if (step === 0) return "Add your display name before continuing.";
+    return "This step is optional. You can finish now or add more detail.";
   };
 
   const handleStepCardClick = (targetStep: number) => {
-    if (targetStep <= currentStep) {
-      setCurrentStep(targetStep);
-      return;
-    }
-
-    const firstIncompleteStep = stepCompletion.findIndex(
-      (isComplete, index) => index < targetStep && !isComplete
-    );
-
-    if (firstIncompleteStep !== -1) {
-      setCurrentStep(firstIncompleteStep);
-      toast.error(getStepWarning(firstIncompleteStep));
-      return;
-    }
-
     setCurrentStep(targetStep);
   };
 
@@ -219,10 +200,9 @@ const ClientProfileSetupPage = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const firstIncompleteStep = stepCompletion.findIndex((isComplete) => !isComplete);
-    if (firstIncompleteStep !== -1) {
-      setCurrentStep(firstIncompleteStep);
-      toast.error(getStepWarning(firstIncompleteStep));
+    if (!hasRequiredBasics) {
+      setCurrentStep(0);
+      toast.error(getStepWarning(0));
       return;
     }
 
@@ -314,7 +294,7 @@ const ClientProfileSetupPage = () => {
 
           <div className="min-w-56">
             <div className="flex items-center justify-between text-xs text-neutral-400">
-              <span>Setup progress</span>
+              <span>Profile ready</span>
               <span>{progress}%</span>
             </div>
             <div className="mt-2 h-2 rounded-full bg-white/10">
@@ -335,6 +315,7 @@ const ClientProfileSetupPage = () => {
                 const StepIcon = stepIcons[index];
                 const isActive = currentStep === index;
                 const isComplete = stepCompletion[index];
+                const isRequired = index === 0;
 
                 return (
                   <button
@@ -362,7 +343,7 @@ const ClientProfileSetupPage = () => {
                         isComplete ? "text-emerald-200" : "text-neutral-500"
                       }`}
                     >
-                      {isComplete ? "Complete" : "Required"}
+                      {isComplete ? "Complete" : isRequired ? "Required" : "Optional"}
                     </span>
                   </button>
                 );
@@ -400,7 +381,7 @@ const ClientProfileSetupPage = () => {
                     <label className="space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                         <MapPin size={15} aria-hidden="true" />
-                        Location
+                        Location (optional)
                       </span>
                       <input
                         type="text"
@@ -414,7 +395,7 @@ const ClientProfileSetupPage = () => {
 
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-neutral-200">
-                      What are you looking for?
+                      What are you looking for? (optional)
                     </span>
                     <textarea
                       value={bio}
@@ -488,7 +469,7 @@ const ClientProfileSetupPage = () => {
                         Interest tags
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {selectedInterestTags.length}/3 minimum
+                        {selectedInterestTags.length} selected
                       </p>
                     </div>
 
@@ -604,26 +585,37 @@ const ClientProfileSetupPage = () => {
                 Back
               </button>
 
-              {currentStep < stepHeadings.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  aria-disabled={!canContinue}
-                  className={`inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 ${
-                    !canContinue ? "opacity-60" : ""
-                  }`}
-                >
-                  Next
-                  <ArrowRight
-                    size={16}
-                    className="text-[#0b0b0b]!"
-                    aria-hidden="true"
-                  />
-                </button>
-              ) : (
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {currentStep < stepHeadings.length - 1 && (
+                  <button
+                    type="submit"
+                    disabled={!hasRequiredBasics || submitting}
+                    className="inline-flex items-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {submitting ? "Saving..." : "Finish setup"}
+                  </button>
+                )}
+
+                {currentStep < stepHeadings.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    aria-disabled={!canContinue}
+                    className={`inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 ${
+                      !canContinue ? "opacity-60" : ""
+                    }`}
+                  >
+                    Next
+                    <ArrowRight
+                      size={16}
+                      className="text-[#0b0b0b]!"
+                      aria-hidden="true"
+                    />
+                  </button>
+                ) : (
                 <button
                   type="submit"
-                  disabled={!allStepsComplete || submitting}
+                  disabled={!hasRequiredBasics || submitting}
                   className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? (
@@ -641,7 +633,8 @@ const ClientProfileSetupPage = () => {
                   )}
                   {submitting ? "Saving profile..." : "Finish setup"}
                 </button>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
