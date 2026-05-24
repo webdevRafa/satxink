@@ -1942,21 +1942,20 @@ const SessionsTable = ({
   onBalancePaid: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(220px,1.25fr) minmax(100px,.6fr) minmax(170px,.95fr) minmax(95px,.5fr) minmax(95px,.5fr) minmax(165px,.9fr) minmax(190px,1fr) minmax(280px,1.3fr)";
+    "minmax(180px,1.35fr) 72px minmax(130px,.85fr) minmax(112px,.65fr) minmax(128px,.75fr) minmax(150px,1fr) minmax(205px,1.15fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="overflow-x-auto request-modal-scrollbar">
-        <div className="min-w-[1220px]">
+      <div className="request-modal-scrollbar">
+        <div className="w-full">
           <div
-            className="grid items-center border-b border-white/10 bg-white/[0.035] px-4 py-3 text-xs uppercase tracking-[0.14em] text-neutral-500"
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
             <span>Client</span>
             <span>Created</span>
             <span>Status</span>
-            <span>Price</span>
-            <span>Deposit</span>
+            <span>Money</span>
             <span>Scheduled</span>
             <span>Location</span>
             <span className="text-right">Actions</span>
@@ -1979,10 +1978,10 @@ const SessionsTable = ({
               return (
                 <div
                   key={booking.id}
-                  className="grid items-center gap-0 px-4 py-4 transition hover:bg-white/[0.025]"
+                  className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
                   style={{ gridTemplateColumns: columns }}
                 >
-                  <div className="flex min-w-0 items-center gap-3 pr-4">
+                  <div className="flex min-w-0 items-center gap-3 pr-3">
                     <img
                       src={clientAvatar}
                       alt={clientName}
@@ -1998,28 +1997,29 @@ const SessionsTable = ({
                     </div>
                   </div>
 
-                  <span className="pr-4 text-sm text-neutral-300">
+                  <span className="pr-3 text-sm text-neutral-300">
                     {formatDashboardDate(booking.createdAt)}
                   </span>
 
-                  <div className="flex flex-col items-start gap-1.5 pr-4">
+                  <div className="flex min-w-0 flex-col items-start gap-1.5 pr-3">
                     <SessionStatusBadge status={sessionStatus} />
                     <RemainingPaymentBadge status={remainingPaymentStatus} />
                   </div>
 
-                  <span className="pr-4 text-sm font-semibold text-white">
-                    {formatDashboardMoney(booking.price)}
-                  </span>
+                  <div className="pr-3">
+                    <p className="text-sm font-semibold text-white">
+                      {formatDashboardMoney(booking.price)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-500">
+                      {formatDashboardMoney(booking.depositAmount)} deposit
+                    </p>
+                  </div>
 
-                  <span className="pr-4 text-sm text-neutral-300">
-                    {formatDashboardMoney(booking.depositAmount)}
-                  </span>
-
-                  <span className="pr-4 text-sm text-neutral-300">
+                  <span className="pr-3 text-sm leading-5 text-neutral-300">
                     {formatBookingAppointment(booking.selectedDate)}
                   </span>
 
-                  <div className="min-w-0 pr-4">
+                  <div className="min-w-0 pr-3">
                     <p className="truncate text-sm font-medium text-white">
                       {booking.shopName || "Private Studio"}
                     </p>
@@ -2028,33 +2028,33 @@ const SessionsTable = ({
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <button
                       type="button"
                       disabled={!canComplete}
                       onClick={() => onComplete(booking)}
-                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <Check size={14} />
-                      {sessionStatus === "completed" ? "Completed" : "Complete"}
+                      {sessionStatus === "completed" ? "Done" : "Complete"}
                     </button>
                     <button
                       type="button"
                       disabled={!canMarkBalancePaid}
                       onClick={() => onBalancePaid(booking)}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <DollarSign size={14} />
                       {remainingPaymentStatus === "artist_confirmed"
-                        ? "Marked paid"
+                        ? "Marked"
                         : remainingPaymentStatus === "confirmed"
                         ? "Paid"
-                        : "Balance paid"}
+                        : "Balance"}
                     </button>
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
-                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex min-w-20 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                     >
                       <Eye size={14} />
                       Record
