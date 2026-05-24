@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
@@ -147,6 +147,15 @@ const ArtistDashboardView = () => {
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [navCounts, setNavCounts] = useState<Record<string, number>>({
+    requests: 0,
+    offers: 0,
+    bookings: 0,
+    pending: 0,
+    confirmed: 0,
+    paid: 0,
+    cancelled: 0,
+  });
   const [activeTab, setActiveTab] = useState<
     | "requests"
     | "profile"
@@ -497,20 +506,96 @@ const ArtistDashboardView = () => {
     }
   };
 
-  // Fetch booking requests
-  useEffect(() => {
-    const fetchRequests = async () => {
-      if (!uid) return;
-      const q = query(
-        collection(db, "bookingRequests"),
-        where("artistId", "==", uid),
-        where("status", "==", "pending")
-      );
-      const snapshot = await getDocs(q);
-      setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-    };
-    fetchRequests();
+  const fetchPendingRequests = useCallback(async () => {
+    if (!uid) return;
+    const q = query(
+      collection(db, "bookingRequests"),
+      where("artistId", "==", uid),
+      where("status", "==", "pending")
+    );
+    const snapshot = await getDocs(q);
+    setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
   }, [uid]);
+
+  useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
+
+  useEffect(() => {
+    if (!uid) return;
+
+    let ignore = false;
+
+    const fetchDashboardCounts = async () => {
+      const [
+        requestsSnap,
+        offersSnap,
+        pendingSnap,
+        confirmedSnap,
+        paidSnap,
+        cancelledSnap,
+      ] = await Promise.all([
+        getDocs(
+          query(
+            collection(db, "bookingRequests"),
+            where("artistId", "==", uid),
+            where("status", "==", "pending")
+          )
+        ),
+        getDocs(query(collection(db, "offers"), where("artistId", "==", uid))),
+        getDocs(
+          query(
+            collection(db, "bookings"),
+            where("artistId", "==", uid),
+            where("status", "==", "pending_payment")
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, "bookings"),
+            where("artistId", "==", uid),
+            where("status", "==", "confirmed")
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, "bookings"),
+            where("artistId", "==", uid),
+            where("status", "==", "paid")
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, "bookings"),
+            where("artistId", "==", uid),
+            where("status", "==", "cancelled")
+          )
+        ),
+      ]);
+
+      if (!ignore) {
+        const totalBookings =
+          pendingSnap.size + confirmedSnap.size + paidSnap.size + cancelledSnap.size;
+        setNavCounts({
+          requests: requestsSnap.size,
+          offers: offersSnap.size,
+          bookings: totalBookings,
+          pending: pendingSnap.size,
+          confirmed: confirmedSnap.size,
+          paid: paidSnap.size,
+          cancelled: cancelledSnap.size,
+        });
+      }
+    };
+
+    fetchDashboardCounts().catch((error) => {
+      console.error("Failed to fetch artist dashboard counts:", error);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [uid, bookingRequests.length]);
 
   // Fetch bookings based on the current tab
   useEffect(() => {
@@ -590,6 +675,7 @@ const ArtistDashboardView = () => {
 
       <SidebarNavigation
         activeTab={activeTab}
+        counts={navCounts}
         onTabChange={(tab) => setActiveTab(tab)}
       />
 
@@ -1195,6 +1281,15 @@ const ArtistDashboardView = () => {
         {activeTab === "requests" && (
           <BookingRequestsList
             bookingRequests={bookingRequests}
+            onRequestResolved={(requestId) => {
+              setBookingRequests((current) =>
+                current.filter((request) => request.id !== requestId)
+              );
+              setNavCounts((current) => ({
+                ...current,
+                requests: Math.max((current.requests || 0) - 1, 0),
+              }));
+            }}
             onMakeOffer={(booking) => {
               setSelectedBooking(booking);
               setIsModalOpen(true);
@@ -1309,6 +1404,16 @@ const ArtistDashboardView = () => {
           setDateOptions={setDateOptions}
           artist={artist}
           uid={uid!}
+          onOfferSent={(requestId) => {
+            setBookingRequests((current) =>
+              current.filter((request) => request.id !== requestId)
+            );
+            setNavCounts((current) => ({
+              ...current,
+              requests: Math.max((current.requests || 0) - 1, 0),
+              offers: (current.offers || 0) + 1,
+            }));
+          }}
         />
       </main>
     </div>

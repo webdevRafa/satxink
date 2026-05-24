@@ -33,6 +33,7 @@ interface Props {
     avatarUrl?: string;
     studioName?: string;
   };
+  onRequestSent?: () => void;
 }
 
 const availableDayOptions = [
@@ -50,6 +51,7 @@ const RequestTattooModal: React.FC<Props> = ({
   onClose,
   client,
   artist,
+  onRequestSent,
 }) => {
   const [step, setStep] = useState(1);
   const [description, setDescription] = useState("");
@@ -143,6 +145,7 @@ const RequestTattooModal: React.FC<Props> = ({
       });
 
       toast.success("Request sent!");
+      onRequestSent?.();
       reset();
       onClose();
 

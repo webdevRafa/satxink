@@ -7,7 +7,7 @@ import ClientOffersList from "../components/ClientOffersList";
 import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
 import { db, auth } from "../firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import ClientRequestsList from "../components/ClientRequestsList";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
 
@@ -25,6 +25,12 @@ const ClientDashboardView = () => {
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
   const [activeView, setActiveView] = useState<ClientView>("liked");
   const [client, setClient] = useState<any>(null);
+  const [navCounts, setNavCounts] = useState<Record<ClientView, number>>({
+    liked: 0,
+    requests: 0,
+    offers: 0,
+    bookings: 0,
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -60,9 +66,56 @@ const ClientDashboardView = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!client?.id) return;
+
+    let ignore = false;
+
+    const fetchDashboardCounts = async () => {
+      const [requestsSnap, offersSnap, bookingsSnap] = await Promise.all([
+        getDocs(
+          query(
+            collection(db, "bookingRequests"),
+            where("clientId", "==", client.id),
+            where("status", "==", "pending")
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, "offers"),
+            where("clientId", "==", client.id),
+            where("status", "==", "pending")
+          )
+        ),
+        getDocs(query(collection(db, "bookings"), where("clientId", "==", client.id))),
+      ]);
+
+      if (!ignore) {
+        setNavCounts({
+          liked: Array.isArray(client.likedArtists) ? client.likedArtists.length : 0,
+          requests: requestsSnap.size,
+          offers: offersSnap.size,
+          bookings: bookingsSnap.size,
+        });
+      }
+    };
+
+    fetchDashboardCounts().catch((error) => {
+      console.error("Failed to fetch client dashboard counts:", error);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [client?.id, client?.likedArtists]);
+
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] pt-20 text-white md:flex-row">
-      <ClientSidebarNavigation activeView={activeView} onViewChange={setActiveView} />
+      <ClientSidebarNavigation
+        activeView={activeView}
+        counts={navCounts}
+        onViewChange={setActiveView}
+      />
 
       <main className="flex-1 overflow-y-auto p-6">
         {client && (
@@ -141,7 +194,21 @@ const ClientDashboardView = () => {
               />
             )}
             {activeView === "requests" && <ClientRequestsList clientId={client.id} />}
-            {activeView === "offers" && <ClientOffersList clientId={client.id} />}
+            {activeView === "offers" && (
+              <ClientOffersList
+                clientId={client.id}
+                onOfferResolved={(outcome) => {
+                  setNavCounts((current) => ({
+                    ...current,
+                    offers: Math.max(current.offers - 1, 0),
+                    bookings:
+                      outcome === "accepted"
+                        ? current.bookings + 1
+                        : current.bookings,
+                  }));
+                }}
+              />
+            )}
             {activeView === "bookings" && <ClientBookingsList clientId={client.id} />}
           </>
         )}
@@ -156,6 +223,12 @@ const ClientDashboardView = () => {
           }}
           client={client}
           artist={selectedArtist}
+          onRequestSent={() => {
+            setNavCounts((current) => ({
+              ...current,
+              requests: current.requests + 1,
+            }));
+          }}
         />
       )}
     </div>

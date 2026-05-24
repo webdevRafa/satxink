@@ -51,11 +51,13 @@ type BookingRequest = {
 interface Props {
   bookingRequests: BookingRequest[];
   onMakeOffer: (request: BookingRequest) => void;
+  onRequestResolved?: (requestId: string) => void;
 }
 
 const BookingRequestsList: React.FC<Props> = ({
   bookingRequests,
   onMakeOffer,
+  onRequestResolved,
 }) => {
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
     null
@@ -107,6 +109,7 @@ const BookingRequestsList: React.FC<Props> = ({
         declinedAt: serverTimestamp(),
       });
       setDeclinedRequestIds((current) => [...current, request.id]);
+      onRequestResolved?.(request.id);
       setSelectedRequest(null);
       toast.success("Request declined.");
     } catch (error) {

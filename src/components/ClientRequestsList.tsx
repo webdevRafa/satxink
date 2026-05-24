@@ -64,7 +64,9 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           id: requestDoc.id,
           ...requestDoc.data(),
         })) as BookingRequest[];
-        setRequests(data);
+        setRequests(
+          data.filter((request) => (request.status || "pending") === "pending")
+        );
       } finally {
         setLoading(false);
       }
@@ -77,7 +79,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     () => [...requests].sort((a, b) => getItemTime(b) - getItemTime(a)),
     [requests]
   );
-  const pendingCount = requests.filter((request) => (request.status || "pending") === "pending").length;
+  const pendingCount = requests.length;
   const withOffers = requests.filter((request) => request.status === "offered").length;
 
   if (loading) {
