@@ -893,6 +893,60 @@ const ArtistDashboardView = () => {
     });
   }, [bookings, bookingSearchTerm, bookingSortMode]);
 
+  const updateSessionRecord = async (
+    booking: DashboardBooking,
+    sessionUpdate: Record<string, unknown>,
+    bookingUpdate: Record<string, unknown>
+  ) => {
+    const remainingBalance = getDashboardRemainingBalance(booking);
+
+    try {
+      await setDoc(
+        doc(db, "bookingSessions", booking.id),
+        {
+          bookingId: booking.id,
+          artistId: booking.artistId,
+          clientId: booking.clientId,
+          offerId: booking.offerId,
+          remainingAmount: remainingBalance,
+          remainingAmountCents: Math.round(remainingBalance * 100),
+          updatedAt: serverTimestamp(),
+          ...sessionUpdate,
+        },
+        { merge: true }
+      );
+      await updateDoc(doc(db, "bookings", booking.id), {
+        sessionId: booking.id,
+        updatedAt: serverTimestamp(),
+        ...bookingUpdate,
+      });
+      toast.success("Session updated.");
+    } catch (error) {
+      console.error("Session update failed:", error);
+      toast.error("Could not update this session.");
+    }
+  };
+
+  const handleCompleteSessionFromRow = (booking: DashboardBooking) =>
+    updateSessionRecord(
+      booking,
+      { status: "completed", completedAt: serverTimestamp() },
+      { sessionStatus: "completed", sessionCompletedAt: serverTimestamp() }
+    );
+
+  const handleBalancePaidFromRow = (booking: DashboardBooking) =>
+    updateSessionRecord(
+      booking,
+      {
+        remainingPaymentStatus: "artist_confirmed",
+        artistConfirmedAt: serverTimestamp(),
+      },
+      {
+        remainingPaymentStatus: "artist_confirmed",
+        externalRemainingArtistConfirmedAt: serverTimestamp(),
+      }
+    );
+
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
       {avatarCropSrc && (
@@ -1640,6 +1694,13 @@ const ArtistDashboardView = () => {
                       all {activeTab === "sessions" ? "sessions" : `${activeTab} bookings`}.
                     </p>
                   </div>
+                ) : activeTab === "sessions" ? (
+                  <SessionsTable
+                    sessions={visibleBookings as DashboardBooking[]}
+                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onComplete={handleCompleteSessionFromRow}
+                    onBalancePaid={handleBalancePaidFromRow}
+                  />
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {visibleBookings.map((b) => {
@@ -1783,9 +1844,7 @@ const ArtistDashboardView = () => {
                               className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
                             >
                               <Eye size={16} />
-                              {activeTab === "sessions"
-                                ? "Session record"
-                                : "Booking record"}
+                              Booking record
                             </button>
                           </div>
                         </article>
@@ -1869,6 +1928,146 @@ type DashboardBooking = Booking & {
   user?: { name?: string; displayName?: string; avatarUrl?: string };
   message?: string;
   description?: string;
+};
+
+const SessionsTable = ({
+  sessions,
+  onOpenRecord,
+  onComplete,
+  onBalancePaid,
+}: {
+  sessions: DashboardBooking[];
+  onOpenRecord: (booking: DashboardBooking) => void;
+  onComplete: (booking: DashboardBooking) => void;
+  onBalancePaid: (booking: DashboardBooking) => void;
+}) => {
+  const columns =
+    "minmax(220px,1.25fr) minmax(100px,.6fr) minmax(170px,.95fr) minmax(95px,.5fr) minmax(95px,.5fr) minmax(165px,.9fr) minmax(190px,1fr) minmax(280px,1.3fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="overflow-x-auto request-modal-scrollbar">
+        <div className="min-w-[1220px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-4 py-3 text-xs uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Client</span>
+            <span>Created</span>
+            <span>Status</span>
+            <span>Price</span>
+            <span>Deposit</span>
+            <span>Scheduled</span>
+            <span>Location</span>
+            <span className="text-right">Actions</span>
+          </div>
+
+          <div className="divide-y divide-white/10">
+            {sessions.map((booking) => {
+              const clientName = getDashboardClientName(booking);
+              const clientAvatar = getDashboardClientAvatar(booking);
+              const sessionStatus = booking.sessionStatus || "in_progress";
+              const remainingPaymentStatus =
+                booking.remainingPaymentStatus || "due";
+              const canComplete = sessionStatus === "in_progress";
+              const canMarkBalancePaid =
+                sessionStatus === "completed" &&
+                !["artist_confirmed", "confirmed"].includes(
+                  remainingPaymentStatus
+                );
+
+              return (
+                <div
+                  key={booking.id}
+                  className="grid items-center gap-0 px-4 py-4 transition hover:bg-white/[0.025]"
+                  style={{ gridTemplateColumns: columns }}
+                >
+                  <div className="flex min-w-0 items-center gap-3 pr-4">
+                    <img
+                      src={clientAvatar}
+                      alt={clientName}
+                      className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-white">
+                        {clientName}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-neutral-500">
+                        {booking.shopName || "Studio not listed"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="pr-4 text-sm text-neutral-300">
+                    {formatDashboardDate(booking.createdAt)}
+                  </span>
+
+                  <div className="flex flex-col items-start gap-1.5 pr-4">
+                    <SessionStatusBadge status={sessionStatus} />
+                    <RemainingPaymentBadge status={remainingPaymentStatus} />
+                  </div>
+
+                  <span className="pr-4 text-sm font-semibold text-white">
+                    {formatDashboardMoney(booking.price)}
+                  </span>
+
+                  <span className="pr-4 text-sm text-neutral-300">
+                    {formatDashboardMoney(booking.depositAmount)}
+                  </span>
+
+                  <span className="pr-4 text-sm text-neutral-300">
+                    {formatBookingAppointment(booking.selectedDate)}
+                  </span>
+
+                  <div className="min-w-0 pr-4">
+                    <p className="truncate text-sm font-medium text-white">
+                      {booking.shopName || "Private Studio"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-neutral-500">
+                      {booking.shopAddress || "Address not provided"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      disabled={!canComplete}
+                      onClick={() => onComplete(booking)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      <Check size={14} />
+                      {sessionStatus === "completed" ? "Completed" : "Complete"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canMarkBalancePaid}
+                      onClick={() => onBalancePaid(booking)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      <DollarSign size={14} />
+                      {remainingPaymentStatus === "artist_confirmed"
+                        ? "Marked paid"
+                        : remainingPaymentStatus === "confirmed"
+                        ? "Paid"
+                        : "Balance paid"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenRecord(booking)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                    >
+                      <Eye size={14} />
+                      Record
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const BookingRecordDialog = ({
@@ -2357,11 +2556,86 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
   );
 };
 
+const SessionStatusBadge = ({ status }: { status: string }) => {
+  const className =
+    status === "completed"
+      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+      : "border-sky-300/20 bg-sky-300/10 text-sky-100";
+
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+      {status.replace("_", " ")}
+    </span>
+  );
+};
+
+const RemainingPaymentBadge = ({ status }: { status: string }) => {
+  const className =
+    status === "confirmed"
+      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+      : status === "artist_confirmed" || status === "client_confirmed"
+      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
+      : status === "disputed"
+      ? "border-red-300/25 bg-red-300/10 text-red-100"
+      : "border-white/10 bg-white/[0.05] text-neutral-300";
+  const label =
+    status === "artist_confirmed"
+      ? "Awaiting client"
+      : status === "client_confirmed"
+      ? "Awaiting artist"
+      : status === "confirmed"
+      ? "Balance paid"
+      : status === "disputed"
+      ? "Disputed"
+      : "Balance due";
+
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+      {label}
+    </span>
+  );
+};
+
 const formatDashboardMoney = (amount?: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(Number(amount || 0));
+
+const getDashboardClientName = (booking: DashboardBooking) =>
+  booking.user?.name ||
+  booking.user?.displayName ||
+  booking.clientName ||
+  "Client";
+
+const getDashboardClientAvatar = (booking: DashboardBooking) =>
+  booking.user?.avatarUrl || booking.clientAvatar || "/default-avatar.png";
+
+const getDashboardRemainingBalance = (booking: Partial<Booking>) =>
+  typeof booking.remainingBalanceAmount === "number"
+    ? Math.max(booking.remainingBalanceAmount, 0)
+    : Math.max(
+        Number(booking.price || 0) -
+          Number(booking.totalArtistPaidAmount || booking.depositAmount || 0),
+        0
+      );
+
+const formatDashboardDate = (value?: Booking["createdAt"]) => {
+  if (!value) return "New";
+  if (typeof value.toDate === "function") {
+    return value.toDate().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  }
+  if (typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  }
+  return "New";
+};
 
 const formatBookingAppointment = (selectedDate: {
   date: string;
