@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { httpsCallable } from "firebase/functions";
 import { getAuth } from "firebase/auth";
@@ -23,15 +23,31 @@ type Props = {
   onRespond: (
     offerId: string,
     action: "accepted" | "declined",
-    selectedDate?: { date: string; time: string }
+    selectedDate?: { date: string; time: string },
+    remainingPaymentMethod?: "stripe" | "external"
   ) => Promise<string | void>;
 };
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [remainingPaymentMethod, setRemainingPaymentMethod] =
+    useState<"stripe" | "external">("stripe");
+
+  useEffect(() => {
+    setSelectedDateOption(null);
+    setRemainingPaymentMethod("stripe");
+  }, [offer?.id]);
 
   if (!isOpen || !offer) return null;
+
+  const depositAmount = Number(offer.depositPolicy?.amount || 0);
+  const remainingAmount = Math.max(Number(offer.price || 0) - depositAmount, 0);
+  const canChooseExternalRemaining =
+    offer.paymentType === "internal" &&
+    Boolean(offer.allowExternalRemainingPayment) &&
+    depositAmount > 0 &&
+    remainingAmount > 0;
 
   const handleCheckout = async (bookingId?: string) => {
     if (!bookingId) {
@@ -66,7 +82,8 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       const bookingId = await onRespond(
         offer.id,
         "accepted",
-        offer.dateOptions[selectedDateOption]
+        offer.dateOptions[selectedDateOption],
+        canChooseExternalRemaining ? remainingPaymentMethod : "stripe"
       );
       if (bookingId) {
         onClose();
@@ -146,6 +163,44 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 <DetailTile icon={<ReceiptText size={17} />} label="Deposit" value={`$${offer.depositPolicy?.amount || 0}`} />
                 <DetailTile icon={<Store size={17} />} label="Studio" value={offer.shopName || "Unavailable"} />
               </div>
+
+              {canChooseExternalRemaining && (
+                <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <ReceiptText size={17} />
+                    Choose balance payment
+                  </div>
+                  <div className="grid gap-3">
+                    <PaymentChoice
+                      title="Keep balance in SATX Ink"
+                      description="Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
+                      amount={`$${remainingAmount}`}
+                      checked={remainingPaymentMethod === "stripe"}
+                      onSelect={() => setRemainingPaymentMethod("stripe")}
+                    />
+                    <PaymentChoice
+                      title="Pay remaining balance at the shop"
+                      description="Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
+                      amount={`$${remainingAmount}`}
+                      checked={remainingPaymentMethod === "external"}
+                      onSelect={() => setRemainingPaymentMethod("external")}
+                    />
+                  </div>
+                  {remainingPaymentMethod === "external" && (
+                    <div className="mt-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
+                      SATX Ink's platform fee is calculated from the full artist
+                      quote and collected with today's deposit checkout. The
+                      remaining artist balance is confirmed by both you and the
+                      artist after the session.
+                      {offer.externalRemainingPaymentNote && (
+                        <span className="mt-2 block text-white">
+                          Artist note: {offer.externalRemainingPaymentNote}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {offer.shopAddress && (
                 <a
@@ -244,6 +299,38 @@ const DetailTile = ({
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
+);
+
+const PaymentChoice = ({
+  title,
+  description,
+  amount,
+  checked,
+  onSelect,
+}: {
+  title: string;
+  description: string;
+  amount: string;
+  checked: boolean;
+  onSelect: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onSelect}
+    className={`rounded-md border p-3! text-left transition ${
+      checked
+        ? "border-emerald-300/45 bg-emerald-300/10"
+        : "border-white/10 bg-black/25 hover:bg-white/[0.04]"
+    }`}
+  >
+    <span className="flex items-center justify-between gap-3">
+      <span className="font-semibold text-white">{title}</span>
+      <span className="text-sm font-semibold text-white">{amount}</span>
+    </span>
+    <span className="mt-1 block text-sm leading-5 text-neutral-400">
+      {description}
+    </span>
+  </button>
 );
 
 const formatAppointment = (option: { date: string; time: string }) => {

@@ -29,6 +29,8 @@ clientAvatar?: string;
       method: string;
     };
     finalPaymentTiming: "before" | "after";
+    allowExternalRemainingPayment?: boolean;
+    externalRemainingPaymentNote?: string;
   };
   
 

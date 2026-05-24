@@ -2,8 +2,18 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { CalendarDays, CreditCard, DollarSign, Eye, ImageIcon, MapPin, Store, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { toast } from "react-hot-toast";
 import { db, functions } from "../firebase/firebaseConfig";
 import type { Booking } from "../types/Booking";
 
@@ -58,6 +68,77 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
     ["deposit_paid", "paid", "confirmed"].includes(booking.status)
   ).length;
 
+  const handleConfirmExternalPayment = async (booking: Booking) => {
+    const remainingAmount = getRemainingBalance(booking);
+
+    try {
+      await setDoc(
+        doc(db, "bookingSessions", booking.id),
+        {
+          bookingId: booking.id,
+          artistId: booking.artistId,
+          clientId: booking.clientId,
+          remainingPaymentStatus: "confirmed",
+          clientConfirmedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await updateDoc(doc(db, "bookings", booking.id), {
+        status: "paid",
+        remainingPaymentStatus: "confirmed",
+        externalRemainingClientConfirmedAt: serverTimestamp(),
+        remainingPaidAt: serverTimestamp(),
+        paidAt: serverTimestamp(),
+        remainingPaidAmount: remainingAmount,
+        remainingPaidAmountCents: Math.round(remainingAmount * 100),
+        totalArtistPaidAmount: Number(booking.price || 0),
+        totalArtistPaidCents: Math.round(Number(booking.price || 0) * 100),
+        remainingBalanceAmount: 0,
+        remainingBalanceCents: 0,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("External payment confirmed.");
+      setSelectedBooking(null);
+    } catch (error) {
+      console.error("External payment confirmation failed:", error);
+      toast.error("Could not confirm the payment.");
+    }
+  };
+
+  const handleDisputeExternalPayment = async (booking: Booking) => {
+    const reason =
+      window.prompt("Briefly describe the issue with this payment.")?.trim() ||
+      "Client reported an issue with the external payment.";
+
+    try {
+      await setDoc(
+        doc(db, "bookingSessions", booking.id),
+        {
+          bookingId: booking.id,
+          artistId: booking.artistId,
+          clientId: booking.clientId,
+          remainingPaymentStatus: "disputed",
+          disputeReason: reason,
+          disputedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await updateDoc(doc(db, "bookings", booking.id), {
+        remainingPaymentStatus: "disputed",
+        externalRemainingDisputeReason: reason,
+        externalRemainingDisputedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("Issue reported.");
+      setSelectedBooking(null);
+    } catch (error) {
+      console.error("External payment dispute failed:", error);
+      toast.error("Could not report the issue.");
+    }
+  };
+
   if (loading) return <SectionSkeleton />;
 
   return (
@@ -98,6 +179,8 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
+        onConfirmExternalPayment={handleConfirmExternalPayment}
+        onDisputeExternalPayment={handleDisputeExternalPayment}
       />
     </section>
   );
@@ -115,6 +198,7 @@ const BookingCard = ({
   const remainingBalance = getRemainingBalance(booking);
   const isPayable =
     booking.paymentType === "internal" &&
+    booking.remainingPaymentMethod !== "external" &&
     (booking.status === "pending_payment" ||
       (booking.status === "deposit_paid" && remainingBalance > 0));
   const payLabel =
@@ -179,11 +263,20 @@ const BookingDetailsDialog = ({
   booking,
   onClose,
   onPay,
+  onConfirmExternalPayment,
+  onDisputeExternalPayment,
 }: {
   booking: Booking | null;
   onClose: () => void;
   onPay: (bookingId: string) => void;
-}) => (
+  onConfirmExternalPayment: (booking: Booking) => void;
+  onDisputeExternalPayment: (booking: Booking) => void;
+}) => {
+  const showExternalPaymentConfirmation =
+    booking?.remainingPaymentMethod === "external" &&
+    booking.remainingPaymentStatus === "artist_confirmed";
+
+  return (
   <Transition appear show={!!booking} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
@@ -238,7 +331,49 @@ const BookingDetailsDialog = ({
                           {booking.shopAddress}
                         </a>
                       )}
+                      {booking.remainingPaymentMethod === "external" &&
+                        booking.status === "deposit_paid" && (
+                          <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                            <p className="text-sm font-semibold text-white">
+                              In-shop balance
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                              The remaining{" "}
+                              <span className="font-semibold text-white">
+                                ${getRemainingBalance(booking)}
+                              </span>{" "}
+                              is paid directly to the artist after the session.
+                              Status:{" "}
+                              <span className="font-semibold capitalize text-white">
+                                {(booking.remainingPaymentStatus || "due").replace("_", " ")}
+                              </span>
+                            </p>
+                            {showExternalPaymentConfirmation && (
+                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onConfirmExternalPayment(booking)
+                                  }
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                                >
+                                  Confirm paid
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onDisputeExternalPayment(booking)
+                                  }
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                                >
+                                  Report issue
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       {booking.paymentType === "internal" &&
+                        booking.remainingPaymentMethod !== "external" &&
                         (booking.status === "pending_payment" ||
                           (booking.status === "deposit_paid" &&
                             getRemainingBalance(booking) > 0)) && (
@@ -263,7 +398,8 @@ const BookingDetailsDialog = ({
       </div>
     </Dialog>
   </Transition>
-);
+  );
+};
 
 const DashboardHeader = ({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) => (
   <div>

@@ -83,6 +83,8 @@ const PaymentSuccessPage = () => {
   const latestArtistPayment =
     booking.artistQuotedAmount ?? Number(booking.depositAmount || booking.price || 0);
   const isDepositPaid = booking.status === "deposit_paid";
+  const usesExternalRemaining =
+    booking.remainingPaymentMethod === "external" && isDepositPaid;
   const remainingBalanceCents =
     booking.remainingBalanceCents ??
     Math.max(Math.round((price - Number(booking.totalArtistPaidAmount || 0)) * 100), 0);
@@ -174,7 +176,7 @@ const PaymentSuccessPage = () => {
               />
               <DetailTile
                 icon={<DollarSign size={17} />}
-                label="Remaining balance"
+                label={usesExternalRemaining ? "In-shop balance" : "Remaining balance"}
                 value={formatMoneyFromCents(remainingBalanceCents)}
               />
               <DetailTile
@@ -208,7 +210,9 @@ const PaymentSuccessPage = () => {
               </div>
               <p className="text-sm leading-6 text-emerald-50/80">
                 {isDepositPaid
-                  ? "Your booking is now confirmed in your dashboard. You can pay the remaining balance there when you are ready."
+                  ? usesExternalRemaining
+                    ? "Your booking is now confirmed in your dashboard. The remaining artist balance will be settled directly with the artist after the session."
+                    : "Your booking is now confirmed in your dashboard. You can pay the remaining balance there when you are ready."
                   : "Your booking is now paid in full and available in your dashboard with the appointment details."}
               </p>
             </div>

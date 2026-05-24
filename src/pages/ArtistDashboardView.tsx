@@ -35,6 +35,8 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
+  setDoc,
+  arrayUnion,
   collection,
   query,
   where,
@@ -1837,6 +1839,20 @@ const BookingRecordDialog = ({
   booking: DashboardBooking | null;
   onClose: () => void;
 }) => {
+  const [sessionStatus, setSessionStatus] =
+    useState<Booking["sessionStatus"]>("not_started");
+  const [remainingPaymentStatus, setRemainingPaymentStatus] =
+    useState<Booking["remainingPaymentStatus"]>("not_due");
+  const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
+  const [isUpdatingSession, setIsUpdatingSession] = useState(false);
+  const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
+
+  useEffect(() => {
+    setSessionStatus(booking?.sessionStatus || "not_started");
+    setRemainingPaymentStatus(booking?.remainingPaymentStatus || "not_due");
+    setSessionPhotoUrls(booking?.sessionPhotoUrls || []);
+  }, [booking?.id, booking?.sessionStatus, booking?.remainingPaymentStatus]);
+
   const clientName =
     booking?.user?.name ||
     booking?.user?.displayName ||
@@ -1854,6 +1870,122 @@ const BookingRecordDialog = ({
             Number(booking?.totalArtistPaidAmount || booking?.depositAmount || 0),
           0
         );
+  const usesExternalRemaining =
+    booking?.remainingPaymentMethod === "external" && remainingBalance > 0;
+
+  const upsertSessionRecord = async (
+    sessionUpdate: Record<string, unknown>,
+    bookingUpdate: Record<string, unknown>
+  ) => {
+    if (!booking) return false;
+
+    setIsUpdatingSession(true);
+    try {
+      const sessionRef = doc(db, "bookingSessions", booking.id);
+      await setDoc(
+        sessionRef,
+        {
+          bookingId: booking.id,
+          artistId: booking.artistId,
+          clientId: booking.clientId,
+          offerId: booking.offerId,
+          remainingAmount: remainingBalance,
+          remainingAmountCents: Math.round(remainingBalance * 100),
+          updatedAt: serverTimestamp(),
+          ...sessionUpdate,
+        },
+        { merge: true }
+      );
+      await updateDoc(doc(db, "bookings", booking.id), {
+        sessionId: booking.id,
+        updatedAt: serverTimestamp(),
+        ...bookingUpdate,
+      });
+      toast.success("Session record updated.");
+      return true;
+    } catch (error) {
+      console.error("Session update failed:", error);
+      toast.error("Could not update the session record.");
+      return false;
+    } finally {
+      setIsUpdatingSession(false);
+    }
+  };
+
+  const handleStartSession = async () => {
+    const updated = await upsertSessionRecord(
+      { status: "in_progress", startedAt: serverTimestamp() },
+      { sessionStatus: "in_progress", sessionStartedAt: serverTimestamp() }
+    );
+    if (updated) setSessionStatus("in_progress");
+  };
+
+  const handleCompleteSession = async () => {
+    const updated = await upsertSessionRecord(
+      { status: "completed", completedAt: serverTimestamp() },
+      { sessionStatus: "completed", sessionCompletedAt: serverTimestamp() }
+    );
+    if (updated) setSessionStatus("completed");
+  };
+
+  const handleArtistConfirmExternalPayment = async () => {
+    const updated = await upsertSessionRecord(
+      {
+        remainingPaymentStatus: "artist_confirmed",
+        artistConfirmedAt: serverTimestamp(),
+      },
+      {
+        remainingPaymentStatus: "artist_confirmed",
+        externalRemainingArtistConfirmedAt: serverTimestamp(),
+      }
+    );
+    if (updated) setRemainingPaymentStatus("artist_confirmed");
+  };
+
+  const handleSessionPhotoUpload = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!booking || !file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Choose an image file.");
+      return;
+    }
+
+    setIsUploadingSessionPhoto(true);
+    try {
+      const photoRef = ref(
+        storage,
+        `bookingSessions/${booking.id}/photos/${Date.now()}-${file.name}`
+      );
+      await uploadBytes(photoRef, file);
+      const url = await getDownloadURL(photoRef);
+      await setDoc(
+        doc(db, "bookingSessions", booking.id),
+        {
+          bookingId: booking.id,
+          artistId: booking.artistId,
+          clientId: booking.clientId,
+          photoUrls: arrayUnion(url),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await updateDoc(doc(db, "bookings", booking.id), {
+        sessionPhotoUrls: arrayUnion(url),
+        updatedAt: serverTimestamp(),
+      });
+      setSessionPhotoUrls((current) => [...current, url]);
+      toast.success("Session photo saved.");
+    } catch (error) {
+      console.error("Session photo upload failed:", error);
+      toast.error("Could not upload the session photo.");
+    } finally {
+      setIsUploadingSessionPhoto(false);
+    }
+  };
 
   return (
     <Transition appear show={!!booking} as={Fragment}>
@@ -2002,6 +2134,112 @@ const BookingRecordDialog = ({
                               "No notes were included with this booking."}
                           </p>
                         </div>
+
+                        {usesExternalRemaining && (
+                          <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">
+                                  In-shop balance session
+                                </p>
+                                <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                                  Track the session and confirm the remaining{" "}
+                                  <span className="font-semibold text-white">
+                                    {formatDashboardMoney(remainingBalance)}
+                                  </span>{" "}
+                                  after the client pays you directly.
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
+                                {sessionStatus?.replace("_", " ")}
+                              </span>
+                            </div>
+
+                            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                              <button
+                                type="button"
+                                disabled={
+                                  isUpdatingSession ||
+                                  sessionStatus !== "not_started"
+                                }
+                                onClick={handleStartSession}
+                                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <CalendarDays size={16} />
+                                Start session
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  isUpdatingSession ||
+                                  sessionStatus !== "in_progress"
+                                }
+                                onClick={handleCompleteSession}
+                                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Check size={16} />
+                                Complete
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  isUpdatingSession ||
+                                  sessionStatus !== "completed" ||
+                                  remainingPaymentStatus === "artist_confirmed" ||
+                                  remainingPaymentStatus === "confirmed"
+                                }
+                                onClick={handleArtistConfirmExternalPayment}
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <DollarSign size={16} />
+                                Balance paid
+                              </button>
+                            </div>
+
+                            <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
+                              <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+                                Remaining payment
+                              </p>
+                              <p className="mt-1 text-sm font-semibold capitalize text-white">
+                                {(remainingPaymentStatus || "due").replace("_", " ")}
+                              </p>
+                              {remainingPaymentStatus === "artist_confirmed" && (
+                                <p className="mt-1 text-xs leading-5 text-emerald-50/70">
+                                  Waiting for the client to confirm the external
+                                  payment from their dashboard.
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="mt-4">
+                              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
+                                <Camera size={16} />
+                                {isUploadingSessionPhoto
+                                  ? "Uploading..."
+                                  : "Add session photo"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={isUploadingSessionPhoto}
+                                  onChange={handleSessionPhotoUpload}
+                                  className="sr-only"
+                                />
+                              </label>
+                              {sessionPhotoUrls.length > 0 && (
+                                <div className="mt-3 grid grid-cols-3 gap-2">
+                                  {sessionPhotoUrls.map((url) => (
+                                    <img
+                                      key={url}
+                                      src={url}
+                                      alt="Session record"
+                                      className="h-20 w-full rounded-md border border-white/10 object-cover"
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </>

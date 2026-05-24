@@ -1,5 +1,14 @@
 import { Timestamp } from "firebase/firestore";
 
+export type RemainingPaymentMethod = "stripe" | "external";
+export type RemainingPaymentStatus =
+    | "not_due"
+    | "due"
+    | "artist_confirmed"
+    | "client_confirmed"
+    | "confirmed"
+    | "disputed";
+export type BookingSessionStatus = "not_started" | "in_progress" | "completed";
 
 export type Booking = {
     id: string;
@@ -35,6 +44,12 @@ export type Booking = {
     totalArtistPaidCents?: number;
     remainingBalanceAmount?: number;
     remainingBalanceCents?: number;
+    remainingPaymentMethod?: RemainingPaymentMethod;
+    remainingPaymentStatus?: RemainingPaymentStatus;
+    externalRemainingAmount?: number;
+    externalRemainingAmountCents?: number;
+    externalRemainingPaymentNote?: string;
+    externalRemainingDisputeReason?: string;
     stripeCheckoutSessionId?: string;
     lastCompletedCheckoutSessionId?: string;
     stripePaymentIntentId?: string;
@@ -61,9 +76,17 @@ export type Booking = {
     sampleImageUrl?: string;
   
     status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";
+    sessionStatus?: BookingSessionStatus;
+    sessionId?: string;
+    sessionPhotoUrls?: string[];
     createdAt: Timestamp; // or FirebaseFirestore.Timestamp if you're using strict typing
     paidAt?: Timestamp; 
     depositPaidAt?: Timestamp;
     remainingPaidAt?: Timestamp;
+    sessionStartedAt?: Timestamp;
+    sessionCompletedAt?: Timestamp;
+    externalRemainingArtistConfirmedAt?: Timestamp;
+    externalRemainingClientConfirmedAt?: Timestamp;
+    externalRemainingDisputedAt?: Timestamp;
   };
   
