@@ -26,7 +26,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getBlob, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { getCroppedImg } from "../utils/cropImage";
@@ -40,7 +40,9 @@ const FlashSheetDetailPage = () => {
   const [flashes, setFlashes] = useState<Flash[]>([]);
   const [editingFlash, setEditingFlash] = useState<Flash | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPreparingCrop, setIsPreparingCrop] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -93,6 +95,14 @@ const FlashSheetDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  useEffect(() => {
+    return () => {
+      if (cropImageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(cropImageUrl);
+      }
+    };
+  }, [cropImageUrl]);
+
   const handleSaveEdit = async (
     flashId: string,
     title: string,
@@ -107,6 +117,33 @@ const FlashSheetDetailPage = () => {
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
     setCropArea(areaPixels);
+  };
+
+  const openCropModal = async () => {
+    if (!sheet || isPreparingCrop) return;
+
+    try {
+      setIsPreparingCrop(true);
+
+      if (cropImageUrl) {
+        setShowCropModal(true);
+        return;
+      }
+
+      if (sheet.fullPath) {
+        const blob = await getBlob(ref(storage, sheet.fullPath));
+        const objectUrl = URL.createObjectURL(blob);
+        setCropImageUrl(objectUrl);
+      } else {
+        setCropImageUrl(sheet.imageUrl);
+      }
+
+      setShowCropModal(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Could not prepare this sheet for cropping.");
+    } finally {
+      setIsPreparingCrop(false);
+    }
   };
 
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -133,7 +170,10 @@ const FlashSheetDetailPage = () => {
 
     try {
       setIsPublishing(true);
-      const croppedBlob = await getCroppedImg(sheet.imageUrl, cropArea);
+      const croppedBlob = await getCroppedImg(
+        cropImageUrl || sheet.imageUrl,
+        cropArea
+      );
       const timestamp = Date.now();
       const baseName = `flash_${timestamp}`;
       const storageBase = `users/${sheet.artistId}/flashes/${baseName}`;
@@ -197,7 +237,7 @@ const FlashSheetDetailPage = () => {
           <h1 className="text-2xl! font-bold">Flash sheet not found</h1>
           <button
             type="button"
-            onClick={() => navigate("/artist-dashboard?tab=flashes")}
+            onClick={() => navigate("/dashboard?tab=flashes")}
             className="mt-5 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black"
           >
             Back to flashes
@@ -211,7 +251,7 @@ const FlashSheetDetailPage = () => {
     <div className="mx-auto mt-24 min-h-screen max-w-7xl px-5 pb-16 text-white md:px-8">
       <button
         type="button"
-        onClick={() => navigate("/artist-dashboard?tab=flashes")}
+        onClick={() => navigate("/dashboard?tab=flashes")}
         className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
       >
         <ArrowLeft size={16} />
@@ -271,11 +311,12 @@ const FlashSheetDetailPage = () => {
 
             <button
               type="button"
-              onClick={() => setShowCropModal(true)}
+              onClick={openCropModal}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              disabled={isPreparingCrop}
             >
               <Scissors size={16} />
-              Add flash from sheet
+              {isPreparingCrop ? "Preparing cropper..." : "Add flash from sheet"}
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -385,6 +426,7 @@ const FlashSheetDetailPage = () => {
       {showCropModal && (
         <CropFlashModal
           sheet={sheet}
+          imageSrc={cropImageUrl || sheet.imageUrl}
           crop={crop}
           zoom={zoom}
           title={newFlashTitle}
@@ -416,6 +458,7 @@ const MiniStat = ({ label, value }: { label: string; value: string | number }) =
 
 const CropFlashModal = ({
   sheet,
+  imageSrc,
   crop,
   zoom,
   title,
@@ -432,6 +475,7 @@ const CropFlashModal = ({
   onPublish,
 }: {
   sheet: FlashSheet;
+  imageSrc: string;
   crop: { x: number; y: number };
   zoom: number;
   title: string;
@@ -470,7 +514,7 @@ const CropFlashModal = ({
         </div>
         <div className="relative min-h-[420px] flex-1 bg-black">
           <Cropper
-            image={sheet.imageUrl}
+            image={imageSrc}
             crop={crop}
             zoom={zoom}
             maxZoom={8}
