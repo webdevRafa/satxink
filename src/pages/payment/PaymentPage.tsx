@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { db, functions } from "../../firebase/firebaseConfig";
 import type { Booking } from "../../types/Booking";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../../utils/paymentFees";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
@@ -105,6 +109,17 @@ const PaymentPage = () => {
     Number(booking.price || 0) - Number(booking.depositAmount || 0),
     0
   );
+  const fallbackBreakdown = calculateClientPaymentBreakdown(
+    Number(booking.depositAmount || booking.price || 0)
+  );
+  const artistReceivesCents =
+    booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
+  const platformFeeCents =
+    booking.platformFeeCents ?? fallbackBreakdown.platformFeeCents;
+  const stripeFeeCents =
+    booking.estimatedStripeFeeCents ?? fallbackBreakdown.stripeFeeCents;
+  const clientTotalCents =
+    booking.clientPaymentAmountCents ?? fallbackBreakdown.clientTotalCents;
 
   return (
     <PaymentShell>
@@ -150,13 +165,13 @@ const PaymentPage = () => {
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <DetailTile
               icon={<DollarSign size={17} />}
-              label="Deposit due now"
-              value={`$${booking.depositAmount || 0}`}
+              label="Artist receives"
+              value={formatMoneyFromCents(artistReceivesCents)}
             />
             <DetailTile
               icon={<DollarSign size={17} />}
-              label="Total offer"
-              value={`$${booking.price || 0}`}
+              label="Client pays today"
+              value={formatMoneyFromCents(clientTotalCents)}
             />
             <DetailTile
               icon={<CalendarDays size={17} />}
@@ -185,12 +200,35 @@ const PaymentPage = () => {
           <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
               <ShieldCheck size={17} />
-              Deposit terms
+              Payment breakdown
             </div>
-            <p className="text-sm leading-6 text-neutral-400">
-              This deposit secures your appointment and is non-refundable. The
-              remaining balance is{" "}
-              <span className="font-semibold text-white">${remainingBalance}</span>
+            <div className="space-y-2 text-sm">
+              <BreakdownRow
+                label="Deposit to artist"
+                value={formatMoneyFromCents(artistReceivesCents)}
+              />
+              <BreakdownRow
+                label="SATX Ink platform fee"
+                value={formatMoneyFromCents(platformFeeCents)}
+              />
+              <BreakdownRow
+                label="Estimated Stripe processing"
+                value={formatMoneyFromCents(stripeFeeCents)}
+              />
+              <div className="border-t border-white/10 pt-2">
+                <BreakdownRow
+                  label="Total due today"
+                  value={formatMoneyFromCents(clientTotalCents)}
+                  strong
+                />
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-neutral-400">
+              This non-refundable deposit secures your appointment. The
+              remaining artist balance is{" "}
+              <span className="font-semibold text-white">
+                {formatMoneyFromCents(Math.round(remainingBalance * 100))}
+              </span>
               {booking.finalPaymentTiming === "before"
                 ? " and may be collected before your appointment."
                 : " and may be collected after the session with your artist."}
@@ -261,6 +299,25 @@ const DetailTile = ({
       {label}
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const BreakdownRow = ({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) => (
+  <div className="flex items-center justify-between gap-4">
+    <span className={strong ? "font-semibold text-white" : "text-neutral-400"}>
+      {label}
+    </span>
+    <span className={strong ? "font-semibold text-white" : "text-neutral-200"}>
+      {value}
+    </span>
   </div>
 );
 

@@ -334,17 +334,17 @@ const EventsManager = ({
 
     if (
       bookingRequiresDeposit &&
-      (!Number(form.depositAmount || 0) || Number(form.depositAmount || 0) <= 10)
+      (!Number(form.depositAmount || 0) || Number(form.depositAmount || 0) <= 5)
     ) {
-      toast.error("Paid event deposits must be greater than the $10 platform fee.");
+      toast.error("Paid event deposits must be greater than the platform fee.");
       return;
     }
 
     if (
       form.bookingMode === "paid_ticket" &&
-      (!Number(form.price || 0) || Number(form.price || 0) <= 10)
+      (!Number(form.price || 0) || Number(form.price || 0) <= 5)
     ) {
-      toast.error("Paid event prices must be greater than the $10 platform fee.");
+      toast.error("Paid event prices must be greater than the platform fee.");
       return;
     }
 

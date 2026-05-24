@@ -30,6 +30,10 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../utils/paymentFees";
 
 type BookingRequest = {
   id: string;
@@ -92,6 +96,10 @@ const MakeOfferModal = ({
     [dateOptions]
   );
   const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
+  const paymentPreview = useMemo(
+    () => calculateClientPaymentBreakdown(Number(depositAmount || 0)),
+    [depositAmount]
+  );
 
   useEffect(() => {
     if (isOpen && artistDefaultDeposit > 0 && depositAmount === 0) {
@@ -362,12 +370,48 @@ const MakeOfferModal = ({
                       className="mt-0.5 shrink-0 text-[var(--color-primary)]"
                     />
                     <p>
-                      The fallback price is only shown if the client declines
-                      the main offer. The deposit is non-refundable and required
-                      to confirm the appointment.
+                      The fallback price is only shown if the client declines the
+                      main offer. The client pays the deposit plus SATX Ink and
+                      Stripe fees, so your deposit amount is protected.
                     </p>
                   </div>
                 </div>
+
+                {artist.paymentType === "internal" && paymentPreview.artistAmountCents > 0 && (
+                  <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-emerald-100/70">
+                          Client checkout preview
+                        </p>
+                        <p className="mt-1 text-sm text-emerald-50/80">
+                          Based on the deposit due today.
+                        </p>
+                      </div>
+                      <p className="text-xl font-semibold text-white">
+                        {formatMoneyFromCents(paymentPreview.clientTotalCents)}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 text-sm sm:grid-cols-2">
+                      <PreviewRow
+                        label="Artist receives"
+                        value={formatMoneyFromCents(paymentPreview.artistAmountCents)}
+                      />
+                      <PreviewRow
+                        label="SATX Ink fee"
+                        value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
+                      />
+                      <PreviewRow
+                        label="Estimated Stripe fee"
+                        value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
+                      />
+                      <PreviewRow
+                        label="Client pays today"
+                        value={formatMoneyFromCents(paymentPreview.clientTotalCents)}
+                      />
+                    </div>
+                  </div>
+                )}
               </section>
 
               <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
@@ -585,6 +629,15 @@ const SummaryRow = ({
       {label}
     </div>
     <p className="text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const PreviewRow = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-md border border-emerald-200/10 bg-black/20 p-3">
+    <p className="text-xs uppercase tracking-[0.12em] text-emerald-100/50">
+      {label}
+    </p>
+    <p className="mt-1 font-semibold text-white">{value}</p>
   </div>
 );
 

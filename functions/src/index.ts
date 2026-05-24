@@ -33,9 +33,51 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
-const PLATFORM_FEE_CENTS = 1000;
+const PLATFORM_FEE_MIN_CENTS = 500;
+const PLATFORM_FEE_MAX_CENTS = 3500;
+const PLATFORM_FEE_RATE = 0.10;
+const STRIPE_PERCENT_FEE = 0.029;
+const STRIPE_FIXED_FEE_CENTS = 30;
 const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
+
+const calculatePlatformFeeCents = (artistAmountCents: number) => {
+  if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) return 0;
+
+  const percentageFee = Math.round(artistAmountCents * PLATFORM_FEE_RATE);
+  return Math.min(
+    Math.max(percentageFee, PLATFORM_FEE_MIN_CENTS),
+    PLATFORM_FEE_MAX_CENTS
+  );
+};
+
+const estimateStripeFeeCents = (clientTotalCents: number) =>
+  Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
+
+const calculateClientPaymentBreakdown = (artistAmountCents: number) => {
+  const platformFeeCents = calculatePlatformFeeCents(artistAmountCents);
+  let clientTotalCents = Math.ceil(
+    (artistAmountCents + platformFeeCents + STRIPE_FIXED_FEE_CENTS) /
+      (1 - STRIPE_PERCENT_FEE)
+  );
+
+  let stripeFeeCents = estimateStripeFeeCents(clientTotalCents);
+
+  while (
+    clientTotalCents - stripeFeeCents - platformFeeCents <
+    artistAmountCents
+  ) {
+    clientTotalCents += 1;
+    stripeFeeCents = estimateStripeFeeCents(clientTotalCents);
+  }
+
+  return {
+    artistAmountCents,
+    platformFeeCents,
+    stripeFeeCents,
+    clientTotalCents,
+  };
+};
 
 
 
@@ -521,23 +563,26 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       throw new HttpsError("failed-precondition", "This booking has already been paid.");
     }
 
-    const amount = Number(booking.depositAmount || booking.price || 0);
-    const amountCents = Math.round(amount * 100);
+    const artistAmount = Number(booking.depositAmount || booking.price || 0);
+    const artistAmountCents = Math.round(artistAmount * 100);
 
-    if (!Number.isFinite(amountCents) || amountCents <= PLATFORM_FEE_CENTS) {
+    if (!Number.isFinite(artistAmountCents) || artistAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
       throw new HttpsError(
         "failed-precondition",
-        "The payment amount must be greater than the SATX Ink platform fee."
+        "The artist payout amount is too small to process."
       );
     }
 
-    const applicationFeeAmount = PLATFORM_FEE_CENTS;
-    const artistPayoutCents = amountCents - applicationFeeAmount;
+    const {
+      clientTotalCents,
+      platformFeeCents,
+      stripeFeeCents,
+    } = calculateClientPaymentBreakdown(artistAmountCents);
 
-    if (artistPayoutCents < MIN_ARTIST_PAYOUT_CENTS) {
+    if (clientTotalCents - platformFeeCents - stripeFeeCents < artistAmountCents) {
       throw new HttpsError(
         "failed-precondition",
-        "The artist payout would be too small after the platform fee."
+        "The payment total could not cover the artist payout and fees."
       );
     }
 
@@ -588,22 +633,25 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         {
           price_data: {
             currency: 'usd',
-            unit_amount: amountCents,
+            unit_amount: clientTotalCents,
             product_data: {
               name: `${booking.artistName || artist.displayName || "Artist"}'s Tattoo Booking`,
-              description: `Studio: ${booking.shopName || 'N/A'} | Address: ${booking.shopAddress || 'N/A'} | Date: ${booking.selectedDate?.date || "TBD"} at ${booking.selectedDate?.time || "TBD"}`,
+              description: `Artist quote: $${(artistAmountCents / 100).toFixed(2)} | Studio: ${booking.shopName || 'N/A'} | Address: ${booking.shopAddress || 'N/A'} | Date: ${booking.selectedDate?.date || "TBD"} at ${booking.selectedDate?.time || "TBD"}`,
             },
           },
           quantity: 1,
         },
       ],
       payment_intent_data: {
-        application_fee_amount: applicationFeeAmount,
+        application_fee_amount: platformFeeCents,
         metadata: {
           bookingId,
           artistId: booking.artistId ?? '',
           clientId: booking.clientId ?? '',
-          platformFeeCents: String(applicationFeeAmount),
+          artistAmountCents: String(artistAmountCents),
+          platformFeeCents: String(platformFeeCents),
+          estimatedStripeFeeCents: String(stripeFeeCents),
+          clientTotalCents: String(clientTotalCents),
         },
       },
       metadata: {
@@ -616,7 +664,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         shopName: booking.shopName ?? '',
         shopAddress: booking.shopAddress ?? '',
         selectedDate: formattedDateTime ?? '',
-        platformFeeCents: String(applicationFeeAmount),
+        artistAmountCents: String(artistAmountCents),
+        platformFeeCents: String(platformFeeCents),
+        estimatedStripeFeeCents: String(stripeFeeCents),
+        clientTotalCents: String(clientTotalCents),
         stripeConnectedAccountId: connectedAccountId,
       },
       success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
@@ -629,9 +680,16 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       {
         stripeCheckoutSessionId: session.id,
         stripeConnectedAccountId: connectedAccountId,
-        platformFeeAmount: applicationFeeAmount / 100,
-        platformFeeCents: applicationFeeAmount,
-        artistPayoutAmount: artistPayoutCents / 100,
+        artistQuotedAmount: artistAmountCents / 100,
+        artistQuotedAmountCents: artistAmountCents,
+        clientPaymentAmount: clientTotalCents / 100,
+        clientPaymentAmountCents: clientTotalCents,
+        platformFeeAmount: platformFeeCents / 100,
+        platformFeeCents,
+        estimatedStripeFeeAmount: stripeFeeCents / 100,
+        estimatedStripeFeeCents: stripeFeeCents,
+        artistPayoutAmount: artistAmountCents / 100,
+        artistPayoutCents: artistAmountCents,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -792,9 +850,21 @@ const stripeWebhook = onRequest(
           stripeCheckoutSessionId: session.id,
           stripePaymentIntentId: session.payment_intent,
           stripeConnectedAccountId: event.account ?? session.metadata?.stripeConnectedAccountId ?? null,
+          artistQuotedAmountCents: session.metadata?.artistAmountCents
+            ? Number(session.metadata.artistAmountCents)
+            : null,
+          artistPayoutCents: session.metadata?.artistAmountCents
+            ? Number(session.metadata.artistAmountCents)
+            : null,
+          clientPaymentAmountCents: session.metadata?.clientTotalCents
+            ? Number(session.metadata.clientTotalCents)
+            : session.amount_total ?? null,
           platformFeeCents: session.metadata?.platformFeeCents
             ? Number(session.metadata.platformFeeCents)
-            : PLATFORM_FEE_CENTS,
+            : null,
+          estimatedStripeFeeCents: session.metadata?.estimatedStripeFeeCents
+            ? Number(session.metadata.estimatedStripeFeeCents)
+            : null,
         });
 
         console.log(`Booking ${bookingId} marked as paid.`);

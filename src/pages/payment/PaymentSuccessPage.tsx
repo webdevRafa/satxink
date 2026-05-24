@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { db, functions } from "../../firebase/firebaseConfig";
 import type { Booking } from "../../types/Booking";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../../utils/paymentFees";
 
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
@@ -79,6 +83,13 @@ const PaymentSuccessPage = () => {
     Number(booking.price || 0) - Number(booking.depositAmount || 0),
     0
   );
+  const fallbackBreakdown = calculateClientPaymentBreakdown(
+    Number(booking.depositAmount || booking.price || 0)
+  );
+  const artistReceivesCents =
+    booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
+  const clientTotalCents =
+    booking.clientPaymentAmountCents ?? fallbackBreakdown.clientTotalCents;
 
   return (
     <SuccessShell>
@@ -145,13 +156,18 @@ const PaymentSuccessPage = () => {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <DetailTile
                 icon={<DollarSign size={17} />}
-                label="Deposit paid"
-                value={`$${booking.depositAmount || 0}`}
+                label="Artist deposit"
+                value={formatMoneyFromCents(artistReceivesCents)}
+              />
+              <DetailTile
+                icon={<DollarSign size={17} />}
+                label="Paid today"
+                value={formatMoneyFromCents(clientTotalCents)}
               />
               <DetailTile
                 icon={<DollarSign size={17} />}
                 label="Remaining balance"
-                value={`$${remainingBalance}`}
+                value={formatMoneyFromCents(Math.round(remainingBalance * 100))}
               />
               <DetailTile
                 icon={<CalendarDays size={17} />}

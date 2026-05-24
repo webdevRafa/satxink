@@ -127,8 +127,9 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
             </h2>
             <p className="mt-3 text-sm leading-6 text-white/55">
               Connect Stripe so clients can pay deposits through SATX Ink while
-              funds route to your connected account. SATX Ink reserves a fixed
-              $10 platform fee from each paid booking.
+              funds route to your connected account. Clients cover the SATX Ink
+              platform fee and estimated Stripe processing so your quoted
+              deposit is protected.
             </p>
           </div>
 
@@ -205,7 +206,7 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard
           title="How client payments work"
-          body="When a client accepts an offer or pays an event deposit, Checkout is created on your connected Stripe account and SATX Ink applies a fixed $10 platform fee."
+          body="When a client accepts an offer, Checkout is created on your connected Stripe account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $35, and the client covers that fee plus estimated Stripe processing."
         />
         <InfoCard
           title="Before publishing paid events"

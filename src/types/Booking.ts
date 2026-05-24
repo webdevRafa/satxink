@@ -15,7 +15,14 @@ export type Booking = {
     depositAmount: number;
     platformFeeAmount?: number;
     platformFeeCents?: number;
+    clientPaymentAmount?: number;
+    clientPaymentAmountCents?: number;
+    artistQuotedAmount?: number;
+    artistQuotedAmountCents?: number;
+    estimatedStripeFeeAmount?: number;
+    estimatedStripeFeeCents?: number;
     artistPayoutAmount?: number;
+    artistPayoutCents?: number;
     stripeCheckoutSessionId?: string;
     stripePaymentIntentId?: string;
     stripeConnectedAccountId?: string;
