@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -26,10 +26,10 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getBlob, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import { getCroppedImg } from "../utils/cropImage";
+import { getCroppedImgFromElement } from "../utils/getCroppedImgFromElement";
 import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
 
@@ -40,10 +40,9 @@ const FlashSheetDetailPage = () => {
   const [flashes, setFlashes] = useState<Flash[]>([]);
   const [editingFlash, setEditingFlash] = useState<Flash | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
-  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPreparingCrop, setIsPreparingCrop] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const cropperImageRef = useRef<HTMLImageElement | null>(null);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -78,7 +77,14 @@ const FlashSheetDetailPage = () => {
       setIsLoading(true);
       const docSnap = await getDoc(doc(db, "flashSheets", id));
       if (docSnap.exists()) {
-        setSheet({ id: docSnap.id, ...docSnap.data() } as FlashSheet);
+        const sheetData = docSnap.data() as Omit<FlashSheet, "id">;
+        let imageUrl = sheetData.imageUrl;
+
+        if (sheetData.fullPath) {
+          imageUrl = await getDownloadURL(ref(storage, sheetData.fullPath));
+        }
+
+        setSheet({ id: docSnap.id, ...sheetData, imageUrl } as FlashSheet);
       } else {
         toast.error("Flash sheet not found.");
       }
@@ -95,14 +101,6 @@ const FlashSheetDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => {
-    return () => {
-      if (cropImageUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(cropImageUrl);
-      }
-    };
-  }, [cropImageUrl]);
-
   const handleSaveEdit = async (
     flashId: string,
     title: string,
@@ -117,32 +115,12 @@ const FlashSheetDetailPage = () => {
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
     setCropArea(areaPixels);
-  };
 
-  const openCropModal = async () => {
-    if (!sheet || isPreparingCrop) return;
-
-    try {
-      setIsPreparingCrop(true);
-
-      if (cropImageUrl) {
-        setShowCropModal(true);
-        return;
-      }
-
-      if (sheet.fullPath) {
-        const blob = await getBlob(ref(storage, sheet.fullPath));
-        const objectUrl = URL.createObjectURL(blob);
-        setCropImageUrl(objectUrl);
-      } else {
-        setCropImageUrl(sheet.imageUrl);
-      }
-
-      setShowCropModal(true);
-    } catch (err: any) {
-      toast.error(err?.message || "Could not prepare this sheet for cropping.");
-    } finally {
-      setIsPreparingCrop(false);
+    const cropperImage = document.querySelector(
+      "img.reactEasyCrop_Image"
+    ) as HTMLImageElement | null;
+    if (cropperImage) {
+      cropperImageRef.current = cropperImage;
     }
   };
 
@@ -170,8 +148,19 @@ const FlashSheetDetailPage = () => {
 
     try {
       setIsPublishing(true);
-      const croppedBlob = await getCroppedImg(
-        cropImageUrl || sheet.imageUrl,
+      const cropperImage =
+        cropperImageRef.current ||
+        (document.querySelector(
+          "img.reactEasyCrop_Image"
+        ) as HTMLImageElement | null);
+
+      if (!cropperImage) {
+        toast.error("Cropper image is not ready yet.");
+        return;
+      }
+
+      const croppedBlob = await getCroppedImgFromElement(
+        cropperImage,
         cropArea
       );
       const timestamp = Date.now();
@@ -311,12 +300,11 @@ const FlashSheetDetailPage = () => {
 
             <button
               type="button"
-              onClick={openCropModal}
+              onClick={() => setShowCropModal(true)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
-              disabled={isPreparingCrop}
             >
               <Scissors size={16} />
-              {isPreparingCrop ? "Preparing cropper..." : "Add flash from sheet"}
+              Add flash from sheet
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -426,7 +414,6 @@ const FlashSheetDetailPage = () => {
       {showCropModal && (
         <CropFlashModal
           sheet={sheet}
-          imageSrc={cropImageUrl || sheet.imageUrl}
           crop={crop}
           zoom={zoom}
           title={newFlashTitle}
@@ -458,7 +445,6 @@ const MiniStat = ({ label, value }: { label: string; value: string | number }) =
 
 const CropFlashModal = ({
   sheet,
-  imageSrc,
   crop,
   zoom,
   title,
@@ -475,7 +461,6 @@ const CropFlashModal = ({
   onPublish,
 }: {
   sheet: FlashSheet;
-  imageSrc: string;
   crop: { x: number; y: number };
   zoom: number;
   title: string;
@@ -514,7 +499,7 @@ const CropFlashModal = ({
         </div>
         <div className="relative min-h-[420px] flex-1 bg-black">
           <Cropper
-            image={imageSrc}
+            image={sheet.imageUrl}
             crop={crop}
             zoom={zoom}
             maxZoom={8}
