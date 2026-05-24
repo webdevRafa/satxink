@@ -160,7 +160,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${offer.price}`} />
-                <DetailTile icon={<ReceiptText size={17} />} label="Deposit" value={`$${offer.depositPolicy?.amount || 0}`} />
+                <DetailTile icon={<ReceiptText size={17} />} label="Deposit today" value={`$${offer.depositPolicy?.amount || 0}`} />
                 <DetailTile icon={<Store size={17} />} label="Studio" value={offer.shopName || "Unavailable"} />
               </div>
 
@@ -172,7 +172,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   </div>
                   <div className="grid gap-3">
                     <PaymentChoice
-                      title="Keep balance in SATX Ink"
+                      title="Pay remaining balance through SATX Ink"
                       description="Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
                       amount={`$${remainingAmount}`}
                       checked={remainingPaymentMethod === "stripe"}
