@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import type { ChangeEvent } from "react";
+import { Fragment, useEffect, useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
@@ -16,6 +17,8 @@ import {
   Instagram,
   LoaderCircle,
   Mail,
+  MapPin,
+  MessageSquareText,
   ReceiptText,
   RefreshCcw,
   Save,
@@ -182,6 +185,8 @@ const ArtistDashboardView = () => {
   >("profile");
 
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [selectedBookingRecord, setSelectedBookingRecord] =
+    useState<DashboardBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
@@ -1600,10 +1605,14 @@ const ArtistDashboardView = () => {
                       </div>
 
                       <div className="border-t border-white/10 p-4">
-                        <div className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBookingRecord(booking)}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+                        >
                           <Eye size={16} />
                           Booking record
-                        </div>
+                        </button>
                       </div>
                     </article>
                   );
@@ -1664,10 +1673,247 @@ const ArtistDashboardView = () => {
             }));
           }}
         />
+        <BookingRecordDialog
+          booking={selectedBookingRecord}
+          onClose={() => setSelectedBookingRecord(null)}
+        />
       </main>
     </div>
   );
 };
+
+type DashboardBooking = Booking & {
+  clientName?: string;
+  clientAvatar?: string;
+  user?: { name?: string; displayName?: string; avatarUrl?: string };
+  message?: string;
+  description?: string;
+};
+
+const BookingRecordDialog = ({
+  booking,
+  onClose,
+}: {
+  booking: DashboardBooking | null;
+  onClose: () => void;
+}) => {
+  const clientName =
+    booking?.user?.name ||
+    booking?.user?.displayName ||
+    booking?.clientName ||
+    "Client";
+  const clientAvatar =
+    booking?.user?.avatarUrl ||
+    booking?.clientAvatar ||
+    "/default-avatar.png";
+  const remainingBalance =
+    typeof booking?.remainingBalanceAmount === "number"
+      ? Math.max(booking.remainingBalanceAmount, 0)
+      : Math.max(
+          Number(booking?.price || 0) -
+            Number(booking?.totalArtistPaidAmount || booking?.depositAmount || 0),
+          0
+        );
+
+  return (
+    <Transition appear show={!!booking} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="ease-in duration-150"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+                {booking && (
+                  <>
+                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Booking record
+                        </p>
+                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                          Appointment with {clientName}
+                        </Dialog.Title>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                        aria-label="Close booking record"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
+                      <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+                        {booking.sampleImageUrl ? (
+                          <img
+                            src={booking.sampleImageUrl}
+                            alt="Booking sample"
+                            className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                            <ImageIcon size={34} />
+                            <span>No sample image uploaded</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-5 sm:p-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex min-w-0 items-center gap-4">
+                            <img
+                              src={clientAvatar}
+                              alt={clientName}
+                              className="h-14 w-14 rounded-full border border-white/10 object-cover"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-white">
+                                {clientName}
+                              </p>
+                              <p className="text-sm text-neutral-500">
+                                {booking.shopName || "Studio not listed"}
+                              </p>
+                            </div>
+                          </div>
+                          <BookingStatusBadge status={booking.status} />
+                        </div>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                          <BookingDetailTile
+                            icon={<DollarSign size={17} />}
+                            label="Offer price"
+                            value={formatDashboardMoney(booking.price)}
+                          />
+                          <BookingDetailTile
+                            icon={<ReceiptText size={17} />}
+                            label="Deposit"
+                            value={formatDashboardMoney(booking.depositAmount)}
+                          />
+                          <BookingDetailTile
+                            icon={<DollarSign size={17} />}
+                            label="Artist paid"
+                            value={formatDashboardMoney(booking.totalArtistPaidAmount)}
+                          />
+                          <BookingDetailTile
+                            icon={<CreditCard size={17} />}
+                            label="Remaining"
+                            value={formatDashboardMoney(remainingBalance)}
+                          />
+                          <BookingDetailTile
+                            icon={<CalendarDays size={17} />}
+                            label="Appointment"
+                            value={formatBookingAppointment(booking.selectedDate)}
+                          />
+                          <BookingDetailTile
+                            icon={<Store size={17} />}
+                            label="Payment"
+                            value={
+                              booking.paymentType === "internal"
+                                ? "Stripe"
+                                : "External"
+                            }
+                          />
+                        </div>
+
+                        {booking.shopAddress && (
+                          <a
+                            href={booking.shopMapLink || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
+                          >
+                            <MapPin
+                              size={17}
+                              className="mt-0.5 shrink-0 text-neutral-500"
+                            />
+                            {booking.shopAddress}
+                          </a>
+                        )}
+
+                        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                            <MessageSquareText size={17} />
+                            Client notes
+                          </div>
+                          <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
+                            {booking.message ||
+                              booking.description ||
+                              "No notes were included with this booking."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+const BookingDetailTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const BookingStatusBadge = ({ status }: { status: string }) => {
+  const className =
+    status === "paid" || status === "confirmed" || status === "deposit_paid"
+      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+      : status === "cancelled"
+      ? "border-red-300/25 bg-red-300/10 text-red-100"
+      : "border-amber-300/20 bg-amber-300/10 text-amber-100";
+  const label = status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
+
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+      {label}
+    </span>
+  );
+};
+
+const formatDashboardMoney = (amount?: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(amount || 0));
 
 const formatBookingAppointment = (selectedDate: {
   date: string;

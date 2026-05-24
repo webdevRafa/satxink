@@ -141,6 +141,22 @@ const PaymentPage = () => {
   });
   const remainingAfterPayment =
     paymentMode === "deposit" ? Math.max(price - deposit, 0) : 0;
+  const depositBreakdown = calculateClientPaymentBreakdown(deposit, {
+    platformFeeBaseAmount: price,
+  });
+  const fullBreakdown = calculateClientPaymentBreakdown(price, {
+    platformFeeBaseAmount: price,
+  });
+  const remainingLaterBreakdown = calculateClientPaymentBreakdown(
+    remainingAfterPayment,
+    { platformFeeCentsOverride: 0 }
+  );
+  const splitPaymentTotalCents =
+    depositBreakdown.clientTotalCents + remainingLaterBreakdown.clientTotalCents;
+  const splitPaymentDifferenceCents = Math.max(
+    splitPaymentTotalCents - fullBreakdown.clientTotalCents,
+    0
+  );
   const paymentOptions =
     booking.status === "deposit_paid"
       ? []
@@ -152,9 +168,7 @@ const PaymentPage = () => {
                   title: "Pay deposit",
                   description:
                     "Confirm the appointment now and pay the artist balance later.",
-                  breakdown: calculateClientPaymentBreakdown(deposit, {
-                    platformFeeBaseAmount: price,
-                  }),
+                  breakdown: depositBreakdown,
                 },
               ]
             : []),
@@ -162,9 +176,7 @@ const PaymentPage = () => {
             mode: "full" as PaymentMode,
             title: "Pay in full",
             description: "Take care of the full artist quote in one checkout.",
-            breakdown: calculateClientPaymentBreakdown(price, {
-              platformFeeBaseAmount: price,
-            }),
+            breakdown: fullBreakdown,
           },
         ];
 
@@ -262,6 +274,26 @@ const PaymentPage = () => {
                   </p>
                 </div>
               )}
+
+              {paymentMode === "deposit" && remainingAfterPayment > 0 && (
+                <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
+                  <p className="text-sm font-semibold text-amber-50">
+                    Split-payment estimate
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-50/80">
+                    Paying the balance later creates a second Stripe checkout,
+                    so the overall total is estimated at{" "}
+                    <span className="font-semibold text-white">
+                      {formatMoneyFromCents(splitPaymentTotalCents)}
+                    </span>
+                    , about{" "}
+                    <span className="font-semibold text-white">
+                      {formatMoneyFromCents(splitPaymentDifferenceCents)}
+                    </span>{" "}
+                    more than paying in full today.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -342,6 +374,8 @@ const PaymentPage = () => {
                   {booking.finalPaymentTiming === "before"
                     ? " and may be collected before your appointment."
                     : " and may be collected after the session with your artist."}
+                  {" "}A second checkout for that balance will include its own
+                  Stripe processing fee.
                 </>
               )}
             </p>
