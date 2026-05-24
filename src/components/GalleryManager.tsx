@@ -1,27 +1,33 @@
-// GalleryManager.tsx
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  updateDoc,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
+  query,
+  updateDoc,
+  where,
 } from "firebase/firestore";
-import { ref, deleteObject } from "firebase/storage";
+import { deleteObject, ref } from "firebase/storage";
+import {
+  ArrowRight,
+  Image as ImageIcon,
+  MoreVertical,
+  Plus,
+  Upload,
+  X,
+} from "lucide-react";
 import UploadModal from "./UploadModal";
-import { Plus, MoreVertical, X } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
+
 const GalleryManager = ({ uid }: { uid: string }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [modalLoading, setModalLoading] = useState(true);
-
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [artistInfo, setArtistInfo] = useState<{
     avatarUrl?: string;
@@ -29,14 +35,19 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   }>({});
 
   const fetchGallery = async () => {
-    const q = query(collection(db, "gallery"), where("artistId", "==", uid));
-    const snapshot = await getDocs(q);
+    const galleryQuery = query(
+      collection(db, "gallery"),
+      where("artistId", "==", uid)
+    );
+    const snapshot = await getDocs(galleryQuery);
     setItems(
-      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
+      snapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+      })) as GalleryItem[]
     );
   };
 
-  // Fetch artist details for full modal
   useEffect(() => {
     const fetchArtistData = async () => {
       if (!selectedItem?.artistId) return;
@@ -50,26 +61,31 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         });
       }
     };
+
     fetchArtistData();
   }, [selectedItem]);
 
   useEffect(() => {
     if (!uid) return;
-    const q = query(collection(db, "gallery"), where("artistId", "==", uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const galleryItems = snapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as GalleryItem)
-      );
+    const galleryQuery = query(
+      collection(db, "gallery"),
+      where("artistId", "==", uid)
+    );
+    const unsubscribe = onSnapshot(galleryQuery, (snapshot) => {
+      const galleryItems = snapshot.docs.map((itemDoc) => ({
+        id: itemDoc.id,
+        ...itemDoc.data(),
+      })) as GalleryItem[];
       setItems(galleryItems);
     });
+
     fetchGallery();
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid]);
 
   useEffect(() => {
-    if (selectedItem) {
-      setModalLoading(true); // reset loading when opening a new item
-    }
+    if (selectedItem) setModalLoading(true);
   }, [selectedItem]);
 
   const handleUpdateItem = async (
@@ -77,16 +93,15 @@ const GalleryManager = ({ uid }: { uid: string }) => {
     caption: string,
     tags: string[]
   ) => {
-    await updateDoc(doc(db, "gallery", itemId), {
-      caption,
-      tags,
-    });
+    await updateDoc(doc(db, "gallery", itemId), { caption, tags });
     setEditingItem(null);
   };
 
   const handleDelete = async (item: GalleryItem) => {
     await deleteDoc(doc(db, "gallery", item.id));
-    const paths = [item.thumbPath, item.previewPath, item.fullPath];
+    const paths = [item.thumbPath, item.previewPath, item.fullPath].filter(
+      Boolean
+    );
     await Promise.allSettled(
       paths.map((path) => deleteObject(ref(storage, path)))
     );
@@ -94,15 +109,37 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div>
-      <div className="flex gap-2 items-center my-5">
-        <button
-          onClick={() => setIsUploadOpen(true)}
-          className="mb-4 px-3! py-1! bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-button)] rounded-none! text-white flex gap-1 "
-        >
-          Add <Plus />
-        </button>
-      </div>
+    <div className="space-y-8">
+      <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
+        <div className="flex flex-col gap-5 border-b border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
+              Gallery library
+            </p>
+            <h2 className="mt-2 text-2xl! font-bold text-white">
+              Your portfolio gallery
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+              Keep finished work polished, tagged, and ready for clients to
+              explore from your public profile.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
+              {items.length} total
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsUploadOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+            >
+              <Upload size={16} />
+              Add work
+            </button>
+          </div>
+        </div>
+      </section>
 
       {isUploadOpen && (
         <UploadModal
@@ -114,60 +151,149 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         />
       )}
 
-      {/* Grid of gallery items */}
-      <div
-        className="grid gap-4 justify-center md:justify-start"
-        style={{
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 250px))",
-        }}
-      >
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="rounded-lg shadow-lg overflow-hidden relative hover:shadow-xl transition-shadow duration-300"
-          >
-            {/* Header Row */}
-            <div className="flex justify-between items-center px-2 py-1 bg-[var(--color-bg-base)]">
-              <h2 className="text-sm font-semibold text-white! truncate max-w-[70%] leading-none my-0!">
-                {item.caption || "Untitled"}
-              </h2>
-              <button
-                onClick={() => setEditingItem(item)}
-                className="text-white hover:text-gray-300 transition flex items-center"
-              >
-                <MoreVertical size={18} />
-              </button>
-            </div>
-
-            {/* Image Section */}
-            {item.status === "processing" ? (
-              <div className="flex items-center justify-center bg-[var(--color-bg-base)] h-48">
-                <span className="text-white text-sm">Processing…</span>
-              </div>
-            ) : (
-              <div
-                className="w-full max-h-50 overflow-hidden cursor-pointer"
-                onClick={() => setSelectedItem(item)}
-              >
-                <img
-                  src={item.thumbUrl || item.webp90Url}
-                  alt={item.caption || "Gallery item"}
-                  className="w-full object-cover max-h-50 hover:scale-105 transition duration-300 ease-in-out"
-                />
-              </div>
-            )}
-
-            {/* Tag marquee for gallery (unchanged) */}
-            {item.status === "ready" &&
-              Array.isArray(item.tags) &&
-              item.tags.length > 0 && (
-                <TagMarquee tags={item.tags} variant="gallery" />
-              )}
+      <section>
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
+              Portfolio pieces
+            </p>
+            <h2 className="mt-2 text-2xl! font-bold text-white">
+              Gallery work
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Open any piece to preview it, or manage details from the card.
+            </p>
           </div>
-        ))}
-      </div>
+          {items.length > 0 && (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
+              {items.length} total
+            </span>
+          )}
+        </div>
 
-      {/* Edit Modal */}
+        {items.length === 0 ? (
+          <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
+              <ImageIcon size={22} />
+            </span>
+            <h3 className="mt-4 text-xl! font-bold text-white">
+              No gallery work yet
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">
+              Add healed pieces, fresh work, and portfolio highlights that help
+              clients understand your range.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsUploadOpen(true)}
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+            >
+              <Plus size={16} />
+              Add first piece
+            </button>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {items.map((item) => {
+              const tags = Array.isArray(item.tags)
+                ? item.tags.slice(0, 3)
+                : [];
+              const isProcessing = item.status === "processing";
+
+              return (
+                <article
+                  key={item.id}
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:-translate-y-0.5 hover:border-red-300/40 hover:bg-[#191919]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => !isProcessing && setSelectedItem(item)}
+                    className="block w-full text-left"
+                    disabled={isProcessing}
+                  >
+                    <div className="relative aspect-[4/3] overflow-hidden bg-black">
+                      {isProcessing ? (
+                        <div className="flex h-full w-full items-center justify-center bg-white/[0.03]">
+                          <span className="rounded-full border border-white/10 bg-black/40 px-3! py-1.5! text-xs font-semibold text-zinc-300">
+                            Processing...
+                          </span>
+                        </div>
+                      ) : (
+                        <img
+                          src={item.thumbUrl || item.webp90Url || item.fullUrl}
+                          alt={item.caption || "Gallery item"}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      )}
+
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
+                          <ImageIcon size={14} />
+                          {isProcessing ? "Processing" : "Portfolio"}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => !isProcessing && setSelectedItem(item)}
+                        className="min-w-0 flex-1 text-left"
+                        disabled={isProcessing}
+                      >
+                        <h3 className="truncate text-lg! font-bold text-white">
+                          {item.caption || "Untitled piece"}
+                        </h3>
+                      </button>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem(item)}
+                          className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white hover:text-black"
+                          aria-label={`Manage ${item.caption || "gallery item"}`}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => !isProcessing && setSelectedItem(item)}
+                          className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition group-hover:bg-white group-hover:text-black"
+                          aria-label={`Open ${item.caption || "gallery item"}`}
+                          disabled={isProcessing}
+                        >
+                          <ArrowRight size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex min-h-7 flex-wrap gap-2">
+                      {tags.length > 0 ? (
+                        tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-300"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-500">
+                          No tags yet
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       {editingItem && (
         <EditGalleryItemModal
           item={editingItem}
@@ -180,42 +306,35 @@ const GalleryManager = ({ uid }: { uid: string }) => {
       {selectedItem && (
         <div
           onClick={() => setSelectedItem(null)}
-          className="fixed inset-0 bg-black/80 z-50 backdrop-blur-xs flex flex-col md:flex-row gap-5 items-center justify-center px-5 md:px-0"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/80 px-5 backdrop-blur-xs md:flex-row md:px-0"
         >
-          {/* Left side: image container */}
-          <div className="relative max-w-[90%] max-h-[85%] flex flex-col">
-            {/* Loader only */}
+          <div className="relative flex max-h-[85%] max-w-[90%] flex-col">
             {modalLoading && (
               <div
-                className="absolute inset-0 bg-black/70 animate-pulse rounded-b-lg shadow-lg"
-                style={{
-                  minHeight: "60vh",
-                  maxHeight: "80vh",
-                }}
+                className="absolute inset-0 animate-pulse rounded-b-lg bg-black/70 shadow-lg"
+                style={{ minHeight: "60vh", maxHeight: "80vh" }}
               />
             )}
 
-            {/* Full image */}
             <img
               data-aos="zoom-out-up"
               src={selectedItem.fullUrl || selectedItem.webp90Url}
               alt={selectedItem.caption || "Full view"}
-              className={`object-contain rounded-b-lg shadow-lg max-h-[70vh] lg:max-h-[60vh] max-w-full transition-opacity duration-300 ${
+              className={`max-h-[70vh] max-w-full rounded-b-lg object-contain shadow-lg transition-opacity duration-300 lg:max-h-[60vh] ${
                 modalLoading ? "opacity-0" : "opacity-100"
               }`}
               onLoad={() => setModalLoading(false)}
             />
 
-            {/* Only render these AFTER image is loaded */}
-            {/* Tags + Close Button */}
             {selectedItem && !modalLoading && (
-              <div className="absolute top-1 left-2 right-2 flex items-center gap-4 py-0 rounded-lg bg-[#121212]/20">
+              <div className="absolute left-2 right-2 top-1 flex items-center gap-4 rounded-lg bg-[#121212]/20 py-0">
                 {Array.isArray(selectedItem.tags) &&
                   selectedItem.tags.length > 0 && (
                     <TagMarqueeModal tags={selectedItem.tags} />
                   )}
                 <button
-                  className="text-white text-xl md:text-2xl hover:text-gray-300 shrink-0"
+                  type="button"
+                  className="shrink-0 text-xl text-white transition hover:text-gray-300 md:text-2xl"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedItem(null);
@@ -226,30 +345,28 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               </div>
             )}
 
-            {/* Artist Info */}
             {selectedItem && !modalLoading && (
-              <div className="absolute bottom-3 left-3 flex gap-2 justify-start items-center">
+              <div className="absolute bottom-3 left-3 flex items-center justify-start gap-2">
                 <img
                   src={artistInfo.avatarUrl || "/default-avatar.png"}
                   alt={artistInfo.displayName || "Artist"}
-                  className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white shadow-md transition-opacity duration-300 opacity-100"
+                  className="h-8 w-8 rounded-full border border-white shadow-md opacity-100 transition-opacity duration-300 md:h-10 md:w-10"
                 />
-                <span className="text-white font-semibold text-lg transition-opacity duration-300 opacity-100">
+                <span className="text-lg font-semibold text-white opacity-100 transition-opacity duration-300">
                   {artistInfo.displayName || "Unknown Artist"}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Right side: caption */}
           {selectedItem && !modalLoading && (
             <>
-              <h1 className="md:hidden max-w-[300px] text-white! text-sm md:text-2xl! transition-opacity duration-500 opacity-100 md:translate-x-[-40px]">
+              <h1 className="max-w-[300px] text-sm text-white! opacity-100 transition-opacity duration-500 md:hidden md:translate-x-[-40px] md:text-2xl!">
                 {selectedItem.caption}
               </h1>
               <h1
                 data-aos="fade-in"
-                className="hidden md:block max-w-[300px] font-light! text-white! text-sm md:text-2xl! transition-opacity duration-500 opacity-100 md:translate-x-[-40px]"
+                className="hidden max-w-[300px] text-sm font-light! text-white! opacity-100 transition-opacity duration-500 md:block md:translate-x-[-40px] md:text-2xl!"
               >
                 {selectedItem.caption}
               </h1>
@@ -261,109 +378,20 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   );
 };
 
-// TagMarquee component with variant support
-const TagMarquee = ({
-  tags,
-  variant = "gallery",
-}: {
-  tags: string[];
-  variant?: "gallery" | "modal";
-}) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [duration, setDuration] = useState("60s");
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (trackRef.current) {
-      const width = trackRef.current.scrollWidth;
-      const speed = 10;
-      const calculatedDuration = `${width / speed}s`;
-      setDuration(calculatedDuration);
-    }
-  }, [tags]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => setIsVisible(entry.isIntersecting));
-      },
-      { threshold: 0.1 }
-    );
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  const baseContainer =
-    variant === "gallery" ? "bg-[var(--color-bg-base)]/90" : "bg-transparent";
-
-  const tagClasses =
-    variant === "gallery"
-      ? "hover:bg-[var(--color-bg-button)] text-neutral-400 text-xs px-3 py-1 shadow-sm"
-      : "text-gray-200 text-xs font-medium px-2";
-
-  return (
-    <div
-      ref={containerRef}
-      className={`relative overflow-hidden h-8 px-4 ${baseContainer}`}
-    >
-      {/* Fade edges (hide for modal) */}
-      {variant === "gallery" && (
-        <>
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-[var(--color-bg-footer)] to-transparent z-10" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--color-bg-footer)] to-transparent z-10" />
-        </>
-      )}
-
-      <style>
-        {`
-          @keyframes scrollTags {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
-          }
-          .tag-track {
-            display: flex;
-            width: max-content;
-            animation: scrollTags linear infinite;
-          }
-          .tag-track:hover {
-            animation-play-state: paused;
-          }
-        `}
-      </style>
-
-      <div
-        ref={trackRef}
-        className={`py-1 tag-track ${!isVisible ? "pause" : ""}`}
-        style={{ animationDuration: duration }}
-      >
-        {[...tags, ...tags].map((tag, idx) => (
-          <span key={idx} className={`mx-2 ${tagClasses}`}>
-            {tag}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-};
 const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [duration, setDuration] = useState("60s");
   const [isVisible, setIsVisible] = useState(false);
 
-  // Calculate duration based on the doubled track width
   useEffect(() => {
     if (trackRef.current) {
       const totalWidth = trackRef.current.scrollWidth;
-      const speed = 10; // pixels per second
-      const calculatedDuration = `${totalWidth / 2 / speed}s`;
-      // divide by 2 because we doubled the tags, so we only want one full cycle time
-      setDuration(calculatedDuration);
+      const speed = 10;
+      setDuration(`${totalWidth / 2 / speed}s`);
     }
   }, [tags]);
 
-  // Pause animation when not visible
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -378,13 +406,13 @@ const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden h-8 flex-1 flex items-center whitespace-nowrap"
+      className="relative flex h-8 flex-1 items-center overflow-hidden whitespace-nowrap"
     >
       <style>
         {`
           @keyframes scrollTagsModal {
             0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); } /* Only half, so it loops seamlessly */
+            100% { transform: translateX(-50%); }
           }
           .tag-track-modal {
             display: flex;
@@ -405,15 +433,11 @@ const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
         className={`tag-track-modal ${!isVisible ? "pause" : ""}`}
         style={{ animationDuration: duration }}
       >
-        {/* Double the tags to create seamless loop */}
         {[...tags, ...tags].map((tag, idx) => (
           <span
-            key={idx}
-            className="mx-3 text-white text-xs font-medium"
-            style={{
-              lineHeight: "1rem",
-              maxHeight: "1.5rem",
-            }}
+            key={`${tag}-${idx}`}
+            className="mx-3 text-xs font-medium text-white"
+            style={{ lineHeight: "1rem", maxHeight: "1.5rem" }}
           >
             {tag}
           </span>
@@ -423,7 +447,6 @@ const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
   );
 };
 
-// Edit modal unchanged
 const EditGalleryItemModal = ({
   item,
   onClose,
@@ -438,105 +461,125 @@ const EditGalleryItemModal = ({
   const [caption, setCaption] = useState(item.caption || "");
   const [tags, setTags] = useState<string[]>(item.tags || []);
   const [newTag, setNewTag] = useState("");
+  const [warning, setWarning] = useState<string | null>(null);
 
   const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      if (tags.length >= 6) {
-        setWarning("You can only add up to 6 tags.");
-        return;
-      }
-      setTags([...tags, newTag.trim()]);
-      setNewTag("");
-      setWarning(null); // Clear any existing warning when successful
+    const trimmed = newTag.trim();
+    if (!trimmed || tags.includes(trimmed)) return;
+    if (tags.length >= 6) {
+      setWarning("You can only add up to 6 tags.");
+      return;
     }
+    setTags([...tags, trimmed]);
+    setNewTag("");
+    setWarning(null);
   };
-  const [warning, setWarning] = useState<string | null>(null);
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[var(--color-bg-footer)] rounded-lg p-6 w-full max-w-md">
-        <span className="text-sm text-white!">Manage</span>
-        {/* Image Preview */}
-        <div className="mb-4">
-          <img
-            data-aos="fade-in"
-            src={item.thumbUrl || item.webp90Url}
-            alt={item.caption || "Preview"}
-            className="max-w-[200px] mx-auto object-cover rounded-md shadow"
-          />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
+      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          aria-label="Close gallery editor"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="border-b border-white/10 bg-black/30 p-5 md:border-b-0 md:border-r md:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+            Manage gallery
+          </p>
+          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
+            <img
+              src={item.thumbUrl || item.webp90Url || item.fullUrl}
+              alt={item.caption || "Gallery preview"}
+              className="aspect-square w-full object-cover"
+            />
+          </div>
         </div>
 
-        {/* Title Input */}
-        <label className="block mb-3 text-sm">Title</label>
-        <input
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          className="w-full px-3 py-2 rounded bg-[var(--color-bg-base)] text-white mb-4"
-          placeholder="Enter title"
-        />
+        <div className="p-5 md:p-6">
+          <h2 className="text-2xl! font-bold text-white">Edit gallery work</h2>
 
-        {/* Tags Section */}
-        <label className="block mb-2 text-sm">Tags</label>
-        <div className="flex flex-wrap gap-2 mb-3 max-h-16 overflow-y-auto pr-2 custom-scrollbar scrollbar-thin">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="flex items-center gap-1 bg-[var(--color-bg-base)] text-white text-xs px-3 py-1 rounded-full shadow-sm min-h-[28px] max-w-[120px] truncate"
-              title={tag}
+          <label className="mt-6 block">
+            <span className="text-sm font-semibold text-zinc-300">Title</span>
+            <input
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+              placeholder="Enter title"
+            />
+          </label>
+
+          <div className="mt-4">
+            <span className="text-sm font-semibold text-zinc-300">Tags</span>
+            <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex min-h-8 max-w-[140px] items-center gap-1 truncate rounded-full border border-white/10 bg-white/5 px-3! py-1! text-xs text-white"
+                  title={tag}
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(tag)}
+                    className="text-red-300 transition hover:text-red-200"
+                  >
+                    X
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+              placeholder="Add tag"
+            />
+            <button
+              type="button"
+              onClick={handleAddTag}
+              className="rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
             >
-              {tag}
+              Add
+            </button>
+          </div>
+          {warning && <p className="mt-2 text-xs text-rose-200!">{warning}</p>}
+
+          <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => onDelete(item)}
+              className="rounded-xl border border-red-400/20 bg-red-500/10 px-4! py-3! text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+            >
+              Delete
+            </button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row">
               <button
-                onClick={() => handleRemoveTag(tag)}
-                className="text-red-400 leading-none text-sm hover:text-red-300"
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
               >
-                ×
+                Cancel
               </button>
-            </span>
-          ))}
-        </div>
-
-        {/* Add Tag Input */}
-        <div className="flex gap-2 mb-4">
-          <input
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            className="flex-1 px-3 py-2 rounded bg-[var(--color-bg-base)] text-white text-sm"
-            placeholder="Add tag"
-          />
-
-          <button
-            onClick={handleAddTag}
-            className="bg-[var(--color-bg-button)] text-white px-2! py-1! rounded text-sm"
-          >
-            Add
-          </button>
-        </div>
-        {warning && <p className="text-rose-200! text-xs! mt-1">{warning}</p>}
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center mt-6">
-          <button
-            onClick={() => onDelete(item)}
-            className="text-sm text-[var(--color-bg-footer)]! bg-rose-600 hover:bg-rose-700  px-2! py-1! rounded"
-          >
-            Delete
-          </button>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-2! py-1! bg-[var(--color-bg-card)] text-white rounded text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onSave(item.id, caption, tags)}
-              className="px-2! py-1! bg-emerald-600 hover:bg-emerald-700 text-[var(--color-bg-footer)]! rounded text-sm"
-            >
-              Save
-            </button>
+              <button
+                type="button"
+                onClick={() => onSave(item.id, caption, tags)}
+                className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              >
+                Save changes
+              </button>
+            </div>
           </div>
         </div>
       </div>
