@@ -5,16 +5,21 @@ import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
 import {
+  CalendarDays,
   Camera,
   Check,
   CreditCard,
+  DollarSign,
+  Eye,
   Globe,
   Image as ImageIcon,
   Instagram,
   LoaderCircle,
   Mail,
+  ReceiptText,
   RefreshCcw,
   Save,
+  Store,
   UserRound,
   X,
 } from "lucide-react";
@@ -114,7 +119,9 @@ const isValidOptionalUrl = (value: string) => {
   }
 };
 
-const createProfileFormState = (artist: Partial<Artist> | null): ArtistProfileFormState => ({
+const createProfileFormState = (
+  artist: Partial<Artist> | null
+): ArtistProfileFormState => ({
   displayName: artist?.displayName || artist?.name || "",
   email: artist?.email || "",
   avatarUrl: artist?.avatarUrl || "",
@@ -123,7 +130,8 @@ const createProfileFormState = (artist: Partial<Artist> | null): ArtistProfileFo
   socialLinks: {
     instagram: artist?.socialLinks?.instagram || "",
     facebook: artist?.socialLinks?.facebook || "",
-    website: (artist?.socialLinks as { website?: string } | undefined)?.website || "",
+    website:
+      (artist?.socialLinks as { website?: string } | undefined)?.website || "",
   },
   paymentType: artist?.paymentType || "internal",
   externalPaymentDetails: {
@@ -240,7 +248,9 @@ const ArtistDashboardView = () => {
       | ((current: ArtistProfileFormState) => ArtistProfileFormState)
   ) => {
     setProfileForm((current) =>
-      typeof updater === "function" ? updater(current) : { ...current, ...updater }
+      typeof updater === "function"
+        ? updater(current)
+        : { ...current, ...updater }
     );
     setIsProfileDirty(true);
   };
@@ -253,7 +263,9 @@ const ArtistDashboardView = () => {
 
     const nameQuery = query(collection(db, "users"), where("slug", "==", slug));
     const snapshot = await getDocs(nameQuery);
-    const belongsToAnotherArtist = snapshot.docs.some((docSnap) => docSnap.id !== uid);
+    const belongsToAnotherArtist = snapshot.docs.some(
+      (docSnap) => docSnap.id !== uid
+    );
 
     return belongsToAnotherArtist
       ? ("taken" as DisplayNameStatus)
@@ -519,7 +531,9 @@ const ArtistDashboardView = () => {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setBookingRequests(
+          snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+        );
       },
       (error) => {
         console.error("Failed to listen to artist requests:", error);
@@ -566,7 +580,8 @@ const ArtistDashboardView = () => {
           where("status", "==", "pending_payment")
         ),
         (snap) => updateCount("pending", snap.size),
-        (error) => console.error("Artist pending booking count listener failed:", error)
+        (error) =>
+          console.error("Artist pending booking count listener failed:", error)
       ),
       onSnapshot(
         query(
@@ -575,7 +590,11 @@ const ArtistDashboardView = () => {
           where("status", "==", "confirmed")
         ),
         (snap) => updateCount("confirmed", snap.size),
-        (error) => console.error("Artist confirmed booking count listener failed:", error)
+        (error) =>
+          console.error(
+            "Artist confirmed booking count listener failed:",
+            error
+          )
       ),
       onSnapshot(
         query(
@@ -584,7 +603,8 @@ const ArtistDashboardView = () => {
           where("status", "==", "paid")
         ),
         (snap) => updateCount("paid", snap.size),
-        (error) => console.error("Artist paid booking count listener failed:", error)
+        (error) =>
+          console.error("Artist paid booking count listener failed:", error)
       ),
       onSnapshot(
         query(
@@ -593,7 +613,11 @@ const ArtistDashboardView = () => {
           where("status", "==", "cancelled")
         ),
         (snap) => updateCount("cancelled", snap.size),
-        (error) => console.error("Artist cancelled booking count listener failed:", error)
+        (error) =>
+          console.error(
+            "Artist cancelled booking count listener failed:",
+            error
+          )
       ),
     ];
 
@@ -606,7 +630,6 @@ const ArtistDashboardView = () => {
   useEffect(() => {
     if (!uid) return;
 
-    // Always clear previous results when switching tabs
     setBookings([]);
 
     const statusToFetch = getFirestoreStatus(activeTab);
@@ -627,10 +650,54 @@ const ArtistDashboardView = () => {
 
     const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
-      setBookings(
-        snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Booking[]
-      );
+      async (snapshot) => {
+        const rawBookings = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as Booking[];
+
+        const clientIds = Array.from(
+          new Set(
+            rawBookings.map((booking) => booking.clientId).filter(Boolean)
+          )
+        );
+
+        const clientMap = new Map<
+          string,
+          { name?: string; displayName?: string; avatarUrl?: string }
+        >();
+
+        await Promise.all(
+          clientIds.map(async (clientId) => {
+            try {
+              const clientSnap = await getDoc(doc(db, "users", clientId));
+              if (clientSnap.exists()) {
+                const user = clientSnap.data() as {
+                  name?: string;
+                  displayName?: string;
+                  avatarUrl?: string;
+                };
+
+                clientMap.set(clientId, user);
+              }
+            } catch (error) {
+              console.error(`Failed to fetch client ${clientId}:`, error);
+            }
+          })
+        );
+
+        setBookings(
+          rawBookings.map((booking) => {
+            const user = clientMap.get(booking.clientId);
+
+            return {
+              ...booking,
+              user,
+              clientName: user?.name || user?.displayName || "Client",
+              clientAvatar: user?.avatarUrl || "/default-avatar.png",
+            };
+          }) as Booking[]
+        );
       },
       (error) => {
         console.error("Failed to listen to artist bookings:", error);
@@ -654,7 +721,8 @@ const ArtistDashboardView = () => {
     Boolean(profileForm.paymentType),
   ];
   const profileCompletion = Math.round(
-    (profileCompletionItems.filter(Boolean).length / profileCompletionItems.length) *
+    (profileCompletionItems.filter(Boolean).length /
+      profileCompletionItems.length) *
       100
   );
   const profileStrengthColor =
@@ -734,7 +802,11 @@ const ArtistDashboardView = () => {
                   disabled={isSaveDisabled}
                   className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Save size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
+                  <Save
+                    size={16}
+                    className="text-[#0b0b0b]!"
+                    aria-hidden="true"
+                  />
                   {isSavingProfile ? "Saving..." : "Save changes"}
                 </button>
               </div>
@@ -881,14 +953,16 @@ const ArtistDashboardView = () => {
                     <div>
                       <h2 className="mb-0! text-lg!">Specialties</h2>
                       <p className="text-sm text-neutral-400">
-                        Choose the styles clients should associate with your work.
+                        Choose the styles clients should associate with your
+                        work.
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     {SPECIALTY_OPTIONS.map((specialty) => {
-                      const selected = profileForm.specialties.includes(specialty);
+                      const selected =
+                        profileForm.specialties.includes(specialty);
                       return (
                         <button
                           key={specialty}
@@ -910,7 +984,9 @@ const ArtistDashboardView = () => {
                     <input
                       type="text"
                       value={customSpecialty}
-                      onChange={(event) => setCustomSpecialty(event.target.value)}
+                      onChange={(event) =>
+                        setCustomSpecialty(event.target.value)
+                      }
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
                           event.preventDefault();
@@ -970,20 +1046,24 @@ const ArtistDashboardView = () => {
                         Payment type
                       </span>
                       <div className="grid grid-cols-2 rounded-md border border-white/10 bg-[#101010] p-1">
-                        {(["internal", "external"] as PaymentType[]).map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => updateProfileForm({ paymentType: type })}
-                            className={`rounded px-3 py-2 text-sm capitalize transition ${
-                              profileForm.paymentType === type
-                                ? "bg-white text-black"
-                                : "text-neutral-400 hover:text-white"
-                            }`}
-                          >
-                            {type === "internal" ? "Stripe" : "External"}
-                          </button>
-                        ))}
+                        {(["internal", "external"] as PaymentType[]).map(
+                          (type) => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() =>
+                                updateProfileForm({ paymentType: type })
+                              }
+                              className={`rounded px-3 py-2 text-sm capitalize transition ${
+                                profileForm.paymentType === type
+                                  ? "bg-white text-black"
+                                  : "text-neutral-400 hover:text-white"
+                              }`}
+                            >
+                              {type === "internal" ? "Stripe" : "External"}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
 
@@ -1309,67 +1389,188 @@ const ArtistDashboardView = () => {
 
         {/* Booking cards */}
         {["pending", "confirmed", "paid", "cancelled"].includes(activeTab) && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4 capitalize">
-              {activeTab} Bookings
-            </h2>
+          <section className="mx-auto mt-6 max-w-7xl space-y-6">
+            <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Artist bookings
+                </p>
+                <h1 className="mt-2 text-3xl! font-semibold text-white capitalize">
+                  {activeTab} bookings
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+                  Review client appointments, payment status, studio details,
+                  and selected tattoo references.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:min-w-[220px]">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Showing
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {bookings.length}
+                </p>
+              </div>
+            </div>
+
             {bookings.length === 0 ? (
-              <p className="text-gray-400">No {activeTab} bookings yet.</p>
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                  <ReceiptText size={22} />
+                </div>
+                <h2 className="mt-4 text-xl! font-semibold! text-white capitalize">
+                  No {activeTab} bookings yet
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
+                  When a client reaches this booking stage, their appointment
+                  details will appear here.
+                </p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {bookings.map((b) => {
-                  const created =
-                    b.createdAt?.toDate?.() || b.paidAt?.toDate?.()
-                      ? (
-                          b.createdAt?.toDate?.() || b.paidAt?.toDate?.()
-                        ).toLocaleDateString()
-                      : "N/A";
+                  const booking = b as Booking & {
+                    user?: {
+                      name?: string;
+                      displayName?: string;
+                      avatarUrl?: string;
+                    };
+                    clientName?: string;
+                    clientAvatar?: string;
+                  };
+
+                  const clientName =
+                    booking.user?.name ||
+                    booking.user?.displayName ||
+                    booking.clientName ||
+                    "Client";
+
+                  const clientAvatar =
+                    booking.user?.avatarUrl ||
+                    booking.clientAvatar ||
+                    "/default-avatar.png";
+
+                  const createdSource =
+                    booking.createdAt?.toDate?.() || booking.paidAt?.toDate?.();
+
+                  const created = createdSource
+                    ? createdSource.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "New";
+
+                  const appointmentLabel =
+                    booking.selectedDate?.date && booking.selectedDate?.time
+                      ? formatBookingAppointment(booking.selectedDate)
+                      : "No date set";
+
+                  const statusClass =
+                    booking.status === "paid" || booking.status === "confirmed"
+                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+                      : booking.status === "pending_payment"
+                      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
+                      : "border-red-300/25 bg-red-300/10 text-red-100";
 
                   return (
-                    <div
-                      key={b.id}
-                      className="bg-gray-900 rounded-lg p-4 shadow hover:shadow-lg transition"
+                    <article
+                      key={booking.id}
+                      className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold">
-                            {b.shopName || "Private Studio"}
-                          </p>
-                          <p className="text-sm text-gray-400">
-                            {b.shopAddress || "Address not provided"}
-                          </p>
-                          <p className="mt-2 text-sm">
-                            {b.selectedDate.date} @ {b.selectedDate.time}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Created: {created}
-                          </p>
+                      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <img
+                            src={clientAvatar}
+                            alt={clientName}
+                            className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-white">
+                              {clientName}
+                            </p>
+                            <p className="text-xs text-neutral-500">
+                              Created {created}
+                            </p>
+                          </div>
                         </div>
+
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${
-                            b.status === "paid" || b.status === "confirmed"
-                              ? "bg-green-600"
-                              : b.status === "pending_payment"
-                              ? "bg-yellow-600"
-                              : "bg-red-600"
-                          }`}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClass}`}
                         >
-                          {b.status.replace("_", " ").toUpperCase()}
+                          {booking.status.replace("_", " ")}
                         </span>
                       </div>
-                      {b.sampleImageUrl && (
-                        <img
-                          src={b.sampleImageUrl}
-                          alt="Tattoo"
-                          className="mt-3 rounded-md w-full max-h-48 object-cover"
-                        />
-                      )}
-                    </div>
+
+                      <div className="relative h-48 bg-black">
+                        {booking.sampleImageUrl ? (
+                          <img
+                            src={booking.sampleImageUrl}
+                            alt="Booking sample"
+                            className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
+                          />
+                        ) : (
+                          <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                            <ImageIcon size={26} />
+                            <span className="text-sm">No sample image</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4">
+                        <div className="grid grid-cols-2 gap-2">
+                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                            <span className="text-neutral-500">
+                              <DollarSign size={14} />
+                            </span>
+                            <span className="truncate">
+                              ${booking.price ?? 0}
+                            </span>
+                          </span>
+
+                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                            <span className="text-neutral-500">
+                              <ReceiptText size={14} />
+                            </span>
+                            <span className="truncate">
+                              ${booking.depositAmount ?? 0}
+                            </span>
+                          </span>
+
+                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                            <span className="text-neutral-500">
+                              <CalendarDays size={14} />
+                            </span>
+                            <span className="truncate">{appointmentLabel}</span>
+                          </span>
+
+                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                            <span className="text-neutral-500">
+                              <Store size={14} />
+                            </span>
+                            <span className="truncate">
+                              {booking.shopName || "Private Studio"}
+                            </span>
+                          </span>
+                        </div>
+
+                        <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
+                          {booking.shopAddress || "Address not provided"}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-white/10 p-4">
+                        <div className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white">
+                          <Eye size={16} />
+                          Booking record
+                        </div>
+                      </div>
+                    </article>
                   );
                 })}
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {activeTab === "flashes" && uid && (
@@ -1426,6 +1627,28 @@ const ArtistDashboardView = () => {
       </main>
     </div>
   );
+};
+
+const formatBookingAppointment = (selectedDate: {
+  date: string;
+  time: string;
+}) => {
+  if (!selectedDate.date || !selectedDate.time) return "Not set";
+
+  const [year, month, day] = selectedDate.date.split("-").map(Number);
+  const [hours, minutes] = selectedDate.time.split(":").map(Number);
+  const date = new Date(year, month - 1, day, hours, minutes);
+
+  if (Number.isNaN(date.getTime())) {
+    return `${selectedDate.date} @ ${selectedDate.time}`;
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 };
 
 export default ArtistDashboardView;
