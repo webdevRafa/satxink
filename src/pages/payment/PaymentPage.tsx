@@ -61,7 +61,8 @@ const PaymentPage = () => {
     const price = Number(booking.price || 0);
     const deposit = Number(booking.depositAmount || price);
     setPaymentMode(
-      booking.status === "deposit_paid"
+      booking.status === "deposit_paid" &&
+        booking.remainingPaymentMethod !== "external"
         ? "remaining"
         : deposit >= price
         ? "full"
@@ -77,6 +78,15 @@ const PaymentPage = () => {
       booking.status === "confirmed" ||
       booking.status === "cancelled"
     ) {
+      navigate("/dashboard");
+      return;
+    }
+
+    if (
+      booking.status === "deposit_paid" &&
+      booking.remainingPaymentMethod === "external"
+    ) {
+      toast.success("Your remaining balance will be settled with the artist.");
       navigate("/dashboard");
       return;
     }
@@ -129,8 +139,18 @@ const PaymentPage = () => {
   const price = Number(booking.price || 0);
   const deposit = Math.min(Number(booking.depositAmount || price), price);
   const alreadyPaid = Number(booking.totalArtistPaidAmount || 0);
+  const externalRemainingAmount =
+    typeof booking.externalRemainingAmount === "number"
+      ? Math.max(booking.externalRemainingAmount, 0)
+      : Math.max(price - deposit, 0);
+  const usesExternalRemaining =
+    booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
+  const externalBalanceDue =
+    usesExternalRemaining && booking.status === "deposit_paid";
   const artistAmountDue =
-    paymentMode === "full"
+    externalBalanceDue
+      ? 0
+      : paymentMode === "full"
       ? price
       : paymentMode === "remaining"
       ? Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
@@ -167,17 +187,23 @@ const PaymentPage = () => {
                   mode: "deposit" as PaymentMode,
                   title: "Pay deposit",
                   description:
-                    "Confirm the appointment now and pay the artist balance later.",
+                    usesExternalRemaining
+                      ? "Confirm the appointment now and pay the artist balance at the shop."
+                      : "Confirm the appointment now and pay the artist balance later.",
                   breakdown: depositBreakdown,
                 },
               ]
             : []),
-          {
-            mode: "full" as PaymentMode,
-            title: "Pay in full",
-            description: "Take care of the full artist quote in one checkout.",
-            breakdown: fullBreakdown,
-          },
+          ...(!usesExternalRemaining
+            ? [
+                {
+                  mode: "full" as PaymentMode,
+                  title: "Pay in full",
+                  description: "Take care of the full artist quote in one checkout.",
+                  breakdown: fullBreakdown,
+                },
+              ]
+            : []),
         ];
 
   return (
@@ -229,12 +255,16 @@ const PaymentPage = () => {
                 </p>
                 <h2 className="mt-1 text-lg! font-semibold text-white">
                   {booking.status === "deposit_paid"
-                    ? "Pay remaining balance"
+                    ? usesExternalRemaining
+                      ? "Balance due at the shop"
+                      : "Pay remaining balance"
                     : "Choose how much to pay today"}
                 </h2>
                 <p className="mt-1 text-sm text-neutral-400">
                   {booking.status === "deposit_paid"
-                    ? "Your appointment is confirmed. This payment clears the remaining artist balance."
+                    ? usesExternalRemaining
+                      ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist after the session."
+                      : "Your appointment is confirmed. This payment clears the remaining artist balance."
                     : "Your artist receives the quoted amount for the option you choose. Service and card fees are shown below."}
                 </p>
               </div>
@@ -267,15 +297,29 @@ const PaymentPage = () => {
               ) : (
                 <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                   <p className="text-sm text-emerald-50/85">
-                    Remaining artist balance:{" "}
+                    {usesExternalRemaining
+                      ? "Remaining balance to settle with the artist: "
+                      : "Remaining artist balance: "}
                     <span className="font-semibold text-white">
-                      {formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
+                      {formatMoneyFromCents(
+                        Math.round(
+                          (usesExternalRemaining
+                            ? externalRemainingAmount
+                            : paymentBreakdown.artistAmountCents / 100) * 100
+                        )
+                      )}
                     </span>
                   </p>
+                  {usesExternalRemaining && (
+                    <p className="mt-2 text-sm leading-6 text-emerald-50/75">
+                      Both you and the artist will be able to confirm the
+                      external payment after the session is completed.
+                    </p>
+                  )}
                 </div>
               )}
 
-              {paymentMode === "deposit" && remainingAfterPayment > 0 && (
+              {paymentMode === "deposit" && remainingAfterPayment > 0 && !usesExternalRemaining && (
                 <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
                   <p className="text-sm font-semibold text-amber-50">
                     Split-payment estimate
@@ -291,6 +335,22 @@ const PaymentPage = () => {
                       {formatMoneyFromCents(splitPaymentDifferenceCents)}
                     </span>{" "}
                     more than paying in full today.
+                  </p>
+                </div>
+              )}
+              {paymentMode === "deposit" && usesExternalRemaining && (
+                <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
+                  <p className="text-sm font-semibold text-amber-50">
+                    Deposit now, balance at the shop
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-50/80">
+                    SATX Ink's platform fee is calculated from the full artist
+                    quote and collected today with your deposit. The remaining{" "}
+                    <span className="font-semibold text-white">
+                      {formatMoneyFromCents(Math.round(externalRemainingAmount * 100))}
+                    </span>{" "}
+                    is paid directly to the artist and confirmed after the
+                    session.
                   </p>
                 </div>
               )}
@@ -311,7 +371,13 @@ const PaymentPage = () => {
             <DetailTile
               icon={<CreditCard size={17} />}
               label="Payment"
-              value={isInternalPayment ? "Stripe checkout" : "External payment"}
+              value={
+                usesExternalRemaining
+                  ? "Stripe deposit + shop balance"
+                  : isInternalPayment
+                  ? "Stripe checkout"
+                  : "External payment"
+              }
             />
           </div>
 
@@ -335,26 +401,43 @@ const PaymentPage = () => {
             <div className="space-y-2 text-sm">
               <BreakdownRow
                 label={
+                  externalBalanceDue
+                    ? "Due at the shop"
+                    :
                   paymentMode === "full"
                     ? "Full artist amount"
                     : paymentMode === "remaining"
                     ? "Remaining artist balance"
                     : "Deposit to artist"
                 }
-                value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
+                value={formatMoneyFromCents(
+                  externalBalanceDue
+                    ? Math.round(externalRemainingAmount * 100)
+                    : paymentBreakdown.artistAmountCents
+                )}
               />
               <BreakdownRow
                 label="SATX Ink platform fee"
-                value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
+                value={
+                  externalBalanceDue
+                    ? "Collected with deposit"
+                    : formatMoneyFromCents(paymentBreakdown.platformFeeCents)
+                }
               />
               <BreakdownRow
                 label="Estimated Stripe processing"
-                value={formatMoneyFromCents(paymentBreakdown.stripeFeeCents)}
+                value={
+                  externalBalanceDue
+                    ? "$0.00"
+                    : formatMoneyFromCents(paymentBreakdown.stripeFeeCents)
+                }
               />
               <div className="border-t border-white/10 pt-2">
                 <BreakdownRow
                   label="Total due today"
-                  value={formatMoneyFromCents(paymentBreakdown.clientTotalCents)}
+                  value={formatMoneyFromCents(
+                    externalBalanceDue ? 0 : paymentBreakdown.clientTotalCents
+                  )}
                   strong
                 />
               </div>
@@ -371,11 +454,13 @@ const PaymentPage = () => {
                   <span className="font-semibold text-white">
                     {formatMoneyFromCents(Math.round(remainingAfterPayment * 100))}
                   </span>
-                  {booking.finalPaymentTiming === "before"
+                  {usesExternalRemaining
+                    ? " and will be paid directly to the artist at the shop."
+                    : booking.finalPaymentTiming === "before"
                     ? " and may be collected before your appointment."
                     : " and may be collected after the session with your artist."}
-                  {" "}A second checkout for that balance will include its own
-                  Stripe processing fee.
+                  {!usesExternalRemaining &&
+                    " A second checkout for that balance will include its own Stripe processing fee."}
                 </>
               )}
             </p>
@@ -407,7 +492,9 @@ const PaymentPage = () => {
                 : isStartingCheckout
                 ? "Redirecting..."
                 : booking.status === "deposit_paid"
-                ? "Pay remaining balance"
+                ? usesExternalRemaining
+                  ? "Return to dashboard"
+                  : "Pay remaining balance"
                 : paymentMode === "full"
                 ? "Pay in full"
                 : "Pay deposit"}

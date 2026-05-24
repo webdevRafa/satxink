@@ -668,6 +668,16 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       paymentMode = "remaining";
     }
 
+    if (
+      paymentMode === "remaining" &&
+      booking.remainingPaymentMethod === "external"
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This booking's remaining balance is marked for in-person payment."
+      );
+    }
+
     if (paymentMode === "remaining" && booking.status !== "deposit_paid") {
       throw new HttpsError(
         "failed-precondition",

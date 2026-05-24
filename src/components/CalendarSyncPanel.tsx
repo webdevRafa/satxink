@@ -4,7 +4,7 @@ const CalendarSyncPanel: React.FC<{ feedUrl: string }> = ({ feedUrl }) => {
   const copyLink = () => navigator.clipboard.writeText(feedUrl);
 
   return (
-    <div className="bg-[var(--color-bg-card)] rounded-lg p-6 max-w-lg mx-auto mt-10 text-neutral-200 flex justify-center md:translate-x-[-50%]">
+    <div className="mt-6 flex w-full max-w-lg justify-center rounded-lg bg-[var(--color-bg-card)] p-6 text-neutral-200">
       <div className="w-full">
         <h2 className="text-xl font-bold mb-4">Sync Your Bookings</h2>
         <p className="mb-4 text-sm">

@@ -25,12 +25,11 @@ type DashboardOffer = Offer & {
   status: "pending" | "accepted" | "declined" | "expired" | string;
 };
 
-type OfferStatusFilter = "all" | "pending" | "accepted" | "declined";
+type OfferStatusFilter = "all" | "pending" | "declined";
 
 const statusFilters: { label: string; value: OfferStatusFilter }[] = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
-  { label: "Accepted", value: "accepted" },
   { label: "Declined", value: "declined" },
 ];
 
@@ -72,9 +71,14 @@ const OffersList = ({ uid }: { uid: string }) => {
     return () => unsubscribe();
   }, [uid]);
 
-  const sortedOffers = useMemo(
-    () => [...offers].sort((a, b) => getOfferTime(b) - getOfferTime(a)),
+  const activeOffers = useMemo(
+    () => offers.filter((offer) => offer.status !== "accepted"),
     [offers]
+  );
+
+  const sortedOffers = useMemo(
+    () => [...activeOffers].sort((a, b) => getOfferTime(b) - getOfferTime(a)),
+    [activeOffers]
   );
 
   const filteredOffers = useMemo(
@@ -85,13 +89,13 @@ const OffersList = ({ uid }: { uid: string }) => {
     [sortedOffers, statusFilter]
   );
 
-  const pendingCount = offers.filter((offer) => offer.status === "pending").length;
-  const acceptedCount = offers.filter((offer) => offer.status === "accepted").length;
+  const pendingCount = activeOffers.filter((offer) => offer.status === "pending").length;
+  const declinedCount = activeOffers.filter((offer) => offer.status === "declined").length;
   const newestOffer = sortedOffers[0];
 
   if (loading) {
     return (
-      <section className="mx-auto mt-6 max-w-7xl space-y-6">
+      <section className="mt-6 w-full max-w-7xl space-y-6">
         <div className="h-36 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((item) => (
@@ -106,7 +110,7 @@ const OffersList = ({ uid }: { uid: string }) => {
   }
 
   return (
-    <section className="mx-auto mt-6 max-w-7xl space-y-6">
+    <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
@@ -123,7 +127,7 @@ const OffersList = ({ uid }: { uid: string }) => {
 
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Pending" value={pendingCount} />
-          <MetricCard label="Accepted" value={acceptedCount} />
+          <MetricCard label="Declined" value={declinedCount} />
           <MetricCard
             label="Newest"
             value={newestOffer ? formatShortDate(newestOffer.createdAt) : "-"}
@@ -161,7 +165,7 @@ const OffersList = ({ uid }: { uid: string }) => {
               </button>
             ))}
             <span className="ml-1 text-sm text-neutral-500">
-              Showing {filteredOffers.length} of {offers.length}
+              Showing {filteredOffers.length} of {activeOffers.length}
             </span>
           </div>
         </div>

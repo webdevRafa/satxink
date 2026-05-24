@@ -89,6 +89,10 @@ const MakeOfferModal = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [offerImage, setOfferImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allowExternalRemainingPayment, setAllowExternalRemainingPayment] =
+    useState(false);
+  const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
+    useState("");
 
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
   const completedDateOptions = useMemo(
@@ -96,6 +100,14 @@ const MakeOfferModal = ({
     [dateOptions]
   );
   const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
+  const remainingArtistBalance = Math.max(
+    Number(offerPrice || 0) - Number(depositAmount || 0),
+    0
+  );
+  const canAllowExternalRemainingPayment =
+    artist?.paymentType === "internal" &&
+    Number(depositAmount || 0) > 0 &&
+    remainingArtistBalance > 0;
   const paymentPreview = useMemo(
     () =>
       calculateClientPaymentBreakdown(Number(depositAmount || 0), {
@@ -129,6 +141,8 @@ const MakeOfferModal = ({
     ]);
     setOfferImage(null);
     setPreviewUrl(null);
+    setAllowExternalRemainingPayment(false);
+    setExternalRemainingPaymentNote("");
   };
 
   const handleClose = () => {
@@ -226,6 +240,12 @@ const MakeOfferModal = ({
           nonRefundable: true,
         },
         finalPaymentTiming: artist.finalPaymentTiming || "after",
+        allowExternalRemainingPayment:
+          canAllowExternalRemainingPayment && allowExternalRemainingPayment,
+        externalRemainingPaymentNote:
+          canAllowExternalRemainingPayment && allowExternalRemainingPayment
+            ? externalRemainingPaymentNote.trim()
+            : "",
         status: "pending",
         createdAt: serverTimestamp(),
       };
@@ -413,6 +433,56 @@ const MakeOfferModal = ({
                         value={formatMoneyFromCents(paymentPreview.clientTotalCents)}
                       />
                     </div>
+                  </div>
+                )}
+
+                {artist.paymentType === "internal" && (
+                  <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={allowExternalRemainingPayment}
+                        disabled={!canAllowExternalRemainingPayment}
+                        onChange={(event) =>
+                          setAllowExternalRemainingPayment(event.target.checked)
+                        }
+                        className="mt-1 h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-white">
+                          Allow the remaining balance at the shop
+                        </span>
+                        <span className="mt-1 block text-sm leading-6 text-neutral-400">
+                          The client can pay the deposit through SATX Ink now and
+                          choose to pay the remaining{" "}
+                          <span className="font-semibold text-white">
+                            {formatMoneyFromCents(
+                              Math.round(remainingArtistBalance * 100)
+                            )}
+                          </span>{" "}
+                          directly with you after the session. SATX Ink's
+                          platform fee is still calculated from the full quote
+                          and collected during the deposit checkout.
+                        </span>
+                      </span>
+                    </label>
+                    {!canAllowExternalRemainingPayment && (
+                      <p className="mt-3 text-xs leading-5 text-neutral-500">
+                        Available once Stripe payments are enabled and the
+                        deposit is less than the total offer price.
+                      </p>
+                    )}
+                    {allowExternalRemainingPayment &&
+                      canAllowExternalRemainingPayment && (
+                        <textarea
+                          value={externalRemainingPaymentNote}
+                          onChange={(event) =>
+                            setExternalRemainingPaymentNote(event.target.value)
+                          }
+                          className="mt-4 min-h-20 w-full rounded-md border border-white/10 bg-[#101010] p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
+                          placeholder="Optional note about accepted in-shop payment methods or expectations..."
+                        />
+                      )}
                   </div>
                 )}
               </section>

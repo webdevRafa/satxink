@@ -11,6 +11,7 @@ import "aos/dist/aos.css";
 // components
 import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
+import LiveBookingToasts from "./components/LiveBookingToasts";
 // pages
 import { HomePage } from "./pages/HomePage";
 import { ArtistsPage } from "./pages/ArtistsPage";
@@ -66,6 +67,7 @@ function App() {
     <>
       <Navbar />
       <Toaster position="top-center" reverseOrder={false} />
+      <LiveBookingToasts />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />

@@ -43,7 +43,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   const handleResponse = async (
     offerId: string,
     action: "accepted" | "declined",
-    selectedDate?: { date: string; time: string }
+    selectedDate?: { date: string; time: string },
+    remainingPaymentMethod: "stripe" | "external" = "stripe"
   ) => {
     try {
       const offerRef = doc(db, "offers", offerId);
@@ -67,21 +68,41 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         const shopRef = doc(db, "shops", artistData?.shopId);
         const shopSnap = await getDoc(shopRef);
         const shopData = shopSnap.exists() ? shopSnap.data() : {};
+        const depositAmount = Number(offerData.depositPolicy.amount || 0);
+        const remainingAmount = Math.max(Number(offerData.price || 0) - depositAmount, 0);
+        const usesExternalRemaining =
+          offerData.paymentType === "internal" &&
+          offerData.allowExternalRemainingPayment === true &&
+          remainingPaymentMethod === "external" &&
+          depositAmount > 0 &&
+          remainingAmount > 0;
 
         const bookingRef = await addDoc(collection(db, "bookings"), {
           artistId: offerData.artistId,
           artistName: offerData.displayName,
           artistAvatar: offerData.artistAvatar ?? null,
           clientId: offerData.clientId,
+          clientName: offerData.clientName ?? null,
+          clientAvatar: offerData.clientAvatar ?? null,
           offerId,
           price: offerData.price,
-          depositAmount: offerData.depositPolicy.amount,
+          depositAmount,
           paymentType: offerData.paymentType,
           externalPaymentDetails:
             offerData.paymentType === "external"
               ? offerData.externalPaymentDetails ?? null
               : null,
           finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
+          remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
+          remainingPaymentStatus: usesExternalRemaining ? "due" : "not_due",
+          externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
+          externalRemainingAmountCents: usesExternalRemaining
+            ? Math.round(remainingAmount * 100)
+            : 0,
+          externalRemainingPaymentNote: usesExternalRemaining
+            ? offerData.externalRemainingPaymentNote ?? ""
+            : "",
+          sessionStatus: "not_started",
           shopId: offerData.shopId ?? null,
           shopName: offerData.shopName ?? shopData.name ?? "Unavailable",
           shopAddress: offerData.shopAddress ?? shopData.address ?? "Unavailable",
@@ -188,11 +209,17 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         offer={selectedOffer}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onRespond={async (offerId, action, selectedDate) => {
-          const bookingId = await handleResponse(offerId, action, selectedDate);
+        onRespond={async (offerId, action, selectedDate, remainingPaymentMethod) => {
+          const bookingId = await handleResponse(
+            offerId,
+            action,
+            selectedDate,
+            remainingPaymentMethod
+          );
           if (bookingId) {
             setSelectedOffer((prev) => (prev ? { ...prev, bookingId } : prev));
           }
+          return bookingId;
         }}
       />
     </section>
