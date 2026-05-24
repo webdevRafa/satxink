@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
+import {
+  CalendarDays,
+  CheckCircle2,
+  DollarSign,
+  ImageIcon,
+  MapPin,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
+import { db, functions } from "../../firebase/firebaseConfig";
 import type { Booking } from "../../types/Booking";
 
 const PaymentSuccessPage = () => {
@@ -30,7 +39,7 @@ const PaymentSuccessPage = () => {
         const snap = await getDoc(ref);
         if (!snap.exists()) {
           toast.error("Booking not found.");
-          navigate("/");
+          navigate("/dashboard");
           return;
         }
 
@@ -39,7 +48,7 @@ const PaymentSuccessPage = () => {
       } catch (err) {
         console.error(err);
         toast.error("Error loading booking.");
-        navigate("/");
+        navigate("/dashboard");
       }
     };
 
@@ -48,60 +57,179 @@ const PaymentSuccessPage = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center text-white text-lg">
-        Verifying payment...
-      </div>
+      <SuccessShell>
+        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
+          Verifying payment...
+        </div>
+      </SuccessShell>
     );
   }
 
   if (!booking) {
     return (
-      <div className="h-screen flex items-center justify-center text-white text-lg">
-        Booking not found or failed to load.
-      </div>
+      <SuccessShell>
+        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
+          Booking not found or failed to load.
+        </div>
+      </SuccessShell>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#121212] text-white px-4 py-10 flex items-center justify-center">
-      <div className="max-w-xl w-full bg-[#1e1e1e] rounded-xl p-6 shadow-lg text-center">
-        <h1 className="text-2xl font-bold text-emerald-400 mb-2">
-          Payment Successful!
-        </h1>
-        <p className="text-gray-300 mb-4">
-          You’ve secured your spot with{" "}
-          <span className="font-semibold">{booking.artistName}</span>
-          {booking.shopName && (
-            <>
-              {" "}
-              at <span className="italic">{booking.shopName}</span>
-            </>
-          )}
-          .
-        </p>
-
-        {booking.sampleImageUrl && (
-          <img
-            src={booking.sampleImageUrl}
-            alt="Tattoo sample"
-            className="rounded-lg mb-4 max-h-60 object-contain border border-gray-700 mx-auto"
-          />
-        )}
-
-        <p className="text-sm text-gray-400 mb-2">Deposit Paid:</p>
-        <p className="text-xl font-bold text-emerald-400 mb-6">
-          ${booking.depositAmount}
-        </p>
-
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded text-white"
-        >
-          Return to Dashboard
-        </button>
-      </div>
-    </div>
+  const remainingBalance = Math.max(
+    Number(booking.price || 0) - Number(booking.depositAmount || 0),
+    0
   );
+
+  return (
+    <SuccessShell>
+      <section className="mx-auto w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+        <div className="border-b border-white/10 bg-white/[0.03] p-5 sm:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/25 bg-emerald-300/10 text-emerald-100">
+                <CheckCircle2 size={30} />
+              </span>
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Payment complete
+                </p>
+                <h1 className="mt-1 text-2xl! font-semibold text-white">
+                  Your appointment is secured
+                </h1>
+                <p className="mt-1 text-sm text-neutral-400">
+                  {booking.artistName} has your deposit and appointment details.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="inline-flex items-center justify-center rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+            >
+              Return to dashboard
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+            {booking.sampleImageUrl ? (
+              <img
+                src={booking.sampleImageUrl}
+                alt="Tattoo sample"
+                className="h-full max-h-[72vh] min-h-[390px] w-full object-contain"
+              />
+            ) : (
+              <div className="flex min-h-[390px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                <ImageIcon size={34} />
+                <span>No sample image uploaded</span>
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 sm:p-7">
+            <div className="flex items-center gap-4">
+              <img
+                src={booking.artistAvatar || "/default-avatar.png"}
+                alt={booking.artistName}
+                className="h-14 w-14 rounded-full border border-white/10 object-cover"
+              />
+              <div>
+                <p className="font-semibold text-white">{booking.artistName}</p>
+                <p className="text-sm text-neutral-500">
+                  {booking.shopName || "Studio not listed"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <DetailTile
+                icon={<DollarSign size={17} />}
+                label="Deposit paid"
+                value={`$${booking.depositAmount || 0}`}
+              />
+              <DetailTile
+                icon={<DollarSign size={17} />}
+                label="Remaining balance"
+                value={`$${remainingBalance}`}
+              />
+              <DetailTile
+                icon={<CalendarDays size={17} />}
+                label="Appointment"
+                value={formatAppointment(booking.selectedDate)}
+              />
+              <DetailTile
+                icon={<Store size={17} />}
+                label="Studio"
+                value={booking.shopName || "Unavailable"}
+              />
+            </div>
+
+            {booking.shopAddress && (
+              <a
+                href={booking.shopMapLink || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
+              >
+                <MapPin size={17} className="mt-0.5 text-neutral-500" />
+                {booking.shopAddress}
+              </a>
+            )}
+
+            <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-100">
+                <ShieldCheck size={17} />
+                What happens next
+              </div>
+              <p className="text-sm leading-6 text-emerald-50/80">
+                Your booking is now in your dashboard. Keep an eye on your
+                appointment details there, and coordinate any remaining balance
+                directly according to the artist's payment terms.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </SuccessShell>
+  );
+};
+
+const SuccessShell = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] px-4 py-24">
+    {children}
+  </div>
+);
+
+const DetailTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const formatAppointment = (date: { date: string; time: string }) => {
+  if (!date?.date || !date?.time || date.date === "TBD") return "TBD";
+  const [year, month, day] = date.date.split("-").map(Number);
+  const [hours, minutes] = date.time.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes).toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 };
 
 export default PaymentSuccessPage;

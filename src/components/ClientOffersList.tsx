@@ -5,7 +5,7 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
+  onSnapshot,
   serverTimestamp,
   updateDoc,
   query,
@@ -39,21 +39,6 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   >(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const fetchOffers = async () => {
-    setLoading(true);
-    try {
-      const offersQuery = query(collection(db, "offers"), where("clientId", "==", clientId));
-      const snap = await getDocs(offersQuery);
-      const data = snap.docs.map((offerDoc) => ({
-        id: offerDoc.id,
-        ...offerDoc.data(),
-      })) as DashboardOffer[];
-      setOffers(data.filter((offer) => (offer.status || "pending") === "pending"));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleResponse = async (
     offerId: string,
@@ -127,7 +112,32 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   };
 
   useEffect(() => {
-    if (clientId) fetchOffers();
+    if (!clientId) return;
+
+    setLoading(true);
+    const offersQuery = query(
+      collection(db, "offers"),
+      where("clientId", "==", clientId),
+      where("status", "==", "pending")
+    );
+
+    const unsubscribe = onSnapshot(
+      offersQuery,
+      (snap) => {
+        const data = snap.docs.map((offerDoc) => ({
+          id: offerDoc.id,
+          ...offerDoc.data(),
+        })) as DashboardOffer[];
+        setOffers(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to client offers:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, [clientId]);
 
   const sortedOffers = useMemo(

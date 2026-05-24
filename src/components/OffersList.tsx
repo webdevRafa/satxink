@@ -11,7 +11,7 @@ import {
   Store,
   X,
 } from "lucide-react";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import type { Offer } from "../types/Offer";
 
@@ -45,29 +45,31 @@ const OffersList = ({ uid }: { uid: string }) => {
   useEffect(() => {
     if (!uid) return;
 
-    const fetchOffers = async () => {
-      setLoading(true);
-      try {
-        const offersQuery = query(
-          collection(db, "offers"),
-          where("artistId", "==", uid),
-          orderBy("createdAt", "desc")
-        );
-        const snapshot = await getDocs(offersQuery);
+    setLoading(true);
+    const offersQuery = query(
+      collection(db, "offers"),
+      where("artistId", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      offersQuery,
+      (snapshot) => {
         const data = snapshot.docs.map((offerDoc) => ({
           id: offerDoc.id,
           ...offerDoc.data(),
         })) as DashboardOffer[];
 
         setOffers(data);
-      } catch (error) {
-        console.error("Error fetching offers:", error);
-      } finally {
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to offers:", error);
         setLoading(false);
       }
-    };
+    );
 
-    fetchOffers();
+    return () => unsubscribe();
   }, [uid]);
 
   const sortedOffers = useMemo(

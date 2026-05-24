@@ -1,192 +1,295 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebase/firebaseConfig";
-import { toast } from "react-hot-toast";
-import type { Booking } from "../../types/Booking";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase/firebaseConfig";
+import { toast } from "react-hot-toast";
+import {
+  CalendarDays,
+  CheckCircle2,
+  CreditCard,
+  DollarSign,
+  ImageIcon,
+  MapPin,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
+import { db, functions } from "../../firebase/firebaseConfig";
+import type { Booking } from "../../types/Booking";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
 
   useEffect(() => {
-    const fetchBooking = async () => {
-      if (!bookingId) return;
+    if (!bookingId) return;
 
-      try {
-        const ref = doc(db, "bookings", bookingId);
-        const snap = await getDoc(ref);
+    const ref = doc(db, "bookings", bookingId);
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
         if (!snap.exists()) {
           toast.error("Booking not found.");
-          navigate("/"); // or back to dashboard
+          navigate("/dashboard");
           return;
         }
 
         setBooking({ id: snap.id, ...snap.data() } as Booking);
         setLoading(false);
-      } catch (err) {
-        console.error(err);
+      },
+      (error) => {
+        console.error(error);
         toast.error("Error loading booking.");
-        navigate("/");
+        navigate("/dashboard");
       }
-    };
+    );
 
-    fetchBooking();
+    return () => unsubscribe();
   }, [bookingId, navigate]);
+
+  const handleCheckout = async () => {
+    if (!booking) return;
+
+    if (booking.status === "paid" || booking.status === "confirmed") {
+      navigate("/dashboard");
+      return;
+    }
+
+    try {
+      setIsStartingCheckout(true);
+      toast.loading("Redirecting to Stripe...");
+
+      const createSession = httpsCallable(functions, "createCheckoutSession");
+      const response = await createSession({
+        bookingId: booking.id,
+        successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
+        cancelUrl: `${window.location.origin}/payment/${booking.id}`,
+      });
+
+      const { sessionUrl } = response.data as { sessionUrl: string };
+      toast.dismiss();
+      window.location.href = sessionUrl;
+    } catch (err) {
+      console.error(err);
+      toast.dismiss();
+      toast.error("Failed to start checkout.");
+      setIsStartingCheckout(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center text-white text-lg">
-        Loading payment details...
-      </div>
+      <PaymentShell>
+        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
+          Loading payment details...
+        </div>
+      </PaymentShell>
     );
   }
+
   if (!booking) {
     return (
-      <div className="h-screen flex items-center justify-center text-white text-lg">
-        Booking not found or failed to load.
-      </div>
+      <PaymentShell>
+        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
+          Booking not found or failed to load.
+        </div>
+      </PaymentShell>
     );
   }
-  const {
-    paymentType,
-    externalPaymentDetails,
-    depositAmount,
-    artistName,
-    shopName,
-    sampleImageUrl,
-  } = booking;
+
+  const isInternalPayment = booking.paymentType === "internal";
+  const isPaid = booking.status === "paid" || booking.status === "confirmed";
+  const remainingBalance = Math.max(
+    Number(booking.price || 0) - Number(booking.depositAmount || 0),
+    0
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[var(--color-bg-footer)] to-[var(--color-bg-card)] text-white px-4 py-10 flex items-center justify-center">
-      <div className="shadow-sm shadow-white max-w-xl w-full bg-gradient-to-b from-[var(--color-bg-base)] to-[var(--color-bg-button)] rounded-xl pt-10 pb-4 px-4">
-        <h1 className="text-2xl! font-bold mb-4">Confirm Your Booking</h1>
-
-        <p className="text-md! text-white mb-4">
-          You're booking a tattoo with{" "}
-          <img
-            className="w-8 inline-block rounded-full"
-            src={booking.artistAvatar}
-            alt=""
-          />{" "}
-          <span className="font-semibold text-white">{artistName}</span>
-          {shopName && (
-            <>
-              {" "}
-              <br></br>
-              at <span className="italic">{shopName}</span>
-            </>
-          )}
-        </p>
-
-        <p className="text-sm text-gray-300 mb-1">
-          To confirm your appointment, a deposit of:
-        </p>
-        <p className="text-3xl! font-bold text-white!">${depositAmount}</p>
-        <p className="text-sm text-gray-400 mt-2">
-          This payment secures your booking and allows your artist to begin
-          prep. <br />
-          <span className="text-white font-bold">Please note:</span> All
-          deposits are non-refundable.
-        </p>
-
-        {sampleImageUrl && (
-          <img
-            src={sampleImageUrl}
-            alt="Tattoo sample"
-            className="rounded-lg mb-4 max-h-60 object-contain border border-gray-700"
-          />
-        )}
-        <p className="text-xs! text-gray-400 mt-4">
-          By continuing, you agree to our{" "}
-          <a href="/terms" target="_blank" className="underline text-white">
-            Terms of Service
-          </a>
-          . If you cancel within 24 hours of your scheduled session, the
-          remaining balance may be non-refundable. Deposits are always
-          non-refundable.
-        </p>
-        {paymentType === "external" && externalPaymentDetails ? (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-300">
-              Please send your payment via:
-            </p>
-            <div className="bg-black/30 p-4 rounded-lg border border-emerald-500">
-              <p className="text-lg font-semibold capitalize">
-                {externalPaymentDetails.method}
-              </p>
-              {externalPaymentDetails.handle ? (
-                <p className="text-emerald-400 font-bold text-xl">
-                  {externalPaymentDetails.handle}
-                </p>
-              ) : (
-                <p className="text-red-400 text-sm">
-                  No payment handle provided. Please contact your artist
-                  directly.
-                </p>
-              )}
+    <PaymentShell>
+      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+          {booking.sampleImageUrl ? (
+            <img
+              src={booking.sampleImageUrl}
+              alt="Tattoo sample"
+              className="h-full max-h-[78vh] min-h-[420px] w-full object-contain"
+            />
+          ) : (
+            <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+              <ImageIcon size={34} />
+              <span>No sample image uploaded</span>
             </div>
-            <p className="text-sm text-gray-400">
-              Once you’ve sent the payment, please keep your confirmation. Your
-              artist may follow up.
-            </p>
-            <p className="text-sm text-gray-400 mt-4">
-              Once you’ve sent the deposit, press “Done” to return to your
-              dashboard. Your artist will confirm the payment shortly.
-            </p>
-            <button
-              onClick={() => navigate("/")}
-              className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded w-full mt-4"
-            >
-              Done
-            </button>
+          )}
+        </div>
+
+        <div className="p-5 sm:p-7">
+          <div className="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <img
+                src={booking.artistAvatar || "/default-avatar.png"}
+                alt={booking.artistName}
+                className="h-16 w-16 rounded-full border border-white/10 object-cover"
+              />
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Booking payment
+                </p>
+                <h1 className="mt-1 text-2xl! font-semibold text-white">
+                  Confirm with {booking.artistName}
+                </h1>
+                <p className="mt-1 text-sm text-neutral-500">
+                  {booking.shopName || "Studio not listed"}
+                </p>
+              </div>
+            </div>
+            <StatusBadge status={booking.status} />
           </div>
-        ) : paymentType === "internal" ? (
-          <div className="space-y-4">
-            <button
-              onClick={async () => {
-                try {
-                  if (!booking) return;
 
-                  toast.loading("Redirecting to Stripe...");
-
-                  const createSession = httpsCallable(
-                    functions,
-                    "createCheckoutSession"
-                  );
-
-                  const response = await createSession({
-                    bookingId: booking.id,
-                    successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
-                    cancelUrl: `${window.location.origin}/payment/${booking.id}`,
-                  });
-
-                  const { sessionUrl } = response.data as {
-                    sessionUrl: string;
-                  };
-                  toast.dismiss();
-                  window.location.href = sessionUrl;
-                } catch (err) {
-                  console.error(err);
-                  toast.dismiss();
-                  toast.error("Failed to start checkout.");
-                }
-              }}
-              className=" text-white bg-[var(--color-bg-base)] px-2! py-2! rounded w-full max-w-[240px] mt-6"
-            >
-              Proceed to Secure Checkout
-            </button>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <DetailTile
+              icon={<DollarSign size={17} />}
+              label="Deposit due now"
+              value={`$${booking.depositAmount || 0}`}
+            />
+            <DetailTile
+              icon={<DollarSign size={17} />}
+              label="Total offer"
+              value={`$${booking.price || 0}`}
+            />
+            <DetailTile
+              icon={<CalendarDays size={17} />}
+              label="Appointment"
+              value={formatAppointment(booking.selectedDate)}
+            />
+            <DetailTile
+              icon={<CreditCard size={17} />}
+              label="Payment"
+              value={isInternalPayment ? "Stripe checkout" : "External payment"}
+            />
           </div>
-        ) : (
-          <p className="text-red-500">Unknown payment type.</p>
-        )}
-      </div>
-    </div>
+
+          {booking.shopAddress && (
+            <a
+              href={booking.shopMapLink || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
+            >
+              <MapPin size={17} className="mt-0.5 text-neutral-500" />
+              {booking.shopAddress}
+            </a>
+          )}
+
+          <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+              <ShieldCheck size={17} />
+              Deposit terms
+            </div>
+            <p className="text-sm leading-6 text-neutral-400">
+              This deposit secures your appointment and is non-refundable. The
+              remaining balance is{" "}
+              <span className="font-semibold text-white">${remainingBalance}</span>
+              {booking.finalPaymentTiming === "before"
+                ? " and may be collected before your appointment."
+                : " and may be collected after the session with your artist."}
+            </p>
+          </div>
+
+          {booking.paymentType === "external" && booking.externalPaymentDetails ? (
+            <div className="mt-5 rounded-lg border border-white/10 bg-black/25 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Store size={17} />
+                External payment instructions
+              </div>
+              <p className="mt-3 text-sm capitalize text-neutral-300">
+                {booking.externalPaymentDetails.method}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-white">
+                {booking.externalPaymentDetails.handle ||
+                  "Contact your artist for payment details."}
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCheckout}
+              disabled={isStartingCheckout}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPaid
+                ? "Return to dashboard"
+                : isStartingCheckout
+                ? "Redirecting..."
+                : "Proceed to secure checkout"}
+              {isPaid ? <CheckCircle2 size={16} /> : <CreditCard size={16} />}
+            </button>
+          )}
+
+          <p className="mt-4 text-xs leading-5 text-neutral-500">
+            By continuing, you agree to the{" "}
+            <Link to="/terms" target="_blank" className="text-white underline">
+              Terms of Service
+            </Link>
+            .
+          </p>
+        </div>
+      </section>
+    </PaymentShell>
   );
+};
+
+const PaymentShell = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] px-4 py-24">
+    {children}
+  </div>
+);
+
+const DetailTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const className =
+    status === "paid" || status === "confirmed"
+      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+      : status === "cancelled"
+      ? "border-red-300/25 bg-red-300/10 text-red-100"
+      : "border-amber-300/20 bg-amber-300/10 text-amber-100";
+
+  return (
+    <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${className}`}>
+      {status.replace("_", " ")}
+    </span>
+  );
+};
+
+const formatAppointment = (date: { date: string; time: string }) => {
+  if (!date?.date || !date?.time || date.date === "TBD") return "TBD";
+  const [year, month, day] = date.date.split("-").map(Number);
+  const [hours, minutes] = date.time.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes).toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 };
 
 export default PaymentPage;

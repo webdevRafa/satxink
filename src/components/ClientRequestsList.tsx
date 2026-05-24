@@ -11,7 +11,7 @@ import {
   Ruler,
   X,
 } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 type FirestoreTimestampLike = {
@@ -52,27 +52,32 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      setLoading(true);
-      try {
-        const requestsQuery = query(
-          collection(db, "bookingRequests"),
-          where("clientId", "==", clientId)
-        );
-        const snap = await getDocs(requestsQuery);
+    if (!clientId) return;
+
+    setLoading(true);
+    const requestsQuery = query(
+      collection(db, "bookingRequests"),
+      where("clientId", "==", clientId),
+      where("status", "==", "pending")
+    );
+
+    const unsubscribe = onSnapshot(
+      requestsQuery,
+      (snap) => {
         const data = snap.docs.map((requestDoc) => ({
           id: requestDoc.id,
           ...requestDoc.data(),
         })) as BookingRequest[];
-        setRequests(
-          data.filter((request) => (request.status || "pending") === "pending")
-        );
-      } finally {
+        setRequests(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to client requests:", error);
         setLoading(false);
       }
-    };
+    );
 
-    if (clientId) fetchRequests();
+    return () => unsubscribe();
   }, [clientId]);
 
   const sortedRequests = useMemo(
@@ -80,7 +85,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     [requests]
   );
   const pendingCount = requests.length;
-  const withOffers = requests.filter((request) => request.status === "offered").length;
+  const referencesCount = requests.filter((request) => request.thumbUrl || request.fullUrl).length;
 
   if (loading) {
     return <RequestsSkeleton />;
@@ -97,7 +102,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Total" value={requests.length} />
           <MetricCard label="Pending" value={pendingCount} />
-          <MetricCard label="Offered" value={withOffers} />
+          <MetricCard label="References" value={referencesCount} />
         </div>
       </div>
 
