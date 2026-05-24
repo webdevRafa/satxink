@@ -2,6 +2,7 @@ export interface CheckoutRequestData {
   bookingId: string;
   successUrl?: string;
   cancelUrl?: string;
+  paymentMode?: "deposit" | "full" | "remaining";
 
   offerId?: string;
   clientId?: string;

@@ -33,9 +33,139 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
-const PLATFORM_FEE_CENTS = 1000;
+const PLATFORM_FEE_MIN_CENTS = 500;
+const PLATFORM_FEE_MAX_CENTS = 3500;
+const PLATFORM_FEE_RATE = 0.10;
+const STRIPE_PERCENT_FEE = 0.029;
+const STRIPE_FIXED_FEE_CENTS = 30;
 const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
+
+const calculatePlatformFeeCents = (artistAmountCents: number) => {
+  if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) return 0;
+
+  const percentageFee = Math.round(artistAmountCents * PLATFORM_FEE_RATE);
+  return Math.min(
+    Math.max(percentageFee, PLATFORM_FEE_MIN_CENTS),
+    PLATFORM_FEE_MAX_CENTS
+  );
+};
+
+const estimateStripeFeeCents = (clientTotalCents: number) =>
+  Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
+
+type CheckoutPaymentMode = "deposit" | "full" | "remaining";
+
+const calculateClientPaymentBreakdown = (
+  artistAmountCents: number,
+  platformFeeCents: number
+) => {
+  let clientTotalCents = Math.ceil(
+    (artistAmountCents + platformFeeCents + STRIPE_FIXED_FEE_CENTS) /
+      (1 - STRIPE_PERCENT_FEE)
+  );
+
+  let stripeFeeCents = estimateStripeFeeCents(clientTotalCents);
+
+  while (
+    clientTotalCents - stripeFeeCents - platformFeeCents <
+    artistAmountCents
+  ) {
+    clientTotalCents += 1;
+    stripeFeeCents = estimateStripeFeeCents(clientTotalCents);
+  }
+
+  return {
+    artistAmountCents,
+    platformFeeCents,
+    stripeFeeCents,
+    clientTotalCents,
+  };
+};
+
+const dollarsToCents = (amount: unknown) => Math.round(Number(amount || 0) * 100);
+
+const parseMetadataCents = (
+  metadata: Stripe.Metadata | null | undefined,
+  key: string,
+  fallback = 0
+) => {
+  const value = Number(metadata?.[key]);
+  return Number.isFinite(value) ? value : fallback;
+};
+
+const getCompletedBookingUpdate = (
+  booking: admin.firestore.DocumentData,
+  session: Stripe.Checkout.Session,
+  connectedAccountId?: string | null
+) => {
+  const metadata = session.metadata || {};
+  const paymentMode = (metadata.paymentMode || "deposit") as CheckoutPaymentMode;
+  const artistAmountCents = parseMetadataCents(metadata, "artistAmountCents");
+  const priceCents = parseMetadataCents(
+    metadata,
+    "priceCents",
+    dollarsToCents(booking.price)
+  );
+  const platformFeeCents = parseMetadataCents(metadata, "platformFeeCents");
+  const stripeFeeCents = parseMetadataCents(metadata, "estimatedStripeFeeCents");
+  const clientTotalCents = parseMetadataCents(
+    metadata,
+    "clientTotalCents",
+    session.amount_total ?? 0
+  );
+  const currentPaidCents = Number(booking.totalArtistPaidCents || 0);
+  const sessionAlreadyApplied = booking.lastCompletedCheckoutSessionId === session.id;
+  const nextPaidCents =
+    sessionAlreadyApplied
+      ? currentPaidCents
+      : paymentMode === "full"
+      ? priceCents
+      : Math.min(priceCents, currentPaidCents + artistAmountCents);
+  const remainingBalanceCents = Math.max(priceCents - nextPaidCents, 0);
+  const nextStatus = remainingBalanceCents > 0 ? "deposit_paid" : "paid";
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+  return {
+    status: nextStatus,
+    paidAt: nextStatus === "paid" ? timestamp : booking.paidAt ?? null,
+    depositPaidAt: paymentMode === "deposit" ? timestamp : booking.depositPaidAt ?? null,
+    remainingPaidAt: paymentMode === "remaining" ? timestamp : booking.remainingPaidAt ?? null,
+    paymentMode,
+    checkoutPaymentMode: paymentMode,
+    stripeCheckoutSessionId: session.id,
+    lastCompletedCheckoutSessionId: session.id,
+    stripePaymentIntentId: session.payment_intent,
+    stripeConnectedAccountId:
+      connectedAccountId ?? metadata.stripeConnectedAccountId ?? null,
+    artistQuotedAmountCents: artistAmountCents,
+    artistPayoutCents: artistAmountCents,
+    clientPaymentAmountCents: clientTotalCents,
+    platformFeeCents,
+    estimatedStripeFeeCents: stripeFeeCents,
+    depositPaidAmountCents:
+      paymentMode === "deposit"
+        ? artistAmountCents
+        : Number(booking.depositPaidAmountCents || 0),
+    depositPaidAmount:
+      paymentMode === "deposit"
+        ? artistAmountCents / 100
+        : Number(booking.depositPaidAmount || 0),
+    remainingPaidAmountCents:
+      paymentMode === "remaining"
+        ? artistAmountCents
+        : Number(booking.remainingPaidAmountCents || 0),
+    remainingPaidAmount:
+      paymentMode === "remaining"
+        ? artistAmountCents / 100
+        : Number(booking.remainingPaidAmount || 0),
+    totalArtistPaidCents: nextPaidCents,
+    totalArtistPaidAmount: nextPaidCents / 100,
+    remainingBalanceCents,
+    remainingBalanceAmount: remainingBalanceCents / 100,
+    updatedAt: timestamp,
+  };
+};
 
 
 
@@ -521,23 +651,58 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       throw new HttpsError("failed-precondition", "This booking has already been paid.");
     }
 
-    const amount = Number(booking.depositAmount || booking.price || 0);
-    const amountCents = Math.round(amount * 100);
+    const priceCents = dollarsToCents(booking.price);
+    const depositCents = dollarsToCents(booking.depositAmount || booking.price);
+    const totalArtistPaidCents = Number(
+      booking.totalArtistPaidCents ||
+        booking.depositPaidAmountCents ||
+        (booking.status === "deposit_paid" ? depositCents : 0)
+    );
+    let paymentMode = (data.paymentMode || "deposit") as CheckoutPaymentMode;
 
-    if (!Number.isFinite(amountCents) || amountCents <= PLATFORM_FEE_CENTS) {
+    if (!["deposit", "full", "remaining"].includes(paymentMode)) {
+      paymentMode = "deposit";
+    }
+
+    if (booking.status === "deposit_paid") {
+      paymentMode = "remaining";
+    }
+
+    if (paymentMode === "remaining" && booking.status !== "deposit_paid") {
       throw new HttpsError(
         "failed-precondition",
-        "The payment amount must be greater than the SATX Ink platform fee."
+        "The remaining balance is not ready to be paid yet."
       );
     }
 
-    const applicationFeeAmount = PLATFORM_FEE_CENTS;
-    const artistPayoutCents = amountCents - applicationFeeAmount;
+    const artistAmountCents =
+      paymentMode === "full"
+        ? priceCents
+        : paymentMode === "remaining"
+        ? Math.max(priceCents - totalArtistPaidCents, 0)
+        : Math.min(depositCents, priceCents);
 
-    if (artistPayoutCents < MIN_ARTIST_PAYOUT_CENTS) {
+    if (!Number.isFinite(artistAmountCents) || artistAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
       throw new HttpsError(
         "failed-precondition",
-        "The artist payout would be too small after the platform fee."
+        "The artist payout amount is too small to process."
+      );
+    }
+
+    const platformFeeCents =
+      paymentMode === "remaining"
+        ? 0
+        : calculatePlatformFeeCents(priceCents || artistAmountCents);
+
+    const {
+      clientTotalCents,
+      stripeFeeCents,
+    } = calculateClientPaymentBreakdown(artistAmountCents, platformFeeCents);
+
+    if (clientTotalCents - platformFeeCents - stripeFeeCents < artistAmountCents) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The payment total could not cover the artist payout and fees."
       );
     }
 
@@ -580,7 +745,25 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       });
     }
 
-    
+    const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
+      metadata: {
+        bookingId,
+        artistId: booking.artistId ?? '',
+        clientId: booking.clientId ?? '',
+        artistAmountCents: String(artistAmountCents),
+        platformFeeCents: String(platformFeeCents),
+        estimatedStripeFeeCents: String(stripeFeeCents),
+        clientTotalCents: String(clientTotalCents),
+        paymentMode,
+        priceCents: String(priceCents),
+        depositCents: String(depositCents),
+      },
+    };
+
+    if (platformFeeCents > 0) {
+      paymentIntentData.application_fee_amount = platformFeeCents;
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -588,24 +771,16 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         {
           price_data: {
             currency: 'usd',
-            unit_amount: amountCents,
+            unit_amount: clientTotalCents,
             product_data: {
               name: `${booking.artistName || artist.displayName || "Artist"}'s Tattoo Booking`,
-              description: `Studio: ${booking.shopName || 'N/A'} | Address: ${booking.shopAddress || 'N/A'} | Date: ${booking.selectedDate?.date || "TBD"} at ${booking.selectedDate?.time || "TBD"}`,
+              description: `Artist quote: $${(artistAmountCents / 100).toFixed(2)} | Studio: ${booking.shopName || 'N/A'} | Address: ${booking.shopAddress || 'N/A'} | Date: ${booking.selectedDate?.date || "TBD"} at ${booking.selectedDate?.time || "TBD"}`,
             },
           },
           quantity: 1,
         },
       ],
-      payment_intent_data: {
-        application_fee_amount: applicationFeeAmount,
-        metadata: {
-          bookingId,
-          artistId: booking.artistId ?? '',
-          clientId: booking.clientId ?? '',
-          platformFeeCents: String(applicationFeeAmount),
-        },
-      },
+      payment_intent_data: paymentIntentData,
       metadata: {
         offerId: booking.offerId ?? data.offerId ?? '',
         bookingId: bookingId ?? "",
@@ -616,7 +791,13 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         shopName: booking.shopName ?? '',
         shopAddress: booking.shopAddress ?? '',
         selectedDate: formattedDateTime ?? '',
-        platformFeeCents: String(applicationFeeAmount),
+        artistAmountCents: String(artistAmountCents),
+        platformFeeCents: String(platformFeeCents),
+        estimatedStripeFeeCents: String(stripeFeeCents),
+        clientTotalCents: String(clientTotalCents),
+        paymentMode,
+        priceCents: String(priceCents),
+        depositCents: String(depositCents),
         stripeConnectedAccountId: connectedAccountId,
       },
       success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
@@ -629,9 +810,17 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       {
         stripeCheckoutSessionId: session.id,
         stripeConnectedAccountId: connectedAccountId,
-        platformFeeAmount: applicationFeeAmount / 100,
-        platformFeeCents: applicationFeeAmount,
-        artistPayoutAmount: artistPayoutCents / 100,
+        artistQuotedAmount: artistAmountCents / 100,
+        artistQuotedAmountCents: artistAmountCents,
+        clientPaymentAmount: clientTotalCents / 100,
+        clientPaymentAmountCents: clientTotalCents,
+        platformFeeAmount: platformFeeCents / 100,
+        platformFeeCents,
+        estimatedStripeFeeAmount: stripeFeeCents / 100,
+        estimatedStripeFeeCents: stripeFeeCents,
+        artistPayoutAmount: artistAmountCents / 100,
+        artistPayoutCents: artistAmountCents,
+        checkoutPaymentMode: paymentMode,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -677,6 +866,13 @@ const syncBookingPaymentStatus = onCall(
       return { paid: true, status: booking.status };
     }
 
+    if (
+      booking.status === "deposit_paid" &&
+      booking.checkoutPaymentMode !== "remaining"
+    ) {
+      return { paid: true, status: booking.status };
+    }
+
     const sessionId = booking.stripeCheckoutSessionId as string | undefined;
     if (!sessionId) {
       return { paid: false, status: booking.status || "pending_payment" };
@@ -708,16 +904,18 @@ const syncBookingPaymentStatus = onCall(
         : session.payment_intent?.id ?? null;
 
     if (session.payment_status === "paid" || session.status === "complete") {
-      await bookingRef.update({
-        status: "paid",
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId: paymentIntent,
-        stripeConnectedAccountId: connectedAccountId,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const update = getCompletedBookingUpdate(
+        booking,
+        {
+          ...session,
+          payment_intent: paymentIntent,
+        } as Stripe.Checkout.Session,
+        connectedAccountId
+      );
 
-      return { paid: true, status: "paid" };
+      await bookingRef.update(update);
+
+      return { paid: true, status: update.status };
     }
 
     return {
@@ -785,19 +983,23 @@ const stripeWebhook = onRequest(
 
       try {
         const bookingRef = firestore.collection("bookings").doc(bookingId);
+        const bookingSnap = await bookingRef.get();
 
-        await bookingRef.update({
-          status: "paid",
-          paidAt: admin.firestore.FieldValue.serverTimestamp(),
-          stripeCheckoutSessionId: session.id,
-          stripePaymentIntentId: session.payment_intent,
-          stripeConnectedAccountId: event.account ?? session.metadata?.stripeConnectedAccountId ?? null,
-          platformFeeCents: session.metadata?.platformFeeCents
-            ? Number(session.metadata.platformFeeCents)
-            : PLATFORM_FEE_CENTS,
-        });
+        if (!bookingSnap.exists) {
+          console.warn(`Booking ${bookingId} not found for checkout webhook.`);
+          res.status(404).send("Booking not found.");
+          return;
+        }
 
-        console.log(`Booking ${bookingId} marked as paid.`);
+        const update = getCompletedBookingUpdate(
+          bookingSnap.data() || {},
+          session,
+          event.account ?? session.metadata?.stripeConnectedAccountId ?? null
+        );
+
+        await bookingRef.update(update);
+
+        console.log(`Booking ${bookingId} updated to ${update.status}.`);
         res.status(200).send("Booking updated.");
       } catch (err) {
         console.error("Error updating booking:", err);

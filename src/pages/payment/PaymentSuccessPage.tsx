@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { db, functions } from "../../firebase/firebaseConfig";
 import type { Booking } from "../../types/Booking";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../../utils/paymentFees";
 
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
@@ -75,10 +79,21 @@ const PaymentSuccessPage = () => {
     );
   }
 
-  const remainingBalance = Math.max(
-    Number(booking.price || 0) - Number(booking.depositAmount || 0),
-    0
-  );
+  const price = Number(booking.price || 0);
+  const latestArtistPayment =
+    booking.artistQuotedAmount ?? Number(booking.depositAmount || booking.price || 0);
+  const isDepositPaid = booking.status === "deposit_paid";
+  const remainingBalanceCents =
+    booking.remainingBalanceCents ??
+    Math.max(Math.round((price - Number(booking.totalArtistPaidAmount || 0)) * 100), 0);
+  const fallbackBreakdown = calculateClientPaymentBreakdown(latestArtistPayment, {
+    platformFeeBaseAmount: price,
+    platformFeeCentsOverride: booking.checkoutPaymentMode === "remaining" ? 0 : undefined,
+  });
+  const artistReceivesCents =
+    booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
+  const clientTotalCents =
+    booking.clientPaymentAmountCents ?? fallbackBreakdown.clientTotalCents;
 
   return (
     <SuccessShell>
@@ -91,13 +106,17 @@ const PaymentSuccessPage = () => {
               </span>
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                  Payment complete
+                  {isDepositPaid ? "Deposit confirmed" : "Payment complete"}
                 </p>
                 <h1 className="mt-1 text-2xl! font-semibold text-white">
-                  Your appointment is secured
+                  {isDepositPaid
+                    ? "Your appointment is secured"
+                    : "Your booking is paid in full"}
                 </h1>
                 <p className="mt-1 text-sm text-neutral-400">
-                  {booking.artistName} has your deposit and appointment details.
+                  {isDepositPaid
+                    ? `${booking.artistName} has your deposit and appointment details.`
+                    : `${booking.artistName} has your payment and appointment details.`}
                 </p>
               </div>
             </div>
@@ -145,13 +164,18 @@ const PaymentSuccessPage = () => {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <DetailTile
                 icon={<DollarSign size={17} />}
-                label="Deposit paid"
-                value={`$${booking.depositAmount || 0}`}
+                label={booking.checkoutPaymentMode === "remaining" ? "Balance paid" : "Artist payment"}
+                value={formatMoneyFromCents(artistReceivesCents)}
+              />
+              <DetailTile
+                icon={<DollarSign size={17} />}
+                label="Paid today"
+                value={formatMoneyFromCents(clientTotalCents)}
               />
               <DetailTile
                 icon={<DollarSign size={17} />}
                 label="Remaining balance"
-                value={`$${remainingBalance}`}
+                value={formatMoneyFromCents(remainingBalanceCents)}
               />
               <DetailTile
                 icon={<CalendarDays size={17} />}
@@ -183,9 +207,9 @@ const PaymentSuccessPage = () => {
                 What happens next
               </div>
               <p className="text-sm leading-6 text-emerald-50/80">
-                Your booking is now in your dashboard. Keep an eye on your
-                appointment details there, and coordinate any remaining balance
-                directly according to the artist's payment terms.
+                {isDepositPaid
+                  ? "Your booking is now confirmed in your dashboard. You can pay the remaining balance there when you are ready."
+                  : "Your booking is now paid in full and available in your dashboard with the appointment details."}
               </p>
             </div>
           </div>
