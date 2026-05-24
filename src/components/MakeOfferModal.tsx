@@ -61,6 +61,7 @@ type Props = {
   setOfferMessage: Dispatch<SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
   setDateOptions: Dispatch<SetStateAction<{ date: string; time: string }[]>>;
+  onOfferSent?: (requestId: string) => void;
 };
 
 const MakeOfferModal = ({
@@ -77,6 +78,7 @@ const MakeOfferModal = ({
   setOfferMessage,
   dateOptions,
   setDateOptions,
+  onOfferSent,
   uid,
   artist,
 }: Props) => {
@@ -224,6 +226,7 @@ const MakeOfferModal = ({
       });
 
       toast.success("Offer sent.");
+      onOfferSent?.(selectedRequest.id);
       resetOfferForm();
       onClose();
     } catch (error) {

@@ -28,9 +28,10 @@ type DashboardOffer = Offer & {
 
 interface Props {
   clientId: string;
+  onOfferResolved?: (outcome: "accepted" | "declined") => void;
 }
 
-const ClientOffersList: React.FC<Props> = ({ clientId }) => {
+const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   const navigate = useNavigate();
   const [offers, setOffers] = useState<DashboardOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<
@@ -48,7 +49,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
         id: offerDoc.id,
         ...offerDoc.data(),
       })) as DashboardOffer[];
-      setOffers(data);
+      setOffers(data.filter((offer) => (offer.status || "pending") === "pending"));
     } finally {
       setLoading(false);
     }
@@ -106,13 +107,19 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
           createdAt: serverTimestamp(),
         });
 
+        await updateDoc(offerRef, {
+          bookingId: bookingRef.id,
+        });
+        setOffers((current) => current.filter((offer) => offer.id !== offerId));
+        onOfferResolved?.("accepted");
         toast.success("Booking confirmed.");
         navigate(`/payment/${bookingRef.id}`);
         return bookingRef.id;
       }
 
       toast.success("Offer declined.");
-      fetchOffers();
+      setOffers((current) => current.filter((offer) => offer.id !== offerId));
+      onOfferResolved?.("declined");
     } catch (err) {
       console.error(err);
       toast.error("Error processing offer.");
@@ -127,8 +134,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
     () => [...offers].sort((a, b) => getOfferTime(b) - getOfferTime(a)),
     [offers]
   );
-  const pendingCount = offers.filter((offer) => offer.status === "pending").length;
-  const acceptedCount = offers.filter((offer) => offer.status === "accepted").length;
+  const pendingCount = offers.length;
 
   if (loading) return <SectionSkeleton />;
 
@@ -143,7 +149,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId }) => {
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Total" value={offers.length} />
           <MetricCard label="Pending" value={pendingCount} />
-          <MetricCard label="Accepted" value={acceptedCount} />
+          <MetricCard label="Next step" value={offers.length ? "Review" : "-"} />
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { CalendarDays, DollarSign, Eye, ImageIcon, MapPin, Store, X } from "lucide-react";
+import { CalendarDays, CreditCard, DollarSign, Eye, ImageIcon, MapPin, Store, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../firebase/firebaseConfig";
@@ -11,6 +12,7 @@ interface Props {
 }
 
 const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
             <BookingCard
               key={booking.id}
               booking={booking}
+              onPay={() => navigate(`/payment/${booking.id}`)}
               onOpen={() => setSelectedBooking(booking)}
             />
           ))}
@@ -79,12 +82,25 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       <BookingDetailsDialog
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
+        onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
       />
     </section>
   );
 };
 
-const BookingCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void }) => (
+const BookingCard = ({
+  booking,
+  onOpen,
+  onPay,
+}: {
+  booking: Booking;
+  onOpen: () => void;
+  onPay: () => void;
+}) => {
+  const isPendingPayment =
+    booking.status === "pending_payment" && booking.paymentType === "internal";
+
+  return (
   <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
     <button type="button" onClick={onOpen} className="block w-full p-0! text-left">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
@@ -117,15 +133,37 @@ const BookingCard = ({ booking, onOpen }: { booking: Booking; onOpen: () => void
       </div>
     </button>
     <div className="border-t border-white/10 p-4">
-      <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
-        <Eye size={16} />
-        View booking
-      </button>
+      {isPendingPayment ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
+            <Eye size={16} />
+            View
+          </button>
+          <button type="button" onClick={onPay} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85">
+            <CreditCard size={16} />
+            Pay
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
+          <Eye size={16} />
+          View booking
+        </button>
+      )}
     </div>
   </article>
-);
+  );
+};
 
-const BookingDetailsDialog = ({ booking, onClose }: { booking: Booking | null; onClose: () => void }) => (
+const BookingDetailsDialog = ({
+  booking,
+  onClose,
+  onPay,
+}: {
+  booking: Booking | null;
+  onClose: () => void;
+  onPay: (bookingId: string) => void;
+}) => (
   <Transition appear show={!!booking} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
@@ -180,6 +218,17 @@ const BookingDetailsDialog = ({ booking, onClose }: { booking: Booking | null; o
                           {booking.shopAddress}
                         </a>
                       )}
+                      {booking.status === "pending_payment" &&
+                        booking.paymentType === "internal" && (
+                          <button
+                            type="button"
+                            onClick={() => onPay(booking.id)}
+                            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                          >
+                            <CreditCard size={16} />
+                            Continue to payment
+                          </button>
+                        )}
                     </div>
                   </div>
                 </>
