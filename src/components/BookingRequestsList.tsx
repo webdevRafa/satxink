@@ -121,7 +121,7 @@ const BookingRequestsList: React.FC<Props> = ({
   };
 
   return (
-    <section className="mx-auto mt-6 max-w-7xl space-y-6">
+    <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">

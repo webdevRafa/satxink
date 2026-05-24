@@ -114,7 +114,7 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
   }, [artist?.stripeConnect]);
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="w-full max-w-5xl space-y-6">
       <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent p-6 shadow-2xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
