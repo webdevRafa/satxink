@@ -7,7 +7,7 @@ import ClientOffersList from "../components/ClientOffersList";
 import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
 import { db, auth } from "../firebase/firebaseConfig";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import ClientRequestsList from "../components/ClientRequestsList";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
 
@@ -33,7 +33,12 @@ const ClientDashboardView = () => {
   });
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = null;
+
       if (!user) {
         setClient(null);
         return;
@@ -44,68 +49,69 @@ const ClientDashboardView = () => {
       }
 
       const ref = doc(db, "users", user.uid);
-      const snap = await getDoc(ref);
-      const data = snap.exists() ? snap.data() : {};
+      unsubscribeProfile = onSnapshot(ref, (snap) => {
+        const data = snap.exists() ? snap.data() : {};
 
-      setClient({
-        id: user.uid,
-        ...data,
-        name:
-          data.name ||
-          data.displayName ||
-          user.displayName ||
-          "Client",
-        avatarUrl:
-          data.avatarUrl ||
-          user.photoURL ||
-          "/default-avatar.png",
-        likedArtists: Array.isArray(data.likedArtists) ? data.likedArtists : [],
+        setClient({
+          id: user.uid,
+          ...data,
+          name:
+            data.name ||
+            data.displayName ||
+            user.displayName ||
+            "Client",
+          avatarUrl:
+            data.avatarUrl ||
+            user.photoURL ||
+            "/default-avatar.png",
+          likedArtists: Array.isArray(data.likedArtists) ? data.likedArtists : [],
+        });
       });
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeProfile?.();
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (!client?.id) return;
 
-    let ignore = false;
-
-    const fetchDashboardCounts = async () => {
-      const [requestsSnap, offersSnap, bookingsSnap] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "bookingRequests"),
-            where("clientId", "==", client.id),
-            where("status", "==", "pending")
-          )
-        ),
-        getDocs(
-          query(
-            collection(db, "offers"),
-            where("clientId", "==", client.id),
-            where("status", "==", "pending")
-          )
-        ),
-        getDocs(query(collection(db, "bookings"), where("clientId", "==", client.id))),
-      ]);
-
-      if (!ignore) {
-        setNavCounts({
-          liked: Array.isArray(client.likedArtists) ? client.likedArtists.length : 0,
-          requests: requestsSnap.size,
-          offers: offersSnap.size,
-          bookings: bookingsSnap.size,
-        });
-      }
+    const updateCount = (key: ClientView, value: number) => {
+      setNavCounts((current) => ({ ...current, [key]: value }));
     };
 
-    fetchDashboardCounts().catch((error) => {
-      console.error("Failed to fetch client dashboard counts:", error);
-    });
+    updateCount("liked", Array.isArray(client.likedArtists) ? client.likedArtists.length : 0);
+
+    const unsubs = [
+      onSnapshot(
+        query(
+          collection(db, "bookingRequests"),
+          where("clientId", "==", client.id),
+          where("status", "==", "pending")
+        ),
+        (snap) => updateCount("requests", snap.size),
+        (error) => console.error("Client request count listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "offers"),
+          where("clientId", "==", client.id),
+          where("status", "==", "pending")
+        ),
+        (snap) => updateCount("offers", snap.size),
+        (error) => console.error("Client offer count listener failed:", error)
+      ),
+      onSnapshot(
+        query(collection(db, "bookings"), where("clientId", "==", client.id)),
+        (snap) => updateCount("bookings", snap.size),
+        (error) => console.error("Client booking count listener failed:", error)
+      ),
+    ];
 
     return () => {
-      ignore = true;
+      unsubs.forEach((unsub) => unsub());
     };
   }, [client?.id, client?.likedArtists]);
 

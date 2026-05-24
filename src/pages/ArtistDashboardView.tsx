@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
@@ -30,6 +30,7 @@ import {
   where,
   orderBy,
   getDocs,
+  onSnapshot,
 } from "firebase/firestore";
 import {
   deleteObject,
@@ -506,130 +507,137 @@ const ArtistDashboardView = () => {
     }
   };
 
-  const fetchPendingRequests = useCallback(async () => {
+  useEffect(() => {
     if (!uid) return;
+
     const q = query(
       collection(db, "bookingRequests"),
       where("artistId", "==", uid),
       where("status", "==", "pending")
     );
-    const snapshot = await getDocs(q);
-    setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-  }, [uid]);
 
-  useEffect(() => {
-    fetchPendingRequests();
-  }, [fetchPendingRequests]);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setBookingRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        console.error("Failed to listen to artist requests:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) return;
 
-    let ignore = false;
+    const updateCount = (key: string, value: number) => {
+      setNavCounts((current) => {
+        const next = { ...current, [key]: value };
+        next.bookings =
+          (key === "pending" ? value : next.pending || 0) +
+          (key === "confirmed" ? value : next.confirmed || 0) +
+          (key === "paid" ? value : next.paid || 0) +
+          (key === "cancelled" ? value : next.cancelled || 0);
+        return next;
+      });
+    };
 
-    const fetchDashboardCounts = async () => {
-      const [
-        requestsSnap,
-        offersSnap,
-        pendingSnap,
-        confirmedSnap,
-        paidSnap,
-        cancelledSnap,
-      ] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "bookingRequests"),
-            where("artistId", "==", uid),
-            where("status", "==", "pending")
-          )
+    const unsubs = [
+      onSnapshot(
+        query(
+          collection(db, "bookingRequests"),
+          where("artistId", "==", uid),
+          where("status", "==", "pending")
         ),
-        getDocs(query(collection(db, "offers"), where("artistId", "==", uid))),
-        getDocs(
-          query(
-            collection(db, "bookings"),
-            where("artistId", "==", uid),
-            where("status", "==", "pending_payment")
-          )
+        (snap) => updateCount("requests", snap.size),
+        (error) => console.error("Artist request count listener failed:", error)
+      ),
+      onSnapshot(
+        query(collection(db, "offers"), where("artistId", "==", uid)),
+        (snap) => updateCount("offers", snap.size),
+        (error) => console.error("Artist offer count listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", "pending_payment")
         ),
-        getDocs(
-          query(
-            collection(db, "bookings"),
-            where("artistId", "==", uid),
-            where("status", "==", "confirmed")
-          )
+        (snap) => updateCount("pending", snap.size),
+        (error) => console.error("Artist pending booking count listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", "confirmed")
         ),
-        getDocs(
-          query(
+        (snap) => updateCount("confirmed", snap.size),
+        (error) => console.error("Artist confirmed booking count listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", "paid")
+        ),
+        (snap) => updateCount("paid", snap.size),
+        (error) => console.error("Artist paid booking count listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "bookings"),
+          where("artistId", "==", uid),
+          where("status", "==", "cancelled")
+        ),
+        (snap) => updateCount("cancelled", snap.size),
+        (error) => console.error("Artist cancelled booking count listener failed:", error)
+      ),
+    ];
+
+    return () => {
+      unsubs.forEach((unsub) => unsub());
+    };
+  }, [uid]);
+
+  // Fetch bookings based on the current tab
+  useEffect(() => {
+    if (!uid) return;
+
+    // Always clear previous results when switching tabs
+    setBookings([]);
+
+    const statusToFetch = getFirestoreStatus(activeTab);
+
+    const q =
+      statusToFetch === "paid"
+        ? query(
             collection(db, "bookings"),
             where("artistId", "==", uid),
             where("status", "==", "paid")
           )
-        ),
-        getDocs(
-          query(
+        : query(
             collection(db, "bookings"),
             where("artistId", "==", uid),
-            where("status", "==", "cancelled")
-          )
-        ),
-      ]);
+            where("status", "==", statusToFetch),
+            orderBy("createdAt", "desc")
+          );
 
-      if (!ignore) {
-        const totalBookings =
-          pendingSnap.size + confirmedSnap.size + paidSnap.size + cancelledSnap.size;
-        setNavCounts({
-          requests: requestsSnap.size,
-          offers: offersSnap.size,
-          bookings: totalBookings,
-          pending: pendingSnap.size,
-          confirmed: confirmedSnap.size,
-          paid: paidSnap.size,
-          cancelled: cancelledSnap.size,
-        });
-      }
-    };
-
-    fetchDashboardCounts().catch((error) => {
-      console.error("Failed to fetch artist dashboard counts:", error);
-    });
-
-    return () => {
-      ignore = true;
-    };
-  }, [uid, bookingRequests.length]);
-
-  // Fetch bookings based on the current tab
-  useEffect(() => {
-    const fetchBookings = async () => {
-      if (!uid) return;
-
-      // Always clear previous results when switching tabs
-      setBookings([]);
-
-      const statusToFetch = getFirestoreStatus(activeTab);
-
-      let q;
-      if (statusToFetch === "paid") {
-        q = query(
-          collection(db, "bookings"),
-          where("artistId", "==", uid),
-          where("status", "==", "paid")
-        );
-      } else {
-        q = query(
-          collection(db, "bookings"),
-          where("artistId", "==", uid),
-          where("status", "==", statusToFetch),
-          orderBy("createdAt", "desc")
-        );
-      }
-
-      const snapshot = await getDocs(q);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
       setBookings(
         snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Booking[]
       );
-    };
+      },
+      (error) => {
+        console.error("Failed to listen to artist bookings:", error);
+      }
+    );
 
-    fetchBookings();
+    return () => unsubscribe();
   }, [uid, activeTab]);
 
   const profileCompletionItems = [

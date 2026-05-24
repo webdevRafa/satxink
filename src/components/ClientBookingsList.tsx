@@ -2,7 +2,7 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { CalendarDays, CreditCard, DollarSign, Eye, ImageIcon, MapPin, Store, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../firebase/firebaseConfig";
 import type { Booking } from "../types/Booking";
@@ -18,22 +18,35 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchBookings = async () => {
-      setLoading(true);
-      try {
-        const bookingsQuery = query(collection(db, "bookings"), where("clientId", "==", clientId));
-        const snap = await getDocs(bookingsQuery);
+    if (!clientId) return;
+
+    let ignore = false;
+    setLoading(true);
+    const bookingsQuery = query(collection(db, "bookings"), where("clientId", "==", clientId));
+
+    const unsubscribe = onSnapshot(
+      bookingsQuery,
+      async (snap) => {
         const data = snap.docs.map((bookingDoc) => ({
           id: bookingDoc.id,
           ...bookingDoc.data(),
         })) as Booking[];
-        setBookings(await reconcilePendingPayments(data));
-      } finally {
+        const reconciled = await reconcilePendingPayments(data);
+        if (!ignore) {
+          setBookings(reconciled);
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Error listening to client bookings:", error);
         setLoading(false);
       }
-    };
+    );
 
-    if (clientId) fetchBookings();
+    return () => {
+      ignore = true;
+      unsubscribe();
+    };
   }, [clientId]);
 
   const sortedBookings = useMemo(
