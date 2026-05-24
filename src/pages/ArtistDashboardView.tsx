@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -23,6 +23,7 @@ import {
   ReceiptText,
   RefreshCcw,
   Save,
+  Search,
   Store,
   UserRound,
   X,
@@ -81,6 +82,7 @@ const SPECIALTY_OPTIONS = [
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
+type BookingSortMode = "upcoming" | "newest" | "oldest";
 type ArtistDashboardTab =
   | "requests"
   | "profile"
@@ -211,6 +213,9 @@ const ArtistDashboardView = () => {
   const [artist, setArtist] = useState<any>(null);
   const [bookingRequests, setBookingRequests] = useState<any[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingSearchTerm, setBookingSearchTerm] = useState("");
+  const [bookingSortMode, setBookingSortMode] =
+    useState<BookingSortMode>("upcoming");
   const [navCounts, setNavCounts] = useState<Record<string, number>>({
     requests: 0,
     offers: 0,
@@ -638,7 +643,12 @@ const ArtistDashboardView = () => {
       ),
       onSnapshot(
         query(collection(db, "offers"), where("artistId", "==", uid)),
-        (snap) => updateCount("offers", snap.size),
+        (snap) =>
+          updateCount(
+            "offers",
+            snap.docs.filter((offerDoc) => offerDoc.data().status !== "accepted")
+              .length
+          ),
         (error) => console.error("Artist offer count listener failed:", error)
       ),
       onSnapshot(
@@ -825,6 +835,33 @@ const ArtistDashboardView = () => {
     isUploadingAvatar ||
     displayNameStatus === "checking" ||
     displayNameStatus === "taken";
+  const visibleBookings = useMemo(() => {
+    const normalizedSearch = bookingSearchTerm.trim().toLowerCase();
+    const filteredBookings = normalizedSearch
+      ? bookings.filter((booking) => {
+          const dashboardBooking = booking as DashboardBooking;
+          const clientName =
+            dashboardBooking.user?.name ||
+            dashboardBooking.user?.displayName ||
+            dashboardBooking.clientName ||
+            "";
+
+          return clientName.toLowerCase().includes(normalizedSearch);
+        })
+      : bookings;
+
+    return [...filteredBookings].sort((a, b) => {
+      if (bookingSortMode === "newest") {
+        return getBookingCreatedTime(b) - getBookingCreatedTime(a);
+      }
+
+      if (bookingSortMode === "oldest") {
+        return getBookingCreatedTime(a) - getBookingCreatedTime(b);
+      }
+
+      return compareUpcomingBookings(a, b);
+    });
+  }, [bookings, bookingSearchTerm, bookingSortMode]);
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -1497,8 +1534,13 @@ const ArtistDashboardView = () => {
                   Showing
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-white">
-                  {bookings.length}
+                  {visibleBookings.length}
                 </p>
+                {visibleBookings.length !== bookings.length && (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    of {bookings.length}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1516,155 +1558,206 @@ const ArtistDashboardView = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {bookings.map((b) => {
-                  const booking = b as Booking & {
-                    user?: {
-                      name?: string;
-                      displayName?: string;
-                      avatarUrl?: string;
-                    };
-                    clientName?: string;
-                    clientAvatar?: string;
-                  };
+              <>
+                <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:flex-row lg:items-center lg:justify-between">
+                  <label className="relative min-w-0 flex-1 lg:max-w-md">
+                    <Search
+                      size={16}
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="search"
+                      value={bookingSearchTerm}
+                      onChange={(event) => setBookingSearchTerm(event.target.value)}
+                      className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                      placeholder="Search by client name"
+                    />
+                  </label>
 
-                  const clientName =
-                    booking.user?.name ||
-                    booking.user?.displayName ||
-                    booking.clientName ||
-                    "Client";
-
-                  const clientAvatar =
-                    booking.user?.avatarUrl ||
-                    booking.clientAvatar ||
-                    "/default-avatar.png";
-
-                  const createdSource =
-                    booking.createdAt?.toDate?.() || booking.paidAt?.toDate?.();
-
-                  const created = createdSource
-                    ? createdSource.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "New";
-
-                  const appointmentLabel =
-                    booking.selectedDate?.date && booking.selectedDate?.time
-                      ? formatBookingAppointment(booking.selectedDate)
-                      : "No date set";
-
-                  const statusClass =
-                    booking.status === "paid" ||
-                    booking.status === "confirmed" ||
-                    booking.status === "deposit_paid"
-                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-                      : booking.status === "pending_payment"
-                      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
-                      : "border-red-300/25 bg-red-300/10 text-red-100";
-
-                  return (
-                    <article
-                      key={booking.id}
-                      className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]"
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <span className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                      Sort
+                    </span>
+                    <select
+                      value={bookingSortMode}
+                      onChange={(event) =>
+                        setBookingSortMode(event.target.value as BookingSortMode)
+                      }
+                      className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
                     >
-                      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <img
-                            src={clientAvatar}
-                            alt={clientName}
-                            className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-white">
-                              {clientName}
-                            </p>
-                            <p className="text-xs text-neutral-500">
-                              Created {created}
+                      <option value="upcoming">Soonest upcoming</option>
+                      <option value="newest">Newest bookings</option>
+                      <option value="oldest">Oldest bookings</option>
+                    </select>
+                  </div>
+                </div>
+
+                {visibleBookings.length === 0 ? (
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <Search size={22} />
+                    </div>
+                    <h2 className="mt-4 text-xl! font-semibold! text-white">
+                      No matching bookings
+                    </h2>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
+                      Try another client name or clear the search to return to
+                      all {activeTab} bookings.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {visibleBookings.map((b) => {
+                      const booking = b as Booking & {
+                        user?: {
+                          name?: string;
+                          displayName?: string;
+                          avatarUrl?: string;
+                        };
+                        clientName?: string;
+                        clientAvatar?: string;
+                      };
+
+                      const clientName =
+                        booking.user?.name ||
+                        booking.user?.displayName ||
+                        booking.clientName ||
+                        "Client";
+
+                      const clientAvatar =
+                        booking.user?.avatarUrl ||
+                        booking.clientAvatar ||
+                        "/default-avatar.png";
+
+                      const createdSource =
+                        booking.createdAt?.toDate?.() || booking.paidAt?.toDate?.();
+
+                      const created = createdSource
+                        ? createdSource.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "New";
+
+                      const appointmentLabel =
+                        booking.selectedDate?.date && booking.selectedDate?.time
+                          ? formatBookingAppointment(booking.selectedDate)
+                          : "No date set";
+
+                      const statusClass =
+                        booking.status === "paid" ||
+                        booking.status === "confirmed" ||
+                        booking.status === "deposit_paid"
+                          ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+                          : booking.status === "pending_payment"
+                          ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
+                          : "border-red-300/25 bg-red-300/10 text-red-100";
+
+                      return (
+                        <article
+                          key={booking.id}
+                          className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]"
+                        >
+                          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <img
+                                src={clientAvatar}
+                                alt={clientName}
+                                className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-white">
+                                  {clientName}
+                                </p>
+                                <p className="text-xs text-neutral-500">
+                                  Created {created}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClass}`}
+                            >
+                              {booking.status === "deposit_paid"
+                                ? "Deposit paid"
+                                : booking.status.replace("_", " ")}
+                            </span>
+                          </div>
+
+                          <div className="relative h-48 bg-black">
+                            {booking.sampleImageUrl ? (
+                              <img
+                                src={booking.sampleImageUrl}
+                                alt="Booking sample"
+                                className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
+                              />
+                            ) : (
+                              <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                                <ImageIcon size={26} />
+                                <span className="text-sm">No sample image</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-4">
+                            <div className="grid grid-cols-2 gap-2">
+                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                                <span className="text-neutral-500">
+                                  <DollarSign size={14} />
+                                </span>
+                                <span className="truncate">
+                                  ${booking.price ?? 0}
+                                </span>
+                              </span>
+
+                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                                <span className="text-neutral-500">
+                                  <ReceiptText size={14} />
+                                </span>
+                                <span className="truncate">
+                                  ${booking.depositAmount ?? 0}
+                                </span>
+                              </span>
+
+                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                                <span className="text-neutral-500">
+                                  <CalendarDays size={14} />
+                                </span>
+                                <span className="truncate">{appointmentLabel}</span>
+                              </span>
+
+                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
+                                <span className="text-neutral-500">
+                                  <Store size={14} />
+                                </span>
+                                <span className="truncate">
+                                  {booking.shopName || "Private Studio"}
+                                </span>
+                              </span>
+                            </div>
+
+                            <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
+                              {booking.shopAddress || "Address not provided"}
                             </p>
                           </div>
-                        </div>
 
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClass}`}
-                        >
-                          {booking.status === "deposit_paid"
-                            ? "Deposit paid"
-                            : booking.status.replace("_", " ")}
-                        </span>
-                      </div>
-
-                      <div className="relative h-48 bg-black">
-                        {booking.sampleImageUrl ? (
-                          <img
-                            src={booking.sampleImageUrl}
-                            alt="Booking sample"
-                            className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
-                          />
-                        ) : (
-                          <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                            <ImageIcon size={26} />
-                            <span className="text-sm">No sample image</span>
+                          <div className="border-t border-white/10 p-4">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBookingRecord(booking)}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+                            >
+                              <Eye size={16} />
+                              Booking record
+                            </button>
                           </div>
-                        )}
-                      </div>
-
-                      <div className="p-4">
-                        <div className="grid grid-cols-2 gap-2">
-                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                            <span className="text-neutral-500">
-                              <DollarSign size={14} />
-                            </span>
-                            <span className="truncate">
-                              ${booking.price ?? 0}
-                            </span>
-                          </span>
-
-                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                            <span className="text-neutral-500">
-                              <ReceiptText size={14} />
-                            </span>
-                            <span className="truncate">
-                              ${booking.depositAmount ?? 0}
-                            </span>
-                          </span>
-
-                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                            <span className="text-neutral-500">
-                              <CalendarDays size={14} />
-                            </span>
-                            <span className="truncate">{appointmentLabel}</span>
-                          </span>
-
-                          <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                            <span className="text-neutral-500">
-                              <Store size={14} />
-                            </span>
-                            <span className="truncate">
-                              {booking.shopName || "Private Studio"}
-                            </span>
-                          </span>
-                        </div>
-
-                        <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
-                          {booking.shopAddress || "Address not provided"}
-                        </p>
-                      </div>
-
-                      <div className="border-t border-white/10 p-4">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedBookingRecord(booking)}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
-                        >
-                          <Eye size={16} />
-                          Booking record
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
@@ -1982,6 +2075,50 @@ const formatBookingAppointment = (selectedDate: {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const getBookingStartTime = (booking: Booking) => {
+  const selectedDate = booking.selectedDate;
+  if (!selectedDate?.date || !selectedDate.time || selectedDate.date === "TBD") {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const [year, month, day] = selectedDate.date.split("-").map(Number);
+  const [hours, minutes] = selectedDate.time.split(":").map(Number);
+  const date = new Date(year, month - 1, day, hours, minutes);
+
+  return Number.isNaN(date.getTime())
+    ? Number.MAX_SAFE_INTEGER
+    : date.getTime();
+};
+
+const compareUpcomingBookings = (a: Booking, b: Booking) => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const nowTime = now.getTime();
+  const aStart = getBookingStartTime(a);
+  const bStart = getBookingStartTime(b);
+  const aHasDate = aStart !== Number.MAX_SAFE_INTEGER;
+  const bHasDate = bStart !== Number.MAX_SAFE_INTEGER;
+  const aUpcoming = aHasDate && aStart >= nowTime;
+  const bUpcoming = bHasDate && bStart >= nowTime;
+
+  if (aUpcoming && bUpcoming) return aStart - bStart;
+  if (aUpcoming) return -1;
+  if (bUpcoming) return 1;
+  if (aHasDate && bHasDate) return bStart - aStart;
+  if (aHasDate) return -1;
+  if (bHasDate) return 1;
+
+  return getBookingCreatedTime(b) - getBookingCreatedTime(a);
+};
+
+const getBookingCreatedTime = (booking: Booking) => {
+  const createdAt = booking.createdAt;
+  if (createdAt?.toDate) return createdAt.toDate().getTime();
+  if (createdAt?.seconds) return createdAt.seconds * 1000;
+  return 0;
 };
 
 export default ArtistDashboardView;
