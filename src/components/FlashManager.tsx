@@ -1,50 +1,63 @@
-// FlashManager.tsx — Reinvented UX, same helpers & imports kept
-
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  Check,
+  Grid2X2,
+  Image as ImageIcon,
+  Layers,
+  Plus,
+  Scissors,
+  Sparkles,
+  Tag,
+  Upload,
+  X,
+} from "lucide-react";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
+import toast from "react-hot-toast";
 
 import { db, storage } from "../firebase/firebaseConfig";
 import {
+  addDoc,
   collection,
   getDocs,
   query,
-  where,
-  addDoc,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
-
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
+import type { Flash } from "../types/Flash";
 import { getCroppedImg } from "../utils/cropImage";
-import UploadModal from "./UploadModal";
-import { Plus, Scissors } from "lucide-react";
 import { parseTags } from "../utils/tags";
-import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  isStripeConnectReady,
+  type StripeConnectLike,
+} from "../utils/stripeConnect";
+import UploadModal from "./UploadModal";
 
-// Optional but nice: tiny status toasts (Toaster already mounted in App.tsx)
-import toast from "react-hot-toast";
-
-const FlashManager = ({
-  uid,
-  artist,
-  onOpenPayments,
-}: {
+type FlashManagerProps = {
   uid: string;
   artist?: StripeConnectLike | null;
   onOpenPayments?: () => void;
-}) => {
-  // ── State for modes & modals
-  const [mode, setMode] = useState<"sheet" | "individual">("individual");
+};
+
+type UploadMode = "individual" | "sheet";
+
+const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
+  const navigate = useNavigate();
+  const stripeReady = isStripeConnectReady(artist);
+
+  const [mode, setMode] = useState<UploadMode>("individual");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
-  // ── State for flash sheets
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
-  const [loadingSheets, setLoadingSheets] = useState(true);
+  const [flashes, setFlashes] = useState<Flash[]>([]);
+  const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // ── State for new sheet upload + naming
   const [sheetDocId, setSheetDocId] = useState<string | null>(null);
   const [sheetImage, setSheetImage] = useState<string | null>(null);
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
@@ -53,12 +66,9 @@ const FlashManager = ({
   const [sheetTagsInput, setSheetTagsInput] = useState("");
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
-  // ── State for cropping from uploaded sheet
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [currentCrop, setCurrentCrop] = useState<Area | null>(null);
-
-  // ── State for creating a flash from a crop
   const [showFlashDetailsModal, setShowFlashDetailsModal] = useState(false);
   const [titleInput, setTitleInput] = useState("");
   const [priceInput, setPriceInput] = useState("");
@@ -66,66 +76,73 @@ const FlashManager = ({
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [isSavingFlash, setIsSavingFlash] = useState(false);
 
-  const navigate = useNavigate();
-  const stripeReady = isStripeConnectReady(artist);
+  const linkedFlashCount = useMemo(
+    () => flashes.filter((flash) => flash.isFromSheet || flash.sheetId).length,
+    [flashes]
+  );
 
-  // ──────────────────────────────────────────────────────────────
-  // Helpers
+  const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
+
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-  const waitForFile = async (storageRef: any, retries = 10, delay = 1000) => {
-    for (let i = 0; i < retries; i++) {
+  const waitForFile = async (
+    storageRef: ReturnType<typeof ref>,
+    retries = 10,
+    delay = 1000
+  ) => {
+    for (let i = 0; i < retries; i += 1) {
       try {
-        const url = await getDownloadURL(storageRef);
-        return url;
+        return await getDownloadURL(storageRef);
       } catch (err) {
         if (i === retries - 1) throw err;
         await wait(delay);
       }
     }
-    // Unreachable, but TS happy:
+
     throw new Error("Unable to get file after retries.");
   };
 
-  const gridStyles = useMemo(
-    () => ({
-      display: "grid",
-      gap: "1rem",
-      gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-    }),
-    []
-  );
-
-  // ──────────────────────────────────────────────────────────────
-  // Load sheets
-  const fetchFlashSheets = async () => {
+  const fetchFlashData = async () => {
     try {
-      setLoadingSheets(true);
+      setLoading(true);
       setFetchError(null);
-      const q = query(
+
+      const sheetsQuery = query(
         collection(db, "flashSheets"),
         where("artistId", "==", uid)
       );
-      const snapshot = await getDocs(q);
+      const flashesQuery = query(
+        collection(db, "flashes"),
+        where("artistId", "==", uid)
+      );
+
+      const [sheetSnapshot, flashSnapshot] = await Promise.all([
+        getDocs(sheetsQuery),
+        getDocs(flashesQuery),
+      ]);
+
       setFlashSheets(
-        snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as FlashSheet)
+        sheetSnapshot.docs.map(
+          (sheetDoc) => ({ id: sheetDoc.id, ...sheetDoc.data() } as FlashSheet)
+        )
+      );
+      setFlashes(
+        flashSnapshot.docs.map(
+          (flashDoc) => ({ id: flashDoc.id, ...flashDoc.data() } as Flash)
         )
       );
     } catch (err: any) {
-      setFetchError(err?.message || "Failed to load flash sheets.");
+      setFetchError(err?.message || "Failed to load flash.");
     } finally {
-      setLoadingSheets(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (uid) fetchFlashSheets();
+    if (uid) fetchFlashData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid]);
 
-  // ──────────────────────────────────────────────────────────────
-  // New sheet selection (kept identical behavior + better errors)
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!stripeReady) {
       toast.error("Connect Stripe before adding flash to the marketplace.");
@@ -142,30 +159,32 @@ const FlashManager = ({
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = reader.result as string;
-
       const testImg = new Image();
       testImg.crossOrigin = "anonymous";
       testImg.onload = () => setSheetImage(base64);
-      testImg.onerror = () => {
-        toast.error(
-          "Your image failed to preview. It might be blocked by browser security."
-        );
-      };
+      testImg.onerror = () =>
+        toast.error("This image could not be previewed. Try another file.");
       testImg.src = base64;
     };
     reader.readAsDataURL(file);
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // Submit sheet to Storage -> wait for CF derivatives -> create doc
+  const closeSheetTitleModal = () => {
+    setShowSheetTitleModal(false);
+    setSheetTitleInput("");
+    setSheetTagsInput("");
+    setPendingSheetFile(null);
+    setSheetImage(null);
+  };
+
   const handleSubmitFlashSheet = async () => {
     if (!stripeReady) {
-      toast.error("Connect Stripe before adding flash sheets to the marketplace.");
+      toast.error("Connect Stripe before adding flash sheets.");
       return;
     }
 
-    if (!pendingSheetFile || !uid || !sheetTitleInput) {
-      toast("Please provide a title and image.");
+    if (!pendingSheetFile || !uid || !sheetTitleInput.trim()) {
+      toast("Add a sheet title before uploading.");
       return;
     }
 
@@ -177,7 +196,6 @@ const FlashManager = ({
       const originalRef = ref(storage, `${storageBase}.jpg`);
 
       await uploadBytes(originalRef, pendingSheetFile);
-      // Small buffer for CF to create _thumb / _full
       await wait(1200);
 
       const thumbRef = ref(storage, `${storageBase}_thumb.webp`);
@@ -190,7 +208,7 @@ const FlashManager = ({
 
       const docRef = await addDoc(collection(db, "flashSheets"), {
         artistId: uid,
-        title: sheetTitleInput,
+        title: sheetTitleInput.trim(),
         tags: parseTags(sheetTagsInput),
         artistStripeConnectReady: true,
         marketplaceVisible: true,
@@ -206,10 +224,9 @@ const FlashManager = ({
       setSheetTagsInput("");
       setPendingSheetFile(null);
       setShowSheetTitleModal(false);
-      toast.success("Flash sheet uploaded!");
-
-      // Refresh list immediately for crisp UX
-      fetchFlashSheets();
+      setMode("sheet");
+      toast.success("Flash sheet uploaded.");
+      fetchFlashData();
     } catch (err: any) {
       toast.error(err?.message || "Upload failed. Please try again.");
     } finally {
@@ -217,9 +234,7 @@ const FlashManager = ({
     }
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // Crop from the sheet (same helper signature)
-  const handleCropComplete = (_: any, croppedAreaPixels: Area) => {
+  const handleCropComplete = (_: Area, croppedAreaPixels: Area) => {
     setCurrentCrop(croppedAreaPixels);
   };
 
@@ -228,6 +243,7 @@ const FlashManager = ({
       toast("Choose an area to crop.");
       return;
     }
+
     try {
       const blob = await getCroppedImg(sheetImage, currentCrop);
       setPendingBlob(blob);
@@ -237,8 +253,6 @@ const FlashManager = ({
     }
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // Save cropped flash (same storage & Firestore logic you use)
   const handleFlashSubmit = async () => {
     if (!pendingBlob || !uid) return;
     if (!stripeReady) {
@@ -251,15 +265,10 @@ const FlashManager = ({
 
       const timestamp = Date.now();
       const baseName = `flash_${timestamp}`;
-      const originalFilename = `${baseName}.jpg`;
       const storageBasePath = `users/${uid}/flashes/${baseName}`;
-      const originalRef = ref(
-        storage,
-        `users/${uid}/flashes/${originalFilename}`
-      );
+      const originalRef = ref(storage, `${storageBasePath}.jpg`);
 
       await uploadBytes(originalRef, pendingBlob);
-      // Wait for CF thumbs/previews
       await wait(1200);
 
       const fullRef = ref(storage, `${storageBasePath}_full.jpg`);
@@ -274,7 +283,7 @@ const FlashManager = ({
 
       await addDoc(collection(db, "flashes"), {
         artistId: uid,
-        title: titleInput || "Untitled Flash",
+        title: titleInput.trim() || "Untitled Flash",
         price: priceInput ? parseFloat(priceInput) : null,
         tags: parseTags(flashTagsInput),
         artistStripeConnectReady: true,
@@ -287,15 +296,14 @@ const FlashManager = ({
         createdAt: serverTimestamp(),
       });
 
-      // Reset UI
       setTitleInput("");
       setPriceInput("");
       setFlashTagsInput("");
       setCurrentCrop(null);
       setPendingBlob(null);
       setShowFlashDetailsModal(false);
-
-      toast.success("Flash saved!");
+      toast.success("Flash saved.");
+      fetchFlashData();
     } catch (err: any) {
       toast.error(err?.message || "Failed to save flash.");
     } finally {
@@ -303,60 +311,117 @@ const FlashManager = ({
     }
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // Render
+  const openIndividualUpload = () => {
+    if (!stripeReady) {
+      toast.error("Connect Stripe before adding flash to the marketplace.");
+      return;
+    }
+    setIsUploadOpen(true);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Top controls */}
-      {!stripeReady && (
-        <StripeRequiredNotice onOpenPayments={onOpenPayments} />
-      )}
+    <div className="space-y-8">
+      {!stripeReady && <StripeRequiredNotice onOpenPayments={onOpenPayments} />}
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value as any)}
-          className="bg-[var(--color-bg-card)] text-white px-3! py-2! rounded"
-        >
-          <option value="individual">Upload Individually</option>
-          <option value="sheet">Upload Flash Sheet</option>
-        </select>
+      <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
+        <div className="grid gap-6 border-b border-white/10 bg-white/[0.02] p-5 md:grid-cols-[1.1fr_0.9fr] md:p-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
+              Flash studio
+            </p>
+            <h2 className="mt-3 text-3xl! font-bold text-white">
+              Build a cleaner flash marketplace
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+              Upload single designs, organize them into sheets, or crop clean
+              purchasable pieces from a full flash sheet.
+            </p>
+          </div>
 
-        {mode === "individual" ? (
-          <button
-            onClick={() => {
-              if (!stripeReady) {
-                toast.error("Connect Stripe before adding flash to the marketplace.");
-                return;
-              }
-              setIsUploadOpen(true);
-            }}
-            className={`bg-[var(--color-primary)] text-sm! text-white px-2! py-2! rounded-md hover:bg-gray-700 flex items-center gap-2 ${
-              !stripeReady ? "opacity-50" : ""
-            }`}
-          >
-            Add <Plus size={18} />
-          </button>
-        ) : (
-          <label
-            className={`flex items-center gap-2 bg-[var(--color-bg-card)] text-white px-4 py-2 rounded hover:bg-gray-700 ${
-              stripeReady ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-            }`}
-          >
-            <Scissors size={18} /> Upload Flash Sheet
-            {stripeReady && (
-              <input
-                type="file"
-                onChange={handleSheetUpload}
-                accept="image/*"
-                className="hidden"
-              />
-            )}
-          </label>
-        )}
-      </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Sheets" value={flashSheets.length} />
+            <StatCard label="Itemized" value={linkedFlashCount} />
+            <StatCard label="Solo" value={standaloneFlashCount} />
+          </div>
+        </div>
 
-      {/* Individual Upload Modal (unchanged behavior) */}
+        <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr] md:p-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <ModeCard
+              active={mode === "individual"}
+              icon={<Plus size={18} />}
+              title="Individual flash"
+              description="Post one design as standalone flash or attach it to an existing sheet."
+              onClick={() => setMode("individual")}
+            />
+            <ModeCard
+              active={mode === "sheet"}
+              icon={<Layers size={18} />}
+              title="Flash sheet"
+              description="Upload a full sheet, then crop and publish each design from the sheet editor."
+              onClick={() => setMode("sheet")}
+            />
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300">
+                  {mode === "individual" ? (
+                    <ImageIcon size={19} />
+                  ) : (
+                    <Scissors size={19} />
+                  )}
+                </span>
+                <div>
+                  <h3 className="text-lg! font-bold text-white">
+                    {mode === "individual"
+                      ? "Upload a flash item"
+                      : "Upload a flash sheet"}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400">
+                    {mode === "individual"
+                      ? "Perfect for one-off pieces, quick drops, and designs that do not need a full sheet."
+                      : "Best for larger drops where clients should see the whole collection and each cropped piece."}
+                  </p>
+                </div>
+              </div>
+
+              {mode === "individual" ? (
+                <button
+                  type="button"
+                  onClick={openIndividualUpload}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                  disabled={!stripeReady}
+                >
+                  <Upload size={16} />
+                  Upload item
+                </button>
+              ) : (
+                <label
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 ${
+                    stripeReady
+                      ? "cursor-pointer"
+                      : "cursor-not-allowed opacity-50"
+                  }`}
+                >
+                  <Upload size={16} />
+                  Upload sheet
+                  {stripeReady && (
+                    <input
+                      type="file"
+                      onChange={handleSheetUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                  )}
+                </label>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {isUploadOpen && (
         <UploadModal
           uid={uid}
@@ -364,236 +429,477 @@ const FlashManager = ({
           onClose={() => setIsUploadOpen(false)}
           collectionType="flashes"
           artistStripeConnectReady={stripeReady}
-          onUploadComplete={() => toast.success("Flash uploaded!")}
+          availableSheets={flashSheets}
+          allowSheetLink
+          onUploadComplete={() => {
+            toast.success("Flash uploaded.");
+            fetchFlashData();
+          }}
         />
       )}
 
-      {/* Name Sheet Modal */}
       {showSheetTitleModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/80 z-30">
-          <div className="bg-zinc-900 p-6 rounded w-full max-w-sm space-y-4">
-            <h2 className="text-lg font-semibold text-white">
-              Name This Flash Sheet
-            </h2>
-            <input
-              type="text"
-              value={sheetTitleInput}
-              onChange={(e) => setSheetTitleInput(e.target.value)}
-              placeholder="Flash Sheet Title"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
-            />
-            <input
-              type="text"
-              value={sheetTagsInput}
-              onChange={(e) => setSheetTagsInput(e.target.value)}
-              placeholder="Tags (traditional, dragon, color)"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowSheetTitleModal(false);
-                  setSheetTitleInput("");
-                  setSheetTagsInput("");
-                  setPendingSheetFile(null);
-                }}
-                className="bg-rose-600 text-white px-4 py-2 rounded hover:bg-rose-700"
-                disabled={isUploadingSheet}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitFlashSheet}
-                className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:opacity-60"
-                disabled={isUploadingSheet || !sheetTitleInput.trim()}
-              >
-                {isUploadingSheet ? "Uploading…" : "Upload Sheet"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cropper (only after a sheet is loaded) */}
-      {sheetImage && (
-        <div className="relative w-full h-[560px] z-10 rounded overflow-hidden">
-          <Cropper
-            image={sheetImage}
-            crop={crop}
-            zoom={zoom}
-            maxZoom={8}
-            aspect={1}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={handleCropComplete}
-          />
-
-          {/* Simple controls overlay */}
-          <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center gap-3 justify-between z-20">
-            <div className="flex items-center gap-2 bg-black/60 px-3 py-2 rounded">
-              <span className="text-xs text-white/80">Zoom</span>
-              <input
-                aria-label="Zoom"
-                type="range"
-                min={1}
-                max={8}
-                step={0.1}
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-40"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveCropRequest}
-                className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
-              >
-                Save Crop as Flash
-              </button>
-              <button
-                onClick={() => setSheetImage(null)}
-                className="bg-rose-600 text-white px-4 py-2 rounded hover:bg-rose-700"
-              >
-                Done Cropping
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Flash Details Modal */}
-      {showFlashDetailsModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/80 z-30">
-          <div className="bg-zinc-900 p-6 rounded w-full max-w-sm space-y-4">
-            <h2 className="text-lg font-semibold text-white">
-              Add Flash Details
-            </h2>
-            <input
-              type="text"
-              value={titleInput}
-              onChange={(e) => setTitleInput(e.target.value)}
-              placeholder="Title"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
-            />
-            <input
-              type="number"
-              value={priceInput}
-              onChange={(e) => setPriceInput(e.target.value)}
-              placeholder="Price (optional)"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
-            />
-            <input
-              type="text"
-              value={flashTagsInput}
-              onChange={(e) => setFlashTagsInput(e.target.value)}
-              placeholder="Tags (comma or space separated)"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowFlashDetailsModal(false);
-                  setFlashTagsInput("");
-                }}
-                className="bg-zinc-700 text-white px-4 py-2 rounded"
-                disabled={isSavingFlash}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFlashSubmit}
-                className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:opacity-60"
-                disabled={isSavingFlash}
-              >
-                {isSavingFlash ? "Saving…" : "Save Flash"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sheets List */}
-      <h2 className="text-lg! font-bold text-white mb-2 mt-10">
-        Your Flash Sheets
-      </h2>
-
-      {/* Loading state */}
-      {loadingSheets && (
-        <div style={gridStyles}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded overflow-hidden bg-zinc-900 animate-pulse"
-            >
-              <div className="w-full h-48 bg-zinc-800" />
-              <div className="p-3">
-                <div className="h-4 w-2/3 bg-zinc-800 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Error state */}
-      {fetchError && !loadingSheets && (
-        <div className="text-rose-400 text-sm">{fetchError}</div>
-      )}
-
-      {/* Empty state */}
-      {!loadingSheets && !fetchError && flashSheets.length === 0 && (
-        <div className="text-zinc-400 text-sm">
-          No flash sheets yet. Upload one to start cropping flashes.
-        </div>
-      )}
-
-      {/* Grid of sheets */}
-      {!loadingSheets && flashSheets.length > 0 && (
-        <div style={gridStyles}>
-          {flashSheets.map((sheet) => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
+          <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
             <button
-              key={sheet.id}
-              onClick={() => navigate(`/flash-sheet/${sheet.id}`)}
-              className="text-left cursor-pointer rounded overflow-hidden bg-zinc-900 hover:bg-zinc-800 transition shadow"
+              type="button"
+              onClick={closeSheetTitleModal}
+              className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              aria-label="Close sheet upload modal"
+              disabled={isUploadingSheet}
             >
-              <img
-                src={sheet.thumbUrl || sheet.imageUrl}
-                alt={sheet.title}
-                className="w-full h-48 object-cover"
-                loading="lazy"
-              />
-              <div className="px-3 py-2">
-                <h3 className="font-semibold truncate">{sheet.title}</h3>
-              </div>
+              <X size={18} />
             </button>
-          ))}
+
+            <div className="border-b border-white/10 bg-black/30 p-5 md:border-b-0 md:border-r md:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                New flash sheet
+              </p>
+              <h2 className="mt-3 text-2xl! font-bold text-white">
+                Name the collection
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                This title appears on your dashboard, public profile, and the
+                sheet editor where you crop individual flash.
+              </p>
+              {sheetImage && (
+                <img
+                  src={sheetImage}
+                  alt="Flash sheet preview"
+                  className="mt-5 aspect-square w-full rounded-2xl border border-white/10 object-cover"
+                />
+              )}
+            </div>
+
+            <div className="p-5 md:p-6">
+              <label className="block">
+                <span className="text-sm font-semibold text-zinc-300">
+                  Sheet title
+                </span>
+                <input
+                  type="text"
+                  value={sheetTitleInput}
+                  onChange={(e) => setSheetTitleInput(e.target.value)}
+                  placeholder="Dragon Ball sheet"
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                  <Tag size={16} />
+                  Sheet tags
+                </span>
+                <input
+                  type="text"
+                  value={sheetTagsInput}
+                  onChange={(e) => setSheetTagsInput(e.target.value)}
+                  placeholder="anime, color, dragon"
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                />
+              </label>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
+                    <Scissors size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Crop after upload
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      Once the sheet is saved, you can crop designs here or open
+                      the dedicated sheet editor any time.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeSheetTitleModal}
+                  className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  disabled={isUploadingSheet}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitFlashSheet}
+                  className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={isUploadingSheet || !sheetTitleInput.trim()}
+                >
+                  {isUploadingSheet ? "Uploading..." : "Save sheet"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
+      {sheetImage && sheetDocId && (
+        <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
+          <div className="flex flex-col gap-4 border-b border-white/10 p-5 md:flex-row md:items-center md:justify-between md:p-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                Freshly uploaded
+              </p>
+              <h3 className="mt-2 text-2xl! font-bold text-white">
+                Crop items from this sheet
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Drag the crop box over a design, zoom if needed, then save it as
+                an individual flash item.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSheetImage(null)}
+              className="rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            >
+              Done
+            </button>
+          </div>
+          <div className="grid gap-5 p-5 lg:grid-cols-[1fr_280px] md:p-6">
+            <div className="relative h-[540px] overflow-hidden rounded-2xl border border-white/10 bg-black">
+              <Cropper
+                image={sheetImage}
+                crop={crop}
+                zoom={zoom}
+                maxZoom={8}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={handleCropComplete}
+              />
+            </div>
+            <aside className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <p className="text-sm font-semibold text-white">Crop controls</p>
+              <label className="mt-5 block">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  Zoom
+                </span>
+                <input
+                  aria-label="Zoom"
+                  type="range"
+                  min={1}
+                  max={8}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  className="mt-3 w-full accent-red-400"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleSaveCropRequest}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              >
+                <Scissors size={16} />
+                Create flash
+              </button>
+            </aside>
+          </div>
+        </section>
+      )}
+
+      {showFlashDetailsModal && (
+        <FlashDetailsModal
+          titleInput={titleInput}
+          priceInput={priceInput}
+          tagsInput={flashTagsInput}
+          isSaving={isSavingFlash}
+          onTitleChange={setTitleInput}
+          onPriceChange={setPriceInput}
+          onTagsChange={setFlashTagsInput}
+          onClose={() => {
+            setShowFlashDetailsModal(false);
+            setFlashTagsInput("");
+          }}
+          onSave={handleFlashSubmit}
+        />
+      )}
+
+      <section>
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
+              Sheet library
+            </p>
+            <h2 className="mt-2 text-2xl! font-bold text-white">
+              Your flash sheets
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Open any sheet to review the full artwork and keep itemizing it.
+            </p>
+          </div>
+          {flashSheets.length > 0 && (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
+              {flashSheets.length} total
+            </span>
+          )}
+        </div>
+
+        {loading && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-80 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]"
+              />
+            ))}
+          </div>
+        )}
+
+        {fetchError && !loading && (
+          <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
+            {fetchError}
+          </div>
+        )}
+
+        {!loading && !fetchError && flashSheets.length === 0 && (
+          <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
+              <Grid2X2 size={22} />
+            </span>
+            <h3 className="mt-4 text-xl! font-bold text-white">
+              No flash sheets yet
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-400">
+              Upload a full sheet when you want clients to browse a complete
+              collection and request specific designs from it.
+            </p>
+          </div>
+        )}
+
+        {!loading && flashSheets.length > 0 && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {flashSheets.map((sheet) => {
+              const itemCount = flashes.filter(
+                (flash) => flash.sheetId === sheet.id
+              ).length;
+              const tags = Array.isArray(sheet.tags) ? sheet.tags.slice(0, 3) : [];
+
+              return (
+                <button
+                  key={sheet.id}
+                  type="button"
+                  onClick={() => navigate(`/flash-sheet/${sheet.id}`)}
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:-translate-y-0.5 hover:border-red-300/40 hover:bg-[#191919]"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-black">
+                    <img
+                      src={sheet.thumbUrl || sheet.imageUrl}
+                      alt={sheet.title || "Flash sheet"}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
+                        <Scissors size={14} />
+                        {itemCount} itemized
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="min-w-0 truncate text-lg! font-bold text-white">
+                        {sheet.title || "Untitled sheet"}
+                      </h3>
+                      <span className="mt-1 rounded-full border border-white/10 bg-white/5 p-2 text-zinc-300 transition group-hover:bg-white group-hover:text-black">
+                        <ArrowRight size={15} />
+                      </span>
+                    </div>
+                    <div className="mt-3 flex min-h-7 flex-wrap gap-2">
+                      {tags.length > 0 ? (
+                        tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-300"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-500">
+                          No tags yet
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 };
+
+const ModeCard = ({
+  active,
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`rounded-2xl border p-4! text-left transition ${
+      active
+        ? "border-red-300/45 bg-red-500/10"
+        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+    }`}
+  >
+    <div className="flex items-start gap-3">
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+          active ? "bg-red-500/15 text-red-200" : "bg-white/5 text-zinc-300"
+        }`}
+      >
+        {icon}
+      </span>
+      <span>
+        <span className="flex items-center gap-2 text-sm font-bold text-white">
+          {title}
+          {active && <Check size={15} className="text-red-200" />}
+        </span>
+        <span className="mt-1 block text-xs leading-5 text-zinc-500">
+          {description}
+        </span>
+      </span>
+    </div>
+  </button>
+);
+
+const StatCard = ({ label, value }: { label: string; value: number }) => (
+  <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+      {label}
+    </p>
+    <p className="mt-3 text-2xl! font-bold text-white">{value}</p>
+  </div>
+);
+
+const FlashDetailsModal = ({
+  titleInput,
+  priceInput,
+  tagsInput,
+  isSaving,
+  onTitleChange,
+  onPriceChange,
+  onTagsChange,
+  onClose,
+  onSave,
+}: {
+  titleInput: string;
+  priceInput: string;
+  tagsInput: string;
+  isSaving: boolean;
+  onTitleChange: (value: string) => void;
+  onPriceChange: (value: string) => void;
+  onTagsChange: (value: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
+    <div className="relative w-full max-w-lg rounded-[1.25rem] border border-white/10 bg-[#111111] p-5 text-white shadow-2xl md:p-6">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+        aria-label="Close flash details modal"
+        disabled={isSaving}
+      >
+        <X size={18} />
+      </button>
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+        New flash item
+      </p>
+      <h2 className="mt-3 text-2xl! font-bold text-white">
+        Add the marketplace details
+      </h2>
+      <div className="mt-6 space-y-4">
+        <input
+          type="text"
+          value={titleInput}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Title"
+          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+        <input
+          type="number"
+          value={priceInput}
+          onChange={(e) => onPriceChange(e.target.value)}
+          placeholder="Price (optional)"
+          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+        <input
+          type="text"
+          value={tagsInput}
+          onChange={(e) => onTagsChange(e.target.value)}
+          placeholder="Tags (comma or space separated)"
+          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+      </div>
+      <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          disabled={isSaving}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={isSaving}
+        >
+          {isSaving ? "Saving..." : "Publish flash"}
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 const StripeRequiredNotice = ({
   onOpenPayments,
 }: {
   onOpenPayments?: () => void;
 }) => (
-  <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+  <div className="rounded-[1.25rem] border border-amber-300/20 bg-amber-300/10 p-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-sm font-semibold text-amber-100">
-          Connect Stripe before adding marketplace flash.
-        </p>
-        <p className="mt-1 text-sm leading-6 text-amber-100/70">
-          Flash items and flash sheets can be requested by clients, so artists
-          need Stripe Connect ready before new designs appear in the marketplace.
-        </p>
+      <div className="flex gap-3">
+        <span className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-300/10 text-amber-100">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-amber-100">
+            Connect Stripe before adding marketplace flash.
+          </p>
+          <p className="mt-1 text-sm leading-6 text-amber-100/70">
+            Flash items and flash sheets can be requested by clients, so artists
+            need Stripe Connect ready before new designs appear publicly.
+          </p>
+        </div>
       </div>
       {onOpenPayments && (
         <button
           type="button"
           onClick={onOpenPayments}
-          className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
+          className="shrink-0 rounded-xl bg-white px-4! py-3! text-sm font-semibold text-black transition hover:bg-white/85"
         >
           Go to Payments
         </button>
