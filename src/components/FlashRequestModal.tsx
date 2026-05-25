@@ -6,6 +6,7 @@ import { db } from "../firebase/firebaseConfig";
 import type { Flash } from "../types/Flash";
 import CustomSelect from "./ui/CustomSelect";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import { bodyPlacementOptions } from "../utils/tattooOptions";
 
 export type FlashRequestArtist = {
   id: string;
@@ -101,7 +102,7 @@ const FlashRequestModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
+      <div className="request-modal-scrollbar max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/40">
@@ -174,12 +175,12 @@ const FlashRequestModal = ({
                 <span className="mb-1 block text-sm text-white/70">
                   Body placement
                 </span>
-                <input
-                  required
+                <CustomSelect
                   value={bodyPlacement}
-                  onChange={(event) => setBodyPlacement(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  onChange={setBodyPlacement}
+                  options={bodyPlacementOptions}
                   placeholder="Forearm, thigh, shoulder..."
+                  buttonClassName="rounded-xl"
                 />
               </label>
 

@@ -18,7 +18,9 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import toast from "react-hot-toast";
+import CustomSelect from "./ui/CustomSelect";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import { bodyPlacementOptions } from "../utils/tattooOptions";
 
 interface Props {
   isOpen: boolean;
@@ -301,13 +303,12 @@ const RequestTattooModal: React.FC<Props> = ({
                       <MapPin size={15} />
                       Body placement
                     </span>
-                    <input
-                      required
-                      type="text"
+                    <CustomSelect
                       placeholder="Forearm, thigh, shoulder..."
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
                       value={bodyPlacement}
-                      onChange={(e) => setBodyPlacement(e.target.value)}
+                      onChange={setBodyPlacement}
+                      options={bodyPlacementOptions}
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
 

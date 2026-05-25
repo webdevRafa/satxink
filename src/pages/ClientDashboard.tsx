@@ -17,7 +17,9 @@ import { serverTimestamp, Timestamp } from "firebase/firestore";
 import { auth } from "../firebase/auth";
 import { toast, Toaster } from "react-hot-toast";
 import { X } from "lucide-react";
+import CustomSelect from "../components/ui/CustomSelect";
 import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
+import { bodyPlacementOptions } from "../utils/tattooOptions";
 
 interface Artist {
   id: string;
@@ -522,17 +524,18 @@ export default function ClientDashboard() {
                       })
                     }
                   />
-                  <input
-                    type="text"
+                  <CustomSelect
                     placeholder="Body Placement"
-                    className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
                     value={modalData.bodyPlacement}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       setModalData({
                         ...modalData,
-                        bodyPlacement: e.target.value,
+                        bodyPlacement: value,
                       })
                     }
+                    options={bodyPlacementOptions}
+                    className="mb-4"
+                    buttonClassName="bg-neutral-800 py-2"
                   />
                   <label className="text-sm text-white mb-1 block">Size</label>
                   <select

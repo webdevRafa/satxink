@@ -2091,12 +2091,12 @@ const SessionsTable = ({
   onBalancePaid: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(180px,1.35fr) 72px minmax(130px,.85fr) minmax(112px,.65fr) minmax(128px,.75fr) minmax(150px,1fr) minmax(205px,1.15fr)";
+    "minmax(190px,1.25fr) 78px minmax(190px,1.12fr) minmax(168px,.9fr) minmax(150px,.82fr) minmax(190px,1fr) minmax(172px,.78fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar">
-        <div className="w-full">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1140px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -2156,8 +2156,11 @@ const SessionsTable = ({
                   </span>
 
                   <div className="flex min-w-0 flex-col items-start gap-1.5 pr-3">
-                    <SessionStatusBadge status={sessionStatus} />
-                    <RemainingPaymentBadge status={remainingPaymentStatus} />
+                    <SessionStatusBadge status={sessionStatus} prefix="Session" />
+                    <RemainingPaymentBadge
+                      status={remainingPaymentStatus}
+                      prefix="Payment"
+                    />
                     {isMultiSession && (
                       <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-medium text-neutral-300">
                         Session {activeSessionNumber}/{sessionCount}
@@ -2165,42 +2168,48 @@ const SessionsTable = ({
                     )}
                   </div>
 
-                  <div className="pr-3">
-                    <p className="text-sm font-semibold text-white">
-                      {isMultiSession
-                        ? formatDashboardMoney(
-                            getDashboardSessionInstallmentAmount(booking)
-                          )
-                        : formatDashboardMoney(booking.price)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {isMultiSession
-                        ? `${formatDashboardMoney(booking.price)} project`
-                        : `${formatDashboardMoney(booking.depositAmount)} deposit`}
-                    </p>
+                  <div className="space-y-1.5 pr-3">
+                    <MoneySummaryLine
+                      label="Total"
+                      value={formatDashboardMoney(booking.price)}
+                    />
+                    <MoneySummaryLine
+                      label="Deposit paid"
+                      value={formatDashboardMoney(booking.depositAmount)}
+                      muted
+                    />
+                    {isMultiSession && (
+                      <MoneySummaryLine
+                        label="This session"
+                        value={formatDashboardMoney(
+                          getDashboardSessionInstallmentAmount(booking)
+                        )}
+                        muted
+                      />
+                    )}
                   </div>
 
-                  <span className="pr-3 text-sm leading-5 text-neutral-300">
+                  <span className="pr-3 text-sm font-medium leading-5 text-neutral-300">
                     {formatBookingAppointment(booking.selectedDate)}
                   </span>
 
                   <div className="min-w-0 pr-3">
-                    <p className="truncate text-sm font-medium text-white">
+                    <p className="truncate text-sm font-semibold text-white">
                       {booking.shopName || "Private Studio"}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-neutral-500">
+                    <p className="mt-1 truncate text-xs leading-5 text-neutral-500">
                       {booking.shopAddress || "Address not provided"}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex flex-col items-stretch justify-end gap-2">
                     <button
                       type="button"
                       disabled={!canStart && !canComplete}
                       onClick={() =>
                         canStart ? onStart(booking) : onComplete(booking)
                       }
-                      className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {canStart ? <CalendarDays size={14} /> : <Check size={14} />}
                       {canStart
@@ -2213,19 +2222,19 @@ const SessionsTable = ({
                       type="button"
                       disabled={!canMarkBalancePaid}
                       onClick={() => onBalancePaid(booking)}
-                      className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <DollarSign size={14} />
                       {remainingPaymentStatus === "artist_confirmed"
                         ? "Marked"
                         : remainingPaymentStatus === "confirmed"
                         ? "Paid"
-                        : "Balance"}
+                        : "Mark paid"}
                     </button>
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
-                      className="inline-flex min-w-20 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                     >
                       <Eye size={14} />
                       Record
@@ -3045,20 +3054,56 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-const SessionStatusBadge = ({ status }: { status: string }) => {
+const MoneySummaryLine = ({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) => (
+  <div className="flex items-baseline justify-between gap-3">
+    <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-neutral-500">
+      {label}
+    </span>
+    <span
+      className={`text-right font-semibold ${
+        muted ? "text-xs text-neutral-400" : "text-sm text-white"
+      }`}
+    >
+      {value}
+    </span>
+  </div>
+);
+
+const SessionStatusBadge = ({
+  status,
+  prefix,
+}: {
+  status: string;
+  prefix?: string;
+}) => {
   const className =
     status === "completed"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
       : "border-sky-300/20 bg-sky-300/10 text-sky-100";
+  const label = status.replace("_", " ");
 
   return (
     <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
-      {status.replace("_", " ")}
+      {prefix ? `${prefix}: ${label}` : label}
     </span>
   );
 };
 
-const RemainingPaymentBadge = ({ status }: { status: string }) => {
+const RemainingPaymentBadge = ({
+  status,
+  prefix,
+}: {
+  status: string;
+  prefix?: string;
+}) => {
   const className =
     status === "confirmed"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
@@ -3082,7 +3127,7 @@ const RemainingPaymentBadge = ({ status }: { status: string }) => {
 
   return (
     <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
-      {label}
+      {prefix ? `${prefix}: ${label}` : label}
     </span>
   );
 };

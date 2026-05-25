@@ -817,7 +817,7 @@ const ClientProfileSettings = ({
     value: string
   ) => void;
 }) => (
-  <section className="mx-auto mt-6 w-full max-w-6xl space-y-6">
+  <section className="mt-6 w-full max-w-6xl space-y-6">
     <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
@@ -1237,7 +1237,7 @@ const ClientHero = ({
   activeView: ClientView;
   bookings: ClientDashboardBooking[];
 }) => (
-  <section className="relative mx-auto mb-8 max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
+  <section className="relative mb-8 w-full max-w-7xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
         <div className="relative">
@@ -1303,7 +1303,7 @@ const ClientSessionsSection = ({
   onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
   onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
 }) => (
-  <section className="mx-auto mt-6 w-full max-w-7xl space-y-6">
+  <section className="mt-6 w-full max-w-7xl space-y-6">
     <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
