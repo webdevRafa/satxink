@@ -19,7 +19,10 @@ import { toast, Toaster } from "react-hot-toast";
 import { X } from "lucide-react";
 import CustomSelect from "../components/ui/CustomSelect";
 import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
-import { bodyPlacementOptions } from "../utils/tattooOptions";
+import {
+  bodyPlacementOptions,
+  tattooSizeOptions,
+} from "../utils/tattooOptions";
 
 interface Artist {
   id: string;
@@ -538,19 +541,16 @@ export default function ClientDashboard() {
                     buttonClassName="bg-neutral-800 py-2"
                   />
                   <label className="text-sm text-white mb-1 block">Size</label>
-                  <select
-                    required
-                    className="w-full p-2 rounded bg-neutral-800 text-white mb-4"
+                  <CustomSelect
                     value={modalData.size}
-                    onChange={(e) =>
-                      setModalData({ ...modalData, size: e.target.value })
+                    onChange={(value) =>
+                      setModalData({ ...modalData, size: value })
                     }
-                  >
-                    <option value="">Select size</option>
-                    <option value="Small">Small (up to 3x3 inches)</option>
-                    <option value="Medium">Medium (up to 6x6 inches)</option>
-                    <option value="Large">Large (over 6x6 inches)</option>
-                  </select>
+                    options={tattooSizeOptions}
+                    placeholder="Select size"
+                    className="mb-4"
+                    buttonClassName="bg-neutral-800 py-2"
+                  />
                 </div>
 
                 {/* RIGHT COLUMN: Reference Upload + Preview + Next Button */}

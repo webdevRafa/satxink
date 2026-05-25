@@ -23,3 +23,19 @@ export const bodyPlacementOptions: SelectOption[] = [
   { value: "Not sure yet", label: "Not sure yet" },
 ];
 
+export const tattooSizeOptions: SelectOption[] = [
+  { value: "Small", label: "Small (up to 3x3 inches)" },
+  { value: "Medium", label: "Medium (up to 6x6 inches)" },
+  { value: "Large", label: "Large (over 6x6 inches)" },
+];
+
+export const tattooBudgetOptions: SelectOption[] = [
+  { value: "0-100", label: "$0-$100" },
+  { value: "100-200", label: "$100-$200" },
+  { value: "200-350", label: "$200-$350" },
+  { value: "350-500", label: "$350-$500" },
+  { value: "500-750", label: "$500-$750" },
+  { value: "750-1000", label: "$750-$1,000" },
+  { value: "1000+", label: "$1,000+" },
+  { value: "custom", label: "Other (enter manually)" },
+];

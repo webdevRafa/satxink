@@ -20,7 +20,11 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import toast from "react-hot-toast";
 import CustomSelect from "./ui/CustomSelect";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
-import { bodyPlacementOptions } from "../utils/tattooOptions";
+import {
+  bodyPlacementOptions,
+  tattooBudgetOptions,
+  tattooSizeOptions,
+} from "../utils/tattooOptions";
 
 interface Props {
   isOpen: boolean;
@@ -317,17 +321,13 @@ const RequestTattooModal: React.FC<Props> = ({
                       <Ruler size={15} />
                       Size
                     </span>
-                    <select
-                      required
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <CustomSelect
                       value={size}
-                      onChange={(e) => setSize(e.target.value)}
-                    >
-                      <option value="">Select size</option>
-                      <option value="Small">Small (up to 3x3 inches)</option>
-                      <option value="Medium">Medium (up to 6x6 inches)</option>
-                      <option value="Large">Large (over 6x6 inches)</option>
-                    </select>
+                      onChange={setSize}
+                      options={tattooSizeOptions}
+                      placeholder="Select size"
+                      buttonClassName="focus:border-[#19d69b]"
+                    />
                   </label>
                 </div>
 
@@ -336,21 +336,13 @@ const RequestTattooModal: React.FC<Props> = ({
                     <DollarSign size={15} />
                     Optional budget
                   </span>
-                  <select
+                  <CustomSelect
                     value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
-                  >
-                    <option value="">Have a budget?</option>
-                    <option value="0-100">$0-$100</option>
-                    <option value="100-200">$100-$200</option>
-                    <option value="200-350">$200-$350</option>
-                    <option value="350-500">$350-$500</option>
-                    <option value="500-750">$500-$750</option>
-                    <option value="750-1000">$750-$1000</option>
-                    <option value="1000+">$1000+</option>
-                    <option value="custom">Other (enter manually)</option>
-                  </select>
+                    onChange={setBudget}
+                    options={tattooBudgetOptions}
+                    placeholder="Have a budget?"
+                    buttonClassName="focus:border-[#19d69b]"
+                  />
                 </label>
 
                 {budget === "custom" && (
