@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -14,6 +15,8 @@ import {
 import { deleteObject, ref } from "firebase/storage";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
   MoreVertical,
   Plus,
@@ -22,6 +25,14 @@ import {
 } from "lucide-react";
 import UploadModal from "./UploadModal";
 import type { GalleryItem } from "../types/GalleryItem";
+import { parseTags } from "../utils/tags";
+
+type SlideDirection = "next" | "prev";
+
+type GalleryArtistInfo = {
+  avatarUrl?: string;
+  displayName?: string;
+};
 
 const GalleryManager = ({ uid }: { uid: string }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
@@ -29,10 +40,18 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   const [editingItem, setEditingItem] = useState<GalleryItem | null>(null);
   const [modalLoading, setModalLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
-  const [artistInfo, setArtistInfo] = useState<{
-    avatarUrl?: string;
-    displayName?: string;
-  }>({});
+  const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
+  const [artistInfo, setArtistInfo] = useState<GalleryArtistInfo>({});
+
+  const previewItems = useMemo(
+    () => items.filter((item) => item.status !== "processing"),
+    [items]
+  );
+
+  const selectedItemIndex = selectedItem
+    ? previewItems.findIndex((item) => item.id === selectedItem.id)
+    : -1;
+  const canNavigatePortfolio = previewItems.length > 1 && selectedItemIndex >= 0;
 
   const fetchGallery = async () => {
     const galleryQuery = query(
@@ -50,20 +69,30 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
   useEffect(() => {
     const fetchArtistData = async () => {
-      if (!selectedItem?.artistId) return;
-      const artistRef = doc(db, "users", selectedItem.artistId);
+      if (!uid) return;
+      const artistRef = doc(db, "users", uid);
       const artistSnap = await getDoc(artistRef);
       if (artistSnap.exists()) {
-        const data = artistSnap.data() as any;
+        const data = artistSnap.data() as {
+          avatarUrl?: unknown;
+          displayName?: unknown;
+          name?: unknown;
+        };
         setArtistInfo({
-          avatarUrl: data.avatarUrl || "",
-          displayName: data.displayName || "Unknown Artist",
+          avatarUrl:
+            typeof data.avatarUrl === "string" ? data.avatarUrl : "",
+          displayName:
+            typeof data.displayName === "string"
+              ? data.displayName
+              : typeof data.name === "string"
+                ? data.name
+                : "Unknown Artist",
         });
       }
     };
 
     fetchArtistData();
-  }, [selectedItem]);
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) return;
@@ -87,6 +116,44 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   useEffect(() => {
     if (selectedItem) setModalLoading(true);
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedItem(null);
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        navigatePortfolio("next");
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        navigatePortfolio("prev");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem, selectedItemIndex, previewItems.length]);
+
+  const openPortfolioItem = (item: GalleryItem) => {
+    setSlideDirection("next");
+    setSelectedItem(item);
+  };
+
+  const navigatePortfolio = (direction: SlideDirection) => {
+    if (!canNavigatePortfolio) return;
+
+    const offset = direction === "next" ? 1 : -1;
+    const nextIndex =
+      (selectedItemIndex + offset + previewItems.length) % previewItems.length;
+
+    setSlideDirection(direction);
+    setSelectedItem(previewItems[nextIndex]);
+  };
 
   const handleUpdateItem = async (
     itemId: string,
@@ -203,11 +270,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:-translate-y-0.5 hover:border-red-300/40 hover:bg-[#191919]"
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919]"
                 >
                   <button
                     type="button"
-                    onClick={() => !isProcessing && setSelectedItem(item)}
+                    onClick={() => !isProcessing && openPortfolioItem(item)}
                     className="block w-full text-left"
                     disabled={isProcessing}
                   >
@@ -240,7 +307,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                     <div className="flex items-start justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => !isProcessing && setSelectedItem(item)}
+                        onClick={() => !isProcessing && openPortfolioItem(item)}
                         className="min-w-0 flex-1 text-left"
                         disabled={isProcessing}
                       >
@@ -260,7 +327,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => !isProcessing && setSelectedItem(item)}
+                          onClick={() => !isProcessing && openPortfolioItem(item)}
                           className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition group-hover:bg-white group-hover:text-black"
                           aria-label={`Open ${item.caption || "gallery item"}`}
                           disabled={isProcessing}
@@ -304,81 +371,259 @@ const GalleryManager = ({ uid }: { uid: string }) => {
       )}
 
       {selectedItem && (
-        <div
-          onClick={() => setSelectedItem(null)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/80 px-5 backdrop-blur-xs md:flex-row md:px-0"
-        >
-          <div className="relative flex max-h-[85%] max-w-[90%] flex-col">
-            {modalLoading && (
-              <div
-                className="absolute inset-0 animate-pulse rounded-b-lg bg-black/70 shadow-lg"
-                style={{ minHeight: "60vh", maxHeight: "80vh" }}
-              />
-            )}
-
-            <img
-              data-aos="zoom-out-up"
-              src={selectedItem.fullUrl || selectedItem.webp90Url}
-              alt={selectedItem.caption || "Full view"}
-              className={`max-h-[70vh] max-w-full rounded-b-lg object-contain shadow-lg transition-opacity duration-300 lg:max-h-[60vh] ${
-                modalLoading ? "opacity-0" : "opacity-100"
-              }`}
-              onLoad={() => setModalLoading(false)}
-            />
-
-            {selectedItem && !modalLoading && (
-              <div className="absolute left-2 right-2 top-1 flex items-center gap-4 rounded-lg bg-[#121212]/20 py-0">
-                {Array.isArray(selectedItem.tags) &&
-                  selectedItem.tags.length > 0 && (
-                    <TagMarqueeModal tags={selectedItem.tags} />
-                  )}
-                <button
-                  type="button"
-                  className="shrink-0 text-xl text-white transition hover:text-gray-300 md:text-2xl"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedItem(null);
-                  }}
-                >
-                  <X />
-                </button>
-              </div>
-            )}
-
-            {selectedItem && !modalLoading && (
-              <div className="absolute bottom-3 left-3 flex items-center justify-start gap-2">
-                <img
-                  src={artistInfo.avatarUrl || "/default-avatar.png"}
-                  alt={artistInfo.displayName || "Artist"}
-                  className="h-8 w-8 rounded-full border border-white shadow-md opacity-100 transition-opacity duration-300 md:h-10 md:w-10"
-                />
-                <span className="text-lg font-semibold text-white opacity-100 transition-opacity duration-300">
-                  {artistInfo.displayName || "Unknown Artist"}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {selectedItem && !modalLoading && (
-            <>
-              <h1 className="max-w-[300px] text-sm text-white! opacity-100 transition-opacity duration-500 md:hidden md:translate-x-[-40px] md:text-2xl!">
-                {selectedItem.caption}
-              </h1>
-              <h1
-                data-aos="fade-in"
-                className="hidden max-w-[300px] text-sm font-light! text-white! opacity-100 transition-opacity duration-500 md:block md:translate-x-[-40px] md:text-2xl!"
-              >
-                {selectedItem.caption}
-              </h1>
-            </>
-          )}
-        </div>
+        <PortfolioLightbox
+          item={selectedItem}
+          artist={artistInfo}
+          slideDirection={slideDirection}
+          canNavigate={canNavigatePortfolio}
+          modalLoading={modalLoading}
+          onImageLoad={() => setModalLoading(false)}
+          onNext={() => navigatePortfolio("next")}
+          onPrev={() => navigatePortfolio("prev")}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   );
 };
 
-const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
+const PortfolioLightbox = ({
+  item,
+  artist,
+  slideDirection,
+  canNavigate,
+  modalLoading,
+  onImageLoad,
+  onNext,
+  onPrev,
+  onClose,
+}: {
+  item: GalleryItem;
+  artist: GalleryArtistInfo;
+  slideDirection: SlideDirection;
+  canNavigate: boolean;
+  modalLoading: boolean;
+  onImageLoad: () => void;
+  onNext: () => void;
+  onPrev: () => void;
+  onClose: () => void;
+}) => {
+  const slideClass =
+    slideDirection === "next"
+      ? "portfolio-slide-in-next"
+      : "portfolio-slide-in-prev";
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/85 px-5 py-6 backdrop-blur-xs md:flex-row md:px-10"
+      role="dialog"
+      aria-modal="true"
+    >
+      <style>
+        {`
+          @keyframes portfolioSlideInNext {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+          }
+          @keyframes portfolioSlideInPrev {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+          }
+          .portfolio-slide-in-next {
+            animation: portfolioSlideInNext 360ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          .portfolio-slide-in-prev {
+            animation: portfolioSlideInPrev 360ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          @keyframes portfolioMetaInNext {
+            from { opacity: 0; transform: translateX(24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes portfolioMetaInPrev {
+            from { opacity: 0; transform: translateX(-24px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          .portfolio-meta-in-next {
+            animation: portfolioMetaInNext 260ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          .portfolio-meta-in-prev {
+            animation: portfolioMetaInPrev 260ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+        `}
+      </style>
+
+      <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
+        <LightboxImageFrame
+          imageKey={item.id}
+          fullUrl={item.fullUrl || item.webp90Url}
+          previewUrl={getLightboxPreviewUrl(item)}
+          alt={item.caption || "Full portfolio view"}
+          isLoading={modalLoading}
+          loadingLabel="Loading full resolution"
+          slideClass={slideClass}
+          onImageLoad={onImageLoad}
+        />
+
+        {canNavigate && (
+          <>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPrev();
+              }}
+              className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+              aria-label="Previous portfolio image"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onNext();
+              }}
+              className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+              aria-label="Next portfolio image"
+            >
+              <ChevronRight size={22} />
+            </button>
+          </>
+        )}
+
+        <div
+          className="absolute right-3 top-3 z-20"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+            onClick={onClose}
+            aria-label="Close portfolio image"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      <div
+        data-aos="fade-in"
+        className="w-full max-w-sm text-center md:text-left"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-center gap-3 md:justify-start">
+          <img
+            src={artist.avatarUrl || "/default-avatar.png"}
+            alt={getArtistDisplayName(artist)}
+            className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
+          />
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+              Artist
+            </p>
+            <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
+              {getArtistDisplayName(artist)}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+          Portfolio piece
+        </p>
+        <div
+          key={item.id}
+          className={
+            slideDirection === "next"
+              ? "portfolio-meta-in-next"
+              : "portfolio-meta-in-prev"
+          }
+        >
+          <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
+            {item.caption || "Untitled piece"}
+          </h1>
+          {Array.isArray(item.tags) && item.tags.length > 0 && (
+            <div className="mt-5 max-w-sm">
+              <TagMarqueeModal tags={item.tags} compact />
+            </div>
+          )}
+          {modalLoading && (
+            <div className="mt-4 space-y-2">
+              <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
+              <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const LightboxImageFrame = ({
+  imageKey,
+  fullUrl,
+  previewUrl,
+  alt,
+  isLoading,
+  loadingLabel,
+  slideClass,
+  onImageLoad,
+}: {
+  imageKey: string;
+  fullUrl: string;
+  previewUrl: string;
+  alt: string;
+  isLoading: boolean;
+  loadingLabel: string;
+  slideClass?: string;
+  onImageLoad: () => void;
+}) => (
+  <div
+    className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
+    onClick={(event) => event.stopPropagation()}
+  >
+    <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
+      <img
+        src={previewUrl}
+        alt=""
+        aria-hidden="true"
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          isLoading ? "opacity-100" : "opacity-0"
+        }`}
+        decoding="async"
+      />
+      <img
+        src={fullUrl}
+        alt={alt}
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          isLoading ? "opacity-0" : "opacity-100"
+        }`}
+        decoding="async"
+        onLoad={onImageLoad}
+        onError={onImageLoad}
+      />
+    </div>
+    <div
+      className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
+        isLoading ? "opacity-25 animate-pulse" : "opacity-0"
+      }`}
+    />
+    {isLoading && (
+      <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
+        <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        {loadingLabel}
+      </div>
+    )}
+  </div>
+);
+
+const TagMarqueeModal = ({
+  tags,
+  compact = false,
+}: {
+  tags: string[];
+  compact?: boolean;
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [duration, setDuration] = useState("60s");
@@ -402,6 +647,21 @@ const TagMarqueeModal = ({ tags }: { tags: string[] }) => {
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium text-white/70"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -463,16 +723,54 @@ const EditGalleryItemModal = ({
   const [newTag, setNewTag] = useState("");
   const [warning, setWarning] = useState<string | null>(null);
 
-  const handleAddTag = () => {
-    const trimmed = newTag.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    if (tags.length >= 6) {
+  const handleAddTags = (value = newTag) => {
+    const nextTags = parseTags(value);
+    if (nextTags.length === 0) return;
+
+    const availableSlots = 6 - tags.length;
+    if (availableSlots <= 0) {
+      setWarning("You can only add up to 6 tags.");
+      setNewTag("");
+      return;
+    }
+
+    const uniqueTags = nextTags.filter((tag) => !tags.includes(tag));
+    if (uniqueTags.length === 0) {
+      setNewTag("");
+      return;
+    }
+
+    const tagsToAdd = uniqueTags.slice(0, availableSlots);
+    setTags([...tags, ...tagsToAdd]);
+    setNewTag("");
+
+    if (uniqueTags.length > availableSlots) {
       setWarning("You can only add up to 6 tags.");
       return;
     }
-    setTags([...tags, trimmed]);
-    setNewTag("");
+
     setWarning(null);
+  };
+
+  const handleTagInputChange = (value: string) => {
+    if (value.includes(",") || /\s$/.test(value)) {
+      handleAddTags(value);
+      return;
+    }
+
+    setNewTag(value);
+  };
+
+  const handleTagKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" || event.key === "," || event.key === " ") {
+      event.preventDefault();
+      handleAddTags();
+    }
+
+    if (event.key === "Backspace" && !newTag && tags.length > 0) {
+      setTags(tags.slice(0, -1));
+      setWarning(null);
+    }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -480,8 +778,9 @@ const EditGalleryItemModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
-      <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-6 backdrop-blur-xl request-modal-scrollbar sm:py-8">
+      <div className="flex min-h-full items-center justify-center">
+      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-[min(760px,88vh)] md:grid-cols-[0.9fr_1.15fr]">
         <button
           type="button"
           onClick={onClose}
@@ -504,7 +803,7 @@ const EditGalleryItemModal = ({
           </div>
         </div>
 
-        <div className="p-5 md:p-6">
+        <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-5 request-modal-scrollbar md:max-h-[88vh] md:p-6">
           <h2 className="text-2xl! font-bold text-white">Edit gallery work</h2>
 
           <label className="mt-6 block">
@@ -519,36 +818,42 @@ const EditGalleryItemModal = ({
 
           <div className="mt-4">
             <span className="text-sm font-semibold text-zinc-300">Tags</span>
-            <div className="mt-2 flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-2">
+            <div className="mt-2 flex min-h-11 flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/25 p-2">
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="flex min-h-8 max-w-[140px] items-center gap-1 truncate rounded-full border border-white/10 bg-white/5 px-3! py-1! text-xs text-white"
+                  className="group flex min-h-8 max-w-[180px] items-center gap-1.5 truncate rounded-full border border-white/10 bg-white/[0.08] px-3! py-1! text-xs font-semibold text-white/80"
                   title={tag}
                 >
-                  {tag}
+                  #{tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="text-red-300 transition hover:text-red-200"
+                    className="text-white/35 transition hover:text-red-200 group-hover:text-red-200"
+                    aria-label={`Remove ${tag}`}
                   >
-                    X
+                    <X size={13} />
                   </button>
                 </span>
               ))}
+              <input
+                value={newTag}
+                onChange={(e) => handleTagInputChange(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={() => handleAddTags()}
+                className="min-w-[160px] flex-1 bg-transparent px-1 py-1 text-sm text-white outline-none placeholder:text-zinc-600"
+                placeholder={
+                  tags.length ? "Add another tag" : "Type a tag, then press comma or space"
+                }
+              />
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2">
-            <input
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-              placeholder="Add tag"
-            />
+          <div className="mt-4 flex justify-end">
             <button
               type="button"
-              onClick={handleAddTag}
+              onClick={() => handleAddTags()}
+              disabled={!newTag.trim()}
               className="rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
             >
               Add
@@ -583,8 +888,15 @@ const EditGalleryItemModal = ({
           </div>
         </div>
       </div>
+      </div>
     </div>
   );
 };
+
+const getLightboxPreviewUrl = (item: GalleryItem) =>
+  item.webp90Url || item.thumbUrl || item.fullUrl;
+
+const getArtistDisplayName = (artist: GalleryArtistInfo) =>
+  artist.displayName || "Artist";
 
 export default GalleryManager;
