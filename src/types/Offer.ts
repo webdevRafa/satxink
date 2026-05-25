@@ -8,7 +8,6 @@ export type Offer = {
 clientAvatar?: string;
     requestId: string;
     price: number;
-    fallbackPrice?: number;
     message: string;
     status: string;
     dateOptions: { date: string; time: string }[];

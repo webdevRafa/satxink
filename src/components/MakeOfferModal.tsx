@@ -82,8 +82,6 @@ type Props = {
   setDepositAmount: Dispatch<SetStateAction<number>>;
   offerPrice: number;
   setOfferPrice: Dispatch<SetStateAction<number>>;
-  fallbackPrice: number | null;
-  setFallbackPrice: Dispatch<SetStateAction<number | null>>;
   offerMessage: string;
   setOfferMessage: Dispatch<SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
@@ -99,8 +97,6 @@ const MakeOfferModal = ({
   setDepositAmount,
   offerPrice,
   setOfferPrice,
-  fallbackPrice,
-  setFallbackPrice,
   offerMessage,
   setOfferMessage,
   dateOptions,
@@ -118,7 +114,6 @@ const MakeOfferModal = ({
     useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
-  const [estimatedSessionPrice, setEstimatedSessionPrice] = useState(0);
 
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
   const completedDateOptions = useMemo(
@@ -135,9 +130,7 @@ const MakeOfferModal = ({
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
   const sessionEstimate =
-    isMultiSessionProject && estimatedSessionPrice > 0
-      ? estimatedSessionPrice
-      : isMultiSessionProject && estimatedSessionCount > 0
+    isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
       : remainingArtistBalance;
   const paymentPreview = useMemo(
@@ -164,7 +157,6 @@ const MakeOfferModal = ({
 
   const resetOfferForm = () => {
     setOfferPrice(0);
-    setFallbackPrice(null);
     setOfferMessage("");
     setDateOptions([
       { date: "", time: "" },
@@ -177,7 +169,6 @@ const MakeOfferModal = ({
     setExternalRemainingPaymentNote("");
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
-    setEstimatedSessionPrice(0);
   };
 
   const handleClose = () => {
@@ -199,11 +190,6 @@ const MakeOfferModal = ({
       return;
     }
 
-    if (fallbackPrice !== null && fallbackPrice >= offerPrice) {
-      toast.error("Fallback price should be lower than the main offer.");
-      return;
-    }
-
     if (depositAmount < 0 || depositAmount > offerPrice) {
       toast.error("Deposit must be between $0 and the offer price.");
       return;
@@ -220,8 +206,8 @@ const MakeOfferModal = ({
         return;
       }
 
-      if (sessionEstimate <= 0) {
-        toast.error("Add a rough per-session estimate.");
+      if (remainingArtistBalance <= 0) {
+        toast.error("Multi-session projects need a remaining balance after the deposit.");
         return;
       }
     }
@@ -270,7 +256,6 @@ const MakeOfferModal = ({
         clientAvatar: selectedRequest.clientAvatar,
         requestId: selectedRequest.id,
         price: offerPrice,
-        fallbackPrice: fallbackPrice ?? null,
         message: offerMessage,
         dateOptions: completedDateOptions,
         imageFilename: filename || null,
@@ -420,19 +405,12 @@ const MakeOfferModal = ({
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                   <MoneyInput
                     label="Offer price"
                     value={offerPrice === 0 ? "" : offerPrice}
                     onChange={(value) => setOfferPrice(value ? Number(value) : 0)}
                     required
-                  />
-                  <MoneyInput
-                    label="Fallback price"
-                    value={fallbackPrice ?? ""}
-                    onChange={(value) =>
-                      setFallbackPrice(value ? Number(value) : null)
-                    }
                   />
                   <MoneyInput
                     label="Deposit amount"
@@ -451,9 +429,9 @@ const MakeOfferModal = ({
                       className="mt-0.5 shrink-0 text-[var(--color-primary)]"
                     />
                     <p>
-                      The fallback price is only shown if the client declines the
-                      main offer. The client pays the deposit plus SATX Ink and
-                      Stripe fees, so your deposit amount is protected.
+                      The client pays the deposit plus SATX Ink and Stripe fees
+                      today, so your deposit amount is protected. Any remaining
+                      artist balance is handled by the payment choice below.
                     </p>
                   </div>
                 </div>
@@ -621,15 +599,21 @@ const MakeOfferModal = ({
                         className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
                       />
                     </label>
-                    <MoneyInput
-                      label="Rough per-session estimate"
-                      value={
-                        estimatedSessionPrice === 0 ? "" : estimatedSessionPrice
-                      }
-                      onChange={(value) =>
-                        setEstimatedSessionPrice(value ? Number(value) : 0)
-                      }
-                    />
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Estimated per session
+                      </span>
+                      <div className="flex h-11 items-center rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white">
+                        {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
+                      </div>
+                      <p className="text-xs leading-5 text-neutral-500">
+                        Calculated from the remaining{" "}
+                        {formatMoneyFromCents(
+                          Math.round(remainingArtistBalance * 100)
+                        )}{" "}
+                        balance divided by {estimatedSessionCount} sessions.
+                      </p>
+                    </div>
                     <div className="md:col-span-2 rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3">
                       <div className="flex gap-2 text-sm leading-6 text-emerald-50/80">
                         <ReceiptText
@@ -658,10 +642,14 @@ const MakeOfferModal = ({
                   </span>
                   <div>
                     <h3 className="text-lg! font-semibold! text-white">
-                      Appointment options
+                      {isMultiSessionProject
+                        ? "First-session appointment options"
+                        : "Appointment options"}
                     </h3>
                     <p className="text-sm text-neutral-400">
-                      Give the client a few clear times to choose from.
+                      {isMultiSessionProject
+                        ? "Give the client a few clear times to choose from for session 1 only. Later sessions can be scheduled after the project begins."
+                        : "Give the client a few clear times to choose from."}
                     </p>
                   </div>
                 </div>

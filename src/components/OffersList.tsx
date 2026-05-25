@@ -395,15 +395,6 @@ const OfferDetailsDialog = ({
                           value={formatDeposit(offer)}
                         />
                         <DetailTile
-                          icon={<DollarSign size={17} />}
-                          label="Fallback"
-                          value={
-                            typeof offer.fallbackPrice === "number"
-                              ? `$${offer.fallbackPrice}`
-                              : "None"
-                          }
-                        />
-                        <DetailTile
                           icon={<Store size={17} />}
                           label="Shop"
                           value={offer.shopName || "Unavailable"}

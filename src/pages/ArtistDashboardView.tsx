@@ -298,7 +298,6 @@ const ArtistDashboardView = () => {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const [offerPrice, setOfferPrice] = useState(0);
-  const [fallbackPrice, setFallbackPrice] = useState<number | null>(null);
   const [depositAmount, setDepositAmount] = useState<number>(0);
 
   const [offerMessage, setOfferMessage] = useState("");
@@ -1993,8 +1992,6 @@ const ArtistDashboardView = () => {
           setDepositAmount={setDepositAmount}
           offerPrice={offerPrice}
           setOfferPrice={setOfferPrice}
-          fallbackPrice={fallbackPrice}
-          setFallbackPrice={setFallbackPrice}
           offerMessage={offerMessage}
           setOfferMessage={setOfferMessage}
           dateOptions={dateOptions}
