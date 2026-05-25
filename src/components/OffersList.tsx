@@ -5,6 +5,7 @@ import {
   DollarSign,
   Eye,
   ImageIcon,
+  Layers,
   MapPin,
   MessageSquareText,
   ReceiptText,
@@ -204,6 +205,7 @@ const OfferCard = ({
   const firstDateOption = offer.dateOptions?.find(
     (option) => option.date && option.time
   );
+  const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
     <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
@@ -261,7 +263,14 @@ const OfferCard = ({
                   : "No date set"
               }
             />
-            <InfoPill icon={<Store size={14} />} label={offer.shopName || "Shop"} />
+            <InfoPill
+              icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
+              label={
+                isMultiSessionOffer
+                  ? `${offer.estimatedSessionCount || 2} sessions`
+                  : offer.shopName || "Shop"
+              }
+            />
           </div>
 
           <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
@@ -399,6 +408,20 @@ const OfferDetailsDialog = ({
                           label="Shop"
                           value={offer.shopName || "Unavailable"}
                         />
+                        {offer.projectType === "multi_session" && (
+                          <>
+                            <DetailTile
+                              icon={<Layers size={17} />}
+                              label="Sessions"
+                              value={`${offer.estimatedSessionCount || 2}`}
+                            />
+                            <DetailTile
+                              icon={<DollarSign size={17} />}
+                              label="Per session"
+                              value={`$${offer.estimatedSessionPrice || 0}`}
+                            />
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">

@@ -3,6 +3,7 @@ export interface CheckoutRequestData {
   successUrl?: string;
   cancelUrl?: string;
   paymentMode?: "deposit" | "full" | "remaining";
+  sessionPaymentAmountCents?: number;
 
   offerId?: string;
   clientId?: string;

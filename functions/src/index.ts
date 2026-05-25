@@ -182,6 +182,23 @@ const getCompletedBookingUpdate = (
   const remainingBalanceCents = Math.max(priceCents - nextPaidCents, 0);
   const nextStatus = remainingBalanceCents > 0 ? "deposit_paid" : "paid";
   const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const isMultiSession =
+    booking.projectType === "multi_session" ||
+    Number(booking.estimatedSessionCount || 1) > 1;
+  const activeSessionNumber = Math.max(Number(booking.activeSessionNumber || 1), 1);
+  const estimatedSessionCount = Math.max(
+    Number(booking.estimatedSessionCount || 1),
+    1
+  );
+  const paidSessionNumber = Math.max(
+    Number(booking.pendingSessionNumber || activeSessionNumber),
+    1
+  );
+  const hasMoreSessions =
+    isMultiSession &&
+    paymentMode === "remaining" &&
+    paidSessionNumber < estimatedSessionCount &&
+    remainingBalanceCents > 0;
 
   return {
     status: nextStatus,
@@ -220,6 +237,20 @@ const getCompletedBookingUpdate = (
     totalArtistPaidAmount: nextPaidCents / 100,
     remainingBalanceCents,
     remainingBalanceAmount: remainingBalanceCents / 100,
+    ...(isMultiSession && paymentMode === "remaining"
+      ? {
+          sessionStatus: hasMoreSessions ? "awaiting_next_session" : "completed",
+          activeSessionNumber: hasMoreSessions
+            ? paidSessionNumber + 1
+            : paidSessionNumber,
+          pendingSessionPaymentAmount: 0,
+          pendingSessionPaymentAmountCents: 0,
+          pendingSessionNumber: null,
+          lastPaidSessionNumber: paidSessionNumber,
+          remainingPaymentStatus:
+            remainingBalanceCents > 0 ? "due" : "confirmed",
+        }
+      : {}),
     updatedAt: timestamp,
   };
 };
@@ -742,11 +773,27 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
+    const requestedSessionPaymentCents =
+      paymentMode === "remaining" &&
+      (booking.projectType === "multi_session" ||
+        Number(booking.estimatedSessionCount || 1) > 1)
+        ? Number(data.sessionPaymentAmountCents || 0) > 0
+          ? Number(data.sessionPaymentAmountCents)
+          : dollarsToCents(booking.pendingSessionPaymentAmount || 0) > 0
+          ? dollarsToCents(booking.pendingSessionPaymentAmount)
+          : dollarsToCents(booking.estimatedSessionPrice || 0)
+        : 0;
+
     const artistAmountCents =
       paymentMode === "full"
         ? priceCents
         : paymentMode === "remaining"
-        ? Math.max(priceCents - totalArtistPaidCents, 0)
+        ? requestedSessionPaymentCents > 0
+          ? Math.min(
+              Math.max(priceCents - totalArtistPaidCents, 0),
+              requestedSessionPaymentCents
+            )
+          : Math.max(priceCents - totalArtistPaidCents, 0)
         : Math.min(depositCents, priceCents);
 
     if (!Number.isFinite(artistAmountCents) || artistAmountCents < MIN_ARTIST_PAYOUT_CENTS) {

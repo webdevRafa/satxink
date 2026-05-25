@@ -11,8 +11,10 @@ import {
   DollarSign,
   ImageIcon,
   Info,
+  Layers,
   MapPin,
   MessageSquareText,
+  ReceiptText,
   Ruler,
   Send,
   Upload,
@@ -49,12 +51,33 @@ type BookingRequest = {
   budget?: string | number;
 };
 
+type OfferArtist = {
+  displayName?: string;
+  avatarUrl?: string;
+  shopId?: string;
+  paymentType?: "internal" | "external";
+  externalPaymentDetails?: {
+    method?: string;
+    handle?: string;
+  } | null;
+  depositPolicy?: {
+    amount?: number;
+  };
+  finalPaymentTiming?: "before" | "after";
+};
+
+type ShopDetails = {
+  name?: string;
+  address?: string;
+  mapLink?: string;
+};
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  artist: any;
+  artist: OfferArtist | null;
   uid: string;
-  selectedRequest: BookingRequest;
+  selectedRequest: BookingRequest | null;
   depositAmount: number;
   setDepositAmount: Dispatch<SetStateAction<number>>;
   offerPrice: number;
@@ -93,6 +116,9 @@ const MakeOfferModal = ({
     useState(false);
   const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
     useState("");
+  const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
+  const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const [estimatedSessionPrice, setEstimatedSessionPrice] = useState(0);
 
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
   const completedDateOptions = useMemo(
@@ -108,6 +134,12 @@ const MakeOfferModal = ({
     artist?.paymentType === "internal" &&
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
+  const sessionEstimate =
+    isMultiSessionProject && estimatedSessionPrice > 0
+      ? estimatedSessionPrice
+      : isMultiSessionProject && estimatedSessionCount > 0
+      ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
+      : remainingArtistBalance;
   const paymentPreview = useMemo(
     () =>
       calculateClientPaymentBreakdown(Number(depositAmount || 0), {
@@ -128,7 +160,7 @@ const MakeOfferModal = ({
     };
   }, [previewUrl]);
 
-  if (!isOpen || !selectedRequest) return null;
+  if (!isOpen || !selectedRequest || !artist) return null;
 
   const resetOfferForm = () => {
     setOfferPrice(0);
@@ -143,6 +175,9 @@ const MakeOfferModal = ({
     setPreviewUrl(null);
     setAllowExternalRemainingPayment(false);
     setExternalRemainingPaymentNote("");
+    setIsMultiSessionProject(false);
+    setEstimatedSessionCount(2);
+    setEstimatedSessionPrice(0);
   };
 
   const handleClose = () => {
@@ -154,7 +189,7 @@ const MakeOfferModal = ({
 
     if (!selectedRequest || !uid) return;
 
-    if (!["internal", "external"].includes(artist.paymentType)) {
+    if (!artist.paymentType || !["internal", "external"].includes(artist.paymentType)) {
       toast.error("Set a valid payment type before sending an offer.");
       return;
     }
@@ -179,6 +214,18 @@ const MakeOfferModal = ({
       return;
     }
 
+    if (isMultiSessionProject) {
+      if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
+        toast.error("Multi-session projects need 2 to 12 estimated sessions.");
+        return;
+      }
+
+      if (sessionEstimate <= 0) {
+        toast.error("Add a rough per-session estimate.");
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -201,12 +248,12 @@ const MakeOfferModal = ({
         }
       }
 
-      let shop: any = null;
+      let shop: ShopDetails | null = null;
       if (artist.shopId) {
         const shopRef = doc(db, "shops", artist.shopId);
         const shopSnap = await getDoc(shopRef);
         if (shopSnap.exists()) {
-          shop = shopSnap.data();
+          shop = shopSnap.data() as ShopDetails;
         }
       }
 
@@ -246,6 +293,17 @@ const MakeOfferModal = ({
           canAllowExternalRemainingPayment && allowExternalRemainingPayment
             ? externalRemainingPaymentNote.trim()
             : "",
+        projectType: isMultiSessionProject ? "multi_session" : "single_session",
+        estimatedSessionCount: isMultiSessionProject
+          ? estimatedSessionCount
+          : 1,
+        estimatedSessionPrice: isMultiSessionProject ? sessionEstimate : null,
+        sessionPaymentPlan: isMultiSessionProject
+          ? "per_session"
+          : "single_balance",
+        sessionScheduling: isMultiSessionProject
+          ? "first_session_now_rest_later"
+          : "single_session",
         status: "pending",
         createdAt: serverTimestamp(),
       };
@@ -483,6 +541,112 @@ const MakeOfferModal = ({
                           placeholder="Optional note about accepted in-shop payment methods or expectations..."
                         />
                       )}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className="mb-5 flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                    <Layers size={19} />
+                  </span>
+                  <div>
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Project sessions
+                    </h3>
+                    <p className="text-sm text-neutral-400">
+                      Keep small tattoos simple, or set expectations for a
+                      larger piece that needs multiple appointments.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMultiSessionProject(false)}
+                    className={`rounded-lg border p-4! text-left transition ${
+                      !isMultiSessionProject
+                        ? "border-white bg-white text-black"
+                        : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold">Single session</span>
+                    <span
+                      className={`mt-1 block text-xs leading-5 ${
+                        !isMultiSessionProject
+                          ? "text-black/65"
+                          : "text-neutral-400"
+                      }`}
+                    >
+                      The current flow: deposit first, one appointment, then the
+                      remaining balance.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMultiSessionProject(true)}
+                    className={`rounded-lg border p-4! text-left transition ${
+                      isMultiSessionProject
+                        ? "border-emerald-300/45 bg-emerald-300/10 text-white"
+                        : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold">
+                      Multi-session project
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                      Client pays the initial deposit, then settles each session
+                      installment through Stripe or at the shop.
+                    </span>
+                  </button>
+                </div>
+
+                {isMultiSessionProject && (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Estimated sessions
+                      </span>
+                      <input
+                        type="number"
+                        min="2"
+                        max="12"
+                        value={estimatedSessionCount}
+                        onChange={(event) =>
+                          setEstimatedSessionCount(
+                            Math.max(2, Number(event.target.value || 2))
+                          )
+                        }
+                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                      />
+                    </label>
+                    <MoneyInput
+                      label="Rough per-session estimate"
+                      value={
+                        estimatedSessionPrice === 0 ? "" : estimatedSessionPrice
+                      }
+                      onChange={(value) =>
+                        setEstimatedSessionPrice(value ? Number(value) : 0)
+                      }
+                    />
+                    <div className="md:col-span-2 rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3">
+                      <div className="flex gap-2 text-sm leading-6 text-emerald-50/80">
+                        <ReceiptText
+                          size={16}
+                          className="mt-0.5 shrink-0 text-emerald-100"
+                        />
+                        <p>
+                          First appointment is chosen from the options below.
+                          Later sessions can be scheduled after each visit. The
+                          client sees an estimated{" "}
+                          <span className="font-semibold text-white">
+                            {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
+                          </span>{" "}
+                          due per session against the remaining project balance.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </section>

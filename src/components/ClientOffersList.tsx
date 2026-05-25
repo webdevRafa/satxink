@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { CalendarDays, DollarSign, Eye, ImageIcon, ReceiptText, Store } from "lucide-react";
+import { CalendarDays, DollarSign, Eye, ImageIcon, Layers, ReceiptText, Store } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
@@ -70,6 +70,16 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         const shopData = shopSnap.exists() ? shopSnap.data() : {};
         const depositAmount = Number(offerData.depositPolicy.amount || 0);
         const remainingAmount = Math.max(Number(offerData.price || 0) - depositAmount, 0);
+        const isMultiSessionProject = offerData.projectType === "multi_session";
+        const estimatedSessionCount = isMultiSessionProject
+          ? Math.max(Number(offerData.estimatedSessionCount || 2), 2)
+          : 1;
+        const estimatedSessionPrice =
+          isMultiSessionProject && Number(offerData.estimatedSessionPrice || 0) > 0
+            ? Number(offerData.estimatedSessionPrice)
+            : isMultiSessionProject
+            ? Math.ceil(remainingAmount / estimatedSessionCount)
+            : remainingAmount;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
           offerData.allowExternalRemainingPayment === true &&
@@ -88,6 +98,23 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           price: offerData.price,
           depositAmount,
           paymentType: offerData.paymentType,
+          projectType: isMultiSessionProject ? "multi_session" : "single_session",
+          estimatedSessionCount,
+          estimatedSessionPrice: isMultiSessionProject
+            ? estimatedSessionPrice
+            : null,
+          sessionPaymentPlan: isMultiSessionProject
+            ? "per_session"
+            : "single_balance",
+          sessionScheduling: isMultiSessionProject
+            ? "first_session_now_rest_later"
+            : "single_session",
+          activeSessionNumber: 1,
+          completedSessionCount: 0,
+          pendingSessionPaymentAmount: 0,
+          pendingSessionPaymentAmountCents: 0,
+          pendingSessionNumber: null,
+          lastPaidSessionNumber: 0,
           externalPaymentDetails:
             offerData.paymentType === "external"
               ? offerData.externalPaymentDetails ?? null
@@ -229,6 +256,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
 const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => void }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const firstDateOption = offer.dateOptions?.find((option) => option.date && option.time);
+  const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
     <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
@@ -258,7 +286,14 @@ const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => voi
             <InfoPill icon={<DollarSign size={14} />} label={`$${offer.price}`} />
             <InfoPill icon={<ReceiptText size={14} />} label={formatDeposit(offer)} />
             <InfoPill icon={<CalendarDays size={14} />} label={firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date"} />
-            <InfoPill icon={<Store size={14} />} label={offer.shopName || "Shop"} />
+            <InfoPill
+              icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
+              label={
+                isMultiSessionOffer
+                  ? `${offer.estimatedSessionCount || 2} sessions`
+                  : offer.shopName || "Shop"
+              }
+            />
           </div>
           <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
             {offer.message || "No artist message included."}

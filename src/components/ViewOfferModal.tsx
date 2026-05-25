@@ -6,6 +6,7 @@ import {
   CalendarDays,
   DollarSign,
   ImageIcon,
+  Layers,
   MapPin,
   MessageSquareText,
   ReceiptText,
@@ -43,6 +44,18 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   const depositAmount = Number(offer.depositPolicy?.amount || 0);
   const remainingAmount = Math.max(Number(offer.price || 0) - depositAmount, 0);
+  const isMultiSessionOffer = offer.projectType === "multi_session";
+  const estimatedSessionCount = Math.max(
+    Number(offer.estimatedSessionCount || 1),
+    1
+  );
+  const estimatedSessionPrice =
+    typeof offer.estimatedSessionPrice === "number" &&
+    offer.estimatedSessionPrice > 0
+      ? offer.estimatedSessionPrice
+      : estimatedSessionCount > 1
+      ? Math.ceil(remainingAmount / estimatedSessionCount)
+      : remainingAmount;
   const canChooseExternalRemaining =
     offer.paymentType === "internal" &&
     Boolean(offer.allowExternalRemainingPayment) &&
@@ -164,6 +177,33 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 <DetailTile icon={<Store size={17} />} label="Studio" value={offer.shopName || "Unavailable"} />
               </div>
 
+              {isMultiSessionOffer && (
+                <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <Layers size={17} />
+                    Multi-session project
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <DetailTile
+                      icon={<CalendarDays size={17} />}
+                      label="Expected sessions"
+                      value={`${estimatedSessionCount}`}
+                    />
+                    <DetailTile
+                      icon={<DollarSign size={17} />}
+                      label="Per-session estimate"
+                      value={`$${estimatedSessionPrice}`}
+                    />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-emerald-50/75">
+                    Your deposit confirms the first appointment. Later sessions
+                    can be scheduled with the artist after each visit, with each
+                    session installment applied toward the remaining project
+                    balance.
+                  </p>
+                </div>
+              )}
+
               {canChooseExternalRemaining && (
                 <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
@@ -173,14 +213,22 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   <div className="grid gap-3">
                     <PaymentChoice
                       title="Pay remaining balance through SATX Ink"
-                      description="Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
+                      description={
+                        isMultiSessionOffer
+                          ? "Pay each session installment later through Stripe. Later checkouts have Stripe processing only."
+                          : "Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
+                      }
                       amount={`$${remainingAmount}`}
                       checked={remainingPaymentMethod === "stripe"}
                       onSelect={() => setRemainingPaymentMethod("stripe")}
                     />
                     <PaymentChoice
                       title="Pay remaining balance at the shop"
-                      description="Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
+                      description={
+                        isMultiSessionOffer
+                          ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
+                          : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
+                      }
                       amount={`$${remainingAmount}`}
                       checked={remainingPaymentMethod === "external"}
                       onSelect={() => setRemainingPaymentMethod("external")}

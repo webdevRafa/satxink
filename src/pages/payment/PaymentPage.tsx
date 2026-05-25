@@ -9,6 +9,7 @@ import {
   CreditCard,
   DollarSign,
   ImageIcon,
+  Layers,
   MapPin,
   ShieldCheck,
   Store,
@@ -99,6 +100,10 @@ const PaymentPage = () => {
       const response = await createSession({
         bookingId: booking.id,
         paymentMode,
+        sessionPaymentAmountCents:
+          paymentMode === "remaining" && isMultiSessionBooking(booking)
+            ? Math.round(getSessionInstallmentAmount(booking) * 100)
+            : undefined,
         successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
         cancelUrl: `${window.location.origin}/payment/${booking.id}`,
       });
@@ -145,6 +150,8 @@ const PaymentPage = () => {
       : Math.max(price - deposit, 0);
   const usesExternalRemaining =
     booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
+  const isMultiSession = isMultiSessionBooking(booking);
+  const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
   const externalBalanceDue =
     usesExternalRemaining && booking.status === "deposit_paid";
   const artistAmountDue =
@@ -153,7 +160,9 @@ const PaymentPage = () => {
       : paymentMode === "full"
       ? price
       : paymentMode === "remaining"
-      ? Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
+      ? isMultiSession
+        ? sessionInstallmentAmount
+        : Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
       : deposit;
   const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
     platformFeeBaseAmount: price,
@@ -257,6 +266,8 @@ const PaymentPage = () => {
                   {booking.status === "deposit_paid"
                     ? usesExternalRemaining
                       ? "Balance due at the shop"
+                      : isMultiSession
+                      ? "Pay next session"
                       : "Pay remaining balance"
                     : "Choose how much to pay today"}
                 </h2>
@@ -264,6 +275,8 @@ const PaymentPage = () => {
                   {booking.status === "deposit_paid"
                     ? usesExternalRemaining
                       ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist after the session."
+                      : isMultiSession
+                      ? "Your appointment is confirmed. This checkout applies the next session installment toward the project balance."
                       : "Your appointment is confirmed. This payment clears the remaining artist balance."
                     : "Your artist receives the quoted amount for the option you choose. Service and card fees are shown below."}
                 </p>
@@ -299,6 +312,8 @@ const PaymentPage = () => {
                   <p className="text-sm text-emerald-50/85">
                     {usesExternalRemaining
                       ? "Remaining balance to settle with the artist: "
+                      : isMultiSession
+                      ? "Next session installment: "
                       : "Remaining artist balance: "}
                     <span className="font-semibold text-white">
                       {formatMoneyFromCents(
@@ -379,6 +394,15 @@ const PaymentPage = () => {
                   : "External payment"
               }
             />
+            {isMultiSession && (
+              <DetailTile
+                icon={<Layers size={17} />}
+                label="Project sessions"
+                value={`${booking.completedSessionCount || 0}/${
+                  booking.estimatedSessionCount || 2
+                } complete`}
+              />
+            )}
           </div>
 
           {booking.shopAddress && (
@@ -446,7 +470,9 @@ const PaymentPage = () => {
               {paymentMode === "full" &&
                 "This payment covers the full artist quote and secures your appointment."}
               {paymentMode === "remaining" &&
-                "This payment clears the remaining artist balance on your confirmed booking."}
+                (isMultiSession
+                  ? "This payment applies one session installment toward your larger project balance."
+                  : "This payment clears the remaining artist balance on your confirmed booking.")}
               {paymentMode === "deposit" && (
                 <>
                   This non-refundable deposit secures your appointment. The
@@ -494,6 +520,8 @@ const PaymentPage = () => {
                 : booking.status === "deposit_paid"
                 ? usesExternalRemaining
                   ? "Return to dashboard"
+                  : isMultiSession
+                  ? "Pay session installment"
                   : "Pay remaining balance"
                 : paymentMode === "full"
                 ? "Pay in full"
@@ -585,6 +613,38 @@ const formatAppointment = (date: { date: string; time: string }) => {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const getRemainingBalance = (booking: Booking) => {
+  if (typeof booking.remainingBalanceAmount === "number") {
+    return Math.max(booking.remainingBalanceAmount, 0);
+  }
+
+  return Math.max(
+    Number(booking.price || 0) -
+      Number(booking.totalArtistPaidAmount || booking.depositAmount || 0),
+    0
+  );
+};
+
+const isMultiSessionBooking = (booking: Booking) =>
+  booking.projectType === "multi_session" ||
+  Number(booking.estimatedSessionCount || 1) > 1;
+
+const getSessionInstallmentAmount = (booking: Booking) => {
+  const remaining = getRemainingBalance(booking);
+  const pending = Number(booking.pendingSessionPaymentAmount || 0);
+  if (pending > 0) return Math.min(pending, remaining);
+
+  const estimate = Number(booking.estimatedSessionPrice || 0);
+  if (estimate > 0) return Math.min(estimate, remaining);
+
+  const sessionsLeft = Math.max(
+    Number(booking.estimatedSessionCount || 1) -
+      Number(booking.completedSessionCount || 0),
+    1
+  );
+  return Math.ceil(remaining / sessionsLeft);
 };
 
 export default PaymentPage;

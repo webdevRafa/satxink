@@ -31,6 +31,10 @@ clientAvatar?: string;
     finalPaymentTiming: "before" | "after";
     allowExternalRemainingPayment?: boolean;
     externalRemainingPaymentNote?: string;
+    projectType?: "single_session" | "multi_session";
+    estimatedSessionCount?: number;
+    estimatedSessionPrice?: number;
+    sessionPaymentPlan?: "single_balance" | "per_session";
+    sessionScheduling?: "single_session" | "first_session_now_rest_later";
   };
   
-
