@@ -136,6 +136,12 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           shopMapLink: offerData.shopMapLink ?? shopData.mapLink ?? null,
           selectedDate: selectedDate ?? { date: "TBD", time: "TBD" },
           sampleImageUrl: offerData.fullUrl ?? null,
+          sourceType: offerData.sourceType || "custom",
+          flashId: offerData.flashId ?? null,
+          flashTitle: offerData.flashTitle ?? null,
+          flashPrice: offerData.flashPrice ?? null,
+          flashSheetId: offerData.flashSheetId ?? null,
+          isFromSheet: offerData.isFromSheet ?? null,
           status: "pending_payment",
           createdAt: serverTimestamp(),
         });
@@ -256,6 +262,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
 const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => void }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const firstDateOption = offer.dateOptions?.find((option) => option.date && option.time);
+  const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
@@ -280,6 +287,11 @@ const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => voi
               <span className="text-sm">No sample image</span>
             </div>
           )}
+          {isFlashOffer && (
+            <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+              Flash
+            </span>
+          )}
         </div>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-2">
@@ -289,7 +301,9 @@ const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => voi
             <InfoPill
               icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
               label={
-                isMultiSessionOffer
+                isFlashOffer
+                  ? offer.flashTitle || "Flash item"
+                  : isMultiSessionOffer
                   ? `${offer.estimatedSessionCount || 2} sessions`
                   : offer.shopName || "Shop"
               }

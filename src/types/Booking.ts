@@ -89,6 +89,12 @@ export type Booking = {
     };
   
     sampleImageUrl?: string;
+    sourceType?: "custom" | "flash" | string;
+    flashId?: string | null;
+    flashTitle?: string | null;
+    flashPrice?: number | null;
+    flashSheetId?: string | null;
+    isFromSheet?: boolean | null;
   
     status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";
     sessionStatus?: BookingSessionStatus;

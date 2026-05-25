@@ -44,6 +44,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   const depositAmount = Number(offer.depositPolicy?.amount || 0);
   const remainingAmount = Math.max(Number(offer.price || 0) - depositAmount, 0);
+  const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
   const estimatedSessionCount = Math.max(
     Number(offer.estimatedSessionCount || 1),
@@ -123,10 +124,12 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-              Offer details
+              {isFlashOffer ? "Flash offer details" : "Offer details"}
             </p>
             <h2 className="mt-1 text-xl! font-semibold! text-white">
-              {offer.displayName}'s offer
+              {isFlashOffer
+                ? `${offer.displayName}'s flash offer`
+                : `${offer.displayName}'s offer`}
             </h2>
           </div>
           <button
@@ -145,7 +148,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
               {offer.fullUrl || offer.thumbUrl ? (
                 <img
                   src={offer.fullUrl || offer.thumbUrl}
-                  alt="Offer sample"
+                  alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
                   className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                 />
               ) : (
@@ -170,6 +173,23 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   </p>
                 </div>
               </div>
+
+              {isFlashOffer && (
+                <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <ReceiptText size={17} />
+                    Flash reservation
+                  </div>
+                  <p className="text-sm leading-6 text-emerald-50/80">
+                    This offer is for the listed flash design{" "}
+                    <span className="font-semibold text-white">
+                      {offer.flashTitle || "Untitled flash"}
+                    </span>
+                    . Pricing is based on the artist's published flash price and
+                    this booking is handled as a single-session appointment.
+                  </p>
+                </div>
+              )}
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${offer.price}`} />

@@ -49,6 +49,12 @@ type BookingRequest = {
   fullUrl?: string;
   thumbUrl?: string;
   budget?: string | number;
+  sourceType?: string;
+  flashId?: string;
+  flashTitle?: string;
+  flashPrice?: number | null;
+  flashSheetId?: string | null;
+  isFromSheet?: boolean;
 };
 
 type OfferArtist = {
@@ -115,6 +121,11 @@ const MakeOfferModal = ({
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
 
+  const isFlashRequest = selectedRequest?.sourceType === "flash";
+  const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
+  const effectiveOfferPrice = isFlashRequest
+    ? flashListedPrice
+    : Number(offerPrice || 0);
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
   const completedDateOptions = useMemo(
     () => dateOptions.filter((option) => option.date && option.time),
@@ -122,7 +133,7 @@ const MakeOfferModal = ({
   );
   const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
   const remainingArtistBalance = Math.max(
-    Number(offerPrice || 0) - Number(depositAmount || 0),
+    effectiveOfferPrice - Number(depositAmount || 0),
     0
   );
   const canAllowExternalRemainingPayment =
@@ -130,15 +141,15 @@ const MakeOfferModal = ({
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
   const sessionEstimate =
-    isMultiSessionProject && estimatedSessionCount > 0
+    !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
       : remainingArtistBalance;
   const paymentPreview = useMemo(
     () =>
       calculateClientPaymentBreakdown(Number(depositAmount || 0), {
-        platformFeeBaseAmount: Number(offerPrice || depositAmount || 0),
+        platformFeeBaseAmount: Number(effectiveOfferPrice || depositAmount || 0),
       }),
-    [depositAmount, offerPrice]
+    [depositAmount, effectiveOfferPrice]
   );
 
   useEffect(() => {
@@ -146,6 +157,16 @@ const MakeOfferModal = ({
       setDepositAmount(artistDefaultDeposit);
     }
   }, [artistDefaultDeposit, depositAmount, isOpen, setDepositAmount]);
+
+  useEffect(() => {
+    if (!isOpen || !selectedRequest) return;
+
+    if (selectedRequest.sourceType === "flash") {
+      setIsMultiSessionProject(false);
+      setEstimatedSessionCount(2);
+      setOfferPrice(Number(selectedRequest.flashPrice || 0));
+    }
+  }, [isOpen, selectedRequest, setOfferPrice]);
 
   useEffect(() => {
     return () => {
@@ -185,12 +206,21 @@ const MakeOfferModal = ({
       return;
     }
 
-    if (!offerPrice || offerPrice <= 0) {
-      toast.error("Enter a valid offer price.");
+    const submissionOfferPrice =
+      selectedRequest.sourceType === "flash"
+        ? Number(selectedRequest.flashPrice || 0)
+        : Number(offerPrice || 0);
+
+    if (!submissionOfferPrice || submissionOfferPrice <= 0) {
+      toast.error(
+        selectedRequest.sourceType === "flash"
+          ? "This flash item needs a listed price before you can send an offer."
+          : "Enter a valid offer price."
+      );
       return;
     }
 
-    if (depositAmount < 0 || depositAmount > offerPrice) {
+    if (depositAmount < 0 || depositAmount > submissionOfferPrice) {
       toast.error("Deposit must be between $0 and the offer price.");
       return;
     }
@@ -200,7 +230,10 @@ const MakeOfferModal = ({
       return;
     }
 
-    if (isMultiSessionProject) {
+    const submitAsMultiSession =
+      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
+
+    if (submitAsMultiSession) {
       if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
         toast.error("Multi-session projects need 2 to 12 estimated sessions.");
         return;
@@ -255,12 +288,41 @@ const MakeOfferModal = ({
         clientName: selectedRequest.clientName,
         clientAvatar: selectedRequest.clientAvatar,
         requestId: selectedRequest.id,
-        price: offerPrice,
+        price: submissionOfferPrice,
         message: offerMessage,
         dateOptions: completedDateOptions,
         imageFilename: filename || null,
-        fullUrl: fullUrl || null,
-        thumbUrl: thumbUrl || null,
+        fullUrl:
+          fullUrl ||
+          (selectedRequest.sourceType === "flash"
+            ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
+            : null),
+        thumbUrl:
+          thumbUrl ||
+          (selectedRequest.sourceType === "flash"
+            ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
+            : null),
+        sourceType: selectedRequest.sourceType || "custom",
+        flashId:
+          selectedRequest.sourceType === "flash"
+            ? selectedRequest.flashId || null
+            : null,
+        flashTitle:
+          selectedRequest.sourceType === "flash"
+            ? selectedRequest.flashTitle || "Untitled flash"
+            : null,
+        flashPrice:
+          selectedRequest.sourceType === "flash"
+            ? submissionOfferPrice
+            : null,
+        flashSheetId:
+          selectedRequest.sourceType === "flash"
+            ? selectedRequest.flashSheetId || null
+            : null,
+        isFromSheet:
+          selectedRequest.sourceType === "flash"
+            ? Boolean(selectedRequest.isFromSheet)
+            : null,
         paymentType: artist.paymentType,
         externalPaymentDetails:
           artist.paymentType === "external"
@@ -278,15 +340,15 @@ const MakeOfferModal = ({
           canAllowExternalRemainingPayment && allowExternalRemainingPayment
             ? externalRemainingPaymentNote.trim()
             : "",
-        projectType: isMultiSessionProject ? "multi_session" : "single_session",
-        estimatedSessionCount: isMultiSessionProject
+        projectType: submitAsMultiSession ? "multi_session" : "single_session",
+        estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
           : 1,
-        estimatedSessionPrice: isMultiSessionProject ? sessionEstimate : null,
-        sessionPaymentPlan: isMultiSessionProject
+        estimatedSessionPrice: submitAsMultiSession ? sessionEstimate : null,
+        sessionPaymentPlan: submitAsMultiSession
           ? "per_session"
           : "single_balance",
-        sessionScheduling: isMultiSessionProject
+        sessionScheduling: submitAsMultiSession
           ? "first_session_now_rest_later"
           : "single_session",
         status: "pending",
@@ -317,10 +379,12 @@ const MakeOfferModal = ({
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-              Artist offer
+              {isFlashRequest ? "Flash offer" : "Artist offer"}
             </p>
             <h2 className="mt-1 text-xl! font-semibold! text-white">
-              Create offer for {selectedRequest.clientName}
+              {isFlashRequest
+                ? `Create flash offer for ${selectedRequest.clientName}`
+                : `Create offer for ${selectedRequest.clientName}`}
             </h2>
           </div>
           <button
@@ -339,20 +403,27 @@ const MakeOfferModal = ({
         >
           <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
             <aside className="border-b border-white/10 bg-black/25 p-5 lg:border-b-0 lg:border-r lg:p-6">
-              <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
-                {requestImageUrl ? (
-                  <img
-                    src={requestImageUrl}
-                    alt="Client request reference"
-                    className="h-64 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                    <ImageIcon size={28} />
-                    <span className="text-sm">No request image</span>
-                  </div>
-                )}
-              </div>
+              {isFlashRequest ? (
+                <FlashOfferSummaryCard
+                  request={selectedRequest}
+                  previewUrl={requestImageUrl}
+                />
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+                  {requestImageUrl ? (
+                    <img
+                      src={requestImageUrl}
+                      alt="Client request reference"
+                      className="h-64 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                      <ImageIcon size={28} />
+                      <span className="text-sm">No request image</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center gap-3">
@@ -399,19 +470,35 @@ const MakeOfferModal = ({
                       Pricing
                     </h3>
                     <p className="text-sm text-neutral-400">
-                      Set the offer price and the deposit required to lock in
-                      the appointment.
+                      {isFlashRequest
+                        ? "The offer price is locked to the flash listing. Set the deposit required to reserve the design."
+                        : "Set the offer price and the deposit required to lock in the appointment."}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <MoneyInput
-                    label="Offer price"
-                    value={offerPrice === 0 ? "" : offerPrice}
-                    onChange={(value) => setOfferPrice(value ? Number(value) : 0)}
-                    required
-                  />
+                  {isFlashRequest ? (
+                    <LockedPriceTile
+                      label="Listed flash price"
+                      value={
+                        flashListedPrice > 0
+                          ? formatMoneyFromCents(
+                              Math.round(flashListedPrice * 100)
+                            )
+                          : "Price not listed"
+                      }
+                    />
+                  ) : (
+                    <MoneyInput
+                      label="Offer price"
+                      value={offerPrice === 0 ? "" : offerPrice}
+                      onChange={(value) =>
+                        setOfferPrice(value ? Number(value) : 0)
+                      }
+                      required
+                    />
+                  )}
                   <MoneyInput
                     label="Deposit amount"
                     value={depositAmount === 0 ? "" : depositAmount}
@@ -432,6 +519,8 @@ const MakeOfferModal = ({
                       The client pays the deposit plus SATX Ink and Stripe fees
                       today, so your deposit amount is protected. Any remaining
                       artist balance is handled by the payment choice below.
+                      {isFlashRequest &&
+                        " Flash offers stay single-session and use the price already listed for the flash item."}
                     </p>
                   </div>
                 </div>
@@ -523,6 +612,7 @@ const MakeOfferModal = ({
                 )}
               </section>
 
+              {!isFlashRequest && (
               <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
@@ -634,6 +724,7 @@ const MakeOfferModal = ({
                   </div>
                 )}
               </section>
+              )}
 
               <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                 <div className="mb-5 flex items-start gap-3">
@@ -644,11 +735,15 @@ const MakeOfferModal = ({
                     <h3 className="text-lg! font-semibold! text-white">
                       {isMultiSessionProject
                         ? "First-session appointment options"
+                        : isFlashRequest
+                        ? "Flash appointment options"
                         : "Appointment options"}
                     </h3>
                     <p className="text-sm text-neutral-400">
                       {isMultiSessionProject
                         ? "Give the client a few clear times to choose from for session 1 only. Later sessions can be scheduled after the project begins."
+                        : isFlashRequest
+                        ? "Give the client a few clear times to reserve this flash design."
                         : "Give the client a few clear times to choose from."}
                     </p>
                   </div>
@@ -701,7 +796,7 @@ const MakeOfferModal = ({
                 </div>
               </section>
 
-              <section className="grid gap-5 lg:grid-cols-2">
+              <section className={`grid gap-5 ${isFlashRequest ? "" : "lg:grid-cols-2"}`}>
                 <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
@@ -717,13 +812,18 @@ const MakeOfferModal = ({
                     </div>
                   </div>
                   <textarea
-                    placeholder="Optional message to the client..."
+                    placeholder={
+                      isFlashRequest
+                        ? "Optional note about placement, sizing, prep, or reservation expectations..."
+                        : "Optional message to the client..."
+                    }
                     value={offerMessage}
                     onChange={(event) => setOfferMessage(event.target.value)}
                     className="min-h-40 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
                   />
                 </div>
 
+                {!isFlashRequest && (
                 <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
@@ -775,6 +875,7 @@ const MakeOfferModal = ({
                     )}
                   </label>
                 </div>
+                )}
               </section>
             </div>
           </div>
@@ -807,6 +908,70 @@ const MakeOfferModal = ({
     </div>
   );
 };
+
+const FlashOfferSummaryCard = ({
+  request,
+  previewUrl,
+}: {
+  request: BookingRequest;
+  previewUrl: string;
+}) => (
+  <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
+    <div className="relative aspect-[4/5] bg-black">
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={request.flashTitle || "Requested flash"}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+          <ImageIcon size={28} />
+          <span className="text-sm">No flash image</span>
+        </div>
+      )}
+      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+        Flash item
+      </span>
+    </div>
+    <div className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg! font-semibold! text-white">
+            {request.flashTitle || "Untitled flash"}
+          </h3>
+          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
+            {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
+          </p>
+        </div>
+        <p className="shrink-0 text-lg font-semibold text-white">
+          {typeof request.flashPrice === "number" && request.flashPrice > 0
+            ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
+            : "No price"}
+        </p>
+      </div>
+      <div className="rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm leading-6 text-emerald-50/80">
+        This offer will reserve the listed flash design as a single-session
+        booking.
+      </div>
+    </div>
+  </div>
+);
+
+const LockedPriceTile = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="space-y-2">
+    <span className="text-sm font-medium text-neutral-200">{label}</span>
+    <div className="flex h-11 items-center rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white">
+      {value}
+    </div>
+  </div>
+);
 
 const MoneyInput = ({
   label,
