@@ -18,6 +18,13 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import toast from "react-hot-toast";
+import CustomSelect from "./ui/CustomSelect";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import {
+  bodyPlacementOptions,
+  tattooBudgetOptions,
+  tattooSizeOptions,
+} from "../utils/tattooOptions";
 
 interface Props {
   isOpen: boolean;
@@ -300,13 +307,12 @@ const RequestTattooModal: React.FC<Props> = ({
                       <MapPin size={15} />
                       Body placement
                     </span>
-                    <input
-                      required
-                      type="text"
+                    <CustomSelect
                       placeholder="Forearm, thigh, shoulder..."
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
                       value={bodyPlacement}
-                      onChange={(e) => setBodyPlacement(e.target.value)}
+                      onChange={setBodyPlacement}
+                      options={bodyPlacementOptions}
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
 
@@ -315,17 +321,13 @@ const RequestTattooModal: React.FC<Props> = ({
                       <Ruler size={15} />
                       Size
                     </span>
-                    <select
-                      required
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <CustomSelect
                       value={size}
-                      onChange={(e) => setSize(e.target.value)}
-                    >
-                      <option value="">Select size</option>
-                      <option value="Small">Small (up to 3x3 inches)</option>
-                      <option value="Medium">Medium (up to 6x6 inches)</option>
-                      <option value="Large">Large (over 6x6 inches)</option>
-                    </select>
+                      onChange={setSize}
+                      options={tattooSizeOptions}
+                      placeholder="Select size"
+                      buttonClassName="focus:border-[#19d69b]"
+                    />
                   </label>
                 </div>
 
@@ -334,21 +336,13 @@ const RequestTattooModal: React.FC<Props> = ({
                     <DollarSign size={15} />
                     Optional budget
                   </span>
-                  <select
+                  <CustomSelect
                     value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
-                  >
-                    <option value="">Have a budget?</option>
-                    <option value="0-100">$0-$100</option>
-                    <option value="100-200">$100-$200</option>
-                    <option value="200-350">$200-$350</option>
-                    <option value="350-500">$350-$500</option>
-                    <option value="500-750">$500-$750</option>
-                    <option value="750-1000">$750-$1000</option>
-                    <option value="1000+">$1000+</option>
-                    <option value="custom">Other (enter manually)</option>
-                  </select>
+                    onChange={setBudget}
+                    options={tattooBudgetOptions}
+                    placeholder="Have a budget?"
+                    buttonClassName="focus:border-[#19d69b]"
+                  />
                 </label>
 
                 {budget === "custom" && (
@@ -490,32 +484,32 @@ const RequestTattooModal: React.FC<Props> = ({
                     <span className="mb-1.5 block text-sm font-medium text-white/65">
                       From
                     </span>
-                    <input
-                      type="time"
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <QuarterHourTimeSelect
                       value={availableTime.from}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          from: e.target.value,
+                          from: value,
                         }))
                       }
+                      placeholder="Select time"
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-medium text-white/65">
                       To
                     </span>
-                    <input
-                      type="time"
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <QuarterHourTimeSelect
                       value={availableTime.to}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          to: e.target.value,
+                          to: value,
                         }))
                       }
+                      placeholder="Select time"
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
                 </div>

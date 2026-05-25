@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { CalendarDays, DollarSign, Eye, ImageIcon, ReceiptText, Store } from "lucide-react";
+import { CalendarDays, DollarSign, Eye, ImageIcon, Layers, ReceiptText, Store } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
@@ -70,6 +70,16 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         const shopData = shopSnap.exists() ? shopSnap.data() : {};
         const depositAmount = Number(offerData.depositPolicy.amount || 0);
         const remainingAmount = Math.max(Number(offerData.price || 0) - depositAmount, 0);
+        const isMultiSessionProject = offerData.projectType === "multi_session";
+        const estimatedSessionCount = isMultiSessionProject
+          ? Math.max(Number(offerData.estimatedSessionCount || 2), 2)
+          : 1;
+        const estimatedSessionPrice =
+          isMultiSessionProject && Number(offerData.estimatedSessionPrice || 0) > 0
+            ? Number(offerData.estimatedSessionPrice)
+            : isMultiSessionProject
+            ? Math.ceil(remainingAmount / estimatedSessionCount)
+            : remainingAmount;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
           offerData.allowExternalRemainingPayment === true &&
@@ -88,6 +98,23 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           price: offerData.price,
           depositAmount,
           paymentType: offerData.paymentType,
+          projectType: isMultiSessionProject ? "multi_session" : "single_session",
+          estimatedSessionCount,
+          estimatedSessionPrice: isMultiSessionProject
+            ? estimatedSessionPrice
+            : null,
+          sessionPaymentPlan: isMultiSessionProject
+            ? "per_session"
+            : "single_balance",
+          sessionScheduling: isMultiSessionProject
+            ? "first_session_now_rest_later"
+            : "single_session",
+          activeSessionNumber: 1,
+          completedSessionCount: 0,
+          pendingSessionPaymentAmount: 0,
+          pendingSessionPaymentAmountCents: 0,
+          pendingSessionNumber: null,
+          lastPaidSessionNumber: 0,
           externalPaymentDetails:
             offerData.paymentType === "external"
               ? offerData.externalPaymentDetails ?? null
@@ -109,6 +136,12 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           shopMapLink: offerData.shopMapLink ?? shopData.mapLink ?? null,
           selectedDate: selectedDate ?? { date: "TBD", time: "TBD" },
           sampleImageUrl: offerData.fullUrl ?? null,
+          sourceType: offerData.sourceType || "custom",
+          flashId: offerData.flashId ?? null,
+          flashTitle: offerData.flashTitle ?? null,
+          flashPrice: offerData.flashPrice ?? null,
+          flashSheetId: offerData.flashSheetId ?? null,
+          isFromSheet: offerData.isFromSheet ?? null,
           status: "pending_payment",
           createdAt: serverTimestamp(),
         });
@@ -170,7 +203,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   if (loading) return <SectionSkeleton />;
 
   return (
-    <section className="mx-auto mt-6 max-w-7xl space-y-6">
+    <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <DashboardHeader
           eyebrow="Client inbox"
@@ -229,6 +262,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
 const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => void }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const firstDateOption = offer.dateOptions?.find((option) => option.date && option.time);
+  const isFlashOffer = offer.sourceType === "flash";
+  const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
     <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
@@ -252,13 +287,27 @@ const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => voi
               <span className="text-sm">No sample image</span>
             </div>
           )}
+          {isFlashOffer && (
+            <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+              Flash
+            </span>
+          )}
         </div>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-2">
-            <InfoPill icon={<DollarSign size={14} />} label={`$${offer.price}`} />
-            <InfoPill icon={<ReceiptText size={14} />} label={formatDeposit(offer)} />
+            <InfoPill icon={<DollarSign size={14} />} label={`Total $${offer.price}`} />
+            <InfoPill icon={<ReceiptText size={14} />} label={`Deposit ${formatDeposit(offer)}`} />
             <InfoPill icon={<CalendarDays size={14} />} label={firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date"} />
-            <InfoPill icon={<Store size={14} />} label={offer.shopName || "Shop"} />
+            <InfoPill
+              icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
+              label={
+                isFlashOffer
+                  ? offer.flashTitle || "Flash item"
+                  : isMultiSessionOffer
+                  ? `${offer.estimatedSessionCount || 2} sessions`
+                  : offer.shopName || "Shop"
+              }
+            />
           </div>
           <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
             {offer.message || "No artist message included."}
@@ -316,7 +365,7 @@ const EmptyState = ({ icon, title, description }: { icon: ReactNode; title: stri
 );
 
 const SectionSkeleton = () => (
-  <section className="mx-auto mt-6 max-w-7xl space-y-6">
+  <section className="mt-6 w-full max-w-7xl space-y-6">
     <div className="h-36 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2].map((item) => <div key={item} className="h-80 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />)}

@@ -8,7 +8,11 @@ export type RemainingPaymentStatus =
     | "client_confirmed"
     | "confirmed"
     | "disputed";
-export type BookingSessionStatus = "not_started" | "in_progress" | "completed";
+export type BookingSessionStatus =
+    | "not_started"
+    | "in_progress"
+    | "completed"
+    | "awaiting_next_session";
 
 export type Booking = {
     id: string;
@@ -62,6 +66,17 @@ export type Booking = {
     };
   
     finalPaymentTiming: "before" | "after";
+    projectType?: "single_session" | "multi_session";
+    estimatedSessionCount?: number;
+    estimatedSessionPrice?: number;
+    sessionPaymentPlan?: "single_balance" | "per_session";
+    sessionScheduling?: "single_session" | "first_session_now_rest_later";
+    activeSessionNumber?: number;
+    completedSessionCount?: number;
+    pendingSessionPaymentAmount?: number;
+    pendingSessionPaymentAmountCents?: number;
+    pendingSessionNumber?: number;
+    lastPaidSessionNumber?: number;
   
     shopId?: string;
     shopName?: string;
@@ -74,6 +89,12 @@ export type Booking = {
     };
   
     sampleImageUrl?: string;
+    sourceType?: "custom" | "flash" | string;
+    flashId?: string | null;
+    flashTitle?: string | null;
+    flashPrice?: number | null;
+    flashSheetId?: string | null;
+    isFromSheet?: boolean | null;
   
     status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";
     sessionStatus?: BookingSessionStatus;

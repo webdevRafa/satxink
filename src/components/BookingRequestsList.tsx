@@ -45,7 +45,11 @@ type BookingRequest = {
   budget?: string | number;
   createdAt?: Date | FirestoreTimestampLike | null;
   sourceType?: string;
+  flashId?: string;
   flashTitle?: string;
+  flashPrice?: number | null;
+  flashSheetId?: string | null;
+  isFromSheet?: boolean;
 };
 
 interface Props {
@@ -331,7 +335,11 @@ const RequestCard = ({
             />
             <InfoPill
               icon={<DollarSign size={14} />}
-              label={formatBudget(request.budget)}
+              label={
+                request.sourceType === "flash"
+                  ? formatFlashPrice(request.flashPrice)
+                  : formatBudget(request.budget)
+              }
             />
           </div>
         </div>
@@ -371,7 +379,20 @@ const RequestDetailsDialog = ({
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
-}) => (
+}) => {
+  if (request?.sourceType === "flash") {
+    return (
+      <FlashRequestDetailsDialog
+        request={request}
+        isDeclining={isDeclining}
+        onClose={onClose}
+        onDecline={onDecline}
+        onMakeOffer={onMakeOffer}
+      />
+    );
+  }
+
+  return (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child
@@ -540,7 +561,231 @@ const RequestDetailsDialog = ({
       </div>
     </Dialog>
   </Transition>
+  );
+};
+
+const FlashRequestDetailsDialog = ({
+  request,
+  isDeclining,
+  onClose,
+  onDecline,
+  onMakeOffer,
+}: {
+  request: BookingRequest | null;
+  isDeclining: boolean;
+  onClose: () => void;
+  onDecline: (request: BookingRequest) => void;
+  onMakeOffer: (request: BookingRequest) => void;
+}) => (
+  <Transition appear show={!!request} as={Fragment}>
+    <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-300"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="ease-in duration-150"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+      >
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+      </Transition.Child>
+
+      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="scale-95 opacity-0"
+            enterTo="scale-100 opacity-100"
+            leave="ease-in duration-150"
+            leaveFrom="scale-100 opacity-100"
+            leaveTo="scale-95 opacity-0"
+          >
+            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+              {request && (
+                <>
+                  <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                        Flash request
+                      </p>
+                      <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                        {request.clientName || "Client"} requested a flash item
+                      </Dialog.Title>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                      aria-label="Close flash request details"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="border-b border-white/10 bg-black/40 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                      <FlashRequestPreviewCard request={request} />
+                    </div>
+
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={request.clientAvatar || "/default-avatar.png"}
+                          alt={request.clientName}
+                          className="h-14 w-14 rounded-full border border-white/10 object-cover"
+                        />
+                        <div>
+                          <p className="font-semibold text-white">
+                            {request.clientName || "Client"}
+                          </p>
+                          <p className="text-sm text-neutral-500">
+                            Sent {formatShortDate(request.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        <DetailTile
+                          icon={<DollarSign size={17} />}
+                          label="Listed flash price"
+                          value={formatFlashPrice(request.flashPrice)}
+                        />
+                        <DetailTile
+                          icon={<MapPin size={17} />}
+                          label="Placement"
+                          value={request.bodyPlacement || "Not specified"}
+                        />
+                        <DetailTile
+                          icon={<Ruler size={17} />}
+                          label="Size"
+                          value={request.size || "Not specified"}
+                        />
+                        <DetailTile
+                          icon={<CalendarDays size={17} />}
+                          label="Preferred dates"
+                          value={
+                            request.preferredDateRange?.length === 2
+                              ? formatDateRange(request.preferredDateRange)
+                              : "Flexible"
+                          }
+                        />
+                        <DetailTile
+                          icon={<Clock size={17} />}
+                          label="Preferred time"
+                          value={
+                            request.availableTime?.from &&
+                            request.availableTime?.to
+                              ? `${formatTime(
+                                  request.availableTime.from
+                                )} - ${formatTime(request.availableTime.to)}`
+                              : "Flexible"
+                          }
+                        />
+                        <DetailTile
+                          icon={<Check size={17} />}
+                          label="Available days"
+                          value={
+                            request.availableDays?.length
+                              ? getFormattedAvailableDays(request.availableDays)
+                              : "Flexible"
+                          }
+                        />
+                      </div>
+
+                      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                          <MessageSquareText size={17} />
+                          Client note
+                        </div>
+                        <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
+                          {request.description || "No note provided."}
+                        </p>
+                      </div>
+
+                      <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50/80">
+                        This request is tied to one listed flash design. The
+                        offer should use the listed flash price and a single
+                        appointment flow.
+                      </div>
+
+                      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          disabled={isDeclining}
+                          onClick={() => onDecline(request)}
+                          className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isDeclining ? "Declining..." : "Decline"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMakeOffer(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                        >
+                          <Send size={16} />
+                          Make flash offer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </Dialog.Panel>
+          </Transition.Child>
+        </div>
+      </div>
+    </Dialog>
+  </Transition>
 );
+
+const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
+  const previewUrl = request.fullUrl || request.thumbUrl || "";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
+      <div className="relative aspect-[4/5] bg-black">
+        {previewUrl ? (
+          <Zoom>
+            <img
+              src={previewUrl}
+              alt={request.flashTitle || "Requested flash design"}
+              className="h-full w-full object-cover"
+            />
+          </Zoom>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+            <ImageIcon size={34} />
+            <span>No flash image available</span>
+          </div>
+        )}
+        <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+          Flash item
+        </span>
+      </div>
+      <div className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg! font-semibold! text-white">
+              {request.flashTitle || "Untitled flash"}
+            </h3>
+            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
+              {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
+            </p>
+          </div>
+          <p className="shrink-0 text-lg font-semibold text-white">
+            {formatFlashPrice(request.flashPrice)}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <InfoPill icon={<MapPin size={14} />} label={request.bodyPlacement} />
+          <InfoPill icon={<Ruler size={14} />} label={request.size} />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DetailTile = ({
   icon,
@@ -599,6 +844,11 @@ const formatBudget = (budget?: string | number) => {
   }
   return budget;
 };
+
+const formatFlashPrice = (price?: number | null) =>
+  typeof price === "number" && Number.isFinite(price) && price > 0
+    ? `$${price}`
+    : "Price not listed";
 
 const formatDateRange = (dates: string[]): string => {
   const [start, end] = dates;

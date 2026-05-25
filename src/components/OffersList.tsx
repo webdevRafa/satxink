@@ -5,6 +5,7 @@ import {
   DollarSign,
   Eye,
   ImageIcon,
+  Layers,
   MapPin,
   MessageSquareText,
   ReceiptText,
@@ -204,6 +205,8 @@ const OfferCard = ({
   const firstDateOption = offer.dateOptions?.find(
     (option) => option.date && option.time
   );
+  const isFlashOffer = offer.sourceType === "flash";
+  const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
     <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
@@ -235,7 +238,7 @@ const OfferCard = ({
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt="Offer sample"
+              alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
               className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
             />
           ) : (
@@ -243,6 +246,11 @@ const OfferCard = ({
               <ImageIcon size={26} />
               <span className="text-sm">No sample image</span>
             </div>
+          )}
+          {isFlashOffer && (
+            <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+              Flash
+            </span>
           )}
         </div>
 
@@ -261,7 +269,16 @@ const OfferCard = ({
                   : "No date set"
               }
             />
-            <InfoPill icon={<Store size={14} />} label={offer.shopName || "Shop"} />
+            <InfoPill
+              icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
+              label={
+                isFlashOffer
+                  ? offer.flashTitle || "Flash item"
+                  : isMultiSessionOffer
+                  ? `${offer.estimatedSessionCount || 2} sessions`
+                  : offer.shopName || "Shop"
+              }
+            />
           </div>
 
           <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
@@ -322,10 +339,14 @@ const OfferDetailsDialog = ({
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
                     <div>
                       <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        Offer details
+                        {offer.sourceType === "flash"
+                          ? "Flash offer details"
+                          : "Offer details"}
                       </p>
                       <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                        Offer sent to {offer.clientName || "Client"}
+                        {offer.sourceType === "flash"
+                          ? `Flash offer sent to ${offer.clientName || "Client"}`
+                          : `Offer sent to ${offer.clientName || "Client"}`}
                       </Dialog.Title>
                     </div>
                     <button
@@ -343,7 +364,7 @@ const OfferDetailsDialog = ({
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
                           src={offer.fullUrl || offer.thumbUrl}
-                          alt="Offer sample"
+                          alt={offer.sourceType === "flash" ? offer.flashTitle || "Flash offer" : "Offer sample"}
                           className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                         />
                       ) : (
@@ -375,9 +396,20 @@ const OfferDetailsDialog = ({
                       </div>
 
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        {offer.sourceType === "flash" && (
+                          <DetailTile
+                            icon={<ReceiptText size={17} />}
+                            label="Flash item"
+                            value={offer.flashTitle || "Untitled flash"}
+                          />
+                        )}
                         <DetailTile
                           icon={<DollarSign size={17} />}
-                          label="Offer price"
+                          label={
+                            offer.sourceType === "flash"
+                              ? "Listed flash price"
+                              : "Offer price"
+                          }
                           value={`$${offer.price}`}
                         />
                         <DetailTile
@@ -386,19 +418,24 @@ const OfferDetailsDialog = ({
                           value={formatDeposit(offer)}
                         />
                         <DetailTile
-                          icon={<DollarSign size={17} />}
-                          label="Fallback"
-                          value={
-                            typeof offer.fallbackPrice === "number"
-                              ? `$${offer.fallbackPrice}`
-                              : "None"
-                          }
-                        />
-                        <DetailTile
                           icon={<Store size={17} />}
                           label="Shop"
                           value={offer.shopName || "Unavailable"}
                         />
+                        {offer.projectType === "multi_session" && (
+                          <>
+                            <DetailTile
+                              icon={<Layers size={17} />}
+                              label="Sessions"
+                              value={`${offer.estimatedSessionCount || 2}`}
+                            />
+                            <DetailTile
+                              icon={<DollarSign size={17} />}
+                              label="Per session"
+                              value={`$${offer.estimatedSessionPrice || 0}`}
+                            />
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">

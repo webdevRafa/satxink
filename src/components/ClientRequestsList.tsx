@@ -92,7 +92,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   }
 
   return (
-    <section className="mx-auto mt-6 max-w-7xl space-y-6">
+    <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <DashboardHeader
           eyebrow="Client inbox"
@@ -321,7 +321,7 @@ const EmptyState = ({ icon, title, description }: { icon: ReactNode; title: stri
 );
 
 const RequestsSkeleton = () => (
-  <section className="mx-auto mt-6 max-w-7xl space-y-6">
+  <section className="mt-6 w-full max-w-7xl space-y-6">
     <div className="h-36 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2].map((item) => (

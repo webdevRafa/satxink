@@ -44,6 +44,9 @@ type BookingRequest = {
   bodyPlacement?: string;
   size?: string;
   budget?: string | number;
+  sourceType?: string;
+  flashTitle?: string;
+  flashPrice?: number | null;
   preferredDateRange?: string[];
   fullUrl?: string;
   thumbUrl?: string;
@@ -341,15 +344,22 @@ const toBooking = (docSnap: SnapshotDocument): Booking => ({
 const createArtistRequestToast = (request: BookingRequest): LiveToast => ({
   id: `request-${request.id}`,
   kind: "request",
-  title: `${request.clientName || "A client"} requested a tattoo`,
+  title:
+    request.sourceType === "flash"
+      ? `${request.clientName || "A client"} requested flash`
+      : `${request.clientName || "A client"} requested a tattoo`,
   message:
     request.description ||
-    "A new tattoo request is ready with placement, size, budget, and availability details.",
+    (request.sourceType === "flash"
+      ? "A new flash request is ready with the listed design, placement, size, and availability details."
+      : "A new tattoo request is ready with placement, size, budget, and availability details."),
   imageUrl: request.clientAvatar || request.thumbUrl || request.fullUrl || null,
   meta: [
     request.bodyPlacement || "Placement open",
     request.size || "Size open",
-    formatBudget(request.budget),
+    request.sourceType === "flash"
+      ? formatMoney(request.flashPrice || 0)
+      : formatBudget(request.budget),
   ],
   actionLabel: "Open requests",
   actionTo: "/dashboard?tab=requests",

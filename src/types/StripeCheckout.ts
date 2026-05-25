@@ -3,6 +3,7 @@ export interface CheckoutRequestData {
   successUrl?: string;
   cancelUrl?: string;
   paymentMode?: "deposit" | "full" | "remaining";
+  sessionPaymentAmountCents?: number;
 
   // Legacy fields are still accepted by older callers, but the function now
   // reads booking/payment details from Firestore before creating Checkout.

@@ -4,6 +4,9 @@ import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
 import type { Flash } from "../types/Flash";
+import CustomSelect from "./ui/CustomSelect";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import { bodyPlacementOptions } from "../utils/tattooOptions";
 
 export type FlashRequestArtist = {
   id: string;
@@ -25,6 +28,12 @@ type FlashRequestModalProps = {
   onClose: () => void;
 };
 
+const flashSizeOptions = [
+  { value: "Small", label: "Small" },
+  { value: "Medium", label: "Medium" },
+  { value: "Large", label: "Large" },
+];
+
 const FlashRequestModal = ({
   artist,
   client,
@@ -39,9 +48,6 @@ const FlashRequestModal = ({
   const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [budget, setBudget] = useState(
-    typeof flash.price === "number" ? String(flash.price) : ""
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -59,9 +65,6 @@ const FlashRequestModal = ({
 
     try {
       setIsSubmitting(true);
-      const numericBudget = Number(budget);
-      const finalBudget =
-        budget.trim() && !Number.isNaN(numericBudget) ? numericBudget : null;
 
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
@@ -72,7 +75,6 @@ const FlashRequestModal = ({
         bodyPlacement,
         size,
         preferredDateRange,
-        budget: finalBudget,
         availableTime,
         availableDays,
         status: "pending",
@@ -100,7 +102,7 @@ const FlashRequestModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
+      <div className="request-modal-scrollbar max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/40">
@@ -173,28 +175,24 @@ const FlashRequestModal = ({
                 <span className="mb-1 block text-sm text-white/70">
                   Body placement
                 </span>
-                <input
-                  required
+                <CustomSelect
                   value={bodyPlacement}
-                  onChange={(event) => setBodyPlacement(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  onChange={setBodyPlacement}
+                  options={bodyPlacementOptions}
                   placeholder="Forearm, thigh, shoulder..."
+                  buttonClassName="rounded-xl"
                 />
               </label>
 
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">Size</span>
-                <select
-                  required
+                <CustomSelect
                   value={size}
-                  onChange={(event) => setSize(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                >
-                  <option value="">Select size</option>
-                  <option value="Small">Small</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Large">Large</option>
-                </select>
+                  onChange={setSize}
+                  options={flashSizeOptions}
+                  placeholder="Select size"
+                  buttonClassName="rounded-xl"
+                />
               </label>
             </div>
 
@@ -233,46 +231,33 @@ const FlashRequestModal = ({
               </label>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">From</span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.from}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      from: event.target.value,
+                      from: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">To</span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.to}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      to: event.target.value,
+                      to: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  Budget
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={budget}
-                  onChange={(event) => setBudget(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                  placeholder="$"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
             </div>
