@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Cropper from "react-easy-crop";
+import Cropper, { type Area } from "react-easy-crop";
 import { Timestamp } from "firebase/firestore";
 
 import {
@@ -27,6 +27,7 @@ import {
   deleteObject,
 } from "firebase/storage";
 import { toast } from "react-hot-toast";
+import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
 
 type Artist = {
   id: string;
@@ -65,7 +66,7 @@ const getCroppedImg = async (
   crop: { x: number; y: number },
   zoom: number,
   aspect: number,
-  cropAreaPixels: any
+  cropAreaPixels: Area
 ): Promise<Blob> => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
@@ -138,7 +139,7 @@ const ArtistDashboard = () => {
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   const navigate = useNavigate();
@@ -612,20 +613,18 @@ const ArtistDashboard = () => {
                       }
                       className="w-1/2 p-2 rounded bg-neutral-800"
                     />
-                    <input
-                      type="time"
-                      step="900"
-                      min="00:00"
-                      max="23:45"
+                    <QuarterHourTimeSelect
                       value={option.time}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setDateOptions((prev) => {
                           const updated = [...prev];
-                          updated[idx].time = e.target.value;
+                          updated[idx].time = value;
                           return updated;
                         })
                       }
-                      className="w-1/2 p-2 rounded bg-neutral-800"
+                      placeholder="Select time"
+                      className="w-1/2"
+                      buttonClassName="bg-neutral-800 py-2"
                     />
                   </div>
                 ))}

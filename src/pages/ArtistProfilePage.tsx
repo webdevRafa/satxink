@@ -41,6 +41,14 @@ import type { Flash } from "../types/Flash";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 import RequestTattooModal from "../components/RequestTattooModal";
+import CustomSelect from "../components/ui/CustomSelect";
+import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
+
+const flashSizeOptions = [
+  { value: "Small", label: "Small" },
+  { value: "Medium", label: "Medium" },
+  { value: "Large", label: "Large" },
+];
 
 interface Artist {
   id: string;
@@ -1898,17 +1906,13 @@ const FlashRequestModal = ({
 
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">Size</span>
-                <select
-                  required
+                <CustomSelect
                   value={size}
-                  onChange={(event) => setSize(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                >
-                  <option value="">Select size</option>
-                  <option value="Small">Small</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Large">Large</option>
-                </select>
+                  onChange={setSize}
+                  options={flashSizeOptions}
+                  placeholder="Select size"
+                  buttonClassName="rounded-xl"
+                />
               </label>
             </div>
 
@@ -1952,30 +1956,30 @@ const FlashRequestModal = ({
                 <span className="mb-1 block text-sm text-white/70">
                   From
                 </span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.from}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      from: event.target.value,
+                      from: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">To</span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.to}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      to: event.target.value,
+                      to: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
             </div>

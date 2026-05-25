@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import toast from "react-hot-toast";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
 
 interface Props {
   isOpen: boolean;
@@ -490,32 +491,32 @@ const RequestTattooModal: React.FC<Props> = ({
                     <span className="mb-1.5 block text-sm font-medium text-white/65">
                       From
                     </span>
-                    <input
-                      type="time"
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <QuarterHourTimeSelect
                       value={availableTime.from}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          from: e.target.value,
+                          from: value,
                         }))
                       }
+                      placeholder="Select time"
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
                   <label className="block">
                     <span className="mb-1.5 block text-sm font-medium text-white/65">
                       To
                     </span>
-                    <input
-                      type="time"
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
+                    <QuarterHourTimeSelect
                       value={availableTime.to}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          to: e.target.value,
+                          to: value,
                         }))
                       }
+                      placeholder="Select time"
+                      buttonClassName="focus:border-[#19d69b]"
                     />
                   </label>
                 </div>

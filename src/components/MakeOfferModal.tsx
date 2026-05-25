@@ -36,6 +36,7 @@ import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
 } from "../utils/paymentFees";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
 
 type BookingRequest = {
   id: string;
@@ -773,23 +774,20 @@ const MakeOfferModal = ({
                         }
                         className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
                       />
-                      <input
-                        type="time"
-                        step="900"
-                        min="00:00"
-                        max="23:45"
+                      <QuarterHourTimeSelect
                         value={option.time}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setDateOptions((prev) => {
                             const updated = [...prev];
                             updated[index] = {
                               ...updated[index],
-                              time: event.target.value,
+                              time: value,
                             };
                             return updated;
                           })
                         }
-                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                        placeholder="Select time"
+                        buttonClassName="h-10 bg-[#101010] py-0 focus:border-[var(--color-primary)]"
                       />
                     </div>
                   ))}

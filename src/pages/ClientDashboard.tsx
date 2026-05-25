@@ -17,6 +17,7 @@ import { serverTimestamp, Timestamp } from "firebase/firestore";
 import { auth } from "../firebase/auth";
 import { toast, Toaster } from "react-hot-toast";
 import { X } from "lucide-react";
+import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
 
 interface Artist {
   id: string;
@@ -640,27 +641,29 @@ export default function ClientDashboard() {
                     Time Range
                   </label>
                   <div className="flex gap-2 mb-4">
-                    <input
-                      type="time"
-                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                    <QuarterHourTimeSelect
                       value={availableTime.from}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          from: e.target.value,
+                          from: value,
                         }))
                       }
+                      placeholder="Select time"
+                      className="w-full"
+                      buttonClassName="bg-neutral-800 py-2"
                     />
-                    <input
-                      type="time"
-                      className="w-full p-2 rounded bg-neutral-800 text-white"
+                    <QuarterHourTimeSelect
                       value={availableTime.to}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setAvailableTime((prev) => ({
                           ...prev,
-                          to: e.target.value,
+                          to: value,
                         }))
                       }
+                      placeholder="Select time"
+                      className="w-full"
+                      buttonClassName="bg-neutral-800 py-2"
                     />
                   </div>
                 </div>

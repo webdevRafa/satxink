@@ -4,6 +4,8 @@ import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
 import type { Flash } from "../types/Flash";
+import CustomSelect from "./ui/CustomSelect";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
 
 export type FlashRequestArtist = {
   id: string;
@@ -24,6 +26,12 @@ type FlashRequestModalProps = {
   flash: Flash;
   onClose: () => void;
 };
+
+const flashSizeOptions = [
+  { value: "Small", label: "Small" },
+  { value: "Medium", label: "Medium" },
+  { value: "Large", label: "Large" },
+];
 
 const FlashRequestModal = ({
   artist,
@@ -177,17 +185,13 @@ const FlashRequestModal = ({
 
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">Size</span>
-                <select
-                  required
+                <CustomSelect
                   value={size}
-                  onChange={(event) => setSize(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                >
-                  <option value="">Select size</option>
-                  <option value="Small">Small</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Large">Large</option>
-                </select>
+                  onChange={setSize}
+                  options={flashSizeOptions}
+                  placeholder="Select size"
+                  buttonClassName="rounded-xl"
+                />
               </label>
             </div>
 
@@ -229,30 +233,30 @@ const FlashRequestModal = ({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">From</span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.from}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      from: event.target.value,
+                      from: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">To</span>
-                <input
-                  type="time"
+                <QuarterHourTimeSelect
                   value={availableTime.to}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     setAvailableTime((prev) => ({
                       ...prev,
-                      to: event.target.value,
+                      to: value,
                     }))
                   }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
+                  placeholder="Select time"
+                  buttonClassName="rounded-xl"
                 />
               </label>
             </div>
