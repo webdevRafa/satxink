@@ -335,7 +335,11 @@ const RequestCard = ({
             />
             <InfoPill
               icon={<DollarSign size={14} />}
-              label={formatBudget(request.budget)}
+              label={
+                request.sourceType === "flash"
+                  ? formatFlashPrice(request.flashPrice)
+                  : formatBudget(request.budget)
+              }
             />
           </div>
         </div>

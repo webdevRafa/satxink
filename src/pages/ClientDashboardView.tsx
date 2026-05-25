@@ -148,6 +148,13 @@ type ClientDashboardBooking = Booking & {
   artistAvatar?: string;
 };
 
+type RequestArtist = {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  studioName?: string;
+};
+
 const activeViewLabels: Record<ClientView, string> = {
   profile: "Profile",
   liked: "Liked artists",
@@ -187,7 +194,7 @@ const ClientDashboardView = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedArtist, setSelectedArtist] = useState<any>(null);
+  const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(null);
   const [selectedSession, setSelectedSession] = useState<ClientDashboardBooking | null>(null);
   const [activeView, setActiveView] = useState<ClientView>(() =>
     getClientDashboardView(searchParams.get("tab"))
@@ -492,7 +499,58 @@ const ClientDashboardView = () => {
   };
 
   const handleConfirmExternalPayment = async (booking: ClientDashboardBooking) => {
+    const artistAlreadyConfirmed =
+      booking.remainingPaymentStatus === "artist_confirmed";
+
+    if (!artistAlreadyConfirmed) {
+      try {
+        await setDoc(
+          doc(db, "bookingSessions", booking.id),
+          {
+            bookingId: booking.id,
+            artistId: booking.artistId,
+            clientId: booking.clientId,
+            remainingPaymentStatus: "client_confirmed",
+            clientConfirmedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await updateDoc(doc(db, "bookings", booking.id), {
+          remainingPaymentStatus: "client_confirmed",
+          externalRemainingClientConfirmedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        toast.success("Payment confirmation sent to the artist.");
+        setSelectedSession(null);
+      } catch (error) {
+        console.error("External payment confirmation failed:", error);
+        toast.error("Could not confirm the payment.");
+      }
+      return;
+    }
+
     const remainingAmount = getRemainingBalance(booking);
+    const sessionInstallment = getClientSessionInstallmentAmount(booking);
+    const isMultiSession = isClientMultiSessionBooking(booking);
+    const amountToConfirm = isMultiSession
+      ? Math.min(sessionInstallment, remainingAmount)
+      : remainingAmount;
+    const currentPaid = Number(
+      booking.totalArtistPaidAmount ||
+        booking.depositPaidAmount ||
+        booking.depositAmount ||
+        0
+    );
+    const nextPaid = Math.min(Number(booking.price || 0), currentPaid + amountToConfirm);
+    const nextRemaining = Math.max(Number(booking.price || 0) - nextPaid, 0);
+    const sessionNumber = Math.max(
+      Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
+      1
+    );
+    const sessionCount = Math.max(Number(booking.estimatedSessionCount || 1), 1);
+    const hasMoreSessions =
+      isMultiSession && sessionNumber < sessionCount && nextRemaining > 0;
 
     try {
       await setDoc(
@@ -502,23 +560,39 @@ const ClientDashboardView = () => {
           artistId: booking.artistId,
           clientId: booking.clientId,
           remainingPaymentStatus: "confirmed",
+          sessionNumber,
+          paidAmount: amountToConfirm,
+          paidAmountCents: Math.round(amountToConfirm * 100),
           clientConfirmedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
       await updateDoc(doc(db, "bookings", booking.id), {
-        status: "paid",
-        remainingPaymentStatus: "confirmed",
+        status: nextRemaining > 0 ? "deposit_paid" : "paid",
+        remainingPaymentStatus: nextRemaining > 0 ? "due" : "confirmed",
         externalRemainingClientConfirmedAt: serverTimestamp(),
-        remainingPaidAt: serverTimestamp(),
-        paidAt: serverTimestamp(),
-        remainingPaidAmount: remainingAmount,
-        remainingPaidAmountCents: Math.round(remainingAmount * 100),
-        totalArtistPaidAmount: Number(booking.price || 0),
-        totalArtistPaidCents: Math.round(Number(booking.price || 0) * 100),
-        remainingBalanceAmount: 0,
-        remainingBalanceCents: 0,
+        remainingPaidAt:
+          nextRemaining > 0 ? booking.remainingPaidAt ?? null : serverTimestamp(),
+        paidAt: nextRemaining > 0 ? booking.paidAt ?? null : serverTimestamp(),
+        remainingPaidAmount:
+          Number(booking.remainingPaidAmount || 0) + amountToConfirm,
+        remainingPaidAmountCents:
+          Number(booking.remainingPaidAmountCents || 0) +
+          Math.round(amountToConfirm * 100),
+        totalArtistPaidAmount: nextPaid,
+        totalArtistPaidCents: Math.round(nextPaid * 100),
+        remainingBalanceAmount: nextRemaining,
+        remainingBalanceCents: Math.round(nextRemaining * 100),
+        sessionStatus: hasMoreSessions
+          ? "awaiting_next_session"
+          : booking.sessionStatus,
+        activeSessionNumber:
+          hasMoreSessions ? sessionNumber + 1 : sessionNumber,
+        pendingSessionPaymentAmount: 0,
+        pendingSessionPaymentAmountCents: 0,
+        pendingSessionNumber: null,
+        lastPaidSessionNumber: sessionNumber,
         updatedAt: serverTimestamp(),
       });
       toast.success("External payment confirmed.");
@@ -1300,8 +1374,12 @@ const ClientSessionsTable = ({
               const sessionStatus = booking.sessionStatus || "in_progress";
               const remainingPaymentStatus = booking.remainingPaymentStatus || "due";
               const canConfirm =
-                remainingPaymentStatus === "artist_confirmed" &&
-                booking.remainingPaymentMethod === "external";
+                booking.remainingPaymentMethod === "external" &&
+                booking.status === "deposit_paid" &&
+                ["due", "artist_confirmed"].includes(remainingPaymentStatus);
+              const alreadyConfirmed =
+                remainingPaymentStatus === "client_confirmed" ||
+                remainingPaymentStatus === "confirmed";
 
               return (
                 <div
@@ -1364,11 +1442,14 @@ const ClientSessionsTable = ({
                       className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <DollarSign size={14} />
-                      Confirm
+                      {alreadyConfirmed ? "Confirmed" : "Confirm"}
                     </button>
                     <button
                       type="button"
-                      disabled={!canConfirm}
+                      disabled={
+                        booking.remainingPaymentMethod !== "external" ||
+                        remainingPaymentStatus === "confirmed"
+                      }
                       onClick={() => onDisputeExternalPayment(booking)}
                       className="inline-flex min-w-20 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                     >
@@ -1409,7 +1490,12 @@ const ClientSessionRecordDialog = ({
   const remainingBalance = booking ? getRemainingBalance(booking) : 0;
   const showExternalConfirmation =
     booking?.remainingPaymentMethod === "external" &&
-    booking.remainingPaymentStatus === "artist_confirmed";
+    booking.status === "deposit_paid" &&
+    ["due", "artist_confirmed", "client_confirmed"].includes(
+      booking.remainingPaymentStatus || "due"
+    );
+  const clientAlreadyConfirmed =
+    booking?.remainingPaymentStatus === "client_confirmed";
   const showStripeBalance =
     booking?.paymentType === "internal" &&
     booking.remainingPaymentMethod !== "external" &&
@@ -1533,8 +1619,9 @@ const ClientSessionRecordDialog = ({
                               </p>
                               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                                 Your artist controls session start and completion.
-                                You can confirm the direct remaining balance when
-                                the artist marks it paid.
+                                If you pay directly at the shop, you can confirm
+                                that payment here before or after the artist
+                                confirms it.
                               </p>
                             </div>
                             <RemainingPaymentBadge
@@ -1547,11 +1634,14 @@ const ClientSessionRecordDialog = ({
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                               <button
                                 type="button"
+                                disabled={clientAlreadyConfirmed}
                                 onClick={() => onConfirmExternalPayment(booking)}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 <Check size={16} />
-                                Confirm paid
+                                {clientAlreadyConfirmed
+                                  ? "Confirmed"
+                                  : "Confirm paid"}
                               </button>
                               <button
                                 type="button"
@@ -1570,7 +1660,11 @@ const ClientSessionRecordDialog = ({
                               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                             >
                               <CreditCard size={16} />
-                              Pay remaining balance
+                              {isClientMultiSessionBooking(booking)
+                                ? `Pay ${getSessionOrdinal(
+                                    getPayableSessionNumber(booking)
+                                  )} session balance`
+                                : "Pay remaining balance"}
                             </button>
                           )}
                         </div>
@@ -1792,6 +1886,44 @@ const getRemainingBalance = (booking: Partial<Booking>) =>
           Number(booking.totalArtistPaidAmount || booking.depositAmount || 0),
         0
       );
+
+const isClientMultiSessionBooking = (booking: Partial<Booking>) =>
+  booking.projectType === "multi_session" ||
+  Number(booking.estimatedSessionCount || 1) > 1;
+
+const getClientSessionInstallmentAmount = (booking: Partial<Booking>) => {
+  const remaining = getRemainingBalance(booking);
+  const pending = Number(booking.pendingSessionPaymentAmount || 0);
+  if (pending > 0) return Math.min(pending, remaining);
+
+  const sessionsLeft = Math.max(
+    Number(booking.estimatedSessionCount || 1) -
+      Number(booking.completedSessionCount || 0),
+    1
+  );
+  return Math.ceil(remaining / sessionsLeft);
+};
+
+const getPayableSessionNumber = (booking: Partial<Booking>) =>
+  Math.max(
+    Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
+    1
+  );
+
+const getSessionOrdinal = (sessionNumber: number) => {
+  const remainder = sessionNumber % 100;
+  if (remainder >= 11 && remainder <= 13) return `${sessionNumber}th`;
+  switch (sessionNumber % 10) {
+    case 1:
+      return `${sessionNumber}st`;
+    case 2:
+      return `${sessionNumber}nd`;
+    case 3:
+      return `${sessionNumber}rd`;
+    default:
+      return `${sessionNumber}th`;
+  }
+};
 
 const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unknown>) =>
   booking.sessionStatus === "in_progress" || booking.sessionStatus === "completed";

@@ -287,6 +287,8 @@ const ArtistDashboardView = () => {
     useState<DashboardBookingRequest | null>(null);
   const [selectedBookingRecord, setSelectedBookingRecord] =
     useState<DashboardBooking | null>(null);
+  const [bookingToStart, setBookingToStart] =
+    useState<DashboardBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
@@ -529,7 +531,6 @@ const ArtistDashboardView = () => {
     const displayName = profileForm.displayName.trim();
     const email = profileForm.email.trim();
     const bio = profileForm.bio.trim();
-    const depositAmount = Number(profileForm.depositPolicy.amount || 0);
     const nextSlug = slugify(displayName, { lower: true, strict: true });
 
     if (!displayName) {
@@ -558,11 +559,6 @@ const ArtistDashboardView = () => {
       !isValidOptionalUrl(profileForm.socialLinks.website)
     ) {
       toast.error("One or more links are not valid URLs.");
-      return;
-    }
-
-    if (Number.isNaN(depositAmount) || depositAmount < 0) {
-      toast.error("Deposit amount must be zero or greater.");
       return;
     }
 
@@ -604,7 +600,7 @@ const ArtistDashboardView = () => {
             }
           : null,
       depositPolicy: {
-        amount: depositAmount,
+        amount: 0,
         depositRequired: profileForm.depositPolicy.depositRequired,
         nonRefundable: profileForm.depositPolicy.nonRefundable,
       },
@@ -1037,20 +1033,38 @@ const ArtistDashboardView = () => {
       { sessionStatus: "in_progress", sessionStartedAt: serverTimestamp() }
     );
 
-  const handleBalancePaidFromRow = (booking: DashboardBooking) =>
-    updateSessionRecord(
+  const handleConfirmStartSession = async () => {
+    if (!bookingToStart) return;
+    await handleStartSessionFromRow(bookingToStart);
+    setBookingToStart(null);
+    setActiveTab("sessions");
+  };
+
+  const handleBalancePaidFromRow = (booking: DashboardBooking) => {
+    const amountPaid = getDashboardSessionInstallmentAmount(booking);
+    const completion =
+      booking.remainingPaymentStatus === "client_confirmed"
+        ? buildExternalPaymentCompletionUpdates(booking, amountPaid)
+        : null;
+
+    return updateSessionRecord(
       booking,
-      {
+      completion?.sessionUpdate || {
         remainingPaymentStatus: "artist_confirmed",
         artistConfirmedAt: serverTimestamp(),
         sessionNumber: getActiveSessionNumber(booking),
-        pendingPaymentAmount: getDashboardSessionInstallmentAmount(booking),
+        pendingPaymentAmount: amountPaid,
+        pendingPaymentAmountCents: Math.round(amountPaid * 100),
       },
-      {
+      completion?.bookingUpdate || {
         remainingPaymentStatus: "artist_confirmed",
+        pendingSessionPaymentAmount: amountPaid,
+        pendingSessionPaymentAmountCents: Math.round(amountPaid * 100),
+        pendingSessionNumber: getActiveSessionNumber(booking),
         externalRemainingArtistConfirmedAt: serverTimestamp(),
       }
     );
+  };
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -1400,27 +1414,6 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Default deposit amount
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={profileForm.depositPolicy.amount}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            depositPolicy: {
-                              ...current.depositPolicy,
-                              amount: event.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="0"
-                      />
-                    </label>
                   </div>
 
                   {profileForm.paymentType === "external" && (
@@ -1685,14 +1678,6 @@ const ArtistDashboardView = () => {
                         : "External"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Deposit</span>
-                    <span className="text-white">
-                      {profileForm.depositPolicy.depositRequired
-                        ? `$${profileForm.depositPolicy.amount || "0"}`
-                        : "Not required"}
-                    </span>
-                  </div>
                 </div>
               </aside>
             </div>
@@ -1888,6 +1873,13 @@ const ArtistDashboardView = () => {
                           : booking.status === "pending_payment"
                           ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
                           : "border-red-300/25 bg-red-300/10 text-red-100";
+                      const canStartSession =
+                        activeTab === "confirmed" &&
+                        booking.status !== "pending_payment" &&
+                        !isActiveSessionBooking(booking) &&
+                        ["not_started", "awaiting_next_session", undefined].includes(
+                          booking.sessionStatus
+                        );
 
                       return (
                         <article
@@ -1978,6 +1970,17 @@ const ArtistDashboardView = () => {
                           </div>
 
                           <div className="border-t border-white/10 p-4">
+                            <div className={canStartSession ? "grid gap-3 sm:grid-cols-2" : ""}>
+                            {canStartSession && (
+                              <button
+                                type="button"
+                                onClick={() => setBookingToStart(booking)}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+                              >
+                                <CalendarDays size={16} />
+                                Start session
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setSelectedBookingRecord(booking)}
@@ -1986,6 +1989,7 @@ const ArtistDashboardView = () => {
                               <Eye size={16} />
                               Booking record
                             </button>
+                            </div>
                           </div>
                         </article>
                       );
@@ -2054,6 +2058,11 @@ const ArtistDashboardView = () => {
             setSelectedBookingRecord(null);
             setActiveTab("sessions");
           }}
+        />
+        <ConfirmStartSessionDialog
+          booking={bookingToStart}
+          onClose={() => setBookingToStart(null)}
+          onConfirm={handleConfirmStartSession}
         />
       </main>
     </div>
@@ -2330,6 +2339,99 @@ const ProjectsTable = ({
   </div>
 );
 
+const ConfirmStartSessionDialog = ({
+  booking,
+  onClose,
+  onConfirm,
+}: {
+  booking: DashboardBooking | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) => (
+  <Transition appear show={!!booking} as={Fragment}>
+    <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-200"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="ease-in duration-150"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+      >
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+      </Transition.Child>
+
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-200"
+          enterFrom="scale-95 opacity-0"
+          enterTo="scale-100 opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="scale-100 opacity-100"
+          leaveTo="scale-95 opacity-0"
+        >
+          <Dialog.Panel className="w-full max-w-md rounded-lg border border-white/10 bg-[#111111] p-5 text-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Confirm session start
+                </p>
+                <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                  Start this appointment?
+                </Dialog.Title>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                aria-label="Cancel start session"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {booking && (
+              <div className="mt-5 rounded-md border border-white/10 bg-black/25 p-4">
+                <p className="font-semibold text-white">
+                  {getDashboardClientName(booking)}
+                </p>
+                <p className="mt-1 text-sm text-neutral-400">
+                  {formatBookingAppointment(booking.selectedDate)}
+                </p>
+              </div>
+            )}
+
+            <p className="mt-4 text-sm leading-6 text-neutral-400">
+              This moves the booking into Active Sessions so you can complete
+              the session record, add photos, and manage any remaining balance.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-4! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+              >
+                <CalendarDays size={16} />
+                Start session
+              </button>
+            </div>
+          </Dialog.Panel>
+        </Transition.Child>
+      </div>
+    </Dialog>
+  </Transition>
+);
+
 const BookingRecordDialog = ({
   booking,
   onClose,
@@ -2487,15 +2589,20 @@ const BookingRecordDialog = ({
       return;
     }
 
+    const completion =
+      booking && remainingPaymentStatus === "client_confirmed"
+        ? buildExternalPaymentCompletionUpdates(booking, amountPaid)
+        : null;
+
     const updated = await upsertSessionRecord(
-      {
+      completion?.sessionUpdate || {
         remainingPaymentStatus: "artist_confirmed",
         sessionNumber: activeSessionNumber,
         pendingPaymentAmount: amountPaid,
         pendingPaymentAmountCents: Math.round(amountPaid * 100),
         artistConfirmedAt: serverTimestamp(),
       },
-      {
+      completion?.bookingUpdate || {
         remainingPaymentStatus: "artist_confirmed",
         pendingSessionPaymentAmount: amountPaid,
         pendingSessionPaymentAmountCents: Math.round(amountPaid * 100),
@@ -2503,7 +2610,13 @@ const BookingRecordDialog = ({
         externalRemainingArtistConfirmedAt: serverTimestamp(),
       }
     );
-    if (updated) setRemainingPaymentStatus("artist_confirmed");
+    if (updated) {
+      setRemainingPaymentStatus(
+        (completion?.bookingUpdate
+          .remainingPaymentStatus as Booking["remainingPaymentStatus"]) ||
+          "artist_confirmed"
+      );
+    }
   };
 
   const handleSessionPhotoUpload = async (
@@ -2648,7 +2761,7 @@ const BookingRecordDialog = ({
                           />
                           <BookingDetailTile
                             icon={<DollarSign size={17} />}
-                            label="Artist paid"
+                            label="You were paid"
                             value={formatDashboardMoney(booking.totalArtistPaidAmount)}
                           />
                           <BookingDetailTile
@@ -3018,6 +3131,63 @@ const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
     1
   );
   return Math.ceil(remaining / sessionsLeft);
+};
+
+const buildExternalPaymentCompletionUpdates = (
+  booking: Partial<Booking>,
+  amountPaid: number
+) => {
+  const price = Number(booking.price || 0);
+  const currentPaid = Number(
+    booking.totalArtistPaidAmount ||
+      booking.depositPaidAmount ||
+      booking.depositAmount ||
+      0
+  );
+  const sessionNumber = Math.max(
+    Number(booking.pendingSessionNumber || getActiveSessionNumber(booking)),
+    1
+  );
+  const sessionCount = getEstimatedSessionCount(booking);
+  const nextPaid = Math.min(price, currentPaid + amountPaid);
+  const nextRemaining = Math.max(price - nextPaid, 0);
+  const hasMoreSessions =
+    isDashboardMultiSessionBooking(booking) &&
+    sessionNumber < sessionCount &&
+    nextRemaining > 0;
+
+  return {
+    sessionUpdate: {
+      remainingPaymentStatus: "confirmed",
+      sessionNumber,
+      paidAmount: amountPaid,
+      paidAmountCents: Math.round(amountPaid * 100),
+      artistConfirmedAt: serverTimestamp(),
+    },
+    bookingUpdate: {
+      status: nextRemaining > 0 ? "deposit_paid" : "paid",
+      remainingPaymentStatus: nextRemaining > 0 ? "due" : "confirmed",
+      externalRemainingArtistConfirmedAt: serverTimestamp(),
+      remainingPaidAt:
+        nextRemaining > 0 ? booking.remainingPaidAt ?? null : serverTimestamp(),
+      paidAt: nextRemaining > 0 ? booking.paidAt ?? null : serverTimestamp(),
+      remainingPaidAmount:
+        Number(booking.remainingPaidAmount || 0) + amountPaid,
+      remainingPaidAmountCents:
+        Number(booking.remainingPaidAmountCents || 0) +
+        Math.round(amountPaid * 100),
+      totalArtistPaidAmount: nextPaid,
+      totalArtistPaidCents: Math.round(nextPaid * 100),
+      remainingBalanceAmount: nextRemaining,
+      remainingBalanceCents: Math.round(nextRemaining * 100),
+      sessionStatus: hasMoreSessions ? "awaiting_next_session" : "completed",
+      activeSessionNumber: hasMoreSessions ? sessionNumber + 1 : sessionNumber,
+      pendingSessionPaymentAmount: 0,
+      pendingSessionPaymentAmountCents: 0,
+      pendingSessionNumber: null,
+      lastPaidSessionNumber: sessionNumber,
+    },
+  };
 };
 
 const formatDashboardDate = (value?: Booking["createdAt"]) => {

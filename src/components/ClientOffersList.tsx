@@ -295,8 +295,8 @@ const OfferCard = ({ offer, onOpen }: { offer: DashboardOffer; onOpen: () => voi
         </div>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-2">
-            <InfoPill icon={<DollarSign size={14} />} label={`$${offer.price}`} />
-            <InfoPill icon={<ReceiptText size={14} />} label={formatDeposit(offer)} />
+            <InfoPill icon={<DollarSign size={14} />} label={`Total $${offer.price}`} />
+            <InfoPill icon={<ReceiptText size={14} />} label={`Deposit ${formatDeposit(offer)}`} />
             <InfoPill icon={<CalendarDays size={14} />} label={firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date"} />
             <InfoPill
               icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}

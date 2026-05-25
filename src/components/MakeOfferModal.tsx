@@ -131,7 +131,6 @@ const MakeOfferModal = ({
     () => dateOptions.filter((option) => option.date && option.time),
     [dateOptions]
   );
-  const artistDefaultDeposit = Number(artist?.depositPolicy?.amount || 0);
   const remainingArtistBalance = Math.max(
     effectiveOfferPrice - Number(depositAmount || 0),
     0
@@ -151,12 +150,6 @@ const MakeOfferModal = ({
       }),
     [depositAmount, effectiveOfferPrice]
   );
-
-  useEffect(() => {
-    if (isOpen && artistDefaultDeposit > 0 && depositAmount === 0) {
-      setDepositAmount(artistDefaultDeposit);
-    }
-  }, [artistDefaultDeposit, depositAmount, isOpen, setDepositAmount]);
 
   useEffect(() => {
     if (!isOpen || !selectedRequest) return;
@@ -379,7 +372,7 @@ const MakeOfferModal = ({
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-              {isFlashRequest ? "Flash offer" : "Artist offer"}
+              {isFlashRequest ? "Your flash offer" : "Your offer"}
             </p>
             <h2 className="mt-1 text-xl! font-semibold! text-white">
               {isFlashRequest
@@ -519,8 +512,6 @@ const MakeOfferModal = ({
                       The client pays the deposit plus SATX Ink and Stripe fees
                       today, so your deposit amount is protected. Any remaining
                       artist balance is handled by the payment choice below.
-                      {isFlashRequest &&
-                        " Flash offers stay single-session and use the price already listed for the flash item."}
                     </p>
                   </div>
                 </div>
@@ -542,7 +533,7 @@ const MakeOfferModal = ({
                     </div>
                     <div className="grid gap-2 text-sm sm:grid-cols-2">
                       <PreviewRow
-                        label="Artist receives"
+                        label="You receive"
                         value={formatMoneyFromCents(paymentPreview.artistAmountCents)}
                       />
                       <PreviewRow
@@ -591,6 +582,15 @@ const MakeOfferModal = ({
                         </span>
                       </span>
                     </label>
+                    {canAllowExternalRemainingPayment && (
+                      <p className="mt-3 rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-neutral-400">
+                        If this is off, the client pays the remaining balance
+                        later through Stripe and the payout goes to your Stripe
+                        Connect account. If this is on, the client can choose to
+                        settle the remaining balance directly with you at the
+                        shop.
+                      </p>
+                    )}
                     {!canAllowExternalRemainingPayment && (
                       <p className="mt-3 text-xs leading-5 text-neutral-500">
                         Available once Stripe payments are enabled and the

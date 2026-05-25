@@ -193,6 +193,9 @@ const PaymentPage = () => {
     booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
   const isMultiSession = isMultiSessionBooking(booking);
   const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
+  const sessionPaymentLabel = isMultiSession
+    ? `${getSessionOrdinal(getPayableSessionNumber(booking))} session`
+    : "";
   const customSessionPaymentAmount =
     isMultiSession && paymentMode === "remaining"
       ? Math.min(
@@ -315,7 +318,7 @@ const PaymentPage = () => {
                     ? usesExternalRemaining
                       ? "Balance due at the shop"
                       : isMultiSession
-                      ? "Pay next session"
+                      ? `Pay ${sessionPaymentLabel}`
                       : "Pay remaining balance"
                     : "Choose how much to pay today"}
                 </h2>
@@ -324,7 +327,7 @@ const PaymentPage = () => {
                     ? usesExternalRemaining
                       ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist after the session."
                       : isMultiSession
-                      ? "Your appointment is confirmed. This checkout applies the next session installment toward the project balance."
+                      ? `Your appointment is confirmed. This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
                       : "Your appointment is confirmed. This payment clears the remaining artist balance."
                     : "Your artist receives the quoted amount for the option you choose. Service and card fees are shown below."}
                 </p>
@@ -604,7 +607,7 @@ const PaymentPage = () => {
                 ? usesExternalRemaining
                   ? "Return to dashboard"
                   : isMultiSession
-                  ? "Pay session installment"
+                  ? `Pay ${sessionPaymentLabel} installment`
                   : "Pay remaining balance"
                 : paymentMode === "full"
                 ? "Pay in full"
@@ -713,6 +716,27 @@ const getRemainingBalance = (booking: Booking) => {
 const isMultiSessionBooking = (booking: Booking) =>
   booking.projectType === "multi_session" ||
   Number(booking.estimatedSessionCount || 1) > 1;
+
+const getPayableSessionNumber = (booking: Booking) =>
+  Math.max(
+    Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
+    1
+  );
+
+const getSessionOrdinal = (sessionNumber: number) => {
+  const remainder = sessionNumber % 100;
+  if (remainder >= 11 && remainder <= 13) return `${sessionNumber}th`;
+  switch (sessionNumber % 10) {
+    case 1:
+      return `${sessionNumber}st`;
+    case 2:
+      return `${sessionNumber}nd`;
+    case 3:
+      return `${sessionNumber}rd`;
+    default:
+      return `${sessionNumber}th`;
+  }
+};
 
 const getSessionInstallmentAmount = (booking: Booking) => {
   const remaining = getRemainingBalance(booking);

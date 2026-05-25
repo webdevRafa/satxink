@@ -62,7 +62,7 @@ const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
 const stepDescriptions = [
   "Connect your profile to the studio clients should see on your public profile.",
   "Choose the styles that best describe your work and add your social channels.",
-  "Set how clients should pay deposits and appointment balances.",
+  "Set how clients should pay appointment balances.",
   "Choose the public name and bio clients will remember.",
 ];
 
@@ -88,9 +88,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [instagram, setInstagram] = useState<string>("");
   const [facebook, setFacebook] = useState<string>("");
-  const [defaultDepositAmount, setDefaultDepositAmount] =
-    useState<string>("100");
-
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -256,16 +253,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
     const sanitizedInstagram = sanitizeUrl(instagram);
     const sanitizedFacebook = sanitizeUrl(facebook);
-    const depositAmount = Number(defaultDepositAmount || 0);
-
     if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
       toast.error("One or more of your social links are not valid URLs.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (Number.isNaN(depositAmount) || depositAmount < 0) {
-      toast.error("Default deposit must be zero or greater.");
       setSubmitting(false);
       return;
     }
@@ -313,7 +302,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           createdAt: serverTimestamp(),
           paymentType,
           depositPolicy: {
-            amount: depositAmount,
+            amount: 0,
             depositRequired: true,
             nonRefundable: true,
           },
@@ -334,9 +323,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       });
 
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Artist profile submission failed:", err);
-      toast.error(err.message || "Something went wrong. Please try again.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -668,25 +661,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         </div>
                       )}
 
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          Default deposit amount
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={defaultDepositAmount}
-                          onChange={(e) =>
-                            setDefaultDepositAmount(e.target.value)
-                          }
-                          placeholder="100"
-                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        />
-                        <span className="block text-xs text-neutral-500">
-                          This is your default client deposit for new offers,
-                          not a signup charge.
-                        </span>
-                      </label>
                     </div>
                   )}
 
@@ -897,12 +871,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         : paymentType === "external"
                         ? "External"
                         : "Not selected"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Default deposit</span>
-                    <span className="text-white">
-                      ${defaultDepositAmount || "0"}
                     </span>
                   </div>
                 </div>

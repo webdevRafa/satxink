@@ -39,9 +39,6 @@ const FlashRequestModal = ({
   const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [budget, setBudget] = useState(
-    typeof flash.price === "number" ? String(flash.price) : ""
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -59,9 +56,6 @@ const FlashRequestModal = ({
 
     try {
       setIsSubmitting(true);
-      const numericBudget = Number(budget);
-      const finalBudget =
-        budget.trim() && !Number.isNaN(numericBudget) ? numericBudget : null;
 
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
@@ -72,7 +66,6 @@ const FlashRequestModal = ({
         bodyPlacement,
         size,
         preferredDateRange,
-        budget: finalBudget,
         availableTime,
         availableDays,
         status: "pending",
@@ -233,7 +226,7 @@ const FlashRequestModal = ({
               </label>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-sm text-white/70">From</span>
                 <input
@@ -260,19 +253,6 @@ const FlashRequestModal = ({
                     }))
                   }
                   className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  Budget
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={budget}
-                  onChange={(event) => setBudget(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                  placeholder="$"
                 />
               </label>
             </div>
