@@ -779,10 +779,46 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         Number(booking.estimatedSessionCount || 1) > 1)
         ? Number(data.sessionPaymentAmountCents || 0) > 0
           ? Number(data.sessionPaymentAmountCents)
-          : dollarsToCents(booking.pendingSessionPaymentAmount || 0) > 0
-          ? dollarsToCents(booking.pendingSessionPaymentAmount)
-          : dollarsToCents(booking.estimatedSessionPrice || 0)
+          : dollarsToCents(booking.pendingSessionPaymentAmount || 0)
         : 0;
+    const minimumSessionPaymentCents =
+      paymentMode === "remaining" &&
+      (booking.projectType === "multi_session" ||
+        Number(booking.estimatedSessionCount || 1) > 1)
+        ? Math.max(
+            dollarsToCents(booking.pendingSessionPaymentAmount || 0),
+            Math.ceil(
+              Math.max(priceCents - totalArtistPaidCents, 0) /
+                Math.max(
+                  Number(booking.estimatedSessionCount || 1) -
+                    Number(booking.completedSessionCount || 0),
+                  1
+                )
+            )
+          )
+        : 0;
+
+    if (
+      requestedSessionPaymentCents > 0 &&
+      requestedSessionPaymentCents < minimumSessionPaymentCents
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Session payment cannot be below the minimum amount due."
+      );
+    }
+
+    if (
+      paymentMode === "remaining" &&
+      (booking.projectType === "multi_session" ||
+        Number(booking.estimatedSessionCount || 1) > 1) &&
+      dollarsToCents(booking.pendingSessionPaymentAmount || 0) <= 0
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The next session payment is not ready yet."
+      );
+    }
 
     const artistAmountCents =
       paymentMode === "full"

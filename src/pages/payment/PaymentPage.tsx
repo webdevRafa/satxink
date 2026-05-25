@@ -30,6 +30,7 @@ const PaymentPage = () => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("deposit");
+  const [sessionPaymentAmount, setSessionPaymentAmount] = useState("");
 
   useEffect(() => {
     if (!bookingId) return;
@@ -69,7 +70,14 @@ const PaymentPage = () => {
         ? "full"
         : "deposit"
     );
-  }, [booking?.id, booking?.status]);
+    if (
+      booking.status === "deposit_paid" &&
+      booking.remainingPaymentMethod !== "external" &&
+      isMultiSessionBooking(booking)
+    ) {
+      setSessionPaymentAmount(String(getSessionInstallmentAmount(booking)));
+    }
+  }, [booking]);
 
   const handleCheckout = async () => {
     if (!booking) return;
@@ -92,7 +100,40 @@ const PaymentPage = () => {
       return;
     }
 
+    if (
+      booking.status === "deposit_paid" &&
+      isMultiSessionBooking(booking) &&
+      Number(booking.pendingSessionPaymentAmount || 0) <= 0
+    ) {
+      toast.error("The next session payment is not ready yet.");
+      navigate("/dashboard");
+      return;
+    }
+
     try {
+      const sessionMinimum =
+        paymentMode === "remaining" && isMultiSessionBooking(booking)
+          ? getSessionInstallmentAmount(booking)
+          : 0;
+      const sessionAmount =
+        paymentMode === "remaining" && isMultiSessionBooking(booking)
+          ? Number(sessionPaymentAmount || 0)
+          : 0;
+
+      if (sessionMinimum > 0 && sessionAmount < sessionMinimum) {
+        toast.error(
+          `Enter at least ${formatMoneyFromCents(
+            Math.round(sessionMinimum * 100)
+          )} for this session.`
+        );
+        return;
+      }
+
+      if (sessionAmount > getRemainingBalance(booking)) {
+        toast.error("Payment cannot exceed the remaining project balance.");
+        return;
+      }
+
       setIsStartingCheckout(true);
       toast.loading("Redirecting to Stripe...");
 
@@ -102,7 +143,7 @@ const PaymentPage = () => {
         paymentMode,
         sessionPaymentAmountCents:
           paymentMode === "remaining" && isMultiSessionBooking(booking)
-            ? Math.round(getSessionInstallmentAmount(booking) * 100)
+            ? Math.round(sessionAmount * 100)
             : undefined,
         successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
         cancelUrl: `${window.location.origin}/payment/${booking.id}`,
@@ -152,6 +193,13 @@ const PaymentPage = () => {
     booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
   const isMultiSession = isMultiSessionBooking(booking);
   const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
+  const customSessionPaymentAmount =
+    isMultiSession && paymentMode === "remaining"
+      ? Math.min(
+          Math.max(Number(sessionPaymentAmount || sessionInstallmentAmount), 0),
+          getRemainingBalance(booking)
+        )
+      : sessionInstallmentAmount;
   const externalBalanceDue =
     usesExternalRemaining && booking.status === "deposit_paid";
   const artistAmountDue =
@@ -161,7 +209,7 @@ const PaymentPage = () => {
       ? price
       : paymentMode === "remaining"
       ? isMultiSession
-        ? sessionInstallmentAmount
+        ? customSessionPaymentAmount
         : Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
       : deposit;
   const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
@@ -333,6 +381,41 @@ const PaymentPage = () => {
                   )}
                 </div>
               )}
+
+              {booking.status === "deposit_paid" &&
+                isMultiSession &&
+                !usesExternalRemaining && (
+                  <label className="mt-4 block space-y-2 rounded-lg border border-white/10 bg-black/25 p-4">
+                    <span className="text-sm font-semibold text-white">
+                      Session payment amount
+                    </span>
+                    <div className="relative">
+                      <DollarSign
+                        size={16}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                      />
+                      <input
+                        type="number"
+                        min={sessionInstallmentAmount}
+                        max={getRemainingBalance(booking)}
+                        step="1"
+                        value={sessionPaymentAmount}
+                        onChange={(event) =>
+                          setSessionPaymentAmount(event.target.value)
+                        }
+                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-emerald-300/70"
+                      />
+                    </div>
+                    <p className="text-xs leading-5 text-neutral-400">
+                      Minimum due for this session is{" "}
+                      {formatMoneyFromCents(
+                        Math.round(sessionInstallmentAmount * 100)
+                      )}
+                      . You can pay more to get ahead; the remaining balance
+                      will be recalculated across the sessions left.
+                    </p>
+                  </label>
+                )}
 
               {paymentMode === "deposit" && remainingAfterPayment > 0 && !usesExternalRemaining && (
                 <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
@@ -635,9 +718,6 @@ const getSessionInstallmentAmount = (booking: Booking) => {
   const remaining = getRemainingBalance(booking);
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
   if (pending > 0) return Math.min(pending, remaining);
-
-  const estimate = Number(booking.estimatedSessionPrice || 0);
-  if (estimate > 0) return Math.min(estimate, remaining);
 
   const sessionsLeft = Math.max(
     Number(booking.estimatedSessionCount || 1) -

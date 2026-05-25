@@ -91,6 +91,7 @@ type ArtistDashboardTab =
   | "offers"
   | "bookings"
   | "sessions"
+  | "projects"
   | "pending"
   | "confirmed"
   | "paid"
@@ -193,6 +194,7 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "offers",
     "bookings",
     "sessions",
+    "projects",
     "pending",
     "confirmed",
     "paid",
@@ -213,6 +215,7 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "offers",
     "bookings",
     "sessions",
+    "projects",
     "pending",
     "confirmed",
     "paid",
@@ -270,6 +273,7 @@ const ArtistDashboardView = () => {
     offers: 0,
     bookings: 0,
     sessions: 0,
+    projects: 0,
     pending: 0,
     confirmed: 0,
     paid: 0,
@@ -663,6 +667,7 @@ const ArtistDashboardView = () => {
       paid: 0,
       cancelled: 0,
       sessions: 0,
+      projects: 0,
     };
 
     const updateCount = (key: string, value: number) => {
@@ -682,6 +687,7 @@ const ArtistDashboardView = () => {
           bookingCountParts.paid +
           bookingCountParts.cancelled;
         next.sessions = bookingCountParts.sessions;
+        next.projects = bookingCountParts.projects;
         return next;
       });
     };
@@ -781,6 +787,18 @@ const ArtistDashboardView = () => {
         (error) =>
           console.error("Artist session count listener failed:", error)
       ),
+      onSnapshot(
+        query(collection(db, "bookings"), where("artistId", "==", uid)),
+        (snap) =>
+          updateCount(
+            "projects",
+            snap.docs.filter((bookingDoc) =>
+              isOngoingProjectBooking(bookingDoc.data())
+            ).length
+          ),
+        (error) =>
+          console.error("Artist project count listener failed:", error)
+      ),
     ];
 
     return () => {
@@ -798,6 +816,8 @@ const ArtistDashboardView = () => {
 
     const q =
       activeTab === "sessions"
+        ? query(collection(db, "bookings"), where("artistId", "==", uid))
+        : activeTab === "projects"
         ? query(collection(db, "bookings"), where("artistId", "==", uid))
         : activeTab === "confirmed"
         ? query(
@@ -829,6 +849,8 @@ const ArtistDashboardView = () => {
         const scopedBookings =
           activeTab === "sessions"
             ? rawBookings.filter((booking) => isActiveSessionBooking(booking))
+            : activeTab === "projects"
+            ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
             : rawBookings.filter((booking) => !isActiveSessionBooking(booking));
 
         const clientIds = Array.from(
@@ -1699,7 +1721,7 @@ const ArtistDashboardView = () => {
         {activeTab === "offers" && uid && <OffersList uid={uid} />}
 
         {/* Booking cards */}
-        {["pending", "confirmed", "paid", "cancelled", "sessions"].includes(activeTab) && (
+        {["pending", "confirmed", "paid", "cancelled", "sessions", "projects"].includes(activeTab) && (
           <section className="mt-6 w-full max-w-7xl space-y-6">
             <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -1707,11 +1729,17 @@ const ArtistDashboardView = () => {
                   Artist bookings
                 </p>
                 <h1 className="mt-2 text-3xl! font-semibold text-white capitalize">
-                  {activeTab === "sessions" ? "Active sessions" : `${activeTab} bookings`}
+                  {activeTab === "sessions"
+                    ? "Active sessions"
+                    : activeTab === "projects"
+                    ? "Ongoing projects"
+                    : `${activeTab} bookings`}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
                   {activeTab === "sessions"
                     ? "Manage started appointments, session records, in-shop balances, and completion notes."
+                    : activeTab === "projects"
+                    ? "Track multi-session projects, progress, next-session balances, and payment status."
                     : "Review client appointments, payment status, studio details, and selected tattoo references."}
                 </p>
               </div>
@@ -1739,11 +1767,15 @@ const ArtistDashboardView = () => {
                 <h2 className="mt-4 text-xl! font-semibold! text-white capitalize">
                   {activeTab === "sessions"
                     ? "No active sessions yet"
+                    : activeTab === "projects"
+                    ? "No ongoing projects yet"
                     : `No ${activeTab} bookings yet`}
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                   {activeTab === "sessions"
                     ? "Start a session from a confirmed booking and it will move here for completion, balance confirmation, and photos."
+                    : activeTab === "projects"
+                    ? "When an accepted booking is marked as a multi-session project, it will appear here with progress and balance details."
                     : "When a client reaches this booking stage, their appointment details will appear here."}
                 </p>
               </div>
@@ -1793,7 +1825,7 @@ const ArtistDashboardView = () => {
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                       Try another client name or clear the search to return to
-                      all {activeTab === "sessions" ? "sessions" : `${activeTab} bookings`}.
+                      all {activeTab === "sessions" ? "sessions" : activeTab === "projects" ? "projects" : `${activeTab} bookings`}.
                     </p>
                   </div>
                 ) : activeTab === "sessions" ? (
@@ -1803,6 +1835,11 @@ const ArtistDashboardView = () => {
                     onStart={handleStartSessionFromRow}
                     onComplete={handleCompleteSessionFromRow}
                     onBalancePaid={handleBalancePaidFromRow}
+                  />
+                ) : activeTab === "projects" ? (
+                  <ProjectsTable
+                    projects={visibleBookings as DashboardBooking[]}
+                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                   />
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -2195,6 +2232,104 @@ const SessionsTable = ({
   );
 };
 
+const ProjectsTable = ({
+  projects,
+  onOpenRecord,
+}: {
+  projects: DashboardBooking[];
+  onOpenRecord: (booking: DashboardBooking) => void;
+}) => (
+  <div className="grid gap-4 lg:grid-cols-2">
+    {projects.map((booking) => {
+      const clientName = getDashboardClientName(booking);
+      const clientAvatar = getDashboardClientAvatar(booking);
+      const completedCount = Number(booking.completedSessionCount || 0);
+      const sessionCount = getEstimatedSessionCount(booking);
+      const activeSessionNumber = getActiveSessionNumber(booking);
+      const remainingBalance = getDashboardRemainingBalance(booking);
+      const nextDue = getDashboardSessionInstallmentAmount(booking);
+      const progress = Math.min((completedCount / sessionCount) * 100, 100);
+
+      return (
+        <article
+          key={booking.id}
+          className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg"
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] p-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src={clientAvatar}
+                alt={clientName}
+                className="h-12 w-12 rounded-full border border-white/10 object-cover"
+              />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-white">{clientName}</p>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  {booking.shopName || "Studio not listed"}
+                </p>
+              </div>
+            </div>
+            <SessionStatusBadge status={booking.sessionStatus || "not_started"} />
+          </div>
+
+          <div className="space-y-4 p-4">
+            <div>
+              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.14em] text-neutral-500">
+                <span>Progress</span>
+                <span className="text-white">
+                  {completedCount}/{sessionCount} sessions
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-emerald-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <BookingDetailTile
+                icon={<CalendarDays size={17} />}
+                label="Next session"
+                value={`Session ${activeSessionNumber}/${sessionCount}`}
+              />
+              <BookingDetailTile
+                icon={<DollarSign size={17} />}
+                label="Minimum due next"
+                value={formatDashboardMoney(nextDue)}
+              />
+              <BookingDetailTile
+                icon={<CreditCard size={17} />}
+                label="Remaining balance"
+                value={formatDashboardMoney(remainingBalance)}
+              />
+              <BookingDetailTile
+                icon={<ReceiptText size={17} />}
+                label="Payment"
+                value={
+                  booking.remainingPaymentMethod === "external"
+                    ? "In shop"
+                    : "Stripe"
+                }
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onOpenRecord(booking)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+            >
+              <Eye size={16} />
+              Open project record
+            </button>
+          </div>
+        </article>
+      );
+    })}
+  </div>
+);
+
 const BookingRecordDialog = ({
   booking,
   onClose,
@@ -2211,6 +2346,7 @@ const BookingRecordDialog = ({
   const [remainingPaymentStatus, setRemainingPaymentStatus] =
     useState<Booking["remainingPaymentStatus"]>("not_due");
   const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
+  const [externalPaymentAmount, setExternalPaymentAmount] = useState("");
   const [isUpdatingSession, setIsUpdatingSession] = useState(false);
   const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
 
@@ -2218,7 +2354,10 @@ const BookingRecordDialog = ({
     setSessionStatus(booking?.sessionStatus || "not_started");
     setRemainingPaymentStatus(booking?.remainingPaymentStatus || "not_due");
     setSessionPhotoUrls(booking?.sessionPhotoUrls || []);
-  }, [booking?.id, booking?.sessionStatus, booking?.remainingPaymentStatus]);
+    setExternalPaymentAmount(
+      booking ? String(getDashboardSessionInstallmentAmount(booking)) : ""
+    );
+  }, [booking]);
 
   const clientName =
     booking?.user?.name ||
@@ -2333,15 +2472,34 @@ const BookingRecordDialog = ({
   };
 
   const handleArtistConfirmExternalPayment = async () => {
+    const amountPaid = Number(externalPaymentAmount || 0);
+    const minimumDue = sessionInstallment;
+
+    if (!Number.isFinite(amountPaid) || amountPaid < minimumDue) {
+      toast.error(
+        `Enter at least ${formatDashboardMoney(minimumDue)} for this session.`
+      );
+      return;
+    }
+
+    if (amountPaid > remainingBalance) {
+      toast.error("Payment cannot exceed the remaining project balance.");
+      return;
+    }
+
     const updated = await upsertSessionRecord(
       {
         remainingPaymentStatus: "artist_confirmed",
         sessionNumber: activeSessionNumber,
-        pendingPaymentAmount: sessionInstallment,
+        pendingPaymentAmount: amountPaid,
+        pendingPaymentAmountCents: Math.round(amountPaid * 100),
         artistConfirmedAt: serverTimestamp(),
       },
       {
         remainingPaymentStatus: "artist_confirmed",
+        pendingSessionPaymentAmount: amountPaid,
+        pendingSessionPaymentAmountCents: Math.round(amountPaid * 100),
+        pendingSessionNumber: activeSessionNumber,
         externalRemainingArtistConfirmedAt: serverTimestamp(),
       }
     );
@@ -2589,13 +2747,55 @@ const BookingRecordDialog = ({
                               </span>
                             </div>
 
+                            {isSessionView &&
+                              usesExternalRemaining &&
+                              sessionStatus === "completed" &&
+                              !["artist_confirmed", "confirmed"].includes(
+                                remainingPaymentStatus || ""
+                              ) && (
+                                <label className="mt-4 block space-y-2 rounded-md border border-white/10 bg-black/25 p-3">
+                                  <span className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+                                    External amount paid
+                                  </span>
+                                  <div className="relative">
+                                    <DollarSign
+                                      size={16}
+                                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-50/45"
+                                    />
+                                    <input
+                                      type="number"
+                                      min={sessionInstallment}
+                                      max={remainingBalance}
+                                      step="1"
+                                      value={externalPaymentAmount}
+                                      onChange={(event) =>
+                                        setExternalPaymentAmount(
+                                          event.target.value
+                                        )
+                                      }
+                                      className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-emerald-300/70"
+                                    />
+                                  </div>
+                                  <p className="text-xs leading-5 text-emerald-50/65">
+                                    Minimum due is{" "}
+                                    {formatDashboardMoney(sessionInstallment)}.
+                                    If the client paid extra, enter the actual
+                                    amount so the remaining project balance is
+                                    recalculated across the sessions left.
+                                  </p>
+                                </label>
+                              )}
+
                             <div className={`mt-4 grid gap-3 ${isSessionView ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-1"}`}>
                               {!isSessionView && (
                                 <button
                                   type="button"
                                   disabled={
                                     isUpdatingSession ||
-                                    sessionStatus !== "not_started"
+                                    ![
+                                      "not_started",
+                                      "awaiting_next_session",
+                                    ].includes(sessionStatus || "")
                                   }
                                   onClick={handleStartSession}
                                   className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2813,9 +3013,6 @@ const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
   if (pending > 0) return Math.min(pending, remaining);
 
-  const estimate = Number(booking.estimatedSessionPrice || 0);
-  if (estimate > 0) return Math.min(estimate, remaining);
-
   const sessionsLeft = Math.max(
     getEstimatedSessionCount(booking) - Number(booking.completedSessionCount || 0),
     1
@@ -2910,5 +3107,13 @@ const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unkno
   booking.sessionStatus === "in_progress" ||
   booking.sessionStatus === "completed" ||
   booking.sessionStatus === "awaiting_next_session";
+
+const isOngoingProjectBooking = (
+  booking: Partial<Booking> | Record<string, unknown>
+) =>
+  isDashboardMultiSessionBooking(booking as Partial<Booking>) &&
+  booking.status !== "cancelled" &&
+  booking.status !== "paid" &&
+  getDashboardRemainingBalance(booking as Partial<Booking>) > 0;
 
 export default ArtistDashboardView;

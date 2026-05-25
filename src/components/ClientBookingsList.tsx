@@ -225,11 +225,15 @@ const BookingCard = ({
 }) => {
   const remainingBalance = getRemainingBalance(booking);
   const isMultiSession = isMultiSessionBooking(booking);
+  const hasPendingSessionPayment =
+    !isMultiSession || Number(booking.pendingSessionPaymentAmount || 0) > 0;
   const isPayable =
     booking.paymentType === "internal" &&
     booking.remainingPaymentMethod !== "external" &&
     (booking.status === "pending_payment" ||
-      (booking.status === "deposit_paid" && remainingBalance > 0));
+      (booking.status === "deposit_paid" &&
+        remainingBalance > 0 &&
+        hasPendingSessionPayment));
   const payLabel =
     booking.status === "deposit_paid"
       ? isMultiSession
@@ -403,7 +407,23 @@ const BookingDetailsDialog = ({
                               </span>
                             </p>
                             {showExternalPaymentConfirmation && (
-                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              <div className="mt-4 space-y-3">
+                                <div className="rounded-md border border-white/10 bg-black/25 p-3">
+                                  <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+                                    Artist reported paid
+                                  </p>
+                                  <p className="mt-1 text-lg font-semibold text-white">
+                                    ${getSessionInstallmentAmount(booking)}
+                                  </p>
+                                  {isMultiSessionBooking(booking) && (
+                                    <p className="mt-1 text-xs leading-5 text-emerald-50/70">
+                                      Confirming this amount will recalculate the
+                                      remaining project balance across the
+                                      sessions left.
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="grid gap-3 sm:grid-cols-2">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -422,6 +442,7 @@ const BookingDetailsDialog = ({
                                 >
                                   Report issue
                                 </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -547,9 +568,6 @@ const getSessionInstallmentAmount = (booking: Booking) => {
   const remaining = getRemainingBalance(booking);
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
   if (pending > 0) return Math.min(pending, remaining);
-
-  const estimate = Number(booking.estimatedSessionPrice || 0);
-  if (estimate > 0) return Math.min(estimate, remaining);
 
   const sessionsLeft = Math.max(
     Number(booking.estimatedSessionCount || 1) -
