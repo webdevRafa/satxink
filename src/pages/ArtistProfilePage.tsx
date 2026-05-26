@@ -25,6 +25,7 @@ import {
   ChevronRight,
   DollarSign,
   Expand,
+  Globe2,
   Heart,
   ImageOff,
   Layers,
@@ -449,118 +450,97 @@ export const ArtistProfilePage = () => {
   const artistDisplayName = getArtistDisplayName(artist);
   const artistShopName = shop?.name || artist.studioName;
   const isFollowingArtist = Boolean(client?.likedArtists.includes(artist.id));
+  const artistStyles = Array.isArray(artist.specialties)
+    ? artist.specialties.filter(Boolean)
+    : [];
+  const socialLinks = getArtistSocialLinks(artist);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[80vh]">
-      <div className="relative bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] rounded-xl p-6 shadow-lg max-w-6xl mx-auto mb-10">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-          {/* Avatar */}
-          <div className="relative group">
-            <img
-              src={artist.avatarUrl}
-              alt={artistDisplayName}
-              className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-full border-4 border-neutral-800 group-hover:scale-105 transition-transform"
-            />
-            <span className="font-bold absolute bottom-1 right-1 bg-black text-white text-[10px] px-2 py-0.5 rounded-full opacity-70">
-              Artist
-            </span>
-          </div>
-
-          {/* Info */}
-          <div className="text-center md:text-left flex-1">
-            <h1 className="text-3xl! font-bold text-white my-0!">
-              {artistDisplayName}
-            </h1>
-            {artistShopName &&
-              (shop?.mapLink ? (
-                <a
-                  href={shop.mapLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-block text-sm! font-medium text-white/70 transition hover:text-white"
-                >
-                  {artistShopName}
-                </a>
-              ) : (
-                <p className="mt-1 text-sm! font-medium text-white/70">
-                  {artistShopName}
-                </p>
-              ))}
-            <p className="text-gray-300 mt-2 italic text-sm">{artist.bio}</p>
-
-            {/* Socials */}
-            <div className="flex justify-center md:justify-start gap-4 mt-4 mb-0!">
-              {artist.socialLinks?.facebook && (
-                <a
-                  href={artist.socialLinks.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white hover:text-blue-500 transition transform hover:scale-110"
-                >
-                  <FaFacebook size={22} />
-                </a>
-              )}
-              {artist.socialLinks?.instagram && (
-                <a
-                  href={artist.socialLinks.instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white hover:text-pink-500 transition transform hover:scale-110"
-                >
-                  <RiInstagramFill size={22} />
-                </a>
-              )}
+    <div className="mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
+      <div className="relative mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
+        <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
+            <div className="relative shrink-0">
+              <img
+                src={artist.avatarUrl || "/fallback-avatar.jpg"}
+                alt={artistDisplayName}
+                className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
+              />
+              <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-white/10">
+                Artist
+              </span>
             </div>
 
-            {/* Styles */}
-            <div className="mt-6">
-              <ul className="flex flex-wrap gap-2 justify-center md:justify-start">
-                {artist.specialties.map((style) => (
-                  <li
-                    key={style}
-                    className="px-4 py-1 text-sm rounded-full border border-white/10 bg-[var(--color-bg-footer)] text-white backdrop-blur-sm hover:bg-white/10 transition"
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                Artist profile
+              </p>
+              <h1 className="mt-2 text-3xl! font-semibold text-white">
+                {artistDisplayName}
+              </h1>
+              {artistShopName &&
+                (shop?.mapLink ? (
+                  <a
+                    href={shop.mapLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 transition hover:text-white md:justify-start"
                   >
-                    {style}
-                  </li>
+                    <MapPin size={15} />
+                    {artistShopName}
+                  </a>
+                ) : (
+                  <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
+                    <MapPin size={15} />
+                    {artistShopName}
+                  </p>
                 ))}
-              </ul>
+              {artist.bio && (
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
+                  {artist.bio}
+                </p>
+              )}
+
+              {socialLinks.length > 0 && (
+                <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+                  {socialLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      title={link.label}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                    >
+                      {link.icon}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {artistStyles.length > 0 && (
+                <ul className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+                  {artistStyles.map((style) => (
+                    <li
+                      key={style}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                    >
+                      {style}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
-          <div className="w-full rounded-lg border border-white/10 bg-white/[0.035] p-4 shadow-lg md:w-[250px]">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-              Start here
-            </p>
-            <div className="mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={handleRequestTattoo}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
-              >
-                <MessageCircle size={17} />
-                Request tattoo
-              </button>
-              <button
-                type="button"
-                onClick={handleToggleFollow}
-                disabled={isFollowUpdating}
-                className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-4! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isFollowingArtist
-                    ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
-                    : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
-                }`}
-              >
-                <Heart
-                  size={17}
-                  className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
-                />
-                {isFollowingArtist ? "Following" : "Follow artist"}
-              </button>
-            </div>
-            <p className="mt-4 text-xs leading-relaxed text-white/45">
-              Following saves this artist to your client dashboard for quick
-              requests later.
-            </p>
+          <div className="w-full lg:w-[280px]">
+            <ArtistHeaderActionCard
+              isFollowingArtist={isFollowingArtist}
+              isFollowUpdating={isFollowUpdating}
+              onRequestTattoo={handleRequestTattoo}
+              onToggleFollow={handleToggleFollow}
+            />
           </div>
         </div>
       </div>
@@ -790,6 +770,47 @@ const ArtistProfilePageSkeleton = () => (
   </div>
 );
 
+const ArtistHeaderActionCard = ({
+  isFollowingArtist,
+  isFollowUpdating,
+  onRequestTattoo,
+  onToggleFollow,
+}: {
+  isFollowingArtist: boolean;
+  isFollowUpdating: boolean;
+  onRequestTattoo: () => void;
+  onToggleFollow: () => void;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3 shadow-lg">
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={onRequestTattoo}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+      >
+        <MessageCircle size={16} />
+        Request tattoo
+      </button>
+      <button
+        type="button"
+        onClick={onToggleFollow}
+        disabled={isFollowUpdating}
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-3! py-2.5! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+          isFollowingArtist
+            ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
+            : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
+        }`}
+      >
+        <Heart
+          size={16}
+          className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
+        />
+        {isFollowingArtist ? "Following" : "Follow artist"}
+      </button>
+    </div>
+  </div>
+);
+
 const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   const createdAt = item.createdAt as
     | Date
@@ -825,6 +846,36 @@ const getFlashPreviewUrl = (flash: Flash) =>
 
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || "Artist";
+
+const getArtistSocialLinks = (artist: Artist) =>
+  [
+    {
+      label: "Instagram",
+      value: artist.socialLinks?.instagram,
+      icon: <RiInstagramFill size={20} />,
+    },
+    {
+      label: "Facebook",
+      value: artist.socialLinks?.facebook,
+      icon: <FaFacebook size={19} />,
+    },
+    {
+      label: "Website",
+      value: artist.socialLinks?.website,
+      icon: <Globe2 size={19} />,
+    },
+  ]
+    .filter((link) => Boolean(link.value?.trim()))
+    .map((link) => ({
+      label: link.label,
+      href: getExternalHref(link.value as string),
+      icon: link.icon,
+    }));
+
+const getExternalHref = (url: string) => {
+  const trimmedUrl = url.trim();
+  return /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
+};
 
 const preloadImage = (src?: string) => {
   if (!src) return;
