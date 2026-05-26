@@ -6,6 +6,8 @@ import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
+import { FaFacebook } from "react-icons/fa";
+import { RiInstagramFill } from "react-icons/ri";
 import {
   CalendarDays,
   Camera,
@@ -52,7 +54,6 @@ import {
 } from "firebase/storage";
 
 import SidebarNavigation from "../components/SidebarNavigation";
-import ArtistProfileHeader from "../components/ArtistProfileHeader";
 import ImageCropperModal from "../components/ImageCropperModal";
 import BookingRequestsList from "../components/BookingRequestsList";
 import MakeOfferModal from "../components/MakeOfferModal";
@@ -134,6 +135,9 @@ type DashboardArtist = {
   email?: string;
   bio?: string;
   specialties?: string[];
+  studioName?: string;
+  shopName?: string;
+  shopMapLink?: string;
   socialLinks?: {
     instagram?: string;
     facebook?: string;
@@ -1085,24 +1089,7 @@ const ArtistDashboardView = () => {
 
       <main className="relative flex-1 p-6 h-full">
         {artist && (
-          <ArtistProfileHeader
-            artist={{
-              id: artist.id || uid || "",
-              displayName: artist.displayName || artist.name || "Artist",
-              email: artist.email || "",
-              bio: artist.bio || "",
-              avatarUrl: artist.avatarUrl || "/default-avatar.png",
-              specialties: artist.specialties || [],
-              socialLinks: artist.socialLinks,
-              depositPolicy: {
-                amount: artist.depositPolicy?.amount || 0,
-                depositRequired:
-                  artist.depositPolicy?.depositRequired ?? true,
-                nonRefundable: artist.depositPolicy?.nonRefundable ?? true,
-              },
-              finalPaymentTiming: artist.finalPaymentTiming || "after",
-            }}
-          />
+          <ArtistDashboardProfileHeader artist={artist} />
         )}
 
         {activeTab === "profile" && (
@@ -2076,6 +2063,125 @@ type DashboardBooking = Booking & {
   message?: string;
   description?: string;
 };
+
+const ArtistDashboardProfileHeader = ({
+  artist,
+}: {
+  artist: DashboardArtist;
+}) => {
+  const artistDisplayName = artist.displayName || artist.name || "Artist";
+  const artistShopName = artist.shopName || artist.studioName;
+  const artistStyles = Array.isArray(artist.specialties)
+    ? artist.specialties.filter(Boolean)
+    : [];
+  const socialLinks = getArtistDashboardSocialLinks(artist);
+
+  return (
+    <section className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
+      <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
+        <div className="relative shrink-0">
+          <img
+            src={artist.avatarUrl || "/fallback-avatar.jpg"}
+            alt={artistDisplayName}
+            className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
+          />
+          <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-white/10">
+            Artist
+          </span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+            Artist profile
+          </p>
+          <h1 className="mt-2 text-3xl! font-semibold text-white">
+            {artistDisplayName}
+          </h1>
+
+          {artistShopName &&
+            (artist.shopMapLink ? (
+              <a
+                href={normalizeUrl(artist.shopMapLink)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 transition hover:text-white md:justify-start"
+              >
+                <MapPin size={15} />
+                {artistShopName}
+              </a>
+            ) : (
+              <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
+                <MapPin size={15} />
+                {artistShopName}
+              </p>
+            ))}
+
+          {artist.bio && (
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
+              {artist.bio}
+            </p>
+          )}
+
+          {socialLinks.length > 0 && (
+            <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+              {socialLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={link.label}
+                  title={link.label}
+                  className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                >
+                  {link.icon}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {artistStyles.length > 0 && (
+            <ul className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+              {artistStyles.map((style) => (
+                <li
+                  key={style}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                >
+                  {style}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const getArtistDashboardSocialLinks = (artist: DashboardArtist) =>
+  [
+    {
+      label: "Instagram",
+      value: artist.socialLinks?.instagram,
+      icon: <RiInstagramFill size={20} />,
+    },
+    {
+      label: "Facebook",
+      value: artist.socialLinks?.facebook,
+      icon: <FaFacebook size={19} />,
+    },
+    {
+      label: "Website",
+      value: artist.socialLinks?.website,
+      icon: <Globe size={19} />,
+    },
+  ]
+    .filter((link) => Boolean(link.value?.trim()))
+    .map((link) => ({
+      label: link.label,
+      href: normalizeUrl(link.value as string),
+      icon: link.icon,
+    }));
 
 const SessionsTable = ({
   sessions,
