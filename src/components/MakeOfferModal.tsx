@@ -79,6 +79,17 @@ type ShopDetails = {
   mapLink?: string;
 };
 
+const getTodayDateInputValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isPastDateInputValue = (dateValue: string) =>
+  Boolean(dateValue) && dateValue < getTodayDateInputValue();
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -121,6 +132,7 @@ const MakeOfferModal = ({
     useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
   const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
@@ -221,6 +233,11 @@ const MakeOfferModal = ({
 
     if (completedDateOptions.length === 0) {
       toast.error("Add at least one appointment option.");
+      return;
+    }
+
+    if (completedDateOptions.some((option) => isPastDateInputValue(option.date))) {
+      toast.error("Appointment options must be today or later.");
       return;
     }
 
@@ -761,6 +778,7 @@ const MakeOfferModal = ({
                       </div>
                       <input
                         type="date"
+                        min={todayDateInput}
                         value={option.date}
                         onChange={(event) =>
                           setDateOptions((prev) => {

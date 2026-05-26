@@ -53,6 +53,17 @@ const availableDayOptions = [
   "Sunday",
 ];
 
+const getTodayDateInputValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isPastDateInputValue = (dateValue: string) =>
+  Boolean(dateValue) && dateValue < getTodayDateInputValue();
+
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -79,6 +90,7 @@ const RequestTattooModal: React.FC<Props> = ({
   const clientName = client.name || "Client";
   const clientAvatar = client.avatarUrl || "/default-avatar.png";
   const artistName = artist.name || "Artist";
+  const todayDateInput = getTodayDateInputValue();
 
   useEffect(() => {
     return () => {
@@ -116,6 +128,21 @@ const RequestTattooModal: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const selectedPreferredDates = preferredDateRange.filter(Boolean);
+    if (selectedPreferredDates.some(isPastDateInputValue)) {
+      toast.error("Preferred dates must be today or later.");
+      return;
+    }
+
+    if (
+      preferredDateRange[0] &&
+      preferredDateRange[1] &&
+      preferredDateRange[1] < preferredDateRange[0]
+    ) {
+      toast.error("Latest date must be the same day or after the earliest date.");
+      return;
+    }
 
     let finalBudget: string | number | null = null;
 
@@ -451,6 +478,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     </span>
                     <input
                       type="date"
+                      min={todayDateInput}
                       className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
                       value={preferredDateRange[0]}
                       onChange={(e) =>
@@ -467,6 +495,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     </span>
                     <input
                       type="date"
+                      min={preferredDateRange[0] || todayDateInput}
                       className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
                       value={preferredDateRange[1]}
                       onChange={(e) =>

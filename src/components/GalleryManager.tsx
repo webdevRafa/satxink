@@ -176,7 +176,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="mt-6 space-y-8">
       <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
         <div className="flex flex-col gap-5 border-b border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
           <div>
