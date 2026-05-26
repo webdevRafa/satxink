@@ -549,7 +549,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
   return (
     <span
-      className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
     >
       {normalized.replace("_", " ")}
     </span>

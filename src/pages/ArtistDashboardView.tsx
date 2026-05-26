@@ -3152,7 +3152,7 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
   const label = status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
       {label}
     </span>
   );
@@ -3195,7 +3195,7 @@ const SessionStatusBadge = ({
   const label = status.replace("_", " ");
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
       {prefix ? `${prefix}: ${label}` : label}
     </span>
   );
@@ -3230,7 +3230,7 @@ const RemainingPaymentBadge = ({
       : "Balance due";
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
       {prefix ? `${prefix}: ${label}` : label}
     </span>
   );

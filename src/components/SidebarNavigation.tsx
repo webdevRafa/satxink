@@ -75,7 +75,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     {label}
-                    {typeof counts.bookings === "number" && (
+                    {typeof counts.bookings === "number" && counts.bookings > 0 && (
                       <CountBadge count={counts.bookings} active={["pending", "confirmed", "paid", "cancelled", "bookings"].includes(activeTab)} />
                     )}
                   </span>
@@ -94,7 +94,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                           }`}
                         >
                           <span>{label}</span>
-                          {typeof counts[subKey as ViewTab] === "number" && (
+                          {typeof counts[subKey as ViewTab] === "number" &&
+                            (counts[subKey as ViewTab] || 0) > 0 && (
                             <CountBadge count={counts[subKey as ViewTab] || 0} active={activeTab === subKey} />
                           )}
                         </button>
@@ -113,7 +114,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 }`}
               >
                 <span>{label}</span>
-                {typeof counts[key as ViewTab] === "number" && (
+                {typeof counts[key as ViewTab] === "number" &&
+                  (counts[key as ViewTab] || 0) > 0 && (
                   <CountBadge count={counts[key as ViewTab] || 0} active={activeTab === key} />
                 )}
               </button>

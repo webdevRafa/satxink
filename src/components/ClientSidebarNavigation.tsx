@@ -36,7 +36,8 @@ const ClientSidebarNavigation: React.FC<Props> = ({
             <link.icon size={17} aria-hidden="true" />
             <span className="flex-1">{link.label}</span>
             {link.key !== "profile" &&
-              typeof counts[link.key as Props["activeView"]] === "number" && (
+              typeof counts[link.key as Props["activeView"]] === "number" &&
+              (counts[link.key as Props["activeView"]] || 0) > 0 && (
               <span
                 className={`min-w-6 rounded-full px-2 py-0.5 text-center text-xs ${
                   activeView === link.key

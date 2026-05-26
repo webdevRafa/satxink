@@ -341,7 +341,7 @@ const StatusBadge = ({ status }: { status: string }) => {
       : status === "declined"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
+  return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
 };
 
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
