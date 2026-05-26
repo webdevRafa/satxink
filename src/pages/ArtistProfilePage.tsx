@@ -534,25 +534,13 @@ export const ArtistProfilePage = () => {
             </div>
           </div>
 
-          <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-[440px] lg:grid-cols-1">
+          <div className="w-full lg:w-[280px]">
             <ArtistHeaderActionCard
               isFollowingArtist={isFollowingArtist}
               isFollowUpdating={isFollowUpdating}
               onRequestTattoo={handleRequestTattoo}
               onToggleFollow={handleToggleFollow}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <ArtistHeaderMetric
-                icon={<Layers size={17} />}
-                label="Styles"
-                value={artistStyles.length || "Open"}
-              />
-              <ArtistHeaderMetric
-                icon={<Users size={17} />}
-                label="Following"
-                value={artist.likedBy?.length || 0}
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -793,58 +781,33 @@ const ArtistHeaderActionCard = ({
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4 shadow-lg">
-    <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-      Start here
-    </p>
-    <div className="mt-4 space-y-3">
+  <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3 shadow-lg">
+    <div className="space-y-2">
       <button
         type="button"
         onClick={onRequestTattoo}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
       >
-        <MessageCircle size={17} />
+        <MessageCircle size={16} />
         Request tattoo
       </button>
       <button
         type="button"
         onClick={onToggleFollow}
         disabled={isFollowUpdating}
-        className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-4! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-3! py-2.5! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
           isFollowingArtist
             ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
             : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
         }`}
       >
         <Heart
-          size={17}
+          size={16}
           className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
         />
         {isFollowingArtist ? "Following" : "Follow artist"}
       </button>
     </div>
-    <p className="mt-4 text-xs leading-relaxed text-white/45">
-      Following saves this artist to your client dashboard for quick requests
-      later.
-    </p>
-  </div>
-);
-
-const ArtistHeaderMetric = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string | number;
-}) => (
-  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
-    </div>
-    <p className="mt-2 truncate text-lg font-semibold text-white">{value}</p>
   </div>
 );
 
