@@ -372,7 +372,7 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
                           () => toast.error("Failed to copy")
                         );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -459,7 +459,7 @@ const RequestsTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -468,17 +468,31 @@ const RequestsTable: React.FC<TableProps<GenericRecord>> = ({
               </span>
               {/* Artist with avatar and copy icon */}
               <span className="flex items-center gap-2">
-                {req.artistAvatar ? (
+                {req.artistAvatar ||
+                req.artistAvatarUrl ||
+                (req.artist &&
+                  (req.artist.avatarUrl ||
+                    req.artist.avatarURL ||
+                    req.artist.avatar)) ? (
                   <img
-                    src={req.artistAvatar}
-                    alt={req.artistName || "Artist"}
+                    src={
+                      (req.artistAvatar as string) ||
+                      (req.artistAvatarUrl as string) ||
+                      (req.artist?.avatarUrl as string) ||
+                      (req.artist?.avatarURL as string) ||
+                      (req.artist?.avatar as string)
+                    }
+                    alt={req.artistName || req.artist?.displayName || "Artist"}
                     className="h-6 w-6 rounded-full object-cover"
                   />
                 ) : (
                   <div className="h-6 w-6 rounded-full bg-white/10" />
                 )}
                 <span className="flex items-center gap-1 truncate">
-                  {req.artistName || req.artistId || "-"}
+                  {req.artistName ||
+                    req.artist?.displayName ||
+                    req.artistId ||
+                    "-"}
                   {req.artistId && (
                     <button
                       type="button"
@@ -491,7 +505,7 @@ const RequestsTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -504,12 +518,12 @@ const RequestsTable: React.FC<TableProps<GenericRecord>> = ({
                   ? `$${req.budget.toFixed(2)}`
                   : req.budget || "-"}
               </span>
-              {/* Created date */}
+              {/* Created date and time */}
               <span>
                 {req.createdAt && typeof req.createdAt.toDate === "function"
-                  ? new Date(req.createdAt.toDate()).toLocaleDateString()
+                  ? new Date(req.createdAt.toDate()).toLocaleString()
                   : req.createdAt?.seconds
-                  ? new Date(req.createdAt.seconds * 1000).toLocaleDateString()
+                  ? new Date(req.createdAt.seconds * 1000).toLocaleString()
                   : "-"}
               </span>
             </button>
@@ -542,9 +556,24 @@ const OffersTable: React.FC<TableProps<GenericRecord>> = ({
               onClick={() => onSelect(offer)}
               className="grid grid-cols-5 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
             >
-              {/* Offer title/description */}
-              <span className="truncate">
+              {/* Offer title/description with ID copy */}
+              <span className="flex items-center gap-1 truncate">
                 {offer.flashTitle || offer.description || offer.id}
+                {offer.id && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(String(offer.id)).then(
+                        () => toast.success("Copied to clipboard"),
+                        () => toast.error("Failed to copy")
+                      );
+                    }}
+                    className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+                  >
+                    <Copy size={14} />
+                  </button>
+                )}
               </span>
               {/* Artist with avatar and copy icon */}
               <span className="flex items-center gap-2">
@@ -571,7 +600,7 @@ const OffersTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -603,7 +632,7 @@ const OffersTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -692,8 +721,25 @@ const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
                 onClick={() => onSelect(booking)}
                 className="grid grid-cols-6 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
               >
-                {/* Booking ID */}
-                <span className="truncate">{booking.id}</span>
+                {/* Booking ID with copy icon */}
+                <span className="flex items-center gap-1 truncate">
+                  {booking.id}
+                  {booking.id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(String(booking.id)).then(
+                          () => toast.success("Copied to clipboard"),
+                          () => toast.error("Failed to copy")
+                        );
+                      }}
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  )}
+                </span>
                 {/* Client with avatar and copy icon */}
                 <span className="flex items-center gap-2">
                   {booking.clientAvatar ? (
@@ -719,7 +765,7 @@ const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
                               () => toast.error("Failed to copy")
                             );
                         }}
-                        className="ml-1 text-neutral-400 hover:text-white"
+                        className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                       >
                         <Copy size={14} />
                       </button>
@@ -751,7 +797,7 @@ const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
                               () => toast.error("Failed to copy")
                             );
                         }}
-                        className="ml-1 text-neutral-400 hover:text-white"
+                        className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                       >
                         <Copy size={14} />
                       </button>
@@ -762,15 +808,15 @@ const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
                 <span className="capitalize">{booking.status || "-"}</span>
                 {/* Total */}
                 <span>{totalLabel}</span>
-                {/* Created */}
+                {/* Created date and time */}
                 <span>
                   {booking.createdAt &&
                   typeof booking.createdAt.toDate === "function"
-                    ? new Date(booking.createdAt.toDate()).toLocaleDateString()
+                    ? new Date(booking.createdAt.toDate()).toLocaleString()
                     : booking.createdAt?.seconds
                     ? new Date(
                         booking.createdAt.seconds * 1000
-                      ).toLocaleDateString()
+                      ).toLocaleString()
                     : "-"}
                 </span>
               </button>
@@ -832,7 +878,7 @@ const SessionsTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -864,7 +910,7 @@ const SessionsTable: React.FC<TableProps<GenericRecord>> = ({
                             () => toast.error("Failed to copy")
                           );
                       }}
-                      className="ml-1 text-neutral-400 hover:text-white"
+                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
                     >
                       <Copy size={14} />
                     </button>
@@ -884,15 +930,13 @@ const SessionsTable: React.FC<TableProps<GenericRecord>> = ({
               </span>
               {/* Status */}
               <span className="capitalize">{session.status || "-"}</span>
-              {/* Created */}
+              {/* Created date and time */}
               <span>
                 {session.createdAt &&
                 typeof session.createdAt.toDate === "function"
-                  ? new Date(session.createdAt.toDate()).toLocaleDateString()
+                  ? new Date(session.createdAt.toDate()).toLocaleString()
                   : session.createdAt?.seconds
-                  ? new Date(
-                      session.createdAt.seconds * 1000
-                    ).toLocaleDateString()
+                  ? new Date(session.createdAt.seconds * 1000).toLocaleString()
                   : "-"}
               </span>
             </button>
