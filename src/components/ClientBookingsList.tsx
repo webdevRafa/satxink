@@ -222,16 +222,11 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
           description="Once you accept an offer and confirm payment, the booking will appear here."
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sortedBookings.map((booking) => (
-            <BookingCard
-              key={booking.id}
-              booking={booking}
-              onPay={() => navigate(`/payment/${booking.id}`)}
-              onOpen={() => setSelectedBooking(booking)}
-            />
-          ))}
-        </div>
+        <BookingsTable
+          bookings={sortedBookings}
+          onPay={(booking) => navigate(`/payment/${booking.id}`)}
+          onOpen={setSelectedBooking}
+        />
       )}
 
       <BookingDetailsDialog
@@ -245,12 +240,58 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   );
 };
 
-const BookingCard = ({
+const BookingsTable = ({
+  bookings,
+  onOpen,
+  onPay,
+}: {
+  bookings: Booking[];
+  onOpen: (booking: Booking) => void;
+  onPay: (booking: Booking) => void;
+}) => {
+  const columns =
+    "minmax(210px,1.15fr) 96px minmax(150px,.72fr) minmax(190px,.95fr) minmax(230px,1.2fr) minmax(190px,.8fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1120px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Artist</span>
+            <span>Sample</span>
+            <span>Status</span>
+            <span>Money</span>
+            <span>Appointment</span>
+            <span className="text-right">Actions</span>
+          </div>
+          <div className="divide-y divide-white/10">
+            {bookings.map((booking) => (
+              <BookingRow
+                key={booking.id}
+                booking={booking}
+                columns={columns}
+                onOpen={() => onOpen(booking)}
+                onPay={() => onPay(booking)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BookingRow = ({
   booking,
+  columns,
   onOpen,
   onPay,
 }: {
   booking: Booking;
+  columns: string;
   onOpen: () => void;
   onPay: () => void;
 }) => {
@@ -265,72 +306,70 @@ const BookingCard = ({
       (booking.status === "deposit_paid" &&
         remainingBalance > 0 &&
         hasPendingSessionPayment));
-  const payLabel =
-    booking.status === "deposit_paid"
-      ? isMultiSession
-        ? `Pay ${getSessionOrdinal(getPayableSessionNumber(booking))} session`
-        : "Pay balance"
-      : "Pay deposit";
-
   return (
-  <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
-    <button type="button" onClick={onOpen} className="block w-full p-0! text-left">
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <img src={booking.artistAvatar || "/default-avatar.png"} alt={booking.artistName} className="h-11 w-11 rounded-full border border-white/10 object-cover" />
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-white">{booking.artistName}</p>
-            <p className="text-xs text-neutral-500">{formatAppointment(booking.selectedDate)}</p>
-          </div>
+    <div
+      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      style={{ gridTemplateColumns: columns }}
+    >
+      <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-3 p-0! text-left">
+        <img src={booking.artistAvatar || "/default-avatar.png"} alt={booking.artistName} className="h-11 w-11 rounded-full border border-white/10 object-cover" />
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-white">{booking.artistName}</p>
+          <p className="text-sm text-neutral-400">{formatAppointment(booking.selectedDate)}</p>
         </div>
-        <StatusBadge status={booking.status} />
-      </div>
-      <div className="relative h-48 bg-black">
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View booking sample"
+      >
         {booking.sampleImageUrl ? (
-          <img src={booking.sampleImageUrl} alt="Tattoo sample" className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100" />
+          <img src={booking.sampleImageUrl} alt="Tattoo sample" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-            <ImageIcon size={26} />
-            <span className="text-sm">No sample image</span>
-          </div>
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
         )}
+      </button>
+
+      <StatusBadge status={booking.status} />
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">${booking.price}</p>
+        <p className="mt-1 truncate text-xs text-neutral-500">${booking.depositAmount || 0} deposit</p>
       </div>
-      <div className="p-4">
-        <div className="grid grid-cols-2 gap-2">
-          <InfoPill icon={<DollarSign size={14} />} label={`$${booking.price}`} />
-          <InfoPill icon={<DollarSign size={14} />} label={`$${booking.depositAmount} deposit`} />
-          <InfoPill icon={<CalendarDays size={14} />} label={formatAppointment(booking.selectedDate, "compact")} />
-          <InfoPill
-            icon={isMultiSession ? <Layers size={14} /> : <Store size={14} />}
-            label={
-              isMultiSession
-                ? `${booking.completedSessionCount || 0}/${booking.estimatedSessionCount || 2} sessions`
-                : booking.shopName || "Shop"
-            }
-          />
-        </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-medium text-white">{formatAppointment(booking.selectedDate, "compact")}</p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {isMultiSession
+            ? `${booking.completedSessionCount || 0}/${booking.estimatedSessionCount || 2} sessions`
+            : booking.shopName || "Shop not set"}
+        </p>
       </div>
-    </button>
-    <div className="border-t border-white/10 p-4">
+
+      <div className="flex justify-end gap-2">
       {isPayable ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <>
           <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
-            <Eye size={16} />
+            <Eye size={14} />
             View
           </button>
-          <button type="button" onClick={onPay} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85">
-            <CreditCard size={16} />
-            {payLabel}
+          <button type="button" onClick={onPay} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85">
+            <CreditCard size={14} />
+            Pay
           </button>
-        </div>
+        </>
       ) : (
-        <button type="button" onClick={onOpen} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
-          <Eye size={16} />
+        <button type="button" onClick={onOpen} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10">
+          <Eye size={14} />
           View booking
         </button>
       )}
+      </div>
     </div>
-  </article>
   );
 };
 
@@ -549,13 +588,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   const label = status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
   return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{label}</span>;
 };
-
-const InfoPill = ({ icon, label }: { icon: ReactNode; label?: string | number }) => (
-  <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-    <span className="text-neutral-500">{icon}</span>
-    <span className="truncate">{label || "Not set"}</span>
-  </span>
-);
 
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
   <div className="rounded-lg border border-white/10 bg-black/25 p-3">

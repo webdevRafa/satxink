@@ -175,15 +175,7 @@ const OffersList = ({ uid }: { uid: string }) => {
       {filteredOffers.length === 0 ? (
         <EmptyOffers statusFilter={statusFilter} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredOffers.map((offer) => (
-            <OfferCard
-              key={offer.id}
-              offer={offer}
-              onOpen={() => setSelectedOffer(offer)}
-            />
-          ))}
-        </div>
+        <OffersTable offers={filteredOffers} onOpen={setSelectedOffer} />
       )}
 
       <OfferDetailsDialog
@@ -194,11 +186,54 @@ const OffersList = ({ uid }: { uid: string }) => {
   );
 };
 
-const OfferCard = ({
+const OffersTable = ({
+  offers,
+  onOpen,
+}: {
+  offers: DashboardOffer[];
+  onOpen: (offer: DashboardOffer) => void;
+}) => {
+  const columns =
+    "minmax(210px,1.15fr) 96px minmax(190px,.95fr) minmax(230px,1.2fr) minmax(140px,.72fr) minmax(150px,.65fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1120px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Client</span>
+            <span>Sample</span>
+            <span>Pricing</span>
+            <span>Schedule</span>
+            <span>Status</span>
+            <span className="text-right">Actions</span>
+          </div>
+          <div className="divide-y divide-white/10">
+            {offers.map((offer) => (
+              <OfferRow
+                key={offer.id}
+                offer={offer}
+                columns={columns}
+                onOpen={() => onOpen(offer)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const OfferRow = ({
   offer,
+  columns,
   onOpen,
 }: {
   offer: DashboardOffer;
+  columns: string;
   onOpen: () => void;
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
@@ -209,95 +244,84 @@ const OfferCard = ({
   const isMultiSessionOffer = offer.projectType === "multi_session";
 
   return (
-    <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
+    <div
+      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      style={{ gridTemplateColumns: columns }}
+    >
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full p-0! text-left"
+        className="flex min-w-0 items-center gap-3 p-0! text-left"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              src={offer.clientAvatar || "/default-avatar.png"}
-              alt={offer.clientName || "Client"}
-              className="h-11 w-11 rounded-full border border-white/10 object-cover"
-            />
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-white">
-                {offer.clientName || "Client"}
-              </p>
-              <p className="text-xs text-neutral-500">
-                Sent {formatShortDate(offer.createdAt)}
-              </p>
-            </div>
-          </div>
-          <StatusBadge status={offer.status} />
-        </div>
-
-        <div className="relative h-48 bg-black">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
-              className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-              <ImageIcon size={26} />
-              <span className="text-sm">No sample image</span>
-            </div>
-          )}
-          {isFlashOffer && (
-            <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-              Flash
-            </span>
-          )}
-        </div>
-
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-2">
-            <InfoPill icon={<DollarSign size={14} />} label={`$${offer.price}`} />
-            <InfoPill
-              icon={<ReceiptText size={14} />}
-              label={formatDeposit(offer)}
-            />
-            <InfoPill
-              icon={<CalendarDays size={14} />}
-              label={
-                firstDateOption
-                  ? formatAppointment(firstDateOption, "compact")
-                  : "No date set"
-              }
-            />
-            <InfoPill
-              icon={isMultiSessionOffer ? <Layers size={14} /> : <Store size={14} />}
-              label={
-                isFlashOffer
-                  ? offer.flashTitle || "Flash item"
-                  : isMultiSessionOffer
-                  ? `${offer.estimatedSessionCount || 2} sessions`
-                  : offer.shopName || "Shop"
-              }
-            />
-          </div>
-
-          <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
-            {offer.message || "No artist message included."}
+        <img
+          src={offer.clientAvatar || "/default-avatar.png"}
+          alt={offer.clientName || "Client"}
+          className="h-11 w-11 rounded-full border border-white/10 object-cover"
+        />
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-white">
+            {offer.clientName || "Client"}
+          </p>
+          <p className="text-sm text-neutral-400">
+            Sent {formatShortDate(offer.createdAt)}
           </p>
         </div>
       </button>
 
-      <div className="border-t border-white/10 p-4">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View offer sample"
+      >
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
+        )}
+      </button>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">
+          ${offer.price}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          Deposit {formatDeposit(offer)}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-medium text-white">
+          {firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date set"}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {isFlashOffer
+            ? offer.flashTitle || "Flash item"
+            : isMultiSessionOffer
+            ? `${offer.estimatedSessionCount || 2} sessions`
+            : offer.shopName || "Shop not set"}
+        </p>
+      </div>
+
+      <StatusBadge status={offer.status} />
+
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
-          <Eye size={16} />
-          View details
+          <Eye size={14} />
+          Details
         </button>
       </div>
-    </article>
+    </div>
   );
 };
 
@@ -548,19 +572,6 @@ const DetailTile = ({
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
-);
-
-const InfoPill = ({
-  icon,
-  label,
-}: {
-  icon: ReactNode;
-  label?: string | number;
-}) => (
-  <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-    <span className="text-neutral-500">{icon}</span>
-    <span className="truncate">{label || "Not set"}</span>
-  </span>
 );
 
 const EmptyOffers = ({ statusFilter }: { statusFilter: OfferStatusFilter }) => (

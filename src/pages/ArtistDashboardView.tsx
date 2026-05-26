@@ -1814,174 +1814,12 @@ const ArtistDashboardView = () => {
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                   />
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {visibleBookings.map((b) => {
-                      const booking = b as Booking & {
-                        user?: {
-                          name?: string;
-                          displayName?: string;
-                          avatarUrl?: string;
-                        };
-                        clientName?: string;
-                        clientAvatar?: string;
-                      };
-
-                      const clientName =
-                        booking.user?.name ||
-                        booking.user?.displayName ||
-                        booking.clientName ||
-                        "Client";
-
-                      const clientAvatar =
-                        booking.user?.avatarUrl ||
-                        booking.clientAvatar ||
-                        "/default-avatar.png";
-
-                      const createdSource =
-                        booking.createdAt?.toDate?.() || booking.paidAt?.toDate?.();
-
-                      const created = createdSource
-                        ? createdSource.toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "New";
-
-                      const appointmentLabel =
-                        booking.selectedDate?.date && booking.selectedDate?.time
-                          ? formatBookingAppointment(booking.selectedDate)
-                          : "No date set";
-
-                      const statusClass =
-                        booking.status === "paid" ||
-                        booking.status === "confirmed" ||
-                        booking.status === "deposit_paid"
-                          ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-                          : booking.status === "pending_payment"
-                          ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
-                          : "border-red-300/25 bg-red-300/10 text-red-100";
-                      const canStartSession =
-                        activeTab === "confirmed" &&
-                        booking.status !== "pending_payment" &&
-                        !isActiveSessionBooking(booking) &&
-                        ["not_started", "awaiting_next_session", undefined].includes(
-                          booking.sessionStatus
-                        );
-
-                      return (
-                        <article
-                          key={booking.id}
-                          className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]"
-                        >
-                          <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-                            <div className="flex min-w-0 items-center gap-3">
-                              <img
-                                src={clientAvatar}
-                                alt={clientName}
-                                className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                              />
-                              <div className="min-w-0">
-                                <p className="truncate font-semibold text-white">
-                                  {clientName}
-                                </p>
-                                <p className="text-xs text-neutral-500">
-                                  Created {created}
-                                </p>
-                              </div>
-                            </div>
-
-                            <span
-                              className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statusClass}`}
-                            >
-                              {booking.status === "deposit_paid"
-                                ? "Deposit paid"
-                                : booking.status.replace("_", " ")}
-                            </span>
-                          </div>
-
-                          <div className="relative h-48 bg-black">
-                            {booking.sampleImageUrl ? (
-                              <img
-                                src={booking.sampleImageUrl}
-                                alt="Booking sample"
-                                className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
-                              />
-                            ) : (
-                              <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                                <ImageIcon size={26} />
-                                <span className="text-sm">No sample image</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="p-4">
-                            <div className="grid grid-cols-2 gap-2">
-                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                                <span className="text-neutral-500">
-                                  <DollarSign size={14} />
-                                </span>
-                                <span className="truncate">
-                                  ${booking.price ?? 0}
-                                </span>
-                              </span>
-
-                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                                <span className="text-neutral-500">
-                                  <ReceiptText size={14} />
-                                </span>
-                                <span className="truncate">
-                                  ${booking.depositAmount ?? 0}
-                                </span>
-                              </span>
-
-                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                                <span className="text-neutral-500">
-                                  <CalendarDays size={14} />
-                                </span>
-                                <span className="truncate">{appointmentLabel}</span>
-                              </span>
-
-                              <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-                                <span className="text-neutral-500">
-                                  <Store size={14} />
-                                </span>
-                                <span className="truncate">
-                                  {booking.shopName || "Private Studio"}
-                                </span>
-                              </span>
-                            </div>
-
-                            <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
-                              {booking.shopAddress || "Address not provided"}
-                            </p>
-                          </div>
-
-                          <div className="border-t border-white/10 p-4">
-                            <div className={canStartSession ? "grid gap-3 sm:grid-cols-2" : ""}>
-                            {canStartSession && (
-                              <button
-                                type="button"
-                                onClick={() => setBookingToStart(booking)}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
-                              >
-                                <CalendarDays size={16} />
-                                Start session
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedBookingRecord(booking)}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
-                            >
-                              <Eye size={16} />
-                              Booking record
-                            </button>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
+                  <ArtistBookingsTable
+                    bookings={visibleBookings as DashboardBooking[]}
+                    activeTab={activeTab}
+                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onStart={(booking) => setBookingToStart(booking)}
+                  />
                 )}
               </>
             )}
@@ -2062,6 +1900,166 @@ type DashboardBooking = Booking & {
   user?: { name?: string; displayName?: string; avatarUrl?: string };
   message?: string;
   description?: string;
+};
+
+const ArtistBookingsTable = ({
+  bookings,
+  activeTab,
+  onOpenRecord,
+  onStart,
+}: {
+  bookings: DashboardBooking[];
+  activeTab: ArtistDashboardTab;
+  onOpenRecord: (booking: DashboardBooking) => void;
+  onStart: (booking: DashboardBooking) => void;
+}) => {
+  const columns =
+    "minmax(210px,1.12fr) 96px minmax(150px,.72fr) minmax(190px,.95fr) minmax(210px,1.1fr) minmax(190px,.82fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1120px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Client</span>
+            <span>Sample</span>
+            <span>Status</span>
+            <span>Money</span>
+            <span>Scheduled</span>
+            <span className="text-right">Actions</span>
+          </div>
+          <div className="divide-y divide-white/10">
+            {bookings.map((booking) => (
+              <ArtistBookingRow
+                key={booking.id}
+                booking={booking}
+                activeTab={activeTab}
+                columns={columns}
+                onOpenRecord={() => onOpenRecord(booking)}
+                onStart={() => onStart(booking)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ArtistBookingRow = ({
+  booking,
+  activeTab,
+  columns,
+  onOpenRecord,
+  onStart,
+}: {
+  booking: DashboardBooking;
+  activeTab: ArtistDashboardTab;
+  columns: string;
+  onOpenRecord: () => void;
+  onStart: () => void;
+}) => {
+  const appointmentLabel =
+    booking.selectedDate?.date && booking.selectedDate?.time
+      ? formatBookingAppointment(booking.selectedDate)
+      : "No date set";
+  const canStartSession =
+    activeTab === "confirmed" &&
+    booking.status !== "pending_payment" &&
+    !isActiveSessionBooking(booking) &&
+    ["not_started", "awaiting_next_session", undefined].includes(
+      booking.sessionStatus
+    );
+
+  return (
+    <div
+      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      style={{ gridTemplateColumns: columns }}
+    >
+      <button
+        type="button"
+        onClick={onOpenRecord}
+        className="flex min-w-0 items-center gap-3 p-0! text-left"
+      >
+        <img
+          src={getDashboardClientAvatar(booking)}
+          alt={getDashboardClientName(booking)}
+          className="h-11 w-11 rounded-full border border-white/10 object-cover"
+        />
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-white">
+            {getDashboardClientName(booking)}
+          </p>
+          <p className="text-sm text-neutral-400">
+            Created {formatDashboardDate(booking.createdAt || booking.paidAt)}
+          </p>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenRecord}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View booking sample"
+      >
+        {booking.sampleImageUrl ? (
+          <img
+            src={booking.sampleImageUrl}
+            alt="Booking sample"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
+        )}
+      </button>
+
+      <BookingStatusBadge status={booking.status} />
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">
+          {formatDashboardMoney(booking.price)}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          Deposit {formatDashboardMoney(booking.depositAmount)}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-medium text-white">
+          {appointmentLabel}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {booking.shopName || "Private Studio"}
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        {canStartSession && (
+          <button
+            type="button"
+            onClick={onStart}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+          >
+            <CalendarDays size={14} />
+            Start
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onOpenRecord}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+        >
+          <Eye size={14} />
+          Record
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const ArtistDashboardProfileHeader = ({

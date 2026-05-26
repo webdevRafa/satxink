@@ -113,15 +113,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           description="Requests you send from artist profiles will appear here with references, dates, and status."
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sortedRequests.map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-              onOpen={() => setSelectedRequest(request)}
-            />
-          ))}
-        </div>
+        <RequestTable requests={sortedRequests} onOpen={setSelectedRequest} />
       )}
 
       <RequestDetailsDialog
@@ -132,71 +124,125 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   );
 };
 
-const RequestCard = ({
+const RequestTable = ({
+  requests,
+  onOpen,
+}: {
+  requests: BookingRequest[];
+  onOpen: (request: BookingRequest) => void;
+}) => {
+  const columns =
+    "minmax(180px,.9fr) 96px minmax(220px,1.15fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(140px,.65fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1120px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Request</span>
+            <span>Reference</span>
+            <span>Availability</span>
+            <span>Idea</span>
+            <span>Budget</span>
+            <span className="text-right">Actions</span>
+          </div>
+          <div className="divide-y divide-white/10">
+            {requests.map((request) => (
+              <RequestRow
+                key={request.id}
+                request={request}
+                columns={columns}
+                onOpen={() => onOpen(request)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RequestRow = ({
   request,
+  columns,
   onOpen,
 }: {
   request: BookingRequest;
+  columns: string;
   onOpen: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
 
   return (
-    <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
-      <button type="button" onClick={onOpen} className="block w-full p-0! text-left">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-          <div>
-            <p className="font-semibold text-white">Tattoo request</p>
-            <p className="text-xs text-neutral-500">{formatShortDate(request.createdAt)}</p>
-          </div>
-          <StatusBadge status={request.status || "pending"} />
-        </div>
-
-        <div className="relative h-48 bg-black">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="Tattoo request reference"
-              className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-              <ImageIcon size={26} />
-              <span className="text-sm">No reference image</span>
-            </div>
-          )}
-        </div>
-
-        <div className="p-4">
-          <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
-            {request.description || "No description provided."}
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <InfoPill icon={<MapPin size={14} />} label={request.bodyPlacement} />
-            <InfoPill icon={<Ruler size={14} />} label={request.size} />
-            <InfoPill
-              icon={<CalendarDays size={14} />}
-              label={
-                request.preferredDateRange?.length === 2
-                  ? formatCompactDateRange(request.preferredDateRange)
-                  : "Flexible"
-              }
-            />
-            <InfoPill icon={<DollarSign size={14} />} label={formatBudget(request.budget)} />
-          </div>
-        </div>
+    <div
+      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      style={{ gridTemplateColumns: columns }}
+    >
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <p className="truncate font-semibold text-white">Tattoo request</p>
+        <p className="text-sm text-neutral-400">
+          {formatShortDate(request.createdAt)}
+        </p>
       </button>
-      <div className="border-t border-white/10 p-4">
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View request reference"
+      >
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Tattoo request reference"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
+        )}
+      </button>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-medium text-white">
+          {formatCompactDateRange(request.preferredDateRange || [])}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {formatAvailabilitySummary(request)}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm text-neutral-300">
+          {request.description || "No description provided."}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-3">
+        <p className="truncate text-sm font-semibold text-white">
+          {formatBudget(request.budget)}
+        </p>
+        <StatusBadge status={request.status || "pending"} />
+      </div>
+
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
-          <Eye size={16} />
-          View details
+          <Eye size={14} />
+          Details
         </button>
       </div>
-    </article>
+    </div>
   );
 };
 
@@ -298,13 +344,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
 };
 
-const InfoPill = ({ icon, label }: { icon: ReactNode; label?: string | number }) => (
-  <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-    <span className="text-neutral-500">{icon}</span>
-    <span className="truncate">{label || "Not set"}</span>
-  </span>
-);
-
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
   <div className="rounded-lg border border-white/10 bg-black/25 p-3">
     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">{icon}{label}</div>
@@ -342,6 +381,18 @@ const formatBudget = (budget?: string | number) => {
   return budget;
 };
 
+const formatAvailabilitySummary = (request: BookingRequest) => {
+  const days = request.availableDays?.length
+    ? request.availableDays.join(", ")
+    : "Days flexible";
+  const time =
+    request.availableTime?.from || request.availableTime?.to
+      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
+      : "Any time";
+
+  return `${days} · ${time}`;
+};
+
 const formatDateRange = (dates: string[]) => {
   const [start, end] = dates;
   return `${formatDate(start, { month: "long", day: "numeric", year: "numeric" })} - ${formatDate(end, { month: "long", day: "numeric", year: "numeric" })}`;
@@ -349,6 +400,7 @@ const formatDateRange = (dates: string[]) => {
 
 const formatCompactDateRange = (dates: string[]) => {
   const [start, end] = dates;
+  if (!start || !end) return "Flexible";
   return `${formatDate(start, { month: "short", day: "numeric" })} - ${formatDate(end, { month: "short", day: "numeric" })}`;
 };
 

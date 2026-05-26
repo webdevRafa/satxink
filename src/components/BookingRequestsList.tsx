@@ -220,16 +220,11 @@ const BookingRequestsList: React.FC<Props> = ({
       {filteredRequests.length === 0 ? (
         <EmptyRequests isFiltering={isFiltering} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredRequests.map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-              onOpen={() => setSelectedRequest(request)}
-              onMakeOffer={() => handleMakeOffer(request)}
-            />
-          ))}
-        </div>
+        <RequestTable
+          requests={filteredRequests}
+          onOpen={setSelectedRequest}
+          onMakeOffer={handleMakeOffer}
+        />
       )}
 
       <RequestDetailsDialog
@@ -258,112 +253,158 @@ const MetricCard = ({
   </div>
 );
 
-const RequestCard = ({
+const RequestTable = ({
+  requests,
+  onOpen,
+  onMakeOffer,
+}: {
+  requests: BookingRequest[];
+  onOpen: (request: BookingRequest) => void;
+  onMakeOffer: (request: BookingRequest) => void;
+}) => {
+  const columns =
+    "minmax(220px,1.2fr) 96px minmax(210px,1.1fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(190px,.8fr)";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto">
+        <div className="min-w-[1180px]">
+          <div
+            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            style={{ gridTemplateColumns: columns }}
+          >
+            <span>Client</span>
+            <span>Reference</span>
+            <span>Availability</span>
+            <span>Idea</span>
+            <span>Budget</span>
+            <span className="text-right">Actions</span>
+          </div>
+
+          <div className="divide-y divide-white/10">
+            {requests.map((request) => (
+              <RequestRow
+                key={request.id}
+                request={request}
+                columns={columns}
+                onOpen={() => onOpen(request)}
+                onMakeOffer={() => onMakeOffer(request)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RequestRow = ({
   request,
+  columns,
   onOpen,
   onMakeOffer,
 }: {
   request: BookingRequest;
+  columns: string;
   onOpen: () => void;
   onMakeOffer: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
 
   return (
-    <article className="group overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
+    <div
+      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      style={{ gridTemplateColumns: columns }}
+    >
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full p-0! text-left"
+        className="flex min-w-0 items-center gap-3 p-0! text-left"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[0.03] p-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              src={request.clientAvatar || "/default-avatar.png"}
-              alt={request.clientName}
-              className="h-11 w-11 rounded-full border border-white/10 object-cover"
-            />
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-white">
-                {request.clientName || "Client"}
-              </p>
-              <p className="text-xs text-neutral-500">
-                {formatShortDate(request.createdAt)}
-              </p>
-            </div>
-          </div>
-          <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-xs font-medium text-amber-100">
-            Pending
-          </span>
-        </div>
-
-        <div className="relative h-48 bg-black">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="Tattoo request reference"
-              className="h-full w-full object-cover opacity-85 transition duration-300 group-hover:scale-[1.02] group-hover:opacity-100"
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-              <ImageIcon size={26} />
-              <span className="text-sm">No reference image</span>
-            </div>
-          )}
-          {request.sourceType === "flash" && (
-            <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-              Flash
-            </span>
-          )}
-        </div>
-
-        <div className="p-4">
-          <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">
-            {request.description || "No description provided."}
+        <img
+          src={request.clientAvatar || "/default-avatar.png"}
+          alt={request.clientName || "Client"}
+          className="h-11 w-11 rounded-full border border-white/10 object-cover"
+        />
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-white">
+            {request.clientName || "Client"}
           </p>
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <InfoPill icon={<MapPin size={14} />} label={request.bodyPlacement} />
-            <InfoPill icon={<Ruler size={14} />} label={request.size} />
-            <InfoPill
-              icon={<CalendarDays size={14} />}
-              label={
-                request.preferredDateRange?.length === 2
-                  ? formatCompactDateRange(request.preferredDateRange)
-                  : "Flexible"
-              }
-            />
-            <InfoPill
-              icon={<DollarSign size={14} />}
-              label={
-                request.sourceType === "flash"
-                  ? formatFlashPrice(request.flashPrice)
-                  : formatBudget(request.budget)
-              }
-            />
-          </div>
+          <p className="text-sm text-neutral-400">
+            {formatShortDate(request.createdAt)}
+          </p>
         </div>
       </button>
 
-      <div className="flex gap-3 border-t border-white/10 p-4">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View request reference"
+      >
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Tattoo request reference"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
+        )}
+      </button>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-medium text-white">
+          {formatCompactDateRange(request.preferredDateRange || [])}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {formatAvailabilitySummary(request)}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm text-neutral-300">
+          {request.description || "No description provided."}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-3">
+        <p className="truncate text-sm font-semibold text-white">
+          {request.sourceType === "flash"
+            ? formatFlashPrice(request.flashPrice)
+            : formatBudget(request.budget)}
+        </p>
+        {request.sourceType === "flash" && (
+          <p className="mt-1 truncate text-xs text-neutral-500">
+            {request.flashTitle || "Flash request"}
+          </p>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
-          <Eye size={16} />
+          <Eye size={14} />
           Details
         </button>
         <button
           type="button"
           onClick={onMakeOffer}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
         >
-          <Send size={16} />
-          Make offer
+          <Send size={14} />
+          Offer
         </button>
       </div>
-    </article>
+    </div>
   );
 };
 
@@ -849,6 +890,18 @@ const formatFlashPrice = (price?: number | null) =>
   typeof price === "number" && Number.isFinite(price) && price > 0
     ? `$${price}`
     : "Price not listed";
+
+const formatAvailabilitySummary = (request: BookingRequest) => {
+  const days = request.availableDays?.length
+    ? request.availableDays.join(", ")
+    : "Days flexible";
+  const time =
+    request.availableTime?.from || request.availableTime?.to
+      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
+      : "Any time";
+
+  return `${days} · ${time}`;
+};
 
 const formatDateRange = (dates: string[]): string => {
   const [start, end] = dates;
