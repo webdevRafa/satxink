@@ -7,6 +7,11 @@ import type { Flash } from "../types/Flash";
 import CustomSelect from "./ui/CustomSelect";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
 import { bodyPlacementOptions } from "../utils/tattooOptions";
+import {
+  getTodayDateInputValue,
+  hasPastDateInputValue,
+  isDateRangeBackwards,
+} from "../utils/dateInputGuards";
 
 export type FlashRequestArtist = {
   id: string;
@@ -49,6 +54,7 @@ const FlashRequestModal = ({
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const todayDateInput = getTodayDateInputValue();
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -60,6 +66,16 @@ const FlashRequestModal = ({
 
     if (!bodyPlacement || !size) {
       toast.error("Please add placement and size.");
+      return;
+    }
+
+    if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
+      toast.error("Preferred dates must be today or later.");
+      return;
+    }
+
+    if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
+      toast.error("Latest date must be the same day or after the earliest date.");
       return;
     }
 
@@ -203,6 +219,7 @@ const FlashRequestModal = ({
                 </span>
                 <input
                   type="date"
+                  min={todayDateInput}
                   value={preferredDateRange[0]}
                   onChange={(event) =>
                     setPreferredDateRange([
@@ -219,6 +236,7 @@ const FlashRequestModal = ({
                 </span>
                 <input
                   type="date"
+                  min={preferredDateRange[0] || todayDateInput}
                   value={preferredDateRange[1]}
                   onChange={(event) =>
                     setPreferredDateRange([

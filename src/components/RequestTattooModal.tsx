@@ -25,6 +25,11 @@ import {
   tattooBudgetOptions,
   tattooSizeOptions,
 } from "../utils/tattooOptions";
+import {
+  getTodayDateInputValue,
+  hasPastDateInputValue,
+  isDateRangeBackwards,
+} from "../utils/dateInputGuards";
 
 interface Props {
   isOpen: boolean;
@@ -52,17 +57,6 @@ const availableDayOptions = [
   "Saturday",
   "Sunday",
 ];
-
-const getTodayDateInputValue = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const isPastDateInputValue = (dateValue: string) =>
-  Boolean(dateValue) && dateValue < getTodayDateInputValue();
 
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
@@ -129,17 +123,12 @@ const RequestTattooModal: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const selectedPreferredDates = preferredDateRange.filter(Boolean);
-    if (selectedPreferredDates.some(isPastDateInputValue)) {
+    if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
       toast.error("Preferred dates must be today or later.");
       return;
     }
 
-    if (
-      preferredDateRange[0] &&
-      preferredDateRange[1] &&
-      preferredDateRange[1] < preferredDateRange[0]
-    ) {
+    if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
       toast.error("Latest date must be the same day or after the earliest date.");
       return;
     }

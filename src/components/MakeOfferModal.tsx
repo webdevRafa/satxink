@@ -37,6 +37,10 @@ import {
   formatMoneyFromCents,
 } from "../utils/paymentFees";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import {
+  getTodayDateInputValue,
+  isPastDateInputValue,
+} from "../utils/dateInputGuards";
 
 type BookingRequest = {
   id: string;
@@ -78,17 +82,6 @@ type ShopDetails = {
   address?: string;
   mapLink?: string;
 };
-
-const getTodayDateInputValue = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const isPastDateInputValue = (dateValue: string) =>
-  Boolean(dateValue) && dateValue < getTodayDateInputValue();
 
 type Props = {
   isOpen: boolean;
