@@ -37,6 +37,10 @@ import {
   formatMoneyFromCents,
 } from "../utils/paymentFees";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
+import {
+  getTodayDateInputValue,
+  isPastDateInputValue,
+} from "../utils/dateInputGuards";
 
 type BookingRequest = {
   id: string;
@@ -121,6 +125,7 @@ const MakeOfferModal = ({
     useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
   const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
@@ -221,6 +226,11 @@ const MakeOfferModal = ({
 
     if (completedDateOptions.length === 0) {
       toast.error("Add at least one appointment option.");
+      return;
+    }
+
+    if (completedDateOptions.some((option) => isPastDateInputValue(option.date))) {
+      toast.error("Appointment options must be today or later.");
       return;
     }
 
@@ -761,6 +771,7 @@ const MakeOfferModal = ({
                       </div>
                       <input
                         type="date"
+                        min={todayDateInput}
                         value={option.date}
                         onChange={(event) =>
                           setDateOptions((prev) => {

@@ -23,6 +23,11 @@ import {
   bodyPlacementOptions,
   tattooSizeOptions,
 } from "../utils/tattooOptions";
+import {
+  getTodayDateInputValue,
+  hasPastDateInputValue,
+  isDateRangeBackwards,
+} from "../utils/dateInputGuards";
 
 interface Artist {
   id: string;
@@ -82,6 +87,7 @@ export default function ClientDashboard() {
   });
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
   const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const todayDateInput = getTodayDateInputValue();
   const handleOfferResponse = async (
     offerId: string,
     newStatus: "accepted" | "declined"
@@ -246,6 +252,21 @@ export default function ClientDashboard() {
   const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!client || !selectedArtist) return;
+
+    if (hasPastDateInputValue(modalData.preferredDateRange, todayDateInput)) {
+      toast.error("Preferred dates must be today or later.");
+      return;
+    }
+
+    if (
+      isDateRangeBackwards(
+        modalData.preferredDateRange[0],
+        modalData.preferredDateRange[1]
+      )
+    ) {
+      toast.error("Latest date must be the same day or after the earliest date.");
+      return;
+    }
 
     try {
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
@@ -612,6 +633,7 @@ export default function ClientDashboard() {
                   <div className="flex gap-2 mb-4">
                     <input
                       type="date"
+                      min={todayDateInput}
                       className="w-full p-2 rounded bg-neutral-800 text-white"
                       value={modalData.preferredDateRange[0]}
                       onChange={(e) =>
@@ -626,6 +648,7 @@ export default function ClientDashboard() {
                     />
                     <input
                       type="date"
+                      min={modalData.preferredDateRange[0] || todayDateInput}
                       className="w-full p-2 rounded bg-neutral-800 text-white"
                       value={modalData.preferredDateRange[1]}
                       onChange={(e) =>

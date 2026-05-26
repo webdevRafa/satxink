@@ -46,6 +46,9 @@ type FlashManagerProps = {
 
 type UploadMode = "individual" | "sheet";
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const navigate = useNavigate();
   const stripeReady = isStripeConnectReady(artist);
@@ -131,8 +134,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           (flashDoc) => ({ id: flashDoc.id, ...flashDoc.data() } as Flash)
         )
       );
-    } catch (err: any) {
-      setFetchError(err?.message || "Failed to load flash.");
+    } catch (err: unknown) {
+      setFetchError(getErrorMessage(err, "Failed to load flash."));
     } finally {
       setLoading(false);
     }
@@ -227,8 +230,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       setMode("sheet");
       toast.success("Flash sheet uploaded.");
       fetchFlashData();
-    } catch (err: any) {
-      toast.error(err?.message || "Upload failed. Please try again.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Upload failed. Please try again."));
     } finally {
       setIsUploadingSheet(false);
     }
@@ -248,8 +251,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       const blob = await getCroppedImg(sheetImage, currentCrop);
       setPendingBlob(blob);
       setShowFlashDetailsModal(true);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to generate crop.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to generate crop."));
     }
   };
 
@@ -304,8 +307,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       setShowFlashDetailsModal(false);
       toast.success("Flash saved.");
       fetchFlashData();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to save flash.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to save flash."));
     } finally {
       setIsSavingFlash(false);
     }
@@ -320,19 +323,19 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="mt-6 space-y-8">
       {!stripeReady && <StripeRequiredNotice onOpenPayments={onOpenPayments} />}
 
       <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
-        <div className="grid gap-6 border-b border-white/10 bg-white/[0.02] p-5 md:grid-cols-[1.1fr_0.9fr] md:p-6">
+        <div className="grid gap-4 border-b border-white/10 bg-white/[0.02] p-4 md:grid-cols-[1.1fr_0.9fr] md:p-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
               Flash studio
             </p>
-            <h2 className="mt-3 text-3xl! font-bold text-white">
+            <h2 className="mt-2 text-2xl! font-bold text-white">
               Build a cleaner flash marketplace
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
               Upload single designs, organize them into sheets, or crop clean
               purchasable pieces from a full flash sheet.
             </p>
@@ -345,7 +348,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           </div>
         </div>
 
-        <div className="grid gap-4 p-5 lg:grid-cols-[0.85fr_1.15fr] md:p-6">
+        <div className="grid gap-4 p-4 lg:grid-cols-[0.85fr_1.15fr] md:p-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <ModeCard
               active={mode === "individual"}
@@ -784,11 +787,11 @@ const ModeCard = ({
 );
 
 const StatCard = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+  <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
       {label}
     </p>
-    <p className="mt-3 text-2xl! font-bold text-white">{value}</p>
+    <p className="mt-2 text-xl! font-bold text-white">{value}</p>
   </div>
 );
 

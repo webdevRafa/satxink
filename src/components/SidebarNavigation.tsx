@@ -61,7 +61,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
               <>
                 <button
                   onClick={() => setShowBookingsDropdown((prev) => !prev)}
-                  className={`flex items-center justify-between w-full px-4 py-2 rounded-lg transition-all ${
+                  className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                     [
                       "pending",
                       "confirmed",
@@ -73,13 +73,13 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                       : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
                   }`}
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex min-w-0 items-center gap-2">
                     {label}
-                    {typeof counts.bookings === "number" && (
-                      <CountBadge count={counts.bookings} active={["pending", "confirmed", "paid", "cancelled", "bookings"].includes(activeTab)} />
-                    )}
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showBookingsDropdown ? "rotate-180" : ""}`} />
                   </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showBookingsDropdown ? "rotate-180" : ""}`} />
+                  {typeof counts.bookings === "number" && counts.bookings > 0 && (
+                    <CountBadge count={counts.bookings} active={["pending", "confirmed", "paid", "cancelled", "bookings"].includes(activeTab)} />
+                  )}
                 </button>
                 {showBookingsDropdown && (
                   <ul className="ml-8 mt-2 space-y-1">
@@ -94,7 +94,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                           }`}
                         >
                           <span>{label}</span>
-                          {typeof counts[subKey as ViewTab] === "number" && (
+                          {typeof counts[subKey as ViewTab] === "number" &&
+                            (counts[subKey as ViewTab] || 0) > 0 && (
                             <CountBadge count={counts[subKey as ViewTab] || 0} active={activeTab === subKey} />
                           )}
                         </button>
@@ -113,7 +114,8 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
                 }`}
               >
                 <span>{label}</span>
-                {typeof counts[key as ViewTab] === "number" && (
+                {typeof counts[key as ViewTab] === "number" &&
+                  (counts[key as ViewTab] || 0) > 0 && (
                   <CountBadge count={counts[key as ViewTab] || 0} active={activeTab === key} />
                 )}
               </button>
