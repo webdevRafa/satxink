@@ -499,12 +499,12 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(220px,1.15fr) 96px minmax(210px,1.02fr) minmax(250px,1.28fr) minmax(130px,.62fr) minmax(270px,.95fr)";
+    "minmax(220px,1.08fr) 96px minmax(210px,1fr) minmax(240px,1.18fr) minmax(180px,.8fr) minmax(300px,1fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1260px]">
+        <div className="min-w-[1320px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -625,12 +625,16 @@ const RequestRow = ({
           </p>
         )}
         {isPreparingOffer && (
-          <p className="mt-1 truncate text-xs text-emerald-100/80">
-            Preparing offer
-            {request.offerPreparationEta
-              ? ` - ${request.offerPreparationEta}`
-              : ""}
-          </p>
+          <div className="mt-2 flex min-w-0">
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[11px] font-medium text-amber-50">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
+              <span className="truncate">
+                {request.offerPreparationEta
+                  ? `Preparing: ${request.offerPreparationEta}`
+                  : "Preparing offer"}
+              </span>
+            </span>
+          </div>
         )}
       </div>
 
@@ -638,10 +642,22 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onPrepareOffer}
-          className="inline-flex h-9 min-w-[118px] items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+          className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
+            isPreparingOffer ? "min-w-[88px]" : "min-w-[118px]"
+          }`}
+          aria-label={
+            isPreparingOffer
+              ? "Update offer preparation timing"
+              : "Prepare offer and notify client"
+          }
+          title={
+            isPreparingOffer
+              ? "Update offer preparation timing"
+              : "Prepare offer and notify client"
+          }
         >
           <Send size={14} className="text-amber-200" />
-          {isPreparingOffer ? "Update timing" : "Prepare offer"}
+          {isPreparingOffer ? "Timing" : "Prepare offer"}
         </button>
         <button
           type="button"
