@@ -13,13 +13,19 @@ import {
 } from "firebase/firestore";
 import {
   CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   DollarSign,
   Eye,
   EyeOff,
+  Info,
+  Loader2,
   MapPin,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
   Users,
@@ -68,6 +74,17 @@ type EventFormState = {
   status: EventStatus;
   visibility: "public" | "private";
 };
+
+type EventFormErrorKey =
+  | keyof EventFormState
+  | "dateRange"
+  | "timeRange"
+  | "location"
+  | "stripe";
+
+type EventFormErrors = Partial<Record<EventFormErrorKey, string>>;
+
+type EventEditorStepKey = "basics" | "schedule" | "pricing" | "publish";
 
 type ArtistLite = {
   shopId?: string;
@@ -128,6 +145,40 @@ const bookingModeLabels: Record<EventBookingMode, string> = {
   deposit_required: "Deposit required",
   flash_reservation: "Flash reservation",
   paid_ticket: "Paid ticket",
+};
+
+const eventEditorSteps: Array<{
+  key: EventEditorStepKey;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "basics",
+    title: "Event story",
+    description: "Name the event, choose the format, and add the visual.",
+  },
+  {
+    key: "schedule",
+    title: "Time and place",
+    description: "Set when it happens and where visitors should go.",
+  },
+  {
+    key: "pricing",
+    title: "Access",
+    description: "Choose capacity, deposits, tickets, or info-only attendance.",
+  },
+  {
+    key: "publish",
+    title: "Review",
+    description: "Add search tags, confirm visibility, and publish when ready.",
+  },
+];
+
+const stepErrorKeys: Record<EventEditorStepKey, EventFormErrorKey[]> = {
+  basics: ["title"],
+  schedule: ["startDate", "dateRange", "timeRange", "location"],
+  pricing: ["price", "depositAmount", "capacity", "stripe"],
+  publish: [],
 };
 
 const statusStyles: Record<EventStatus, string> = {
@@ -358,47 +409,19 @@ const EventsManager = ({
 
   const handleSave = async () => {
     if (!uid || isSaving) return;
-    if (!form.title.trim()) {
-      toast.error("Add an event title.");
-      return;
-    }
-    if (!form.startDate) {
-      toast.error("Choose a start date.");
+
+    const validationErrors = getEventFormErrors(form, stripeReady);
+    const firstValidationError = getFirstEventFormError(validationErrors);
+
+    if (firstValidationError) {
+      toast.error(firstValidationError);
       return;
     }
 
     const parsedCapacity = parseOptionalNumber(form.capacity);
-
-    if (!parsedCapacity || parsedCapacity <= 0) {
-      toast.error("Add a valid event capacity.");
-      return;
-    }
-
     const bookingRequiresDeposit =
       form.bookingMode === "deposit_required" ||
       form.bookingMode === "flash_reservation";
-    const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
-
-    if (
-      bookingRequiresDeposit &&
-      (!Number(form.depositAmount || 0) || Number(form.depositAmount || 0) <= 5)
-    ) {
-      toast.error("Paid event deposits must be greater than the platform fee.");
-      return;
-    }
-
-    if (
-      form.bookingMode === "paid_ticket" &&
-      (!Number(form.price || 0) || Number(form.price || 0) <= 5)
-    ) {
-      toast.error("Paid event prices must be greater than the platform fee.");
-      return;
-    }
-
-    if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
-      toast.error("Connect Stripe before publishing paid events.");
-      return;
-    }
 
     try {
       setIsSaving(true);
@@ -632,6 +655,7 @@ const EventsManager = ({
           isSaving={isSaving}
           stripeReady={stripeReady}
           onOpenPayments={onOpenPayments}
+          ownerType={ownerType}
         />
       )}
 
@@ -831,6 +855,7 @@ const EventEditorModal = ({
   isSaving,
   stripeReady,
   onOpenPayments,
+  ownerType,
 }: {
   form: EventFormState;
   setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
@@ -843,8 +868,60 @@ const EventEditorModal = ({
   isSaving: boolean;
   stripeReady: boolean;
   onOpenPayments?: () => void;
-}) => (
+  ownerType: "artist" | "shop";
+}) => {
+  const [activeStep, setActiveStep] = useState<EventEditorStepKey>("basics");
+  const [stepDirection, setStepDirection] = useState<"forward" | "back">(
+    "forward"
+  );
+  const formErrors = getEventFormErrors(form, stripeReady);
+  const currentStepIndex = eventEditorSteps.findIndex(
+    (step) => step.key === activeStep
+  );
+  const currentStep = eventEditorSteps[currentStepIndex] || eventEditorSteps[0];
+  const hasCurrentStepErrors = stepHasErrors(activeStep, formErrors);
+  const canSave = !getFirstEventFormError(formErrors);
+  const isFinalStep = currentStepIndex === eventEditorSteps.length - 1;
+  const eventOwnerLabel = ownerType === "shop" ? "shop" : "artist";
+
+  const goToStep = (nextStep: EventEditorStepKey) => {
+    const nextIndex = eventEditorSteps.findIndex(
+      (step) => step.key === nextStep
+    );
+    setStepDirection(nextIndex > currentStepIndex ? "forward" : "back");
+    setActiveStep(nextStep);
+  };
+
+  const goToNextStep = () => {
+    if (hasCurrentStepErrors) {
+      toast.error(
+        getFirstStepError(activeStep, formErrors) ||
+          "Finish the required fields before continuing."
+      );
+      return;
+    }
+
+    const nextStep = eventEditorSteps[currentStepIndex + 1];
+    if (nextStep) goToStep(nextStep.key);
+  };
+
+  const goToPreviousStep = () => {
+    const previousStep = eventEditorSteps[currentStepIndex - 1];
+    if (previousStep) goToStep(previousStep.key);
+  };
+
+  return (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
+    <style>{`
+      @keyframes event-step-in-forward {
+        from { opacity: 0; transform: translateX(18px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes event-step-in-back {
+        from { opacity: 0; transform: translateX(-18px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `}</style>
     <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <div>
@@ -852,7 +929,9 @@ const EventEditorModal = ({
             {editingEvent ? "Edit event" : "New event"}
           </p>
           <h3 className="text-xl font-semibold text-white">
-            {editingEvent ? editingEvent.title : "Create an artist event"}
+            {editingEvent
+              ? editingEvent.title
+              : `Create a ${eventOwnerLabel} event`}
           </h3>
         </div>
         <button
@@ -865,7 +944,13 @@ const EventEditorModal = ({
         </button>
       </div>
 
-      <div className="grid max-h-[calc(92vh-82px)] overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
+      <EventStepTabs
+        activeStep={activeStep}
+        errors={formErrors}
+        onSelect={goToStep}
+      />
+
+      <div className="grid max-h-[calc(92vh-180px)] overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="border-b border-white/10 p-5 lg:border-b-0 lg:border-r">
           <label className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.035] text-center transition hover:border-white/35">
             {thumbnailPreview || editingEvent?.thumbnailUrl ? (
@@ -905,9 +990,33 @@ const EventEditorModal = ({
           )}
         </div>
 
-        <div className="space-y-5 p-5">
+        <div
+          key={activeStep}
+          className="space-y-5 p-5"
+          style={{
+            animation: `${
+              stepDirection === "forward"
+                ? "event-step-in-forward"
+                : "event-step-in-back"
+            } 240ms cubic-bezier(0.22, 1, 0.36, 1)`,
+          }}
+        >
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+              Step {currentStepIndex + 1} of {eventEditorSteps.length}
+            </p>
+            <h4 className="mt-2 text-2xl! font-semibold text-white">
+              {currentStep.title}
+            </h4>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              {currentStep.description}
+            </p>
+          </div>
+
+          {activeStep === "basics" && (
+            <>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Title">
+            <Field label="Title" error={formErrors.title}>
               <input
                 value={form.title}
                 onChange={(event) =>
@@ -979,32 +1088,6 @@ const EventEditorModal = ({
             </div>
           </div>
 
-          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
-            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-amber-100">
-                    Stripe Connect is required for paid event booking.
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-amber-100/70">
-                    You can save this event as a draft, but publishing it with
-                    deposits, flash reservations, or paid tickets requires a
-                    connected Stripe account.
-                  </p>
-                </div>
-                {onOpenPayments && (
-                  <button
-                    type="button"
-                    onClick={onOpenPayments}
-                    className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
-                  >
-                    Go to Payments
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
           <Field label="Description">
             <textarea
               value={form.description}
@@ -1020,8 +1103,13 @@ const EventEditorModal = ({
             />
           </Field>
 
+            </>
+          )}
+
+          {activeStep === "schedule" && (
+            <>
           <div className="grid gap-4 md:grid-cols-4">
-            <Field label="Start date">
+            <Field label="Start date" error={formErrors.startDate}>
               <input
                 type="date"
                 value={form.startDate}
@@ -1075,8 +1163,14 @@ const EventEditorModal = ({
             </Field>
           </div>
 
+          {(formErrors.dateRange || formErrors.timeRange) && (
+            <ValidationCallout
+              message={formErrors.dateRange || formErrors.timeRange || ""}
+            />
+          )}
+
           <div className="grid gap-4 md:grid-cols-3">
-            <Field label="Location type">
+            <Field label="Location type" error={formErrors.location}>
               <select
                 value={form.locationType}
                 onChange={(event) =>
@@ -1134,6 +1228,37 @@ const EventEditorModal = ({
               placeholder="Street address, city, state"
             />
           </Field>
+
+            </>
+          )}
+
+          {activeStep === "pricing" && (
+            <>
+          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
+            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-amber-100">
+                    Stripe Connect is required for paid event booking.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-100/70">
+                    You can save this event as a draft, but publishing it with
+                    deposits, flash reservations, or paid tickets requires a
+                    connected Stripe account.
+                  </p>
+                </div>
+                {onOpenPayments && (
+                  <button
+                    type="button"
+                    onClick={onOpenPayments}
+                    className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Go to Payments
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]">
             <Field label="Price type">
@@ -1243,6 +1368,32 @@ const EventEditorModal = ({
             </Field>
           </div>
 
+          {(formErrors.price ||
+            formErrors.depositAmount ||
+            formErrors.capacity ||
+            formErrors.stripe) && (
+            <ValidationCallout
+              message={
+                formErrors.price ||
+                formErrors.depositAmount ||
+                formErrors.capacity ||
+                formErrors.stripe ||
+                ""
+              }
+            />
+          )}
+
+            </>
+          )}
+
+          {activeStep === "publish" && (
+            <>
+          <EventReviewSummary
+            form={form}
+            thumbnailPreview={thumbnailPreview || editingEvent?.thumbnailUrl || ""}
+            ownerType={ownerType}
+          />
+
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Status">
               <select
@@ -1349,32 +1500,62 @@ const EventEditorModal = ({
             </p>
           </Field>
 
-          <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
+            </>
+          )}
+
+          <div className="flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-white/45">
+              {hasCurrentStepErrors
+                ? getFirstStepError(activeStep, formErrors)
+                : !canSave
+                ? getFirstEventFormError(formErrors)
+                : isFinalStep
+                ? "Review the event before saving."
+                : "This step looks ready."}
+            </p>
+            <div className="flex justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={currentStepIndex === 0 ? onClose : goToPreviousStep}
               className="rounded-md bg-white/[0.06] px-4! py-2! text-sm! text-white/75 hover:bg-white/[0.1]"
             >
-              Cancel
+              {currentStepIndex === 0 ? (
+                "Cancel"
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <ChevronLeft size={16} />
+                  Back
+                </span>
+              )}
             </button>
+            {!isFinalStep ? (
+              <button
+                type="button"
+                onClick={goToNextStep}
+                className="inline-flex items-center gap-2 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black hover:bg-white/85"
+              >
+                Continue
+                <ChevronRight size={16} />
+              </button>
+            ) : (
             <button
               type="button"
               onClick={onSave}
-              disabled={isSaving}
-              className="rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isSaving || !canSave}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSaving
-                ? "Saving..."
-                : editingEvent
-                ? "Save Event"
-                : "Create Event"}
+              {isSaving && <Loader2 className="animate-spin" size={16} />}
+              {isSaving ? "Saving..." : editingEvent ? "Save Event" : "Create Event"}
             </button>
+            )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 const EventStat = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-xl border border-white/10 bg-white/[0.035] p-2">
@@ -1390,18 +1571,159 @@ const EventMeta = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
   </div>
 );
 
+const EventStepTabs = ({
+  activeStep,
+  errors,
+  onSelect,
+}: {
+  activeStep: EventEditorStepKey;
+  errors: EventFormErrors;
+  onSelect: (step: EventEditorStepKey) => void;
+}) => (
+  <div className="border-b border-white/10 bg-black/20 px-5 py-4">
+    <div className="grid gap-2 md:grid-cols-4">
+      {eventEditorSteps.map((step, index) => {
+        const isActive = activeStep === step.key;
+        const hasErrors = stepHasErrors(step.key, errors);
+
+        return (
+          <button
+            key={step.key}
+            type="button"
+            onClick={() => onSelect(step.key)}
+            className={`rounded-xl border p-3! text-left transition ${
+              isActive
+                ? "border-white/25 bg-white/[0.09] text-white"
+                : "border-white/10 bg-white/[0.025] text-white/55 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            <span
+              className={`mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${
+                hasErrors
+                  ? "border-amber-300/35 bg-amber-300/10 text-amber-100"
+                  : isActive
+                  ? "border-white bg-white text-black"
+                  : "border-white/15 bg-white/[0.04] text-white/55"
+              }`}
+            >
+              {hasErrors ? <Info size={14} /> : <Check size={14} />}
+            </span>
+            <p className="text-sm font-semibold">
+              {index + 1}. {step.title}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/40">
+              {step.description}
+            </p>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const ValidationCallout = ({ message }: { message: string }) => (
+  <div className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
+    <Info className="mt-0.5 shrink-0" size={16} />
+    <p className="leading-6">{message}</p>
+  </div>
+);
+
+const EventReviewSummary = ({
+  form,
+  thumbnailPreview,
+  ownerType,
+}: {
+  form: EventFormState;
+  thumbnailPreview: string;
+  ownerType: "artist" | "shop";
+}) => {
+  const dateLabel = form.startDate
+    ? `${form.startDate}${form.startTime ? ` at ${formatTime(form.startTime)}` : ""}`
+    : "Date not set";
+  const priceLabel =
+    form.bookingMode === "paid_ticket"
+      ? `Ticket ${formatCurrency(form.price)}`
+      : form.depositRequired
+      ? `Deposit ${formatCurrency(form.depositAmount)}`
+      : priceTypeLabels[form.priceType];
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex items-start gap-3">
+          <span className="rounded-lg bg-[var(--color-primary)]/15 p-2 text-[var(--color-primary)]">
+            <Sparkles size={18} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-white">Event preview</p>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              This is the version visitors will understand at a glance before
+              they decide to RSVP, reserve, or show up.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10 bg-black/20">
+          <ReviewRow label="Host type" value={ownerType === "shop" ? "Shop event" : "Artist event"} />
+          <ReviewRow label="Title" value={form.title || "Untitled event"} />
+          <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
+          <ReviewRow label="Booking" value={bookingModeLabels[form.bookingMode]} />
+          <ReviewRow label="Starts" value={dateLabel} />
+          <ReviewRow
+            label="Location"
+            value={
+              form.locationType === "online"
+                ? "Online"
+                : form.locationType === "tbd"
+                ? "Location TBD"
+                : form.shopName || form.address || "Location not set"
+            }
+          />
+          <ReviewRow label="Access" value={priceLabel} />
+          <ReviewRow label="Capacity" value={form.capacity || "Not set"} />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.035]">
+        {thumbnailPreview ? (
+          <img
+            src={thumbnailPreview}
+            alt="Event thumbnail preview"
+            className="h-full min-h-[220px] w-full object-cover"
+          />
+        ) : (
+          <div className="flex min-h-[220px] flex-col items-center justify-center p-5 text-center text-white/40">
+            <CalendarDays size={34} />
+            <p className="mt-3 text-sm font-semibold">No thumbnail yet</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ReviewRow = ({ label, value }: { label: string; value: string }) => (
+  <div className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[150px_minmax(0,1fr)]">
+    <span className="text-white/40">{label}</span>
+    <span className="font-semibold text-white/80">{value}</span>
+  </div>
+);
+
 const Field = ({
   label,
   children,
+  error,
 }: {
   label: string;
   children: React.ReactNode;
+  error?: string;
 }) => (
   <label className="block">
     <span className="mb-2 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
       {label}
     </span>
     {children}
+    {error && <span className="mt-2 block text-xs text-amber-200">{error}</span>}
   </label>
 );
 const EventsSkeleton = () => (
@@ -1442,6 +1764,100 @@ const parseOptionalNumber = (value: string) => {
   if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getEventFormErrors = (
+  form: EventFormState,
+  stripeReady: boolean
+): EventFormErrors => {
+  const errors: EventFormErrors = {};
+  const parsedCapacity = parseOptionalNumber(form.capacity);
+  const parsedPrice = parseOptionalNumber(form.price);
+  const parsedDeposit = parseOptionalNumber(form.depositAmount);
+  const bookingRequiresDeposit =
+    form.bookingMode === "deposit_required" ||
+    form.bookingMode === "flash_reservation";
+  const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
+
+  if (!form.title.trim()) {
+    errors.title = "Add a clear event title.";
+  }
+
+  if (!form.startDate) {
+    errors.startDate = "Choose the start date.";
+  }
+
+  if (form.endDate && form.startDate && form.endDate < form.startDate) {
+    errors.dateRange = "End date cannot be before the start date.";
+  }
+
+  if (
+    form.endDate &&
+    form.startDate &&
+    form.endDate === form.startDate &&
+    form.startTime &&
+    form.endTime &&
+    form.endTime <= form.startTime
+  ) {
+    errors.timeRange = "End time must be later than the start time.";
+  }
+
+  if (
+    (form.locationType === "shop" || form.locationType === "custom") &&
+    !form.shopName.trim() &&
+    !form.address.trim()
+  ) {
+    errors.location = "Add a shop, venue name, or address.";
+  }
+
+  if (
+    (form.priceType === "fixed" || form.priceType === "starting_at") &&
+    (!parsedPrice || parsedPrice <= 0)
+  ) {
+    errors.price = "Add a valid price for this price type.";
+  }
+
+  if (
+    form.bookingMode === "paid_ticket" &&
+    (!parsedPrice || parsedPrice <= 5)
+  ) {
+    errors.price = "Paid ticket prices must be greater than the platform fee.";
+  }
+
+  if (
+    (bookingRequiresDeposit || form.depositRequired) &&
+    (!parsedDeposit || parsedDeposit <= 5)
+  ) {
+    errors.depositAmount =
+      "Paid event deposits must be greater than the platform fee.";
+  }
+
+  if (!parsedCapacity || parsedCapacity <= 0) {
+    errors.capacity = "Add a valid event capacity.";
+  }
+
+  if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
+    errors.stripe = "Connect Stripe before publishing paid events.";
+  }
+
+  return errors;
+};
+
+const getFirstEventFormError = (errors: EventFormErrors) =>
+  Object.values(errors).find(Boolean) || "";
+
+const getFirstStepError = (
+  step: EventEditorStepKey,
+  errors: EventFormErrors
+) => stepErrorKeys[step].map((key) => errors[key]).find(Boolean) || "";
+
+const stepHasErrors = (step: EventEditorStepKey, errors: EventFormErrors) =>
+  Boolean(getFirstStepError(step, errors));
+
+const formatCurrency = (value: string) => {
+  const parsed = parseOptionalNumber(value);
+  if (!parsed) return "$0";
+  return `$${parsed.toLocaleString()}`;
 };
 
 const normalizeEventTag = (value: string) =>
