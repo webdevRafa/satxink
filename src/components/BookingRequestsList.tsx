@@ -50,7 +50,18 @@ type BookingRequest = {
   flashPrice?: number | null;
   flashSheetId?: string | null;
   isFromSheet?: boolean;
+  offerPreparationStatus?: string;
+  offerPreparationEta?: string;
+  offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
 };
+
+const OFFER_PREPARATION_ETA_OPTIONS = [
+  "Later today",
+  "Tomorrow",
+  "2-3 days",
+  "This week",
+  "Next week",
+];
 
 interface Props {
   bookingRequests: BookingRequest[];
@@ -75,6 +86,7 @@ const BookingRequestsList: React.FC<Props> = ({
   const [isFiltering, setIsFiltering] = useState(false);
   const [declinedRequestIds, setDeclinedRequestIds] = useState<string[]>([]);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
 
   const visibleRequests = useMemo(
     () =>
@@ -121,6 +133,36 @@ const BookingRequestsList: React.FC<Props> = ({
       toast.error("Could not decline this request.");
     } finally {
       setIsDeclining(false);
+    }
+  };
+
+  const handleMarkPreparing = async (request: BookingRequest, eta: string) => {
+    if (!eta) return;
+    try {
+      setPreparingRequestIds((current) => [...current, request.id]);
+      await updateDoc(doc(db, "bookingRequests", request.id), {
+        status: "pending",
+        offerPreparationStatus: "preparing",
+        offerPreparationEta: eta,
+        offerPreparationUpdatedAt: serverTimestamp(),
+      });
+      setSelectedRequest((current) =>
+        current?.id === request.id
+          ? {
+              ...current,
+              offerPreparationStatus: "preparing",
+              offerPreparationEta: eta,
+            }
+          : current
+      );
+      toast.success("Client will see that you are preparing an offer.");
+    } catch (error) {
+      console.error("Failed to update offer ETA:", error);
+      toast.error("Could not update this request.");
+    } finally {
+      setPreparingRequestIds((current) =>
+        current.filter((requestId) => requestId !== request.id)
+      );
     }
   };
 
@@ -224,6 +266,8 @@ const BookingRequestsList: React.FC<Props> = ({
           requests={filteredRequests}
           onOpen={setSelectedRequest}
           onMakeOffer={handleMakeOffer}
+          onMarkPreparing={handleMarkPreparing}
+          preparingRequestIds={preparingRequestIds}
         />
       )}
 
@@ -233,6 +277,10 @@ const BookingRequestsList: React.FC<Props> = ({
         onClose={() => setSelectedRequest(null)}
         onDecline={handleDecline}
         onMakeOffer={handleMakeOffer}
+        onMarkPreparing={handleMarkPreparing}
+        isPreparing={Boolean(
+          selectedRequest && preparingRequestIds.includes(selectedRequest.id)
+        )}
       />
     </section>
   );
@@ -253,14 +301,50 @@ const MetricCard = ({
   </div>
 );
 
+const OfferPreparationSelect = ({
+  value,
+  isSaving,
+  onChange,
+}: {
+  value: string;
+  isSaving: boolean;
+  onChange: (eta: string) => void;
+}) => (
+  <label className="inline-flex min-w-[170px] items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
+    <span className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+      ETA
+    </span>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={isSaving}
+      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label="Set offer preparation ETA"
+    >
+      <option value="" className="bg-[#111]">
+        Preparing offer
+      </option>
+      {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
+        <option key={eta} value={eta} className="bg-[#111]">
+          {eta}
+        </option>
+      ))}
+    </select>
+  </label>
+);
+
 const RequestTable = ({
   requests,
   onOpen,
   onMakeOffer,
+  onMarkPreparing,
+  preparingRequestIds,
 }: {
   requests: BookingRequest[];
   onOpen: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onMarkPreparing: (request: BookingRequest, eta: string) => void;
+  preparingRequestIds: string[];
 }) => {
   const columns =
     "minmax(220px,1.2fr) 96px minmax(210px,1.1fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(190px,.8fr)";
@@ -289,6 +373,8 @@ const RequestTable = ({
                 columns={columns}
                 onOpen={() => onOpen(request)}
                 onMakeOffer={() => onMakeOffer(request)}
+                onMarkPreparing={(eta) => onMarkPreparing(request, eta)}
+                isPreparing={preparingRequestIds.includes(request.id)}
               />
             ))}
           </div>
@@ -303,11 +389,15 @@ const RequestRow = ({
   columns,
   onOpen,
   onMakeOffer,
+  onMarkPreparing,
+  isPreparing,
 }: {
   request: BookingRequest;
   columns: string;
   onOpen: () => void;
   onMakeOffer: () => void;
+  onMarkPreparing: (eta: string) => void;
+  isPreparing: boolean;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
 
@@ -386,7 +476,23 @@ const RequestRow = ({
         )}
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <select
+          value={request.offerPreparationEta || ""}
+          onChange={(event) => onMarkPreparing(event.target.value)}
+          disabled={isPreparing}
+          className="h-9 max-w-[116px] rounded-md border border-white/10 bg-white/[0.03] px-2 text-xs font-semibold text-white outline-none transition focus:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Set offer preparation ETA"
+        >
+          <option value="" className="bg-[#111]">
+            ETA
+          </option>
+          {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
+            <option key={eta} value={eta} className="bg-[#111]">
+              {eta}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={onOpen}
@@ -411,24 +517,30 @@ const RequestRow = ({
 const RequestDetailsDialog = ({
   request,
   isDeclining,
+  isPreparing,
   onClose,
   onDecline,
   onMakeOffer,
+  onMarkPreparing,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
+  isPreparing: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onMarkPreparing: (request: BookingRequest, eta: string) => void;
 }) => {
   if (request?.sourceType === "flash") {
     return (
       <FlashRequestDetailsDialog
         request={request}
         isDeclining={isDeclining}
+        isPreparing={isPreparing}
         onClose={onClose}
         onDecline={onDecline}
         onMakeOffer={onMakeOffer}
+        onMarkPreparing={onMarkPreparing}
       />
     );
   }
@@ -575,6 +687,11 @@ const RequestDetailsDialog = ({
                       </div>
 
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <OfferPreparationSelect
+                          value={request.offerPreparationEta || ""}
+                          isSaving={isPreparing}
+                          onChange={(eta) => onMarkPreparing(request, eta)}
+                        />
                         <button
                           type="button"
                           disabled={isDeclining}
@@ -608,15 +725,19 @@ const RequestDetailsDialog = ({
 const FlashRequestDetailsDialog = ({
   request,
   isDeclining,
+  isPreparing,
   onClose,
   onDecline,
   onMakeOffer,
+  onMarkPreparing,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
+  isPreparing: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onMarkPreparing: (request: BookingRequest, eta: string) => void;
 }) => (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -752,6 +873,11 @@ const FlashRequestDetailsDialog = ({
                       </div>
 
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <OfferPreparationSelect
+                          value={request.offerPreparationEta || ""}
+                          isSaving={isPreparing}
+                          onChange={(eta) => onMarkPreparing(request, eta)}
+                        />
                         <button
                           type="button"
                           disabled={isDeclining}
@@ -893,14 +1019,14 @@ const formatFlashPrice = (price?: number | null) =>
 
 const formatAvailabilitySummary = (request: BookingRequest) => {
   const days = request.availableDays?.length
-    ? request.availableDays.join(", ")
+    ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
   const time =
     request.availableTime?.from || request.availableTime?.to
       ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
       : "Any time";
 
-  return `${days} · ${time}`;
+  return `${days} - ${time}`;
 };
 
 const formatDateRange = (dates: string[]): string => {

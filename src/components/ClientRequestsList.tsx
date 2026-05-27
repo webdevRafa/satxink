@@ -37,6 +37,9 @@ type BookingRequest = {
   thumbUrl?: string;
   budget?: string | number;
   status?: string;
+  offerPreparationStatus?: string;
+  offerPreparationEta?: string;
+  offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
   createdAt?: Date | FirestoreTimestampLike | null;
 };
 
@@ -84,8 +87,8 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     () => [...requests].sort((a, b) => getItemTime(b) - getItemTime(a)),
     [requests]
   );
-  const pendingCount = requests.length;
-  const referencesCount = requests.filter((request) => request.thumbUrl || request.fullUrl).length;
+  const preparingCount = requests.filter(isArtistPreparingOffer).length;
+  const waitingCount = requests.length - preparingCount;
 
   if (loading) {
     return <RequestsSkeleton />;
@@ -101,8 +104,8 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
         />
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Total" value={requests.length} />
-          <MetricCard label="Pending" value={pendingCount} />
-          <MetricCard label="References" value={referencesCount} />
+          <MetricCard label="Waiting" value={waitingCount} />
+          <MetricCard label="Preparing" value={preparingCount} />
         </div>
       </div>
 
@@ -132,7 +135,7 @@ const RequestTable = ({
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(180px,.9fr) 96px minmax(220px,1.15fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(140px,.65fr)";
+    "minmax(180px,.9fr) 96px minmax(220px,1.15fr) minmax(300px,1.45fr) minmax(210px,.92fr) minmax(140px,.65fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -146,7 +149,7 @@ const RequestTable = ({
             <span>Reference</span>
             <span>Availability</span>
             <span>Idea</span>
-            <span>Budget</span>
+            <span>Status</span>
             <span className="text-right">Actions</span>
           </div>
           <div className="divide-y divide-white/10">
@@ -221,15 +224,12 @@ const RequestRow = ({
           {request.description || "No description provided."}
         </p>
         <p className="mt-1 truncate text-xs text-neutral-500">
-          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
+          {request.bodyPlacement || "Placement open"} - {request.size || "Size open"} - {formatBudget(request.budget)}
         </p>
       </div>
 
       <div className="min-w-0 pr-3">
-        <p className="truncate text-sm font-semibold text-white">
-          {formatBudget(request.budget)}
-        </p>
-        <StatusBadge status={request.status || "pending"} />
+        <RequestStatusCell request={request} />
       </div>
 
       <div className="flex justify-end">
@@ -290,7 +290,7 @@ const RequestDetailsDialog = ({
                           <p className="font-semibold text-white">Request sent</p>
                           <p className="text-sm text-neutral-500">{formatShortDate(request.createdAt)}</p>
                         </div>
-                        <StatusBadge status={request.status || "pending"} />
+                        <RequestStatusCell request={request} />
                       </div>
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
                         <DetailTile icon={<MapPin size={17} />} label="Placement" value={request.bodyPlacement || "Not specified"} />
@@ -298,7 +298,7 @@ const RequestDetailsDialog = ({
                         <DetailTile icon={<DollarSign size={17} />} label="Budget" value={formatBudget(request.budget)} />
                         <DetailTile icon={<CalendarDays size={17} />} label="Dates" value={request.preferredDateRange?.length === 2 ? formatDateRange(request.preferredDateRange) : "Flexible"} />
                         <DetailTile icon={<Clock size={17} />} label="Time" value={request.availableTime?.from && request.availableTime?.to ? `${formatTime(request.availableTime.from)} - ${formatTime(request.availableTime.to)}` : "Flexible"} />
-                        <DetailTile icon={<CalendarDays size={17} />} label="Days" value={request.availableDays?.length ? request.availableDays.join(", ") : "Flexible"} />
+                        <DetailTile icon={<CalendarDays size={17} />} label="Days" value={request.availableDays?.length ? getFormattedAvailableDays(request.availableDays) : "Flexible"} />
                       </div>
                       <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
@@ -334,14 +334,30 @@ const MetricCard = ({ label, value }: { label: string; value: string | number })
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
+const RequestStatusCell = ({ request }: { request: BookingRequest }) => {
+  const isPreparing = isArtistPreparingOffer(request);
+  const label = isPreparing ? "Artist is preparing an offer" : "Waiting for artist";
+  const eta = isPreparing && request.offerPreparationEta
+    ? `ETA: ${request.offerPreparationEta}`
+    : "";
+
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1.5">
+      <StatusBadge status={isPreparing ? "preparing" : request.status || "pending"} label={label} />
+      {eta && <span className="truncate text-xs text-neutral-500">{eta}</span>}
+    </div>
+  );
+};
+
+const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
   const className =
-    status === "offered"
+    status === "offered" || status === "preparing"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
       : status === "declined"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
+  const display = label || (status === "pending" ? "Waiting for artist" : status.replace("_", " "));
+  return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>{display}</span>;
 };
 
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
@@ -383,15 +399,44 @@ const formatBudget = (budget?: string | number) => {
 
 const formatAvailabilitySummary = (request: BookingRequest) => {
   const days = request.availableDays?.length
-    ? request.availableDays.join(", ")
+    ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
   const time =
     request.availableTime?.from || request.availableTime?.to
       ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
       : "Any time";
 
-  return `${days} · ${time}`;
+  return `${days} - ${time}`;
 };
+
+const getFormattedAvailableDays = (days: string[]): string => {
+  const dayOrder = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const abbreviations: Record<string, string> = {
+    Sunday: "Sun",
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+  };
+
+  return [...days]
+    .sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b))
+    .map((day) => abbreviations[day] || day.slice(0, 3))
+    .join(", ");
+};
+
+const isArtistPreparingOffer = (request: BookingRequest) =>
+  request.offerPreparationStatus === "preparing";
 
 const formatDateRange = (dates: string[]) => {
   const [start, end] = dates;
