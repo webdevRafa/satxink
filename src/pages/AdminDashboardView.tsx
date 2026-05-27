@@ -51,6 +51,13 @@ type StripeFilter = "all" | "connected" | "not_connected";
 type FeaturedFilter = "all" | "featured" | "not_featured";
 type RequestStatusFilter = "all" | "waiting" | "responded";
 type OfferStatusFilter = "all" | "waiting" | "accepted" | "declined";
+type BookingStatusFilter =
+  | "all"
+  | "pending_payment"
+  | "deposit_paid"
+  | "paid"
+  | "confirmed"
+  | "cancelled";
 type DateFilterMode = "created" | "session";
 type ReportPeriod = "custom" | "today" | "week" | "month" | "quarter" | "year";
 type SessionStatusFilter =
@@ -667,11 +674,11 @@ const ReportMetric = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.035] px-4 py-3">
+  <div className="min-w-[132px] rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+    <p className="mt-1 text-base font-semibold text-white">{value}</p>
   </div>
 );
 
@@ -1426,6 +1433,7 @@ const BookingsTable: React.FC<
   }
 > = ({ data, onSelect, usersById }) => {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<BookingStatusFilter>("all");
   const [dateMode, setDateMode] = useState<DateFilterMode>("created");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -1450,7 +1458,11 @@ const BookingsTable: React.FC<
           dateMode === "created"
             ? booking.createdAt
             : getFirstAppointmentValue(booking);
+        const bookingStatus = getString(booking, "status");
+        const matchesStatus =
+          statusFilter === "all" || bookingStatus === statusFilter;
         return (
+          matchesStatus &&
           isInDateRange(dateValue, startDate, endDate) &&
           matchesSearch(search, [
             booking.id,
@@ -1461,10 +1473,11 @@ const BookingsTable: React.FC<
           ])
         );
       }),
-    [data, dateMode, endDate, search, startDate, usersById]
+    [data, dateMode, endDate, search, startDate, statusFilter, usersById]
   );
 
-  const hasActiveTools = search || startDate || endDate || dateMode !== "created";
+  const hasActiveTools =
+    search || statusFilter !== "all" || startDate || endDate || dateMode !== "created";
   const reportRows = filteredBookings;
   const reportSummary = useMemo(() => {
     const statusCounts = reportRows.reduce<Record<string, number>>((counts, booking) => {
@@ -1640,6 +1653,20 @@ const BookingsTable: React.FC<
             placeholder="Artist, client, booking ID"
           />
         </ToolField>
+        <ToolField label="Status">
+          <ToolSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { label: "All bookings", value: "all" },
+              { label: "Waiting for deposit", value: "pending_payment" },
+              { label: "Deposit paid", value: "deposit_paid" },
+              { label: "Paid in full", value: "paid" },
+              { label: "Confirmed", value: "confirmed" },
+              { label: "Cancelled", value: "cancelled" },
+            ]}
+          />
+        </ToolField>
         <ToolField label="Date type">
           <ToolSelect
             value={dateMode}
@@ -1660,6 +1687,7 @@ const BookingsTable: React.FC<
           disabled={!hasActiveTools}
           onClick={() => {
             setSearch("");
+            setStatusFilter("all");
             setDateMode("created");
             setReportPeriod("custom");
             setStartDate("");
@@ -1667,21 +1695,44 @@ const BookingsTable: React.FC<
           }}
         />
       </ToolPanel>
-      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
-              Booking reports
-            </p>
-            <h3 className="mt-2 text-lg font-semibold text-white">
-              {getReportPeriodLabel(reportPeriod)} booking snapshot
-            </h3>
-            <p className="mt-1 text-sm text-neutral-500">
-              Uses {dateMode === "created" ? "booking creation" : "first session"} dates
-              from {startDate || "the beginning"} through {endDate || "now"}.
-            </p>
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-[190px]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                Booking reports
+              </p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {getReportPeriodLabel(reportPeriod)} snapshot
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <ReportMetric label="Bookings" value={reportSummary.bookingCount} />
+              <ReportMetric
+                label="Quoted"
+                value={formatNumberAsMoney(reportSummary.quotedTotal)}
+              />
+              <ReportMetric
+                label="Deposits"
+                value={formatNumberAsMoney(reportSummary.depositTotal)}
+              />
+              <ReportMetric
+                label="Remaining"
+                value={formatNumberAsMoney(reportSummary.remainingTotal)}
+              />
+              <ReportMetric
+                label="Span"
+                value={
+                  reportSummary.firstDate && reportSummary.lastDate
+                    ? `${formatDate(reportSummary.firstDate)} - ${formatDate(
+                        reportSummary.lastDate
+                      )}`
+                    : "-"
+                }
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(["today", "week", "month", "quarter", "year"] as ReportPeriod[]).map(
               (period) => (
                 <button
@@ -1701,33 +1752,7 @@ const BookingsTable: React.FC<
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <ReportMetric label="Bookings" value={reportSummary.bookingCount} />
-          <ReportMetric
-            label="Quoted total"
-            value={formatNumberAsMoney(reportSummary.quotedTotal)}
-          />
-          <ReportMetric
-            label="Deposits"
-            value={formatNumberAsMoney(reportSummary.depositTotal)}
-          />
-          <ReportMetric
-            label="Remaining"
-            value={formatNumberAsMoney(reportSummary.remainingTotal)}
-          />
-          <ReportMetric
-            label="Report span"
-            value={
-              reportSummary.firstDate && reportSummary.lastDate
-                ? `${formatDate(reportSummary.firstDate)} - ${formatDate(
-                    reportSummary.lastDate
-                  )}`
-                : "-"
-            }
-          />
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mt-3 flex flex-col gap-3 border-t border-white/10 pt-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2 text-sm text-neutral-400">
             {Object.entries(reportSummary.statusCounts).length ? (
               Object.entries(reportSummary.statusCounts).map(([status, count]) => (
