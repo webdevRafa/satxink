@@ -21,6 +21,7 @@ import {
   Clock,
   Copy,
   Code,
+  FileDown,
   Star,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
@@ -51,6 +52,7 @@ type FeaturedFilter = "all" | "featured" | "not_featured";
 type RequestStatusFilter = "all" | "waiting" | "responded";
 type OfferStatusFilter = "all" | "waiting" | "accepted" | "declined";
 type DateFilterMode = "created" | "session";
+type ReportPeriod = "custom" | "today" | "week" | "month" | "quarter" | "year";
 type SessionStatusFilter =
   | "all"
   | "not_started"
@@ -224,6 +226,8 @@ const formatMoney = (value: unknown) => {
   return typeof value === "string" && value.trim() ? value : "-";
 };
 
+const formatNumberAsMoney = (value: number) => `$${value.toFixed(2)}`;
+
 const getOfferAmount = (offer: GenericRecord) =>
   getNumber(offer, "price") ?? getNumber(offer, "flashPrice");
 
@@ -357,6 +361,11 @@ const getRequestStatusKey = (
 };
 
 const getTotalLabel = (booking: GenericRecord) => {
+  const totalNum = getBookingTotalAmount(booking);
+  return typeof totalNum === "number" ? `$${totalNum.toFixed(2)}` : "-";
+};
+
+const getBookingTotalAmount = (booking: GenericRecord) => {
   let totalNum = getNumber(booking, "price");
   totalNum ??= getNumber(booking, "totalPrice");
   totalNum ??= getNumber(booking, "totalAmount");
@@ -368,7 +377,7 @@ const getTotalLabel = (booking: GenericRecord) => {
     const sum = paid + deposit + remaining + remainingPaid;
     totalNum = sum > 0 ? sum : undefined;
   }
-  return typeof totalNum === "number" ? `$${totalNum.toFixed(2)}` : "-";
+  return totalNum;
 };
 
 const isStripeConnected = (artist: GenericRecord) => {
@@ -388,6 +397,67 @@ const isStripeConnected = (artist: GenericRecord) => {
       status.payoutsEnabled &&
       status.detailsSubmitted
   );
+};
+
+const formatDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getReportRange = (period: ReportPeriod) => {
+  const now = new Date();
+  const start = new Date(now);
+  if (period === "today") {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    const day = start.getDay();
+    const daysSinceMonday = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - daysSinceMonday);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "month") {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "quarter") {
+    const quarterStartMonth = Math.floor(start.getMonth() / 3) * 3;
+    start.setMonth(quarterStartMonth, 1);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "year") {
+    start.setMonth(0, 1);
+    start.setHours(0, 0, 0, 0);
+  }
+
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(now),
+  };
+};
+
+const getReportPeriodLabel = (period: ReportPeriod) => {
+  if (period === "today") return "Today";
+  if (period === "week") return "This week";
+  if (period === "month") return "This month";
+  if (period === "quarter") return "This quarter";
+  if (period === "year") return "This year";
+  return "Custom";
+};
+
+const csvEscape = (value: unknown) => {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const downloadTextFile = (filename: string, content: string, type: string) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 const buildSessionRows = (
@@ -589,6 +659,40 @@ const ToggleFeaturedButton = ({
     </button>
   );
 };
+
+const ReportMetric = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-white/[0.035] px-4 py-3">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+  </div>
+);
+
+const ReportActionButton = ({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/10 px-3 text-sm font-semibold text-neutral-200 transition hover:border-white/25 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+  >
+    {children}
+  </button>
+);
 
 /**
  * AdminSidebarNavigation
@@ -1325,6 +1429,7 @@ const BookingsTable: React.FC<
   const [dateMode, setDateMode] = useState<DateFilterMode>("created");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("custom");
 
   const filteredBookings = useMemo(
     () =>
@@ -1360,6 +1465,164 @@ const BookingsTable: React.FC<
   );
 
   const hasActiveTools = search || startDate || endDate || dateMode !== "created";
+  const reportRows = filteredBookings;
+  const reportSummary = useMemo(() => {
+    const statusCounts = reportRows.reduce<Record<string, number>>((counts, booking) => {
+      const status = getString(booking, "status") || "unknown";
+      counts[status] = (counts[status] || 0) + 1;
+      return counts;
+    }, {});
+    const quotedTotal = reportRows.reduce(
+      (sum, booking) => sum + (getBookingTotalAmount(booking) || 0),
+      0
+    );
+    const depositTotal = reportRows.reduce(
+      (sum, booking) => sum + (getNumber(booking, "depositAmount") || 0),
+      0
+    );
+    const remainingTotal = reportRows.reduce(
+      (sum, booking) => sum + (getNumber(booking, "remainingBalanceAmount") || 0),
+      0
+    );
+    const dateValues = reportRows
+      .map((booking) =>
+        getComparableDate(
+          dateMode === "created" ? booking.createdAt : getFirstAppointmentValue(booking)
+        )
+      )
+      .filter((date): date is Date => Boolean(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    return {
+      bookingCount: reportRows.length,
+      quotedTotal,
+      depositTotal,
+      remainingTotal,
+      statusCounts,
+      firstDate: dateValues[0],
+      lastDate: dateValues[dateValues.length - 1],
+    };
+  }, [dateMode, reportRows]);
+
+  const applyReportPeriod = (period: ReportPeriod) => {
+    setReportPeriod(period);
+    if (period === "custom") return;
+    const range = getReportRange(period);
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+  };
+
+  const handleStartDateChange = (value: string) => {
+    setReportPeriod("custom");
+    setStartDate(value);
+  };
+
+  const handleEndDateChange = (value: string) => {
+    setReportPeriod("custom");
+    setEndDate(value);
+  };
+
+  const getReportFilename = (extension: "csv" | "json") => {
+    const basis = dateMode === "created" ? "created" : "session";
+    const period = getReportPeriodLabel(reportPeriod).toLowerCase().replace(/\s+/g, "-");
+    const range = `${startDate || "all"}-to-${endDate || "all"}`;
+    return `satxink-bookings-${basis}-${period}-${range}.${extension}`;
+  };
+
+  const getReportPayload = () =>
+    reportRows.map((booking) => {
+      const artistName = getPersonName(
+        booking,
+        usersById,
+        ["artistName", "displayName"],
+        ["artistId"]
+      );
+      const clientName = getPersonName(
+        booking,
+        usersById,
+        ["clientName"],
+        ["clientId"]
+      );
+      return {
+        bookingId: booking.id,
+        clientName,
+        clientId: getString(booking, "clientId"),
+        artistName,
+        artistId: getString(booking, "artistId"),
+        status: formatStatusLabel(booking.status),
+        firstAppointment: getFirstAppointmentLabel(booking),
+        createdAt: formatDateTime(booking.createdAt),
+        total: getBookingTotalAmount(booking) || 0,
+        deposit: getNumber(booking, "depositAmount") || 0,
+        remainingBalance: getNumber(booking, "remainingBalanceAmount") || 0,
+        offerId: getString(booking, "offerId"),
+        sourceType: getString(booking, "sourceType"),
+        projectType: getString(booking, "projectType"),
+      };
+    });
+
+  const downloadCsvReport = () => {
+    const rows = getReportPayload();
+    const headers = [
+      "bookingId",
+      "clientName",
+      "clientId",
+      "artistName",
+      "artistId",
+      "status",
+      "firstAppointment",
+      "createdAt",
+      "total",
+      "deposit",
+      "remainingBalance",
+      "offerId",
+      "sourceType",
+      "projectType",
+    ];
+    const csv = [
+      headers.map(csvEscape).join(","),
+      ...rows.map((row) =>
+        headers.map((header) => csvEscape(row[header as keyof typeof row])).join(",")
+      ),
+    ].join("\n");
+    downloadTextFile(getReportFilename("csv"), csv, "text/csv;charset=utf-8");
+  };
+
+  const downloadJsonReport = () => {
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      period: getReportPeriodLabel(reportPeriod),
+      dateBasis: dateMode,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      summary: reportSummary,
+      bookings: getReportPayload(),
+    };
+    downloadTextFile(
+      getReportFilename("json"),
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8"
+    );
+  };
+
+  const copyReportSummary = () => {
+    const topStatuses = Object.entries(reportSummary.statusCounts)
+      .map(([status, count]) => `${formatStatusLabel(status)}: ${count}`)
+      .join(", ");
+    copyToClipboard(
+      [
+        `SATX Ink bookings report`,
+        `Period: ${getReportPeriodLabel(reportPeriod)}`,
+        `Date basis: ${dateMode === "created" ? "created date" : "session date"}`,
+        `Range: ${startDate || "all"} to ${endDate || "all"}`,
+        `Bookings: ${reportSummary.bookingCount}`,
+        `Quoted total: ${formatNumberAsMoney(reportSummary.quotedTotal)}`,
+        `Deposits: ${formatNumberAsMoney(reportSummary.depositTotal)}`,
+        `Remaining balance: ${formatNumberAsMoney(reportSummary.remainingTotal)}`,
+        `Statuses: ${topStatuses || "none"}`,
+      ].join("\n")
+    );
+  };
 
   return (
     <section className="space-y-4">
@@ -1388,21 +1651,122 @@ const BookingsTable: React.FC<
           />
         </ToolField>
         <ToolField label="From">
-          <ToolInput value={startDate} onChange={setStartDate} type="date" />
+          <ToolInput value={startDate} onChange={handleStartDateChange} type="date" />
         </ToolField>
         <ToolField label="To">
-          <ToolInput value={endDate} onChange={setEndDate} type="date" />
+          <ToolInput value={endDate} onChange={handleEndDateChange} type="date" />
         </ToolField>
         <ClearToolsButton
           disabled={!hasActiveTools}
           onClick={() => {
             setSearch("");
             setDateMode("created");
+            setReportPeriod("custom");
             setStartDate("");
             setEndDate("");
           }}
         />
       </ToolPanel>
+      <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+              Booking reports
+            </p>
+            <h3 className="mt-2 text-lg font-semibold text-white">
+              {getReportPeriodLabel(reportPeriod)} booking snapshot
+            </h3>
+            <p className="mt-1 text-sm text-neutral-500">
+              Uses {dateMode === "created" ? "booking creation" : "first session"} dates
+              from {startDate || "the beginning"} through {endDate || "now"}.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["today", "week", "month", "quarter", "year"] as ReportPeriod[]).map(
+              (period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => applyReportPeriod(period)}
+                  className={`h-9 rounded-md border px-3 text-sm font-semibold transition ${
+                    reportPeriod === period
+                      ? "border-white/30 bg-white text-black"
+                      : "border-white/10 text-neutral-300 hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  {getReportPeriodLabel(period)}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <ReportMetric label="Bookings" value={reportSummary.bookingCount} />
+          <ReportMetric
+            label="Quoted total"
+            value={formatNumberAsMoney(reportSummary.quotedTotal)}
+          />
+          <ReportMetric
+            label="Deposits"
+            value={formatNumberAsMoney(reportSummary.depositTotal)}
+          />
+          <ReportMetric
+            label="Remaining"
+            value={formatNumberAsMoney(reportSummary.remainingTotal)}
+          />
+          <ReportMetric
+            label="Report span"
+            value={
+              reportSummary.firstDate && reportSummary.lastDate
+                ? `${formatDate(reportSummary.firstDate)} - ${formatDate(
+                    reportSummary.lastDate
+                  )}`
+                : "-"
+            }
+          />
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2 text-sm text-neutral-400">
+            {Object.entries(reportSummary.statusCounts).length ? (
+              Object.entries(reportSummary.statusCounts).map(([status, count]) => (
+                <span
+                  key={status}
+                  className="rounded-full border border-white/10 bg-black/20 px-3 py-1"
+                >
+                  {formatStatusLabel(status)}: {count}
+                </span>
+              ))
+            ) : (
+              <span>No bookings in this report window</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ReportActionButton
+              onClick={copyReportSummary}
+              disabled={!reportSummary.bookingCount}
+            >
+              <Copy size={15} />
+              Copy summary
+            </ReportActionButton>
+            <ReportActionButton
+              onClick={downloadCsvReport}
+              disabled={!reportSummary.bookingCount}
+            >
+              <FileDown size={15} />
+              CSV
+            </ReportActionButton>
+            <ReportActionButton
+              onClick={downloadJsonReport}
+              disabled={!reportSummary.bookingCount}
+            >
+              <FileDown size={15} />
+              JSON
+            </ReportActionButton>
+          </div>
+        </div>
+      </div>
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
         <div className="min-w-[980px] divide-y divide-white/10">
           <div className={`${tableHeaderClass} grid-cols-7`}>
