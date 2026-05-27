@@ -499,12 +499,12 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(220px,1.08fr) 96px minmax(210px,1fr) minmax(240px,1.18fr) minmax(180px,.8fr) minmax(300px,1fr)";
+    "minmax(190px,1fr) 82px minmax(150px,.74fr) minmax(205px,.92fr) minmax(170px,.78fr) minmax(282px,1fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1320px]">
+        <div className="min-w-[1120px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -595,16 +595,19 @@ const RequestRow = ({
         )}
       </button>
 
-      <div className="min-w-0 pr-4">
+      <div className="min-w-0 max-w-[165px] pr-3">
         <p className="truncate text-sm font-medium text-white">
           {formatCompactDateRange(request.preferredDateRange || [])}
         </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
+        <p
+          className="mt-1 truncate text-xs text-neutral-500"
+          title={formatAvailabilitySummary(request)}
+        >
           {formatAvailabilitySummary(request)}
         </p>
       </div>
 
-      <div className="min-w-0 pr-4">
+      <div className="min-w-0 pr-3">
         <p className="truncate text-sm text-neutral-300">
           {request.description || "No description provided."}
         </p>
