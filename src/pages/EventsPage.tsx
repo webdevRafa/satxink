@@ -25,6 +25,7 @@ import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type DateFilter = "all" | "today" | "this_week" | "this_month";
+type EventHostFilter = "artist" | "shop";
 
 type PublicArtist = {
   id: string;
@@ -86,6 +87,7 @@ const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
 export const EventsPage = () => {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
     "all"
@@ -167,120 +169,106 @@ export const EventsPage = () => {
     };
   }, []);
 
-  const filteredEvents = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return events.filter((event) => {
-      const matchesDate =
-        dateFilter === "all" || eventMatchesDateFilter(event, dateFilter);
-
-      const matchesType =
-        eventTypeFilter === "all" || event.eventType === eventTypeFilter;
-
-      const searchableText = [
-        event.title,
-        event.description,
-        event.shopName,
-        event.shop?.name,
-        event.address,
-        event.artist?.displayName,
-        event.artist?.name,
-        event.artist?.studioName,
-        ...(event.tags || []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch =
-        !normalizedSearch || searchableText.includes(normalizedSearch);
-
-      return matchesDate && matchesType && matchesSearch;
-    });
-  }, [events, dateFilter, eventTypeFilter, searchTerm]);
-
-  const todayEvents = useMemo(
-    () =>
-      filteredEvents.filter((event) => eventMatchesDateFilter(event, "today")),
-    [filteredEvents]
+  const hostCounts = useMemo(
+    () => ({
+      artist: events.filter((event) => getEventHostType(event) === "artist")
+        .length,
+      shop: events.filter((event) => getEventHostType(event) === "shop").length,
+    }),
+    [events]
   );
 
-  const weekEvents = useMemo(
-    () =>
-      filteredEvents.filter(
-        (event) =>
-          eventMatchesDateFilter(event, "this_week") &&
-          !eventMatchesDateFilter(event, "today")
-      ),
-    [filteredEvents]
+  const filteredEventsByHost = useMemo<Record<EventHostFilter, PublicEvent[]>>(
+    () => {
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const groupedEvents: Record<EventHostFilter, PublicEvent[]> = {
+        artist: [],
+        shop: [],
+      };
+
+      events.forEach((event) => {
+        const matchesDate =
+          dateFilter === "all" || eventMatchesDateFilter(event, dateFilter);
+
+        const matchesType =
+          eventTypeFilter === "all" || event.eventType === eventTypeFilter;
+
+        const searchableText = [
+          event.title,
+          event.description,
+          event.shopName,
+          event.shop?.name,
+          event.address,
+          event.artist?.displayName,
+          event.artist?.name,
+          event.artist?.studioName,
+          ...(event.tags || []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch =
+          !normalizedSearch || searchableText.includes(normalizedSearch);
+
+        if (matchesDate && matchesType && matchesSearch) {
+          groupedEvents[getEventHostType(event)].push(event);
+        }
+      });
+
+      return groupedEvents;
+    },
+    [events, dateFilter, eventTypeFilter, searchTerm]
   );
 
-  const laterEvents = useMemo(
-    () =>
-      filteredEvents.filter(
-        (event) => !eventMatchesDateFilter(event, "this_week")
-      ),
-    [filteredEvents]
+  const eventDateGroupsByHost = useMemo(
+    () => ({
+      artist: getEventDateGroups(filteredEventsByHost.artist),
+      shop: getEventDateGroups(filteredEventsByHost.shop),
+    }),
+    [filteredEventsByHost]
   );
-
-  const heroEvent = filteredEvents[0];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-24 text-white">
+    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-20 text-white">
       <section className="mx-auto max-w-6xl">
-        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-5 shadow-xl md:p-6">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+        <div className="rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-4 shadow-xl md:p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
                 Events in San Antonio, TX
               </p>
-              <h1 className="mt-3 max-w-3xl text-3xl! font-bold leading-tight text-white md:text-4xl!">
-                Find tattoo events from verified SATX artists.
+              <h1 className="mt-2 max-w-3xl text-2xl! font-bold leading-tight text-white md:text-3xl!">
+                Find tattoo events from verified artists and local shops.
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60">
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
                 Browse flash days, pop-ups, guest spots, conventions, and shop
                 events without losing your place in the calendar.
               </p>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <HeroStat label="Upcoming events" value={events.length} />
-                <HeroStat
-                  label="Happening today"
-                  value={
-                    events.filter((event) =>
-                      eventMatchesDateFilter(event, "today")
-                    ).length
-                  }
-                />
-                <HeroStat
-                  label="This week"
-                  value={
-                    events.filter((event) =>
-                      eventMatchesDateFilter(event, "this_week")
-                    ).length
-                  }
-                />
-              </div>
             </div>
 
-            <div>
-              {heroEvent ? (
-                <FeaturedEventSummary event={heroEvent} />
-              ) : (
-                <div className="rounded-xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-                    Next event
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    Events will appear here
-                  </p>
-                </div>
-              )}
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+              <HeroStat label="Artist events" value={hostCounts.artist} />
+              <HeroStat label="Shop events" value={hostCounts.shop} />
+              <HeroStat
+                label="This week"
+                value={
+                  events.filter((event) =>
+                    eventMatchesDateFilter(event, "this_week")
+                  ).length
+                }
+              />
             </div>
           </div>
         </div>
 
-        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+        <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+          <HostToggle
+            value={hostFilter}
+            counts={hostCounts}
+            onChange={setHostFilter}
+          />
+
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
             <label className="relative block">
               <Search
@@ -334,53 +322,163 @@ export const EventsPage = () => {
           </div>
         </section>
 
-        {loading ? (
-          <EventsPageSkeleton />
-        ) : filteredEvents.length === 0 ? (
-          <EmptyEventsState />
-        ) : dateFilter === "all" ? (
-          <div className="mt-10 space-y-12">
-            {todayEvents.length > 0 && (
-              <EventSection
-                eyebrow="Happening now"
-                title="Today"
-                events={todayEvents}
-                layout="rail"
-              />
-            )}
-
-            {weekEvents.length > 0 && (
-              <EventSection
-                eyebrow="Coming up soon"
-                title="This week"
-                events={weekEvents}
-                layout="rail"
-              />
-            )}
-
-            {laterEvents.length > 0 && (
-              <EventSection
-                eyebrow="Plan ahead"
-                title="Later events"
-                events={laterEvents}
-                layout="rail"
-              />
-            )}
-          </div>
-        ) : (
-          <div className="mt-10">
-            <EventSection
-              eyebrow="Filtered results"
-              title={getDateFilterTitle(dateFilter)}
-              events={filteredEvents}
-              layout="rail"
-            />
-          </div>
-        )}
+        <EventHostStage activeHost={hostFilter}>
+          {(["artist", "shop"] as const).map((host) => (
+            <div key={host} className="min-w-0">
+              {renderEventContent({
+                loading,
+                filteredEvents: filteredEventsByHost[host],
+                todayEvents: eventDateGroupsByHost[host].todayEvents,
+                weekEvents: eventDateGroupsByHost[host].weekEvents,
+                laterEvents: eventDateGroupsByHost[host].laterEvents,
+                dateFilter,
+              })}
+            </div>
+          ))}
+        </EventHostStage>
       </section>
     </main>
   );
 };
+
+const getEventDateGroups = (events: PublicEvent[]) => ({
+  todayEvents: events.filter((event) => eventMatchesDateFilter(event, "today")),
+  weekEvents: events.filter(
+    (event) =>
+      eventMatchesDateFilter(event, "this_week") &&
+      !eventMatchesDateFilter(event, "today")
+  ),
+  laterEvents: events.filter(
+    (event) => !eventMatchesDateFilter(event, "this_week")
+  ),
+});
+
+const renderEventContent = ({
+  loading,
+  filteredEvents,
+  todayEvents,
+  weekEvents,
+  laterEvents,
+  dateFilter,
+}: {
+  loading: boolean;
+  filteredEvents: PublicEvent[];
+  todayEvents: PublicEvent[];
+  weekEvents: PublicEvent[];
+  laterEvents: PublicEvent[];
+  dateFilter: DateFilter;
+}) => {
+  if (loading) return <EventsPageSkeleton />;
+  if (filteredEvents.length === 0) return <EmptyEventsState />;
+
+  if (dateFilter !== "all") {
+    return (
+      <div className="mt-10">
+        <EventSection
+          eyebrow="Filtered results"
+          title={getDateFilterTitle(dateFilter)}
+          events={filteredEvents}
+          layout="rail"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-10 space-y-12">
+      {todayEvents.length > 0 && (
+        <EventSection
+          eyebrow="Happening now"
+          title="Today"
+          events={todayEvents}
+          layout="rail"
+        />
+      )}
+
+      {weekEvents.length > 0 && (
+        <EventSection
+          eyebrow="Coming up soon"
+          title="This week"
+          events={weekEvents}
+          layout="rail"
+        />
+      )}
+
+      {laterEvents.length > 0 && (
+        <EventSection
+          eyebrow="Plan ahead"
+          title="Later events"
+          events={laterEvents}
+          layout="rail"
+        />
+      )}
+    </div>
+  );
+};
+
+const EventHostStage = ({
+  activeHost,
+  children,
+}: {
+  activeHost: EventHostFilter;
+  children: React.ReactNode;
+}) => (
+  <div className="overflow-hidden">
+    <div
+      className="grid w-[200%] grid-cols-2 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      style={{
+        transform:
+          activeHost === "artist" ? "translateX(0%)" : "translateX(-50%)",
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+const HostToggle = ({
+  value,
+  counts,
+  onChange,
+}: {
+  value: EventHostFilter;
+  counts: Record<EventHostFilter, number>;
+  onChange: (value: EventHostFilter) => void;
+}) => (
+  <div className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="inline-grid w-full grid-cols-2 rounded-lg border border-white/10 bg-black/25 p-1 sm:w-[340px]">
+      {(["artist", "shop"] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => onChange(item)}
+          className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-3! text-sm! font-semibold capitalize transition ${
+            value === item
+              ? "bg-white text-black shadow-lg"
+              : "text-white/55 hover:bg-white/[0.06] hover:text-white"
+          }`}
+        >
+          {item === "artist" ? <Users size={15} /> : <Store size={15} />}
+          {item === "artist" ? "Artists" : "Shops"}
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] ${
+              value === item
+                ? "bg-black/10 text-black"
+                : "bg-white/[0.08] text-white/55"
+            }`}
+          >
+            {counts[item]}
+          </span>
+        </button>
+      ))}
+    </div>
+    <p className="text-sm text-white/45">
+      {value === "artist"
+        ? "Browsing events published by individual artists."
+        : "Browsing events hosted directly by shops."}
+    </p>
+  </div>
+);
 
 const EventSection = ({
   eyebrow,
@@ -527,7 +625,7 @@ const PublicEventCard = ({
   style?: React.CSSProperties;
 }) => {
   const hostName = getEventHostName(event);
-  const isShopHosted = event.ownerType === "shop" && !event.artist;
+  const isShopHosted = getEventHostType(event) === "shop";
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
 
@@ -618,7 +716,7 @@ const PublicEventCard = ({
           )}
 
           <div className="mt-auto flex justify-end pt-5">
-            {event.artistId ? (
+            {!isShopHosted && event.artistId ? (
               <Link
                 to={`/artists/${event.artistId}`}
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
@@ -638,50 +736,6 @@ const PublicEventCard = ({
     </article>
   );
 };
-
-const FeaturedEventSummary = ({ event }: { event: PublicEvent }) => (
-  <div className="rounded-xl border border-white/10 bg-black/25 p-4">
-    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-      Next event
-    </p>
-    <div className="mt-3 flex items-center gap-3">
-      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
-        {event.thumbnailUrl ? (
-          <img
-            src={event.thumbnailUrl}
-            alt={event.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <CalendarDays className="text-white/25" size={24} />
-          </div>
-        )}
-      </div>
-      <div className="min-w-0">
-        <h3 className="line-clamp-2 text-base! font-semibold text-white">
-          {event.title}
-        </h3>
-        <p className="mt-1 truncate text-sm text-white/45">
-          {formatEventDate(event)}
-        </p>
-      </div>
-    </div>
-    {event.artistId ? (
-      <Link
-        to={`/artists/${event.artistId}`}
-        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"
-      >
-        View {getArtistName(event.artist)}
-        <ChevronRight size={16} />
-      </Link>
-    ) : (
-      <p className="mt-4 text-sm font-semibold text-white/60">
-        Hosted by {getEventHostName(event)}
-      </p>
-    )}
-  </div>
-);
 
 const HeroStat = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
@@ -735,7 +789,7 @@ const EmptyEventsState = () => (
     <CalendarDays className="mx-auto mb-4 text-white/25" size={42} />
     <h2 className="text-2xl! font-semibold text-white">No events found</h2>
     <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-white/50">
-      Try changing your filters or checking back when verified artists publish
+      Try changing your filters or checking back when artists and shops publish
       new flash days, pop-ups, guest spots, or shop events.
     </p>
   </div>
@@ -813,10 +867,18 @@ const isArtistVerified = (artist?: PublicArtist) =>
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "Verified artist";
 
-const getEventHostName = (event: PublicEvent) =>
-  event.artist
-    ? getArtistName(event.artist)
-    : event.shop?.name || event.shopName || "Verified shop";
+const getEventHostType = (event: PublicEvent): EventHostFilter =>
+  event.ownerType === "shop" || (!event.artistId && Boolean(event.shopId))
+    ? "shop"
+    : "artist";
+
+const getEventHostName = (event: PublicEvent) => {
+  if (getEventHostType(event) === "shop") {
+    return event.shop?.name || event.shopName || "Verified shop";
+  }
+
+  return event.artist ? getArtistName(event.artist) : "Verified artist";
+};
 
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
