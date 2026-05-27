@@ -277,7 +277,7 @@ const OffersTable = ({
   onOpen: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(210px,1.15fr) 96px minmax(190px,.95fr) minmax(230px,1.2fr) minmax(140px,.72fr) minmax(150px,.65fr)";
+    "minmax(210px,1.15fr) 96px minmax(220px,1fr) minmax(250px,1.15fr) minmax(140px,.72fr) minmax(150px,.65fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -289,7 +289,7 @@ const OffersTable = ({
           >
             <span>Artist</span>
             <span>Sample</span>
-            <span>Pricing</span>
+            <span>Total | Deposit</span>
             <span>Appointment</span>
             <span>Status</span>
             <span className="text-right">Actions</span>
@@ -320,9 +320,21 @@ const OfferRow = ({
   onOpen: () => void;
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
-  const firstDateOption = offer.dateOptions?.find((option) => option.date && option.time);
+  const appointmentOptions = getSortedAppointmentOptions(offer.dateOptions);
+  const soonestDateOption = appointmentOptions[0];
+  const additionalAppointmentCount = Math.max(appointmentOptions.length - 1, 0);
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
+  const depositLabel = formatDeposit(offer);
+  const depositTooltip =
+    offer.depositPolicy?.depositRequired && Number(offer.depositPolicy.amount || 0) > 0
+      ? `${depositLabel} reserves your appointment. The remaining artist balance is handled after checkout based on the offer terms.`
+      : "No deposit is required to reserve this appointment.";
+  const appointmentTooltip = appointmentOptions.length
+    ? appointmentOptions
+        .map((option, index) => `Option ${index + 1}: ${formatAppointment(option)}`)
+        .join("\n")
+    : "No appointment options were included.";
 
   return (
     <div
@@ -352,22 +364,48 @@ const OfferRow = ({
         )}
       </button>
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm font-semibold text-white">Total ${offer.price}</p>
-        <p className="mt-1 truncate text-xs text-neutral-500">Deposit {formatDeposit(offer)}</p>
+      <div
+        className="min-w-0 pr-4"
+        title={depositTooltip}
+        aria-label={`Total $${offer.price}. Deposit ${depositLabel}. ${depositTooltip}`}
+      >
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-neutral-500">
+            Total
+          </span>
+          <span className="text-sm font-semibold text-white">${offer.price}</span>
+          <span className="text-neutral-600">|</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-neutral-500">
+            Deposit
+          </span>
+          <span className="text-sm font-semibold text-white">{depositLabel}</span>
+        </div>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          Deposit reserves the appointment
+        </p>
       </div>
 
-      <div className="min-w-0 pr-4">
+      <div className="min-w-0 pr-4" title={appointmentTooltip}>
         <p className="truncate text-sm font-medium text-white">
-          {firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date"}
+          {soonestDateOption
+            ? `Soonest: ${formatAppointment(soonestDateOption, "compact")}`
+            : "No date"}
         </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {isFlashOffer
-            ? offer.flashTitle || "Flash item"
-            : isMultiSessionOffer
-            ? `${offer.estimatedSessionCount || 2} sessions`
-            : offer.shopName || "Shop not set"}
-        </p>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+          {additionalAppointmentCount > 0 && (
+            <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-neutral-300">
+              +{additionalAppointmentCount} more option
+              {additionalAppointmentCount === 1 ? "" : "s"}
+            </span>
+          )}
+          <span className="min-w-0 truncate text-xs text-neutral-500">
+            {isFlashOffer
+              ? offer.flashTitle || "Flash item"
+              : isMultiSessionOffer
+              ? `${offer.estimatedSessionCount || 2} sessions`
+              : offer.shopName || "Shop not set"}
+          </span>
+        </div>
       </div>
 
       <StatusBadge status={offer.status || "pending"} />
@@ -424,7 +462,23 @@ const SectionSkeleton = () => (
   </section>
 );
 
-const formatDeposit = (offer: Offer) => offer.depositPolicy?.depositRequired ? `$${offer.depositPolicy.amount || 0}` : "Not required";
+const getSortedAppointmentOptions = (
+  dateOptions?: { date: string; time: string }[]
+) =>
+  [...(dateOptions || [])]
+    .filter((option) => option.date && option.time)
+    .sort((a, b) => getAppointmentTime(a) - getAppointmentTime(b));
+
+const getAppointmentTime = (option: { date: string; time: string }) => {
+  const [year, month, day] = option.date.split("-").map(Number);
+  const [hours, minutes] = option.time.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes).getTime();
+};
+
+const formatDeposit = (offer: Offer) =>
+  offer.depositPolicy?.depositRequired
+    ? `$${offer.depositPolicy.amount || 0}`
+    : "Not required";
 
 const formatAppointment = (option: { date: string; time: string }, mode: "compact" | "long" = "long") => {
   const [year, month, day] = option.date.split("-").map(Number);
