@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -20,6 +21,7 @@ import {
   Copy,
   Code,
 } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 import toast from "react-hot-toast";
 
 /**
@@ -51,17 +53,283 @@ type AdminView = "artists" | "requests" | "offers" | "bookings" | "sessions";
 interface ArtistRecord {
   id: string;
   displayName?: string;
+  name?: string;
+  username?: string;
   email?: string;
   avatarUrl?: string;
+  avatar?: string;
+  photoURL?: string;
   location?: string;
-  createdAt?: any;
-  [key: string]: any;
+  createdAt?: unknown;
+  [key: string]: unknown;
 }
 
 interface GenericRecord {
   id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
+
+type UserRecord = GenericRecord & {
+  displayName?: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  avatarUrl?: string;
+  avatar?: string;
+  photoURL?: string;
+  role?: string;
+};
+
+type UserLookup = Record<string, UserRecord>;
+
+type TimestampLike = {
+  seconds?: number;
+  toDate?: () => Date;
+};
+
+const copyToClipboard = async (value: string) => {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success("Copied to clipboard");
+  } catch {
+    toast.error("Failed to copy");
+  }
+};
+
+const getTimestampDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value === "object") {
+    const timestamp = value as TimestampLike;
+    if (typeof timestamp.toDate === "function") return timestamp.toDate();
+    if (typeof timestamp.seconds === "number") {
+      return new Date(timestamp.seconds * 1000);
+    }
+  }
+  return null;
+};
+
+const formatDate = (value: unknown) => {
+  const date = getTimestampDate(value);
+  return date ? date.toLocaleDateString() : "-";
+};
+
+const formatDateTime = (value: unknown) => {
+  const date = getTimestampDate(value);
+  return date ? date.toLocaleString() : "-";
+};
+
+const formatStatusLabel = (status: unknown) => {
+  if (!status || typeof status !== "string") return "-";
+  return status.replace(/_/g, " ");
+};
+
+const getString = (record: GenericRecord | UserRecord | undefined, key: string) => {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value : "";
+};
+
+const getNumber = (record: GenericRecord, key: string) => {
+  const value = record[key];
+  return typeof value === "number" && !Number.isNaN(value) ? value : undefined;
+};
+
+const getUserName = (user: UserRecord | undefined, fallbackId?: string) =>
+  user?.displayName ||
+  user?.name ||
+  user?.username ||
+  getString(user, "fullName") ||
+  fallbackId ||
+  "";
+
+const getUserAvatar = (user: UserRecord | undefined) =>
+  user?.avatarUrl || user?.avatar || user?.photoURL || "";
+
+const getPersonName = (
+  record: GenericRecord,
+  usersById: UserLookup,
+  nameKeys: string[],
+  idKeys: string[]
+) => {
+  const id = idKeys.map((key) => getString(record, key)).find(Boolean);
+  const userName = getUserName(id ? usersById[id] : undefined, "");
+  if (userName) return userName;
+  return nameKeys.map((key) => getString(record, key)).find(Boolean) || id || "-";
+};
+
+const getPersonAvatar = (
+  record: GenericRecord,
+  usersById: UserLookup,
+  avatarKeys: string[],
+  idKeys: string[]
+) => {
+  const explicitAvatar = avatarKeys
+    .map((key) => getString(record, key))
+    .find(Boolean);
+  if (explicitAvatar) return explicitAvatar;
+  const id = idKeys.map((key) => getString(record, key)).find(Boolean);
+  return id ? getUserAvatar(usersById[id]) : "";
+};
+
+const formatMoney = (value: unknown) => {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return `$${value.toFixed(2)}`;
+  }
+  return typeof value === "string" && value.trim() ? value : "-";
+};
+
+const formatBudget = (record: GenericRecord) => {
+  const budget = record.budget;
+  if (typeof budget === "number") return `$${budget.toFixed(2)}`;
+  if (typeof budget === "string" && budget.trim()) return budget;
+  const min = getNumber(record, "budgetMin");
+  const max = getNumber(record, "budgetMax");
+  if (typeof min === "number" && typeof max === "number") return `$${min}-${max}`;
+  if (typeof min === "number") return `$${min}+`;
+  if (typeof max === "number") return `Up to $${max}`;
+  return "-";
+};
+
+const formatSelectedDate = (selectedDate: unknown) => {
+  if (!selectedDate || typeof selectedDate !== "object") return "";
+  const value = selectedDate as { date?: unknown; time?: unknown };
+  const date = typeof value.date === "string" ? value.date : "";
+  const time = typeof value.time === "string" ? value.time : "";
+  if (!date || date === "TBD") return date || "";
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours = 0, minutes = 0] = time.split(":").map(Number);
+  if (!year || !month || !day) return [date, time].filter(Boolean).join(" ");
+  return new Date(year, month - 1, day, hours, minutes).toLocaleString();
+};
+
+const getFirstAppointmentLabel = (booking: GenericRecord) => {
+  const selectedDate = formatSelectedDate(booking.selectedDate);
+  if (selectedDate) return selectedDate;
+  const scheduledAt = formatDateTime(booking.scheduledAt);
+  if (scheduledAt !== "-") return scheduledAt;
+  const appointmentAt = formatDateTime(booking.appointmentAt);
+  if (appointmentAt !== "-") return appointmentAt;
+  if (Array.isArray(booking.appointmentTimes) && booking.appointmentTimes.length) {
+    return formatDateTime(booking.appointmentTimes[0]);
+  }
+  if (Array.isArray(booking.dateOptions) && booking.dateOptions.length) {
+    return formatSelectedDate(booking.dateOptions[0]) || "-";
+  }
+  return "-";
+};
+
+const getOfferStatusLabel = (offer: GenericRecord) => {
+  const status = getString(offer, "status");
+  if (status === "accepted") return "Client accepted";
+  if (status === "declined") return "Client declined";
+  if (status === "expired") return "Expired";
+  return "Waiting for client";
+};
+
+const getRequestStatusLabel = (request: GenericRecord, offers: GenericRecord[]) => {
+  const requestId = request.id;
+  const requestStatus = getString(request, "status");
+  const hasOffer = offers.some((offer) => getString(offer, "requestId") === requestId);
+  return hasOffer || requestStatus === "offered"
+    ? "Artist responded"
+    : "Waiting for offer";
+};
+
+const getTotalLabel = (booking: GenericRecord) => {
+  let totalNum = getNumber(booking, "price");
+  totalNum ??= getNumber(booking, "totalPrice");
+  totalNum ??= getNumber(booking, "totalAmount");
+  if (typeof totalNum !== "number") {
+    const paid = getNumber(booking, "totalArtistPaidAmount") || 0;
+    const deposit = getNumber(booking, "depositAmount") || 0;
+    const remaining = getNumber(booking, "remainingBalanceAmount") || 0;
+    const remainingPaid = getNumber(booking, "remainingPaidAmount") || 0;
+    const sum = paid + deposit + remaining + remainingPaid;
+    totalNum = sum > 0 ? sum : undefined;
+  }
+  return typeof totalNum === "number" ? `$${totalNum.toFixed(2)}` : "-";
+};
+
+const buildSessionRows = (
+  sessions: GenericRecord[],
+  bookings: GenericRecord[]
+): GenericRecord[] => {
+  const explicitRows = sessions.map((session) => ({
+    ...session,
+    adminSessionSource: "session",
+  }));
+
+  const bookingRows = bookings
+    .filter((booking) => {
+      const estimatedSessions = getNumber(booking, "estimatedSessionCount") || 1;
+      return (
+        estimatedSessions > 1 ||
+        Boolean(booking.sessionStatus) ||
+        getString(booking, "projectType") === "multi_session"
+      );
+    })
+    .map((booking) => ({
+      ...booking,
+      id:
+        getString(booking, "sessionId") ||
+        `${booking.id}-session-${getNumber(booking, "activeSessionNumber") || 1}`,
+      bookingId: booking.id,
+      scheduledAt: booking.scheduledAt || booking.selectedDate,
+      status: booking.sessionStatus || booking.status,
+      adminSessionSource: "booking",
+    }));
+
+  const seen = new Set<string>();
+  return [...explicitRows, ...bookingRows].filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+};
+
+const PersonCell = ({
+  name,
+  avatar,
+  fallbackLabel,
+  copyValue,
+}: {
+  name: string;
+  avatar?: string;
+  fallbackLabel: string;
+  copyValue?: string;
+}) => (
+  <span className="flex min-w-0 items-center gap-2">
+    {avatar ? (
+      <img
+        src={avatar}
+        alt={name || fallbackLabel}
+        className="h-6 w-6 flex-shrink-0 rounded-full object-cover"
+      />
+    ) : (
+      <div className="h-6 w-6 flex-shrink-0 rounded-full bg-white/10" />
+    )}
+    <span className="flex min-w-0 items-center gap-1">
+      <span className="truncate">{name || fallbackLabel}</span>
+      {copyValue && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            copyToClipboard(copyValue);
+          }}
+          className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+          aria-label={`Copy ${fallbackLabel} ID`}
+        >
+          <Copy size={14} />
+        </button>
+      )}
+    </span>
+  </span>
+);
 
 /**
  * AdminSidebarNavigation
@@ -81,7 +349,11 @@ const AdminSidebarNavigation: React.FC<SidebarProps> = ({
   onChange,
   counts,
 }) => {
-  const links: { key: AdminView; label: string; icon: any }[] = [
+  const links: {
+    key: AdminView;
+    label: string;
+    icon: ComponentType<LucideProps>;
+  }[] = [
     { key: "artists", label: "Artists", icon: Users },
     { key: "requests", label: "Requests", icon: Inbox },
     { key: "offers", label: "Offers", icon: ReceiptText },
@@ -343,482 +615,29 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
             <span>Joined</span>
           </div>
           {/* Rows */}
-          {data.map((artist) => (
-            <button
-              key={artist.id}
-              onClick={() => onSelect(artist)}
-              className="grid grid-cols-4 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
-            >
-              {/* Name with avatar and copy icon */}
-              <span className="flex items-center gap-3">
-                {artist.avatarUrl ? (
-                  <img
-                    src={artist.avatarUrl}
-                    alt={artist.displayName || "Artist avatar"}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {artist.displayName || artist.id}
-                  {artist.id && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(String(artist.id)).then(
-                          () => toast.success("Copied to clipboard"),
-                          () => toast.error("Failed to copy")
-                        );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-              </span>
-              {/* Email */}
-              <span>{artist.email || "-"}</span>
-              {/* Shop/studio */}
-              <span>
-                {artist.shopName ||
-                  artist.studioName ||
-                  artist.shopId ||
-                  artist.location ||
-                  "-"}
-              </span>
-              {/* Joined date */}
-              <span>
-                {artist.createdAt &&
-                typeof artist.createdAt.toDate === "function"
-                  ? new Date(artist.createdAt.toDate()).toLocaleDateString()
-                  : artist.createdAt?.seconds
-                  ? new Date(
-                      artist.createdAt.seconds * 1000
-                    ).toLocaleDateString()
-                  : "-"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const RequestsTable: React.FC<TableProps<GenericRecord>> = ({
-  data,
-  onSelect,
-}) => {
-  return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-semibold text-white">Tattoo requests</h2>
-      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[700px] divide-y divide-white/10">
-          <div className="grid grid-cols-5 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
-            <span>Request</span>
-            <span>Client</span>
-            <span>Artist</span>
-            <span>Budget</span>
-            <span>Created</span>
-          </div>
-          {data.map((req) => (
-            <button
-              key={req.id}
-              onClick={() => onSelect(req)}
-              className="grid grid-cols-5 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
-            >
-              {/* Request description */}
-              <span className="truncate">
-                {req.description || req.bodyPlacement || req.size || req.id}
-              </span>
-              {/* Client with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {req.clientAvatar ? (
-                  <img
-                    src={req.clientAvatar}
-                    alt={req.clientName || "Client"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {req.clientName || req.clientId || "-"}
-                  {req.clientId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(req.clientId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-              </span>
-              {/* Artist with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {req.artistAvatar ||
-                req.artistAvatarUrl ||
-                (req.artist &&
-                  (req.artist.avatarUrl ||
-                    req.artist.avatarURL ||
-                    req.artist.avatar)) ? (
-                  <img
-                    src={
-                      (req.artistAvatar as string) ||
-                      (req.artistAvatarUrl as string) ||
-                      (req.artist?.avatarUrl as string) ||
-                      (req.artist?.avatarURL as string) ||
-                      (req.artist?.avatar as string)
-                    }
-                    alt={req.artistName || req.artist?.displayName || "Artist"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {req.artistName ||
-                    req.artist?.displayName ||
-                    req.artistId ||
-                    "-"}
-                  {req.artistId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(req.artistId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-              </span>
-              {/* Budget */}
-              <span>
-                {typeof req.budget === "number"
-                  ? `$${req.budget.toFixed(2)}`
-                  : req.budget || "-"}
-              </span>
-              {/* Created date and time */}
-              <span>
-                {req.createdAt && typeof req.createdAt.toDate === "function"
-                  ? new Date(req.createdAt.toDate()).toLocaleString()
-                  : req.createdAt?.seconds
-                  ? new Date(req.createdAt.seconds * 1000).toLocaleString()
-                  : "-"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const OffersTable: React.FC<TableProps<GenericRecord>> = ({
-  data,
-  onSelect,
-}) => {
-  return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-semibold text-white">Tattoo offers</h2>
-      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[700px] divide-y divide-white/10">
-          <div className="grid grid-cols-5 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
-            <span>Offer</span>
-            <span>Artist</span>
-            <span>Client</span>
-            <span>Price</span>
-            <span>Created</span>
-          </div>
-          {data.map((offer) => (
-            <button
-              key={offer.id}
-              onClick={() => onSelect(offer)}
-              className="grid grid-cols-5 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
-            >
-              {/* Offer title/description with ID copy */}
-              <span className="flex items-center gap-1 truncate">
-                {offer.flashTitle || offer.description || offer.id}
-                {offer.id && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard.writeText(String(offer.id)).then(
-                        () => toast.success("Copied to clipboard"),
-                        () => toast.error("Failed to copy")
-                      );
-                    }}
-                    className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                  >
-                    <Copy size={14} />
-                  </button>
-                )}
-              </span>
-              {/* Artist with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {offer.artistAvatar ? (
-                  <img
-                    src={offer.artistAvatar}
-                    alt={offer.artistName || "Artist"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {offer.artistName || offer.artistId || "-"}
-                  {offer.artistId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(offer.artistId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-              </span>
-              {/* Client with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {offer.clientAvatar ? (
-                  <img
-                    src={offer.clientAvatar}
-                    alt={offer.clientName || "Client"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {offer.clientName || offer.clientId || "-"}
-                  {offer.clientId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(offer.clientId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-              </span>
-              {/* Price */}
-              <span>
-                {typeof offer.price === "number"
-                  ? `$${offer.price.toFixed(2)}`
-                  : typeof offer.flashPrice === "number"
-                  ? `$${offer.flashPrice.toFixed(2)}`
-                  : offer.price || offer.flashPrice || "-"}
-              </span>
-              {/* Created */}
-              <span>
-                {offer.createdAt && typeof offer.createdAt.toDate === "function"
-                  ? new Date(offer.createdAt.toDate()).toLocaleDateString()
-                  : offer.createdAt?.seconds
-                  ? new Date(
-                      offer.createdAt.seconds * 1000
-                    ).toLocaleDateString()
-                  : "-"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
-  data,
-  onSelect,
-}) => {
-  return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-semibold text-white">Bookings</h2>
-      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[800px] divide-y divide-white/10">
-          <div className="grid grid-cols-6 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
-            <span>ID</span>
-            <span>Client</span>
-            <span>Artist</span>
-            <span>Status</span>
-            <span>Total</span>
-            <span>Created</span>
-          </div>
-          {data.map((booking) => {
-            // Compute a total price fallback for bookings with missing totalPrice
-            let totalNum: number | undefined;
-            if (typeof booking.price === "number") {
-              totalNum = booking.price;
-            } else if (typeof booking.totalPrice === "number") {
-              totalNum = booking.totalPrice;
-            } else if (typeof booking.totalAmount === "number") {
-              totalNum = booking.totalAmount;
-            } else {
-              const paid =
-                typeof booking.totalArtistPaidAmount === "number"
-                  ? booking.totalArtistPaidAmount
-                  : 0;
-              const deposit =
-                typeof booking.depositAmount === "number"
-                  ? booking.depositAmount
-                  : 0;
-              const remaining =
-                typeof booking.remainingBalanceAmount === "number"
-                  ? booking.remainingBalanceAmount
-                  : 0;
-              const remainingPaid =
-                typeof booking.remainingPaidAmount === "number"
-                  ? booking.remainingPaidAmount
-                  : 0;
-              const sum = paid + deposit + remaining + remainingPaid;
-              totalNum = sum > 0 ? sum : undefined;
-            }
-            const totalLabel =
-              typeof totalNum === "number" && !Number.isNaN(totalNum)
-                ? `$${totalNum.toFixed(2)}`
-                : "-";
+          {data.map((artist) => {
+            const artistName = getUserName(artist, artist.id);
             return (
               <button
-                key={booking.id}
-                onClick={() => onSelect(booking)}
-                className="grid grid-cols-6 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
+                key={artist.id}
+                onClick={() => onSelect(artist)}
+                className="grid grid-cols-4 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
               >
-                {/* Booking ID with copy icon */}
-                <span className="flex items-center gap-1 truncate">
-                  {booking.id}
-                  {booking.id && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(String(booking.id)).then(
-                          () => toast.success("Copied to clipboard"),
-                          () => toast.error("Failed to copy")
-                        );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
-                </span>
-                {/* Client with avatar and copy icon */}
-                <span className="flex items-center gap-2">
-                  {booking.clientAvatar ? (
-                    <img
-                      src={booking.clientAvatar}
-                      alt={booking.clientName || "Client"}
-                      className="h-6 w-6 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded-full bg-white/10" />
-                  )}
-                  <span className="flex items-center gap-1 truncate">
-                    {booking.clientName || booking.clientId || "-"}
-                    {booking.clientId && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard
-                            .writeText(String(booking.clientId))
-                            .then(
-                              () => toast.success("Copied to clipboard"),
-                              () => toast.error("Failed to copy")
-                            );
-                        }}
-                        className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                      >
-                        <Copy size={14} />
-                      </button>
-                    )}
-                  </span>
-                </span>
-                {/* Artist with avatar and copy icon */}
-                <span className="flex items-center gap-2">
-                  {booking.artistAvatar ? (
-                    <img
-                      src={booking.artistAvatar}
-                      alt={booking.artistName || "Artist"}
-                      className="h-6 w-6 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded-full bg-white/10" />
-                  )}
-                  <span className="flex items-center gap-1 truncate">
-                    {booking.artistName || booking.artistId || "-"}
-                    {booking.artistId && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard
-                            .writeText(String(booking.artistId))
-                            .then(
-                              () => toast.success("Copied to clipboard"),
-                              () => toast.error("Failed to copy")
-                            );
-                        }}
-                        className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                      >
-                        <Copy size={14} />
-                      </button>
-                    )}
-                  </span>
-                </span>
-                {/* Status */}
-                <span className="capitalize">{booking.status || "-"}</span>
-                {/* Total */}
-                <span>{totalLabel}</span>
-                {/* Created date and time */}
+                <PersonCell
+                  name={artistName}
+                  avatar={getUserAvatar(artist)}
+                  fallbackLabel="Artist"
+                  copyValue={artist.id}
+                />
+                <span>{artist.email || "-"}</span>
                 <span>
-                  {booking.createdAt &&
-                  typeof booking.createdAt.toDate === "function"
-                    ? new Date(booking.createdAt.toDate()).toLocaleString()
-                    : booking.createdAt?.seconds
-                    ? new Date(
-                        booking.createdAt.seconds * 1000
-                      ).toLocaleString()
-                    : "-"}
+                  {getString(artist, "shopName") ||
+                    getString(artist, "studioName") ||
+                    getString(artist, "shopId") ||
+                    getString(artist, "location") ||
+                    "-"}
                 </span>
+                <span>{formatDate(artist.createdAt)}</span>
               </button>
             );
           })}
@@ -828,119 +647,343 @@ const BookingsTable: React.FC<TableProps<GenericRecord>> = ({
   );
 };
 
-const SessionsTable: React.FC<TableProps<GenericRecord>> = ({
-  data,
-  onSelect,
-}) => {
+const RequestsTable: React.FC<
+  TableProps<GenericRecord> & {
+    offers: GenericRecord[];
+    usersById: UserLookup;
+  }
+> = ({ data, onSelect, offers, usersById }) => {
+  return (
+    <section className="space-y-4">
+      <h2 className="text-2xl font-semibold text-white">Tattoo requests</h2>
+      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
+        <div className="min-w-[700px] divide-y divide-white/10">
+          <div className="grid grid-cols-5 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
+            <span>Status</span>
+            <span>Client</span>
+            <span>Artist</span>
+            <span>Budget</span>
+            <span>Created</span>
+          </div>
+          {data.map((req) => {
+            const clientId = getString(req, "clientId");
+            const artistId = getString(req, "artistId");
+            return (
+              <button
+                key={req.id}
+                onClick={() => onSelect(req)}
+                className="grid grid-cols-5 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
+              >
+                <span className="truncate capitalize">
+                  {getRequestStatusLabel(req, offers)}
+                </span>
+                <PersonCell
+                  name={
+                    getPersonName(req, usersById, ["clientName"], ["clientId"])
+                  }
+                  avatar={getPersonAvatar(
+                    req,
+                    usersById,
+                    ["clientAvatar", "clientAvatarUrl"],
+                    ["clientId"]
+                  )}
+                  fallbackLabel="Client"
+                  copyValue={clientId}
+                />
+                <PersonCell
+                  name={
+                    getPersonName(
+                      req,
+                      usersById,
+                      ["artistName", "displayName"],
+                      ["artistId"]
+                    )
+                  }
+                  avatar={getPersonAvatar(
+                    req,
+                    usersById,
+                    ["artistAvatar", "artistAvatarUrl"],
+                    ["artistId"]
+                  )}
+                  fallbackLabel="Artist"
+                  copyValue={artistId}
+                />
+                <span>{formatBudget(req)}</span>
+                <span>{formatDateTime(req.createdAt)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const OffersTable: React.FC<
+  TableProps<GenericRecord> & {
+    usersById: UserLookup;
+  }
+> = ({ data, onSelect, usersById }) => {
+  return (
+    <section className="space-y-4">
+      <h2 className="text-2xl font-semibold text-white">Tattoo offers</h2>
+      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
+        <div className="min-w-[860px] divide-y divide-white/10">
+          <div className="grid grid-cols-6 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
+            <span>Offer</span>
+            <span>Artist</span>
+            <span>Client</span>
+            <span>Price</span>
+            <span>Status</span>
+            <span>Created</span>
+          </div>
+          {data.map((offer) => {
+            const artistId = getString(offer, "artistId");
+            const clientId = getString(offer, "clientId");
+            return (
+              <button
+                key={offer.id}
+                onClick={() => onSelect(offer)}
+                className="grid grid-cols-6 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
+              >
+                <span className="flex items-center gap-1 truncate">
+                  {getString(offer, "flashTitle") ||
+                    getString(offer, "description") ||
+                    offer.id}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyToClipboard(String(offer.id));
+                    }}
+                    className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+                    aria-label="Copy offer ID"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </span>
+                <PersonCell
+                  name={getPersonName(
+                    offer,
+                    usersById,
+                    ["displayName", "artistName"],
+                    ["artistId"]
+                  )}
+                  avatar={getPersonAvatar(
+                    offer,
+                    usersById,
+                    ["artistAvatar", "artistAvatarUrl"],
+                    ["artistId"]
+                  )}
+                  fallbackLabel="Artist"
+                  copyValue={artistId}
+                />
+                <PersonCell
+                  name={getPersonName(offer, usersById, ["clientName"], ["clientId"])}
+                  avatar={getPersonAvatar(
+                    offer,
+                    usersById,
+                    ["clientAvatar", "clientAvatarUrl"],
+                    ["clientId"]
+                  )}
+                  fallbackLabel="Client"
+                  copyValue={clientId}
+                />
+                <span>{formatMoney(offer.price || offer.flashPrice)}</span>
+                <span className="truncate capitalize">{getOfferStatusLabel(offer)}</span>
+                <span>{formatDate(offer.createdAt)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const BookingsTable: React.FC<
+  TableProps<GenericRecord> & {
+    usersById: UserLookup;
+  }
+> = ({ data, onSelect, usersById }) => {
+  return (
+    <section className="space-y-4">
+      <h2 className="text-2xl font-semibold text-white">Bookings</h2>
+      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
+        <div className="min-w-[980px] divide-y divide-white/10">
+          <div className="grid grid-cols-7 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
+            <span>ID</span>
+            <span>Client</span>
+            <span>Artist</span>
+            <span>Status</span>
+            <span>Session</span>
+            <span>Total</span>
+            <span>Created</span>
+          </div>
+          {data.map((booking) => {
+            const clientId = getString(booking, "clientId");
+            const artistId = getString(booking, "artistId");
+            return (
+              <button
+                key={booking.id}
+                onClick={() => onSelect(booking)}
+                className="grid grid-cols-7 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
+              >
+                <span className="flex items-center gap-1 truncate">
+                  {booking.id}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyToClipboard(String(booking.id));
+                    }}
+                    className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+                    aria-label="Copy booking ID"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </span>
+                <PersonCell
+                  name={getPersonName(booking, usersById, ["clientName"], ["clientId"])}
+                  avatar={getPersonAvatar(
+                    booking,
+                    usersById,
+                    ["clientAvatar", "clientAvatarUrl"],
+                    ["clientId"]
+                  )}
+                  fallbackLabel="Client"
+                  copyValue={clientId}
+                />
+                <PersonCell
+                  name={getPersonName(
+                    booking,
+                    usersById,
+                    ["artistName", "displayName"],
+                    ["artistId"]
+                  )}
+                  avatar={getPersonAvatar(
+                    booking,
+                    usersById,
+                    ["artistAvatar", "artistAvatarUrl"],
+                    ["artistId"]
+                  )}
+                  fallbackLabel="Artist"
+                  copyValue={artistId}
+                />
+                <span className="capitalize">{formatStatusLabel(booking.status)}</span>
+                <span>{getFirstAppointmentLabel(booking)}</span>
+                <span>{getTotalLabel(booking)}</span>
+                <span>{formatDateTime(booking.createdAt)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const SessionsTable: React.FC<
+  TableProps<GenericRecord> & {
+    usersById: UserLookup;
+  }
+> = ({ data, onSelect, usersById }) => {
   return (
     <section className="space-y-4">
       <h2 className="text-2xl font-semibold text-white">Sessions</h2>
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[800px] divide-y divide-white/10">
-          <div className="grid grid-cols-6 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
-            <span>ID</span>
+        <div className="min-w-[1040px] divide-y divide-white/10">
+          <div className="grid grid-cols-7 gap-4 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-neutral-300">
+            <span>Session</span>
             <span>Client</span>
             <span>Artist</span>
+            <span>Booking</span>
             <span>Scheduled</span>
             <span>Status</span>
-            <span>Created</span>
+            <span>Progress</span>
           </div>
-          {data.map((session) => (
-            <button
-              key={session.id}
-              onClick={() => onSelect(session)}
-              className="grid grid-cols-6 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
-            >
-              {/* Session ID */}
-              <span className="truncate">{session.id}</span>
-              {/* Client with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {session.clientAvatar ? (
-                  <img
-                    src={session.clientAvatar}
-                    alt={session.clientName || "Client"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
+          {data.map((session) => {
+            const clientId = getString(session, "clientId");
+            const artistId = getString(session, "artistId");
+            const bookingId = getString(session, "bookingId");
+            const activeSession =
+              getNumber(session, "activeSessionNumber") ||
+              getNumber(session, "sessionNumber") ||
+              1;
+            const totalSessions =
+              getNumber(session, "estimatedSessionCount") ||
+              getNumber(session, "totalSessions") ||
+              1;
+            const remainingBalance = getNumber(session, "remainingBalanceAmount");
+            return (
+              <button
+                key={session.id}
+                onClick={() => onSelect(session)}
+                className="grid grid-cols-7 gap-4 w-full px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white"
+              >
+                <span className="truncate">
+                  Session {activeSession}
+                  {String(session.adminSessionSource || "") === "booking" ? (
+                    <span className="ml-2 text-xs text-neutral-500">from booking</span>
+                  ) : null}
+                </span>
+                <PersonCell
+                  name={getPersonName(session, usersById, ["clientName"], ["clientId"])}
+                  avatar={getPersonAvatar(
+                    session,
+                    usersById,
+                    ["clientAvatar", "clientAvatarUrl"],
+                    ["clientId"]
+                  )}
+                  fallbackLabel="Client"
+                  copyValue={clientId}
+                />
+                <PersonCell
+                  name={getPersonName(
+                    session,
+                    usersById,
+                    ["artistName", "displayName"],
+                    ["artistId"]
+                  )}
+                  avatar={getPersonAvatar(
+                    session,
+                    usersById,
+                    ["artistAvatar", "artistAvatarUrl"],
+                    ["artistId"]
+                  )}
+                  fallbackLabel="Artist"
+                  copyValue={artistId}
+                />
                 <span className="flex items-center gap-1 truncate">
-                  {session.clientName || session.clientId || "-"}
-                  {session.clientId && (
+                  {bookingId || "-"}
+                  {bookingId && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(session.clientId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
+                        copyToClipboard(bookingId);
                       }}
                       className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+                      aria-label="Copy booking ID"
                     >
                       <Copy size={14} />
                     </button>
                   )}
                 </span>
-              </span>
-              {/* Artist with avatar and copy icon */}
-              <span className="flex items-center gap-2">
-                {session.artistAvatar ? (
-                  <img
-                    src={session.artistAvatar}
-                    alt={session.artistName || "Artist"}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
-                )}
-                <span className="flex items-center gap-1 truncate">
-                  {session.artistName || session.artistId || "-"}
-                  {session.artistId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard
-                          .writeText(String(session.artistId))
-                          .then(
-                            () => toast.success("Copied to clipboard"),
-                            () => toast.error("Failed to copy")
-                          );
-                      }}
-                      className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  )}
+                <span>{getFirstAppointmentLabel(session)}</span>
+                <span className="capitalize">{formatStatusLabel(session.status)}</span>
+                <span>
+                  {activeSession}/{totalSessions}
+                  {typeof remainingBalance === "number" &&
+                    remainingBalance > 0 && (
+                      <span className="ml-2 text-neutral-500">
+                        {formatMoney(remainingBalance)} due
+                      </span>
+                    )}
                 </span>
-              </span>
-              {/* Scheduled date/time */}
-              <span>
-                {session.scheduledAt &&
-                typeof session.scheduledAt.toDate === "function"
-                  ? new Date(session.scheduledAt.toDate()).toLocaleString()
-                  : session.scheduledAt?.seconds
-                  ? new Date(
-                      session.scheduledAt.seconds * 1000
-                    ).toLocaleString()
-                  : session.scheduledAt || "-"}
-              </span>
-              {/* Status */}
-              <span className="capitalize">{session.status || "-"}</span>
-              {/* Created date and time */}
-              <span>
-                {session.createdAt &&
-                typeof session.createdAt.toDate === "function"
-                  ? new Date(session.createdAt.toDate()).toLocaleString()
-                  : session.createdAt?.seconds
-                  ? new Date(session.createdAt.seconds * 1000).toLocaleString()
-                  : "-"}
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -952,10 +995,11 @@ const SessionsTable: React.FC<TableProps<GenericRecord>> = ({
  * real‑time data subscriptions and conditional rendering of tables.
  */
 const AdminDashboardView: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [activeView, setActiveView] = useState<AdminView>("artists");
 
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [artists, setArtists] = useState<ArtistRecord[]>([]);
   const [requests, setRequests] = useState<GenericRecord[]>([]);
   const [offers, setOffers] = useState<GenericRecord[]>([]);
@@ -965,6 +1009,20 @@ const AdminDashboardView: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<
     GenericRecord | ArtistRecord | null
   >(null);
+
+  const usersById = useMemo<UserLookup>(
+    () =>
+      users.reduce<UserLookup>((lookup, user) => {
+        lookup[user.id] = user;
+        return lookup;
+      }, {}),
+    [users]
+  );
+
+  const sessionRows = useMemo(
+    () => buildSessionRows(sessions, bookings),
+    [sessions, bookings]
+  );
 
   // Listen for auth changes and fetch user role
   useEffect(() => {
@@ -991,6 +1049,13 @@ const AdminDashboardView: React.FC = () => {
   // Subscribe to Firestore collections once an admin is authenticated
   useEffect(() => {
     if (!currentUser) return;
+    const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+      const results: UserRecord[] = [];
+      snap.forEach((docSnap) => {
+        results.push({ id: docSnap.id, ...docSnap.data() } as UserRecord);
+      });
+      setUsers(results);
+    });
     // Artists
     // Avoid requiring a composite index for ordering by createdAt on a filtered query.
     // Instead, query all artists and perform client-side sorting by createdAt descending.
@@ -1004,18 +1069,8 @@ const AdminDashboardView: React.FC = () => {
         results.push({ id: docSnap.id, ...docSnap.data() } as ArtistRecord);
       });
       results.sort((a, b) => {
-        const aDate =
-          a.createdAt && typeof a.createdAt.toDate === "function"
-            ? a.createdAt.toDate()
-            : a.createdAt?.seconds
-            ? new Date(a.createdAt.seconds * 1000)
-            : null;
-        const bDate =
-          b.createdAt && typeof b.createdAt.toDate === "function"
-            ? b.createdAt.toDate()
-            : b.createdAt?.seconds
-            ? new Date(b.createdAt.seconds * 1000)
-            : null;
+        const aDate = getTimestampDate(a.createdAt);
+        const bDate = getTimestampDate(b.createdAt);
         if (!aDate && !bDate) return 0;
         if (!aDate) return 1;
         if (!bDate) return -1;
@@ -1072,6 +1127,7 @@ const AdminDashboardView: React.FC = () => {
       setSessions(results);
     });
     return () => {
+      unsubUsers();
       unsubArtists();
       unsubRequests();
       unsubOffers();
@@ -1086,7 +1142,7 @@ const AdminDashboardView: React.FC = () => {
     requests: requests.length,
     offers: offers.length,
     bookings: bookings.length,
-    sessions: sessions.length,
+    sessions: sessionRows.length,
   };
 
   if (loadingAuth) {
@@ -1121,24 +1177,29 @@ const AdminDashboardView: React.FC = () => {
         {activeView === "requests" && (
           <RequestsTable
             data={requests}
+            offers={offers}
+            usersById={usersById}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
         {activeView === "offers" && (
           <OffersTable
             data={offers}
+            usersById={usersById}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
         {activeView === "bookings" && (
           <BookingsTable
             data={bookings}
+            usersById={usersById}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
         {activeView === "sessions" && (
           <SessionsTable
-            data={sessions}
+            data={sessionRows}
+            usersById={usersById}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
