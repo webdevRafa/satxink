@@ -1091,7 +1091,7 @@ const EventEditorModal = ({
         to { opacity: 1; transform: translateX(0); }
       }
     `}</style>
-    <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
+    <div className="flex h-[92vh] max-h-[900px] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/35">
@@ -1119,7 +1119,7 @@ const EventEditorModal = ({
         onSelect={goToStep}
       />
 
-      <div className="grid max-h-[calc(92vh-180px)] overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="request-modal-scrollbar grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="border-b border-white/10 p-5 lg:border-b-0 lg:border-r">
           <label className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.035] text-center transition hover:border-white/35">
             {thumbnailPreview || editingEvent?.thumbnailUrl ? (
@@ -1692,17 +1692,21 @@ const EventEditorModal = ({
             </>
           )}
 
-          <div className="sticky bottom-0 z-20 -mx-5 mt-6 flex flex-col gap-3 border-t border-white/10 bg-[#101010]/95 px-5 py-4 shadow-[0_-18px_30px_rgba(0,0,0,0.35)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-white/45">
-              {hasCurrentStepErrors
-                ? getFirstStepError(activeStep, formErrors)
-                : !canSave
-                ? getFirstEventFormError(formErrors)
-                : isFinalStep
-                ? "Review the event before saving."
-                : "This step looks ready."}
-            </p>
-            <div className="flex justify-end gap-3">
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-white/10 bg-[#101010]/95 px-5 py-4 shadow-[0_-18px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="min-w-0 text-sm text-white/45">
+            {hasCurrentStepErrors
+              ? getFirstStepError(activeStep, formErrors)
+              : !canSave
+              ? getFirstEventFormError(formErrors)
+              : isFinalStep
+              ? "Review the event before saving."
+              : "This step looks ready."}
+          </p>
+          <div className="flex shrink-0 justify-end gap-3">
             <button
               type="button"
               onClick={currentStepIndex === 0 ? onClose : goToPreviousStep}
@@ -1727,17 +1731,16 @@ const EventEditorModal = ({
                 <ChevronRight size={16} />
               </button>
             ) : (
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={isSaving || !canSave}
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving && <Loader2 className="animate-spin" size={16} />}
-              {isSaving ? "Saving..." : editingEvent ? "Save Event" : "Create Event"}
-            </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isSaving || !canSave}
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving && <Loader2 className="animate-spin" size={16} />}
+                {isSaving ? "Saving..." : editingEvent ? "Save Event" : "Create Event"}
+              </button>
             )}
-            </div>
           </div>
         </div>
       </div>
