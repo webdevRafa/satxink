@@ -970,10 +970,10 @@ const MakeOfferModal = ({
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
                 >
                   Preview offer
-                  <ReceiptText size={16} />
+                  <ReceiptText size={16} className="text-amber-200" />
                 </button>
               )}
               <button
@@ -1073,47 +1073,66 @@ const OfferPreview = ({
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <PreviewTile
-                label="Total artist quote"
-                value={formatMoneyFromCents(Math.round(offerPrice * 100))}
-              />
-              <PreviewTile
-                label="Client pays today"
-                value={todayClientPayment}
-                tone="strong"
-              />
-              <PreviewTile
-                label="You receive from today's deposit"
-                value={artistReceivesToday}
-              />
-              <PreviewTile
-                label="Remaining artist balance"
-                value={formatMoneyFromCents(
-                  Math.round(remainingArtistBalance * 100)
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-black/25">
+              <div className="border-b border-white/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Client checkout today
+                </p>
+              </div>
+              <div className="divide-y divide-white/10">
+                <ReceiptLine
+                  label="Artist deposit"
+                  value={formatMoneyFromCents(Math.round(depositAmount * 100))}
+                  note="Amount you are asking the client to reserve today."
+                />
+                {isInternalPayment && (
+                  <>
+                    <ReceiptLine
+                      label="SATX Ink fee"
+                      value={formatMoneyFromCents(
+                        paymentPreview.platformFeeCents
+                      )}
+                      note="Platform fee calculated from the full artist quote."
+                    />
+                    <ReceiptLine
+                      label="Estimated Stripe fee"
+                      value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
+                      note="Estimated processing cost for today's checkout."
+                    />
+                  </>
                 )}
-              />
-            </div>
-
-            {isInternalPayment && (
-              <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-                <PreviewRow
-                  label="SATX Ink fee"
-                  value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
-                />
-                <PreviewRow
-                  label="Estimated Stripe fee"
-                  value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
-                />
-                <PreviewRow
-                  label="Checkout total"
-                  value={formatMoneyFromCents(paymentPreview.clientTotalCents)}
+                <ReceiptLine
+                  label="Client pays today"
+                  value={todayClientPayment}
+                  total
                 />
               </div>
-            )}
+            </div>
 
-            <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-neutral-300">
-              {laterPaymentLabel}
+            <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-black/25">
+              <div className="border-b border-white/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Artist payout and later balance
+                </p>
+              </div>
+              <div className="divide-y divide-white/10">
+                <ReceiptLine
+                  label="Total artist quote"
+                  value={formatMoneyFromCents(Math.round(offerPrice * 100))}
+                />
+                <ReceiptLine
+                  label="You receive from today's deposit"
+                  value={artistReceivesToday}
+                  emphasis
+                />
+                <ReceiptLine
+                  label="Remaining artist balance"
+                  value={formatMoneyFromCents(
+                    Math.round(remainingArtistBalance * 100)
+                  )}
+                  note={laterPaymentLabel}
+                />
+              </div>
             </div>
           </div>
 
@@ -1363,6 +1382,48 @@ const PreviewRow = ({ label, value }: { label: string; value: string }) => (
       {label}
     </p>
     <p className="mt-1 font-semibold text-white">{value}</p>
+  </div>
+);
+
+const ReceiptLine = ({
+  label,
+  value,
+  note,
+  total,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  total?: boolean;
+  emphasis?: boolean;
+}) => (
+  <div
+    className={`flex items-start justify-between gap-4 px-4 py-3 ${
+      total ? "bg-emerald-300/10" : ""
+    }`}
+  >
+    <div className="min-w-0">
+      <p
+        className={`text-sm ${
+          total || emphasis ? "font-semibold text-white" : "text-neutral-300"
+        }`}
+      >
+        {label}
+      </p>
+      {note && <p className="mt-1 text-xs leading-5 text-neutral-500">{note}</p>}
+    </div>
+    <p
+      className={`shrink-0 text-right ${
+        total
+          ? "text-lg font-semibold text-emerald-50"
+          : emphasis
+          ? "font-semibold text-white"
+          : "font-medium text-white"
+      }`}
+    >
+      {value}
+    </p>
   </div>
 );
 
