@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
@@ -87,6 +87,8 @@ const BookingRequestsList: React.FC<Props> = ({
   const [declinedRequestIds, setDeclinedRequestIds] = useState<string[]>([]);
   const [isDeclining, setIsDeclining] = useState(false);
   const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
+  const [prepareOfferRequest, setPrepareOfferRequest] =
+    useState<BookingRequest | null>(null);
 
   const visibleRequests = useMemo(
     () =>
@@ -137,7 +139,7 @@ const BookingRequestsList: React.FC<Props> = ({
   };
 
   const handleMarkPreparing = async (request: BookingRequest, eta: string) => {
-    if (!eta) return;
+    if (!eta) return false;
     try {
       setPreparingRequestIds((current) => [...current, request.id]);
       await updateDoc(doc(db, "bookingRequests", request.id), {
@@ -156,9 +158,11 @@ const BookingRequestsList: React.FC<Props> = ({
           : current
       );
       toast.success("Client will see that you are preparing an offer.");
+      return true;
     } catch (error) {
-      console.error("Failed to update offer ETA:", error);
+      console.error("Failed to update offer timing:", error);
       toast.error("Could not update this request.");
+      return false;
     } finally {
       setPreparingRequestIds((current) =>
         current.filter((requestId) => requestId !== request.id)
@@ -266,8 +270,7 @@ const BookingRequestsList: React.FC<Props> = ({
           requests={filteredRequests}
           onOpen={setSelectedRequest}
           onMakeOffer={handleMakeOffer}
-          onMarkPreparing={handleMarkPreparing}
-          preparingRequestIds={preparingRequestIds}
+          onPrepareOffer={setPrepareOfferRequest}
         />
       )}
 
@@ -277,10 +280,19 @@ const BookingRequestsList: React.FC<Props> = ({
         onClose={() => setSelectedRequest(null)}
         onDecline={handleDecline}
         onMakeOffer={handleMakeOffer}
-        onMarkPreparing={handleMarkPreparing}
-        isPreparing={Boolean(
-          selectedRequest && preparingRequestIds.includes(selectedRequest.id)
+        onPrepareOffer={(request) => setPrepareOfferRequest(request)}
+      />
+      <PrepareOfferDialog
+        request={prepareOfferRequest}
+        isSaving={Boolean(
+          prepareOfferRequest &&
+            preparingRequestIds.includes(prepareOfferRequest.id)
         )}
+        onClose={() => setPrepareOfferRequest(null)}
+        onConfirm={async (request, eta) => {
+          const didUpdate = await handleMarkPreparing(request, eta);
+          if (didUpdate) setPrepareOfferRequest(null);
+        }}
       />
     </section>
   );
@@ -301,58 +313,148 @@ const MetricCard = ({
   </div>
 );
 
-const OfferPreparationSelect = ({
-  value,
+const PrepareOfferDialog = ({
+  request,
   isSaving,
-  onChange,
+  onClose,
+  onConfirm,
 }: {
-  value: string;
+  request: BookingRequest | null;
   isSaving: boolean;
-  onChange: (eta: string) => void;
-}) => (
-  <label className="inline-flex min-w-[170px] items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
-    <span className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-      ETA
-    </span>
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      disabled={isSaving}
-      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      aria-label="Set offer preparation ETA"
-    >
-      <option value="" className="bg-[#111]">
-        Preparing offer
-      </option>
-      {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
-        <option key={eta} value={eta} className="bg-[#111]">
-          {eta}
-        </option>
-      ))}
-    </select>
-  </label>
-);
+  onClose: () => void;
+  onConfirm: (request: BookingRequest, eta: string) => void | Promise<void>;
+}) => {
+  const [selectedEta, setSelectedEta] = useState("");
+
+  useEffect(() => {
+    setSelectedEta(request?.offerPreparationEta || "");
+  }, [request?.id, request?.offerPreparationEta]);
+
+  return (
+    <Transition appear show={!!request} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="ease-in duration-150"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <Dialog.Panel className="w-full max-w-md rounded-lg border border-white/10 bg-[#111111] p-5 text-white shadow-2xl">
+                {request && (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                          Client update
+                        </p>
+                        <Dialog.Title className="mt-2 text-xl! font-semibold! text-white">
+                          {request.offerPreparationStatus === "preparing"
+                            ? `Update offer timing for ${
+                                request.clientName || "Client"
+                              }`
+                            : `Prepare offer for ${
+                                request.clientName || "Client"
+                              }`}
+                        </Dialog.Title>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                        aria-label="Close prepare offer dialog"
+                      >
+                        <X size={17} />
+                      </button>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-6 text-neutral-400">
+                      Let {request.clientName || "the client"} know you are
+                      preparing an offer. This keeps the request active on their
+                      dashboard and shows when they can expect your offer.
+                    </p>
+
+                    <label className="mt-5 block">
+                      <span className="text-sm font-semibold text-white">
+                        When should they expect the offer?
+                      </span>
+                      <select
+                        value={selectedEta}
+                        onChange={(event) => setSelectedEta(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+                      >
+                        <option value="">Choose expected timing</option>
+                        {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
+                          <option key={eta} value={eta} className="bg-[#111]">
+                            {eta}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!selectedEta || isSaving}
+                        onClick={() => onConfirm(request, selectedEta)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Send size={15} />
+                        {isSaving ? "Updating..." : "Notify client"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
 
 const RequestTable = ({
   requests,
   onOpen,
   onMakeOffer,
-  onMarkPreparing,
-  preparingRequestIds,
+  onPrepareOffer,
 }: {
   requests: BookingRequest[];
   onOpen: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
-  onMarkPreparing: (request: BookingRequest, eta: string) => void;
-  preparingRequestIds: string[];
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(220px,1.2fr) 96px minmax(210px,1.1fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(190px,.8fr)";
+    "minmax(220px,1.15fr) 96px minmax(210px,1.02fr) minmax(250px,1.28fr) minmax(130px,.62fr) minmax(270px,.95fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1180px]">
+        <div className="min-w-[1260px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -373,8 +475,7 @@ const RequestTable = ({
                 columns={columns}
                 onOpen={() => onOpen(request)}
                 onMakeOffer={() => onMakeOffer(request)}
-                onMarkPreparing={(eta) => onMarkPreparing(request, eta)}
-                isPreparing={preparingRequestIds.includes(request.id)}
+                onPrepareOffer={() => onPrepareOffer(request)}
               />
             ))}
           </div>
@@ -389,17 +490,16 @@ const RequestRow = ({
   columns,
   onOpen,
   onMakeOffer,
-  onMarkPreparing,
-  isPreparing,
+  onPrepareOffer,
 }: {
   request: BookingRequest;
   columns: string;
   onOpen: () => void;
   onMakeOffer: () => void;
-  onMarkPreparing: (eta: string) => void;
-  isPreparing: boolean;
+  onPrepareOffer: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const isPreparingOffer = request.offerPreparationStatus === "preparing";
 
   return (
     <div
@@ -474,25 +574,25 @@ const RequestRow = ({
             {request.flashTitle || "Flash request"}
           </p>
         )}
+        {isPreparingOffer && (
+          <p className="mt-1 truncate text-xs text-emerald-100/80">
+            Preparing offer
+            {request.offerPreparationEta
+              ? ` - ${request.offerPreparationEta}`
+              : ""}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center justify-end gap-2">
-        <select
-          value={request.offerPreparationEta || ""}
-          onChange={(event) => onMarkPreparing(event.target.value)}
-          disabled={isPreparing}
-          className="h-9 max-w-[116px] rounded-md border border-white/10 bg-white/[0.03] px-2 text-xs font-semibold text-white outline-none transition focus:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Set offer preparation ETA"
+        <button
+          type="button"
+          onClick={onPrepareOffer}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
-          <option value="" className="bg-[#111]">
-            ETA
-          </option>
-          {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
-            <option key={eta} value={eta} className="bg-[#111]">
-              {eta}
-            </option>
-          ))}
-        </select>
+          <Send size={14} />
+          {isPreparingOffer ? "Update timing" : "Prepare offer"}
+        </button>
         <button
           type="button"
           onClick={onOpen}
@@ -517,30 +617,27 @@ const RequestRow = ({
 const RequestDetailsDialog = ({
   request,
   isDeclining,
-  isPreparing,
   onClose,
   onDecline,
   onMakeOffer,
-  onMarkPreparing,
+  onPrepareOffer,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
-  isPreparing: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
-  onMarkPreparing: (request: BookingRequest, eta: string) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   if (request?.sourceType === "flash") {
     return (
       <FlashRequestDetailsDialog
         request={request}
         isDeclining={isDeclining}
-        isPreparing={isPreparing}
         onClose={onClose}
         onDecline={onDecline}
         onMakeOffer={onMakeOffer}
-        onMarkPreparing={onMarkPreparing}
+        onPrepareOffer={onPrepareOffer}
       />
     );
   }
@@ -687,11 +784,6 @@ const RequestDetailsDialog = ({
                       </div>
 
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <OfferPreparationSelect
-                          value={request.offerPreparationEta || ""}
-                          isSaving={isPreparing}
-                          onChange={(eta) => onMarkPreparing(request, eta)}
-                        />
                         <button
                           type="button"
                           disabled={isDeclining}
@@ -699,6 +791,14 @@ const RequestDetailsDialog = ({
                           className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPrepareOffer(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                        >
+                          <Send size={16} />
+                          Prepare offer
                         </button>
                         <button
                           type="button"
@@ -725,19 +825,17 @@ const RequestDetailsDialog = ({
 const FlashRequestDetailsDialog = ({
   request,
   isDeclining,
-  isPreparing,
   onClose,
   onDecline,
   onMakeOffer,
-  onMarkPreparing,
+  onPrepareOffer,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
-  isPreparing: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
-  onMarkPreparing: (request: BookingRequest, eta: string) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -873,11 +971,6 @@ const FlashRequestDetailsDialog = ({
                       </div>
 
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <OfferPreparationSelect
-                          value={request.offerPreparationEta || ""}
-                          isSaving={isPreparing}
-                          onChange={(eta) => onMarkPreparing(request, eta)}
-                        />
                         <button
                           type="button"
                           disabled={isDeclining}
@@ -885,6 +978,14 @@ const FlashRequestDetailsDialog = ({
                           className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPrepareOffer(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                        >
+                          <Send size={16} />
+                          Prepare offer
                         </button>
                         <button
                           type="button"
