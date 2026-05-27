@@ -5,7 +5,7 @@ import { useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ScrollToTop from "./helpers/ScrollToTop";
 
-// @ts-ignore
+// @ts-expect-error aos does not ship the type shape used by this app.
 import AOS from "aos";
 import "aos/dist/aos.css";
 // components
@@ -39,6 +39,7 @@ import EventsPage from "./pages/EventsPage";
 import FlashMarketplacePage from "./pages/FlashMarketplacePage";
 import PublicFlashSheetPage from "./pages/PublicFlashSheetPage";
 import AdminDashboardView from "./pages/AdminDashboardView";
+import ShopDashboardView from "./pages/ShopDashboardView";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -92,6 +93,7 @@ function App() {
         <Route path="/payment/:bookingId" element={<PaymentPage />} />
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/admin" element={<AdminDashboardView />} />
+        <Route path="/shop-dashboard" element={<ShopDashboardView />} />
 
         <Route
           path="/client-profile-setup"

@@ -9,6 +9,7 @@ import {
   ImageOff,
   MapPin,
   Search,
+  Store,
   Tag,
   Users,
 } from "lucide-react";
@@ -39,6 +40,16 @@ type PublicArtist = {
 
 type PublicEvent = ArtistEvent & {
   artist?: PublicArtist;
+  shop?: PublicShop;
+};
+
+type PublicShop = {
+  id: string;
+  name?: string;
+  address?: string;
+  mapLink?: string;
+  logoUrl?: string;
+  avatarUrl?: string;
 };
 
 const eventTypeLabels: Record<EventType, string> = {
@@ -103,7 +114,10 @@ export const EventsPage = () => {
           }))
           .filter((event): event is ArtistEvent => {
             const typedEvent = event as ArtistEvent;
-            return Boolean(typedEvent.artistId && typedEvent.startDate);
+            return Boolean(
+              typedEvent.startDate &&
+                (typedEvent.artistId || typedEvent.shopId)
+            );
           });
 
         const artistIds = Array.from(
@@ -111,13 +125,22 @@ export const EventsPage = () => {
         );
 
         const artistsById = await fetchVerifiedArtistsById(artistIds);
+        const shopIds = Array.from(
+          new Set(
+            rawEvents
+              .map((event) => event.shopId)
+              .filter((shopId): shopId is string => Boolean(shopId))
+          )
+        );
+        const shopsById = await fetchShopsById(shopIds);
 
         const publicEvents = rawEvents
           .map((event) => ({
             ...event,
-            artist: artistsById[event.artistId],
+            artist: event.artistId ? artistsById[event.artistId] : undefined,
+            shop: event.shopId ? shopsById[event.shopId] : undefined,
           }))
-          .filter((event) => Boolean(event.artist))
+          .filter((event) => Boolean(event.artist || event.shop))
           .filter((event) => isPublicEventBookable(event))
           .filter((event) => !isPastEvent(event))
           .sort(sortEventsChronologically);
@@ -154,6 +177,7 @@ export const EventsPage = () => {
         event.title,
         event.description,
         event.shopName,
+        event.shop?.name,
         event.address,
         event.artist?.displayName,
         event.artist?.name,
@@ -498,7 +522,8 @@ const PublicEventCard = ({
   className?: string;
   style?: React.CSSProperties;
 }) => {
-  const artistName = getArtistName(event.artist);
+  const hostName = getEventHostName(event);
+  const isShopHosted = event.ownerType === "shop" && !event.artist;
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
 
@@ -528,17 +553,23 @@ const PublicEventCard = ({
 
         <div className="flex min-w-0 flex-col p-5">
           <div className="flex items-start gap-3">
-            <img
-              src={event.artist?.avatarUrl || "/default-avatar.png"}
-              alt={artistName}
-              className="h-11 w-11 rounded-full border border-white/10 object-cover"
-            />
+            {isShopHosted ? (
+              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/60">
+                <Store size={19} />
+              </span>
+            ) : (
+              <img
+                src={event.artist?.avatarUrl || "/default-avatar.png"}
+                alt={hostName}
+                className="h-11 w-11 rounded-full border border-white/10 object-cover"
+              />
+            )}
             <div className="min-w-0">
               <h3 className="line-clamp-2 text-xl! font-semibold text-white">
                 {event.title}
               </h3>
               <p className="mt-1 truncate text-sm text-white/50">
-                by {artistName}
+                by {hostName}
               </p>
             </div>
           </div>
@@ -583,13 +614,20 @@ const PublicEventCard = ({
           )}
 
           <div className="mt-auto flex justify-end pt-5">
-            <Link
-              to={`/artists/${event.artistId}`}
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
-            >
-              View artist
-              <ChevronRight size={16} />
-            </Link>
+            {event.artistId ? (
+              <Link
+                to={`/artists/${event.artistId}`}
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+              >
+                View artist
+                <ChevronRight size={16} />
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/70">
+                Shop event
+                <ChevronRight size={16} />
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -625,13 +663,19 @@ const FeaturedEventSummary = ({ event }: { event: PublicEvent }) => (
         </p>
       </div>
     </div>
-    <Link
-      to={`/artists/${event.artistId}`}
-      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"
-    >
-      View {getArtistName(event.artist)}
-      <ChevronRight size={16} />
-    </Link>
+    {event.artistId ? (
+      <Link
+        to={`/artists/${event.artistId}`}
+        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"
+      >
+        View {getArtistName(event.artist)}
+        <ChevronRight size={16} />
+      </Link>
+    ) : (
+      <p className="mt-4 text-sm font-semibold text-white/60">
+        Hosted by {getEventHostName(event)}
+      </p>
+    )}
   </div>
 );
 
@@ -723,6 +767,31 @@ const fetchVerifiedArtistsById = async (artistIds: string[]) => {
   return artistsById;
 };
 
+const fetchShopsById = async (shopIds: string[]) => {
+  const shopsById: Record<string, PublicShop> = {};
+  const chunks = chunkArray(shopIds, 30);
+
+  for (const chunk of chunks) {
+    if (!chunk.length) continue;
+
+    const shopsQuery = query(
+      collection(db, "shops"),
+      where(documentId(), "in", chunk)
+    );
+
+    const snapshot = await getDocs(shopsQuery);
+
+    snapshot.docs.forEach((shopDoc) => {
+      shopsById[shopDoc.id] = {
+        id: shopDoc.id,
+        ...shopDoc.data(),
+      } as PublicShop;
+    });
+  }
+
+  return shopsById;
+};
+
 const chunkArray = <T,>(items: T[], size: number) => {
   const chunks: T[][] = [];
 
@@ -740,6 +809,11 @@ const isArtistVerified = (artist?: PublicArtist) =>
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "Verified artist";
 
+const getEventHostName = (event: PublicEvent) =>
+  event.artist
+    ? getArtistName(event.artist)
+    : event.shop?.name || event.shopName || "Verified shop";
+
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
   bookingMode === "flash_reservation" ||
@@ -747,6 +821,7 @@ const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
 
 const isPublicEventBookable = (event: PublicEvent) => {
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
+  if (event.ownerType === "shop" && !event.artist) return false;
   return isStripeConnectReady(event.artist);
 };
 

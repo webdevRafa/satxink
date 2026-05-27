@@ -141,10 +141,18 @@ const EventsManager = ({
   uid,
   artist,
   onOpenPayments,
+  ownerType = "artist",
+  shopOverride,
+  managerTitle = "Artist events",
+  managerDescription = "Promote flash days, guest spots, conventions, pop-ups, and shop events from one place.",
 }: {
   uid: string;
   artist?: ArtistLite | null;
   onOpenPayments?: () => void;
+  ownerType?: "artist" | "shop";
+  shopOverride?: ShopDefaults | null;
+  managerTitle?: string;
+  managerDescription?: string;
 }) => {
   const [events, setEvents] = useState<ArtistEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,17 +165,21 @@ const EventsManager = ({
   const [isSaving, setIsSaving] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<ArtistEvent | null>(null);
   const [shopDefaults, setShopDefaults] = useState<ShopDefaults | null>(null);
-  const stripeReady = isStripeConnectReady(artist);
+  const stripeReady = ownerType === "artist" && isStripeConnectReady(artist);
 
   const fetchEvents = async () => {
     if (!uid) return;
 
     try {
       setLoading(true);
-      const eventsQuery = query(
-        collection(db, "events"),
-        where("artistId", "==", uid)
-      );
+      const eventsQuery =
+        ownerType === "shop" && shopOverride?.id
+          ? query(
+              collection(db, "events"),
+              where("shopId", "==", shopOverride.id),
+              where("ownerType", "==", "shop")
+            )
+          : query(collection(db, "events"), where("artistId", "==", uid));
       const snapshot = await getDocs(eventsQuery);
       const result = snapshot.docs.map((eventDoc) => ({
         id: eventDoc.id,
@@ -186,12 +198,17 @@ const EventsManager = ({
   useEffect(() => {
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid]);
+  }, [uid, ownerType, shopOverride?.id]);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchShopDefaults = async () => {
+      if (shopOverride) {
+        setShopDefaults(shopOverride);
+        return;
+      }
+
       if (!artist?.shopId) {
         setShopDefaults(null);
         return;
@@ -219,7 +236,7 @@ const EventsManager = ({
     return () => {
       isMounted = false;
     };
-  }, [artist?.shopId]);
+  }, [artist?.shopId, shopOverride]);
 
   useEffect(() => {
     if (!thumbnailFile) {
@@ -250,6 +267,8 @@ const EventsManager = ({
     setEditingEvent(null);
     setForm({
       ...emptyForm,
+      bookingMode: ownerType === "shop" ? "info_only" : emptyForm.bookingMode,
+      depositRequired: ownerType === "shop" ? false : emptyForm.depositRequired,
       shopName: shopDefaults?.name || artist?.studioName || "",
       address: shopDefaults?.address || "",
       mapLink: shopDefaults?.mapLink || "",
@@ -361,7 +380,9 @@ const EventsManager = ({
         : null;
 
       const payload = {
-        artistId: uid,
+        artistId: ownerType === "artist" ? uid : "",
+        createdBy: uid,
+        ownerType,
         title: form.title.trim(),
         description: form.description.trim() || "",
         eventType: form.eventType,
@@ -373,7 +394,7 @@ const EventsManager = ({
         locationType: form.locationType,
         shopId:
           form.locationType === "shop"
-            ? artist?.shopId || shopDefaults?.id || ""
+            ? shopOverride?.id || artist?.shopId || shopDefaults?.id || ""
             : "",
         shopName: form.shopName.trim() || "",
         address: form.address.trim() || "",
@@ -487,12 +508,11 @@ const EventsManager = ({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mt-5 max-w-[800px]">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/40">
-            Artist events
+            {managerTitle}
           </p>
           <h2 className="mt-2 text-3xl! font-semibold text-white">Events</h2>
           <p className="max-w-2xl text-sm text-white/50">
-            Promote flash days, guest spots, conventions, pop-ups, and shop
-            events from one place.
+            {managerDescription}
           </p>
         </div>
         <button

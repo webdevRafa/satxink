@@ -29,6 +29,8 @@ export type EventBookingMode =
 export type ArtistEvent = {
   id: string;
   artistId: string;
+  createdBy?: string;
+  ownerType?: "artist" | "shop";
 
   title: string;
   description?: string;
