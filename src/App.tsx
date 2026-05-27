@@ -36,6 +36,7 @@ import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import Dashboard from "./pages/Dashboard";
 import FlashSheetDetailPage from "./pages/FlashSheetDetailPage";
 import EventsPage from "./pages/EventsPage";
+import EventCheckInPage from "./pages/EventCheckInPage";
 import FlashMarketplacePage from "./pages/FlashMarketplacePage";
 import PublicFlashSheetPage from "./pages/PublicFlashSheetPage";
 import AdminDashboardView from "./pages/AdminDashboardView";
@@ -80,6 +81,10 @@ function App() {
         <Route path="/client-dashboard" element={<ClientDashboard />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/events" element={<EventsPage />} />
+        <Route
+          path="/events/check-in/:registrationId/:qrToken"
+          element={<EventCheckInPage />}
+        />
         <Route path="/flash" element={<FlashMarketplacePage />} />
         <Route
           path="/flash/sheets/:sheetId"

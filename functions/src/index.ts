@@ -11,6 +11,7 @@ import * as admin  from 'firebase-admin';
 import * as path   from 'path';
 import * as os     from 'os';
 import * as fs     from 'fs/promises';
+import { createHash, randomBytes } from 'crypto';
 import sharp       from 'sharp';
 import { v4 as uuidv4 } from "uuid";  
 import Stripe from 'stripe';
@@ -40,6 +41,30 @@ const STRIPE_PERCENT_FEE = 0.029;
 const STRIPE_FIXED_FEE_CENTS = 30;
 const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
+
+const createEventPassToken = () => randomBytes(32).toString("base64url");
+
+const hashEventPassToken = (token: string) =>
+  createHash("sha256").update(token).digest("hex");
+
+const getEventHostUserId = (event: admin.firestore.DocumentData) =>
+  String(event.createdBy || event.artistId || "");
+
+const userCanManageEvent = (
+  uid: string,
+  user: admin.firestore.DocumentData,
+  event: admin.firestore.DocumentData
+) => {
+  if (event.createdBy === uid || event.artistId === uid) return true;
+
+  const shopId = String(event.shopId || "");
+  const ownedShopIds = [
+    ...(Array.isArray(user.shopOwnerShopIds) ? user.shopOwnerShopIds : []),
+    ...(Array.isArray(user.ownedShopIds) ? user.ownedShopIds : []),
+  ].map(String);
+
+  return Boolean(shopId && ownedShopIds.includes(shopId));
+};
 
 const calculatePlatformFeeCents = (artistAmountCents: number) => {
   if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) return 0;
@@ -1145,6 +1170,253 @@ const createShopClaimProofAccess = onCall(
   }
 );
 
+const createEventRsvp = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to RSVP for events.");
+    }
+
+    const eventId = String(req.data?.eventId || "").trim();
+    if (!eventId) {
+      throw new HttpsError("invalid-argument", "Event ID is required.");
+    }
+
+    const eventRef = db.collection("events").doc(eventId);
+    const userRef = db.collection("users").doc(uid);
+    const registrationRef = db.collection("eventRegistrations").doc(`${eventId}_${uid}`);
+
+    return db.runTransaction(async (transaction) => {
+      const [eventSnap, userSnap, existingRegistrationSnap] = await Promise.all([
+        transaction.get(eventRef),
+        transaction.get(userRef),
+        transaction.get(registrationRef),
+      ]);
+
+      if (!eventSnap.exists) {
+        throw new HttpsError("not-found", "Event not found.");
+      }
+
+      const event = eventSnap.data() || {};
+      if (event.status !== "published" || event.visibility !== "public") {
+        throw new HttpsError("failed-precondition", "This event is not open for RSVP.");
+      }
+
+      if ((event.bookingMode || "info_only") !== "rsvp") {
+        throw new HttpsError(
+          "failed-precondition",
+          "This event is not accepting free RSVPs yet."
+        );
+      }
+
+      const endDate = event.endDate || event.startDate;
+      const endTime = event.endTime || "23:59";
+      if (endDate && new Date(`${endDate}T${endTime}`).getTime() < Date.now()) {
+        throw new HttpsError("failed-precondition", "This event has already ended.");
+      }
+
+      const existingRegistration = existingRegistrationSnap.data();
+      if (
+        existingRegistrationSnap.exists &&
+        existingRegistration?.status !== "cancelled"
+      ) {
+        return {
+          registrationId: registrationRef.id,
+          status: existingRegistration?.status || "reserved",
+          qrToken: existingRegistration?.qrToken || "",
+        };
+      }
+
+      const registrationsSnap = await transaction.get(
+        db.collection("eventRegistrations").where("eventId", "==", eventId)
+      );
+      const activeRegistrations = registrationsSnap.docs.filter((docSnap) => {
+        const status = docSnap.data().status;
+        return status === "reserved" || status === "paid" || status === "checked_in";
+      });
+      const capacity = Number(event.capacity || 0);
+
+      if (capacity > 0 && activeRegistrations.length >= capacity) {
+        throw new HttpsError("resource-exhausted", "This event is already full.");
+      }
+
+      const user = userSnap.data() || {};
+      const qrToken = createEventPassToken();
+      const hostUserId = getEventHostUserId(event);
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      transaction.set(registrationRef, {
+        eventId,
+        eventTitle: event.title || "",
+        eventStartDate: event.startDate || "",
+        eventStartTime: event.startTime || "",
+        eventEndDate: event.endDate || "",
+        eventEndTime: event.endTime || "",
+        eventThumbnailUrl: event.thumbnailUrl || "",
+        eventType: event.eventType || "",
+        bookingMode: event.bookingMode || "rsvp",
+        clientId: uid,
+        clientName: user.displayName || user.name || req.auth?.token?.name || "Client",
+        clientAvatarUrl: user.avatarUrl || req.auth?.token?.picture || "",
+        hostUserId,
+        artistId: event.artistId || "",
+        shopId: event.shopId || "",
+        ownerType: event.ownerType || "artist",
+        hostName: event.shopName || event.artistName || "",
+        locationName: event.shopName || "",
+        address: event.address || "",
+        mapLink: event.mapLink || "",
+        status: "reserved",
+        paymentStatus: "free",
+        qrToken,
+        qrTokenHash: hashEventPassToken(qrToken),
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      transaction.set(
+        eventRef,
+        {
+          spotsClaimed: activeRegistrations.length + 1,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      return {
+        registrationId: registrationRef.id,
+        status: "reserved",
+        qrToken,
+      };
+    });
+  }
+);
+
+const cancelEventRsvp = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to cancel an RSVP.");
+    }
+
+    const registrationId = String(req.data?.registrationId || "").trim();
+    if (!registrationId) {
+      throw new HttpsError("invalid-argument", "Registration ID is required.");
+    }
+
+    const registrationRef = db.collection("eventRegistrations").doc(registrationId);
+
+    return db.runTransaction(async (transaction) => {
+      const registrationSnap = await transaction.get(registrationRef);
+      if (!registrationSnap.exists) {
+        throw new HttpsError("not-found", "Event pass not found.");
+      }
+
+      const registration = registrationSnap.data() || {};
+      if (registration.clientId !== uid) {
+        throw new HttpsError("permission-denied", "You can only cancel your own RSVP.");
+      }
+
+      if (registration.status === "checked_in") {
+        throw new HttpsError("failed-precondition", "Checked-in passes cannot be cancelled.");
+      }
+
+      const eventRef = db.collection("events").doc(String(registration.eventId || ""));
+      const eventSnap = await transaction.get(eventRef);
+      const event = eventSnap.data() || {};
+      const activeCount = Math.max(Number(event.spotsClaimed || 1) - 1, 0);
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      transaction.set(
+        registrationRef,
+        {
+          status: "cancelled",
+          cancelledAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      if (eventSnap.exists) {
+        transaction.set(
+          eventRef,
+          {
+            spotsClaimed: activeCount,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+      }
+
+      return { status: "cancelled" };
+    });
+  }
+);
+
+const checkInEventRegistration = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to check in attendees.");
+    }
+
+    const registrationId = String(req.data?.registrationId || "").trim();
+    const qrToken = String(req.data?.qrToken || "").trim();
+    if (!registrationId || !qrToken) {
+      throw new HttpsError("invalid-argument", "A valid event pass is required.");
+    }
+
+    const registrationRef = db.collection("eventRegistrations").doc(registrationId);
+    const registrationSnap = await registrationRef.get();
+    if (!registrationSnap.exists) {
+      throw new HttpsError("not-found", "Event pass not found.");
+    }
+
+    const registration = registrationSnap.data() || {};
+    if (registration.qrTokenHash !== hashEventPassToken(qrToken)) {
+      throw new HttpsError("permission-denied", "This event pass is not valid.");
+    }
+
+    const [eventSnap, userSnap] = await Promise.all([
+      db.collection("events").doc(String(registration.eventId || "")).get(),
+      db.collection("users").doc(uid).get(),
+    ]);
+
+    if (!eventSnap.exists) {
+      throw new HttpsError("not-found", "Event not found.");
+    }
+
+    const event = eventSnap.data() || {};
+    const user = userSnap.data() || {};
+    if (!userCanManageEvent(uid, user, event)) {
+      throw new HttpsError("permission-denied", "You cannot check in this event.");
+    }
+
+    if (registration.status === "cancelled" || registration.status === "refunded") {
+      throw new HttpsError("failed-precondition", "This pass is no longer active.");
+    }
+
+    if (registration.status === "checked_in") {
+      return { status: "checked_in", alreadyCheckedIn: true };
+    }
+
+    await registrationRef.set(
+      {
+        status: "checked_in",
+        checkedInAt: admin.firestore.FieldValue.serverTimestamp(),
+        checkedInBy: uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return { status: "checked_in", alreadyCheckedIn: false };
+  }
+);
+
 const stripeWebhook = onRequest(
   {
     region: 'us-central1',
@@ -1533,6 +1805,9 @@ module.exports = {
   createCheckoutSession,
   syncBookingPaymentStatus,
   createShopClaimProofAccess,
+  createEventRsvp,
+  cancelEventRsvp,
+  checkInEventRegistration,
   stripeWebhook,
   processArtistMedia,
   cropFlashFromSheet,

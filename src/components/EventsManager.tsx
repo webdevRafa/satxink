@@ -6,11 +6,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import {
   CalendarDays,
   Check,
@@ -38,7 +40,7 @@ import {
   ref,
   uploadBytes,
 } from "firebase/storage";
-import { db, storage } from "../firebase/firebaseConfig";
+import { db, functions, storage } from "../firebase/firebaseConfig";
 import type {
   ArtistEvent,
   EventBookingMode,
@@ -47,6 +49,7 @@ import type {
   EventStatus,
   EventType,
 } from "../types/Event";
+import type { EventRegistration } from "../types/EventRegistration";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type EventFilter = "all" | EventStatus;
@@ -111,7 +114,7 @@ const emptyForm: EventFormState = {
   address: "",
   mapLink: "",
   priceType: "varies",
-  bookingMode: "deposit_required",
+  bookingMode: "rsvp",
   price: "",
   depositRequired: false,
   depositAmount: "",
@@ -142,10 +145,38 @@ const priceTypeLabels: Record<EventPriceType, string> = {
 const bookingModeLabels: Record<EventBookingMode, string> = {
   info_only: "Info only",
   rsvp: "Free RSVP",
-  deposit_required: "Deposit required",
+  deposit_required: "Deposit reservation",
   flash_reservation: "Flash reservation",
   paid_ticket: "Paid ticket",
 };
+
+const eventAttendanceModes: Array<{
+  value: EventBookingMode;
+  label: string;
+  disabled?: boolean;
+  note?: string;
+}> = [
+  { value: "info_only", label: "Info only" },
+  { value: "rsvp", label: "Free RSVP" },
+  {
+    value: "deposit_required",
+    label: "Deposit reservation",
+    disabled: true,
+    note: "Coming soon",
+  },
+  {
+    value: "flash_reservation",
+    label: "Flash reservation",
+    disabled: true,
+    note: "Coming soon",
+  },
+  {
+    value: "paid_ticket",
+    label: "Paid ticket",
+    disabled: true,
+    note: "Coming soon",
+  },
+];
 
 const eventEditorSteps: Array<{
   key: EventEditorStepKey;
@@ -165,7 +196,7 @@ const eventEditorSteps: Array<{
   {
     key: "pricing",
     title: "Access",
-    description: "Choose capacity, deposits, tickets, or info-only attendance.",
+    description: "Choose capacity and how visitors reserve their spot.",
   },
   {
     key: "publish",
@@ -216,6 +247,10 @@ const EventsManager = ({
   const [isSaving, setIsSaving] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<ArtistEvent | null>(null);
   const [shopDefaults, setShopDefaults] = useState<ShopDefaults | null>(null);
+  const [registrationsByEventId, setRegistrationsByEventId] = useState<
+    Record<string, EventRegistration[]>
+  >({});
+  const [checkingInRegistrationId, setCheckingInRegistrationId] = useState("");
   const stripeReady = ownerType === "artist" && isStripeConnectReady(artist);
 
   const fetchEvents = async () => {
@@ -278,6 +313,39 @@ const EventsManager = ({
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, ownerType, shopOverride?.id]);
+
+  useEffect(() => {
+    if (!uid) return undefined;
+
+    const unsubscribe = onSnapshot(
+      query(collection(db, "eventRegistrations"), where("hostUserId", "==", uid)),
+      (snapshot) => {
+        const grouped: Record<string, EventRegistration[]> = {};
+        snapshot.docs.forEach((registrationDoc) => {
+          const registration = {
+            id: registrationDoc.id,
+            ...registrationDoc.data(),
+          } as EventRegistration;
+
+          if (registration.status === "cancelled") return;
+          grouped[registration.eventId] = [
+            ...(grouped[registration.eventId] || []),
+            registration,
+          ];
+        });
+
+        Object.values(grouped).forEach((items) =>
+          items.sort((a, b) =>
+            String(a.clientName || "").localeCompare(String(b.clientName || ""))
+          )
+        );
+        setRegistrationsByEventId(grouped);
+      },
+      (error) => console.error("Event attendee listener failed:", error)
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
 
   useEffect(() => {
     let isMounted = true;
@@ -556,6 +624,37 @@ const EventsManager = ({
     }
   };
 
+  const handleCheckInRegistration = async (registration: EventRegistration) => {
+    if (!registration.qrToken) {
+      toast.error("This event pass is missing its check-in token.");
+      return;
+    }
+
+    setCheckingInRegistrationId(registration.id);
+    try {
+      const checkIn = httpsCallable<
+        { registrationId: string; qrToken: string },
+        { status: string; alreadyCheckedIn?: boolean }
+      >(functions, "checkInEventRegistration");
+      const result = await checkIn({
+        registrationId: registration.id,
+        qrToken: registration.qrToken,
+      });
+      toast.success(
+        result.data.alreadyCheckedIn
+          ? "Attendee was already checked in."
+          : "Attendee checked in."
+      );
+    } catch (error) {
+      console.error("Event check-in failed:", error);
+      toast.error(
+        getEventManagerCallableErrorMessage(error, "Could not check in attendee.")
+      );
+    } finally {
+      setCheckingInRegistrationId("");
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mt-5 max-w-[800px]">
@@ -637,6 +736,9 @@ const EventsManager = ({
               onDelete={() => setEventToDelete(event)}
               onStatusChange={(status) => handleStatusChange(event, status)}
               canPublishPaidEvent={stripeReady}
+              registrations={registrationsByEventId[event.id] || []}
+              checkingInRegistrationId={checkingInRegistrationId}
+              onCheckInRegistration={handleCheckInRegistration}
             />
           ))}
         </div>
@@ -696,18 +798,27 @@ const EventCard = ({
   onDelete,
   onStatusChange,
   canPublishPaidEvent,
+  registrations,
+  checkingInRegistrationId,
+  onCheckInRegistration,
 }: {
   event: ArtistEvent;
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: EventStatus) => void;
   canPublishPaidEvent: boolean;
+  registrations: EventRegistration[];
+  checkingInRegistrationId: string;
+  onCheckInRegistration: (registration: EventRegistration) => void;
 }) => {
   const priceLabel = getPriceLabel(event);
   const locationLabel = getLocationLabel(event);
   const requiresPayment = eventModeRequiresPayment(
     event.bookingMode || getDefaultBookingMode(event.eventType)
   );
+  const checkedInCount = registrations.filter(
+    (registration) => registration.status === "checked_in"
+  ).length;
 
   return (
     <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
@@ -775,11 +886,62 @@ const EventCard = ({
             />
             <EventMeta
               icon={<Users size={15} />}
-              text={`${event.spotsClaimed || 0}/${
+              text={`${registrations.length || event.spotsClaimed || 0}/${
                 event.capacity || 0
               } spots claimed`}
             />
           </div>
+
+          {registrations.length > 0 && (
+            <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
+                  Attendees
+                </p>
+                <span className="text-xs text-white/45">
+                  {checkedInCount}/{registrations.length} checked in
+                </span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {registrations.slice(0, 4).map((registration) => (
+                  <div
+                    key={registration.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white/80">
+                        {registration.clientName || "Client"}
+                      </p>
+                      <p className="text-xs capitalize text-white/40">
+                        {registration.status.replace("_", " ")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onCheckInRegistration(registration)}
+                      disabled={
+                        registration.status === "checked_in" ||
+                        checkingInRegistrationId === registration.id
+                      }
+                      className="rounded-md bg-white px-3! py-1.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {checkingInRegistrationId === registration.id
+                        ? "Checking..."
+                        : registration.status === "checked_in"
+                        ? "Checked in"
+                        : "Check in"}
+                    </button>
+                  </div>
+                ))}
+                {registrations.length > 4 && (
+                  <p className="text-xs text-white/35">
+                    +{registrations.length - 4} more attendee
+                    {registrations.length - 4 === 1 ? "" : "s"}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {event.description && (
             <p className="mt-4 line-clamp-2 text-sm text-white/45">
@@ -1055,7 +1217,7 @@ const EventEditorModal = ({
           </div>
 
           <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <Field label="Booking mode">
+            <Field label="Attendance mode">
               <select
                 value={form.bookingMode}
                 onChange={(event) =>
@@ -1071,9 +1233,14 @@ const EventEditorModal = ({
                 }
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
-                {Object.entries(bookingModeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
+                {eventAttendanceModes.map((mode) => (
+                  <option
+                    key={mode.value}
+                    value={mode.value}
+                    disabled={Boolean(mode.disabled && mode.value !== form.bookingMode)}
+                  >
+                    {mode.label}
+                    {mode.note ? ` - ${mode.note}` : ""}
                   </option>
                 ))}
               </select>
@@ -1259,6 +1426,17 @@ const EventEditorModal = ({
               </div>
             </div>
           )}
+
+          <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
+            <p className="text-sm font-semibold text-sky-100">
+              Purchasable events are being staged behind RSVP first.
+            </p>
+            <p className="mt-1 text-sm leading-6 text-sky-100/70">
+              Free RSVP creates client event passes and attendee check-in tools
+              today. Paid tickets and deposit reservations will unlock after the
+              pass and verification flow is battle-tested.
+            </p>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]">
             <Field label="Price type">
@@ -1667,7 +1845,7 @@ const EventReviewSummary = ({
           <ReviewRow label="Host type" value={ownerType === "shop" ? "Shop event" : "Artist event"} />
           <ReviewRow label="Title" value={form.title || "Untitled event"} />
           <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
-          <ReviewRow label="Booking" value={bookingModeLabels[form.bookingMode]} />
+          <ReviewRow label="Attendance" value={bookingModeLabels[form.bookingMode]} />
           <ReviewRow label="Starts" value={dateLabel} />
           <ReviewRow
             label="Location"
@@ -1860,6 +2038,19 @@ const formatCurrency = (value: string) => {
   return `$${parsed.toLocaleString()}`;
 };
 
+const getEventManagerCallableErrorMessage = (error: unknown, fallback: string) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 const normalizeEventTag = (value: string) =>
   value.trim().replace(/^#/, "").toLowerCase();
 
@@ -1882,8 +2073,12 @@ const commitEventTags = (
 };
 
 const getDefaultBookingMode = (eventType: EventType): EventBookingMode => {
-  if (eventType === "flash_day" || eventType === "guest_spot") {
-    return "deposit_required";
+  if (
+    eventType === "flash_day" ||
+    eventType === "walk_in_day" ||
+    eventType === "shop_event"
+  ) {
+    return "rsvp";
   }
 
   if (eventType === "pop_up" || eventType === "convention") {
@@ -1900,22 +2095,22 @@ const eventModeRequiresPayment = (bookingMode: EventBookingMode) =>
 
 const getBookingModeHelp = (bookingMode: EventBookingMode) => {
   if (bookingMode === "info_only") {
-    return "Best for pop-ups and convention appearances where clients just show up.";
+    return "Best for announcements, pop-ups, and convention appearances where visitors just need details.";
   }
 
   if (bookingMode === "rsvp") {
-    return "Clients can claim a free spot so you can track interest and capacity.";
+    return "Clients can claim a free event pass. You get an attendee list, capacity tracking, and check-in tools.";
   }
 
   if (bookingMode === "deposit_required") {
-    return "Clients reserve a general event spot by paying a deposit through Stripe Connect.";
+    return "Coming soon: clients will reserve a general event spot by paying a deposit through Stripe.";
   }
 
   if (bookingMode === "flash_reservation") {
-    return "Use this for Flash Days where clients will reserve specific flash from event-selected sheets.";
+    return "Coming soon: clients will reserve specific flash or priority access for flash-day workflows.";
   }
 
-  return "Clients pay a fixed event price through Stripe Connect before attending.";
+  return "Coming soon: clients will buy a ticket and receive a scannable SATX Ink event pass.";
 };
 
 const getEventTime = (event: ArtistEvent) => {

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
+import toast from "react-hot-toast";
 import {
   CalendarDays,
   ChevronLeft,
@@ -17,11 +20,13 @@ import {
   collection,
   documentId,
   getDocs,
+  onSnapshot,
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { auth, db, functions } from "../firebase/firebaseConfig";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import type { EventRegistration } from "../types/EventRegistration";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type DateFilter = "all" | "today" | "this_week" | "this_month";
@@ -87,12 +92,57 @@ const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
 export const EventsPage = () => {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [registrationsByEventId, setRegistrationsByEventId] = useState<
+    Record<string, EventRegistration>
+  >({});
+  const [reservingEventId, setReservingEventId] = useState("");
   const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
     "all"
   );
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    let unsubscribeRegistrations: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      unsubscribeRegistrations?.();
+      unsubscribeRegistrations = undefined;
+      setCurrentUserId(user?.uid || "");
+      setRegistrationsByEventId({});
+
+      if (!user) return;
+
+      unsubscribeRegistrations = onSnapshot(
+        query(
+          collection(db, "eventRegistrations"),
+          where("clientId", "==", user.uid)
+        ),
+        (snapshot) => {
+          const nextRegistrations: Record<string, EventRegistration> = {};
+          snapshot.docs.forEach((registrationDoc) => {
+            const registration = {
+              id: registrationDoc.id,
+              ...registrationDoc.data(),
+            } as EventRegistration;
+
+            if (registration.status !== "cancelled") {
+              nextRegistrations[registration.eventId] = registration;
+            }
+          });
+          setRegistrationsByEventId(nextRegistrations);
+        },
+        (error) => console.error("Event registration listener failed:", error)
+      );
+    });
+
+    return () => {
+      unsubscribeRegistrations?.();
+      unsubscribeAuth();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -168,6 +218,30 @@ export const EventsPage = () => {
       isMounted = false;
     };
   }, []);
+
+  const handleFreeRsvp = async (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to RSVP for events.");
+      return;
+    }
+
+    if (event.bookingMode !== "rsvp") return;
+
+    setReservingEventId(event.id);
+    try {
+      const createRsvp = httpsCallable<{ eventId: string }, { registrationId: string }>(
+        functions,
+        "createEventRsvp"
+      );
+      await createRsvp({ eventId: event.id });
+      toast.success("Event pass added to your dashboard.");
+    } catch (error) {
+      console.error("Event RSVP failed:", error);
+      toast.error(getCallableErrorMessage(error, "Could not reserve this event."));
+    } finally {
+      setReservingEventId("");
+    }
+  };
 
   const hostCounts = useMemo(
     () => ({
@@ -332,6 +406,9 @@ export const EventsPage = () => {
                 weekEvents: eventDateGroupsByHost[host].weekEvents,
                 laterEvents: eventDateGroupsByHost[host].laterEvents,
                 dateFilter,
+                registrationsByEventId,
+                reservingEventId,
+                onFreeRsvp: handleFreeRsvp,
               })}
             </div>
           ))}
@@ -360,6 +437,9 @@ const renderEventContent = ({
   weekEvents,
   laterEvents,
   dateFilter,
+  registrationsByEventId,
+  reservingEventId,
+  onFreeRsvp,
 }: {
   loading: boolean;
   filteredEvents: PublicEvent[];
@@ -367,6 +447,9 @@ const renderEventContent = ({
   weekEvents: PublicEvent[];
   laterEvents: PublicEvent[];
   dateFilter: DateFilter;
+  registrationsByEventId: Record<string, EventRegistration>;
+  reservingEventId: string;
+  onFreeRsvp: (event: PublicEvent) => void;
 }) => {
   if (loading) return <EventsPageSkeleton />;
   if (filteredEvents.length === 0) return <EmptyEventsState />;
@@ -379,6 +462,9 @@ const renderEventContent = ({
           title={getDateFilterTitle(dateFilter)}
           events={filteredEvents}
           layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          onFreeRsvp={onFreeRsvp}
         />
       </div>
     );
@@ -392,6 +478,9 @@ const renderEventContent = ({
           title="Today"
           events={todayEvents}
           layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          onFreeRsvp={onFreeRsvp}
         />
       )}
 
@@ -401,6 +490,9 @@ const renderEventContent = ({
           title="This week"
           events={weekEvents}
           layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          onFreeRsvp={onFreeRsvp}
         />
       )}
 
@@ -410,6 +502,9 @@ const renderEventContent = ({
           title="Later events"
           events={laterEvents}
           layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          onFreeRsvp={onFreeRsvp}
         />
       )}
     </div>
@@ -485,11 +580,17 @@ const EventSection = ({
   title,
   events,
   layout = "grid",
+  registrationsByEventId,
+  reservingEventId,
+  onFreeRsvp,
 }: {
   eyebrow: string;
   title: string;
   events: PublicEvent[];
   layout?: "grid" | "rail";
+  registrationsByEventId: Record<string, EventRegistration>;
+  reservingEventId: string;
+  onFreeRsvp: (event: PublicEvent) => void;
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const hasRailControls = layout === "rail" && events.length > 1;
@@ -579,6 +680,9 @@ const EventSection = ({
             <PublicEventCard
               key={event.id}
               event={event}
+              registration={registrationsByEventId[event.id]}
+              isReserving={reservingEventId === event.id}
+              onFreeRsvp={onFreeRsvp}
               className="shrink-0 snap-start"
               style={{ width: EVENT_CARD_WIDTH }}
             />
@@ -587,7 +691,13 @@ const EventSection = ({
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {events.map((event) => (
-            <PublicEventCard key={event.id} event={event} />
+            <PublicEventCard
+              key={event.id}
+              event={event}
+              registration={registrationsByEventId[event.id]}
+              isReserving={reservingEventId === event.id}
+              onFreeRsvp={onFreeRsvp}
+            />
           ))}
         </div>
       )}
@@ -617,10 +727,16 @@ const RailButton = ({
 
 const PublicEventCard = ({
   event,
+  registration,
+  isReserving,
+  onFreeRsvp,
   className = "",
   style,
 }: {
   event: PublicEvent;
+  registration?: EventRegistration;
+  isReserving: boolean;
+  onFreeRsvp: (event: PublicEvent) => void;
   className?: string;
   style?: React.CSSProperties;
 }) => {
@@ -628,6 +744,8 @@ const PublicEventCard = ({
   const isShopHosted = getEventHostType(event) === "shop";
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
+  const isRsvpEvent = event.bookingMode === "rsvp";
+  const isReserved = Boolean(registration);
 
   return (
     <article
@@ -693,6 +811,12 @@ const PublicEventCard = ({
                 event.capacity || 0
               } spots claimed`}
             />
+            {isRsvpEvent && (
+              <EventMeta
+                icon={<CalendarDays size={16} />}
+                text="Free RSVP pass available"
+              />
+            )}
           </div>
 
           {event.description && (
@@ -715,7 +839,21 @@ const PublicEventCard = ({
             </div>
           )}
 
-          <div className="mt-auto flex justify-end pt-5">
+          <div className="mt-auto flex flex-wrap justify-end gap-2 pt-5">
+            {isRsvpEvent && (
+              <button
+                type="button"
+                onClick={() => onFreeRsvp(event)}
+                disabled={isReserved || isReserving}
+                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+                  isReserved
+                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+                }`}
+              >
+                {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
+              </button>
+            )}
             {!isShopHosted && event.artistId ? (
               <Link
                 to={`/artists/${event.artistId}`}
@@ -1037,6 +1175,19 @@ const getDateFilterTitle = (filter: DateFilter) => {
   if (filter === "this_week") return "This week";
   if (filter === "this_month") return "This month";
   return "All upcoming";
+};
+
+const getCallableErrorMessage = (error: unknown, fallback: string) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 const startOfToday = () => {

@@ -1,8 +1,10 @@
 import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import QRCode from "qrcode";
 import {
   BadgeDollarSign,
   CalendarCheck,
@@ -24,6 +26,7 @@ import {
   RefreshCcw,
   Save,
   Store,
+  Ticket,
   UserRound,
   X,
 } from "lucide-react";
@@ -36,10 +39,11 @@ import RequestTattooModal from "../components/RequestTattooModal";
 import ClientRequestsList from "../components/ClientRequestsList";
 import ImageCropperModal from "../components/ImageCropperModal";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
-import { db, auth, storage } from "../firebase/firebaseConfig";
+import { db, auth, storage, functions } from "../firebase/firebaseConfig";
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -49,6 +53,8 @@ import {
 } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { Booking } from "../types/Booking";
+import type { ArtistEvent } from "../types/Event";
+import type { EventRegistration } from "../types/EventRegistration";
 
 const STYLE_OPTIONS = [
   "Traditional",
@@ -120,7 +126,14 @@ const TIMEFRAME_OPTIONS = [
   "Specific date",
 ];
 
-type ClientView = "profile" | "liked" | "requests" | "offers" | "bookings" | "sessions";
+type ClientView =
+  | "profile"
+  | "liked"
+  | "requests"
+  | "offers"
+  | "bookings"
+  | "sessions"
+  | "eventPasses";
 
 type ClientProfileFormState = {
   displayName: string;
@@ -162,15 +175,32 @@ const activeViewLabels: Record<ClientView, string> = {
   offers: "Offers",
   bookings: "Bookings",
   sessions: "Sessions",
+  eventPasses: "Event passes",
 };
 
 const getClientDashboardView = (view: string | null): ClientView =>
-  ["profile", "liked", "requests", "offers", "bookings", "sessions"].includes(view || "")
+  [
+    "profile",
+    "liked",
+    "requests",
+    "offers",
+    "bookings",
+    "sessions",
+    "eventPasses",
+  ].includes(view || "")
     ? (view as ClientView)
     : "profile";
 
 const isClientDashboardView = (view: string | null): view is ClientView =>
-  ["profile", "liked", "requests", "offers", "bookings", "sessions"].includes(view || "");
+  [
+    "profile",
+    "liked",
+    "requests",
+    "offers",
+    "bookings",
+    "sessions",
+    "eventPasses",
+  ].includes(view || "");
 
 const createProfileFormState = (
   client: Partial<ClientProfile> | null
@@ -201,6 +231,10 @@ const ClientDashboardView = () => {
   );
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [bookings, setBookings] = useState<ClientDashboardBooking[]>([]);
+  const [eventPasses, setEventPasses] = useState<EventRegistration[]>([]);
+  const [eventPassEvents, setEventPassEvents] = useState<Record<string, ArtistEvent>>({});
+  const [eventPassQrCodes, setEventPassQrCodes] = useState<Record<string, string>>({});
+  const [cancellingEventPassId, setCancellingEventPassId] = useState("");
   const [profileForm, setProfileForm] = useState<ClientProfileFormState>(
     createProfileFormState(null)
   );
@@ -216,6 +250,7 @@ const ClientDashboardView = () => {
     offers: 0,
     bookings: 0,
     sessions: 0,
+    eventPasses: 0,
   });
 
   useEffect(() => {
@@ -326,6 +361,70 @@ const ClientDashboardView = () => {
           );
         },
         (error) => console.error("Client booking listener failed:", error)
+      ),
+      onSnapshot(
+        query(
+          collection(db, "eventRegistrations"),
+          where("clientId", "==", client.id)
+        ),
+        async (snap) => {
+          const passes = snap.docs
+            .map((registrationDoc) => ({
+              id: registrationDoc.id,
+              ...registrationDoc.data(),
+            })) as EventRegistration[];
+          const activePasses = passes
+            .filter((pass) => pass.status !== "cancelled")
+            .sort((a, b) =>
+              String(a.eventStartDate || "").localeCompare(String(b.eventStartDate || ""))
+            );
+
+          setEventPasses(activePasses);
+          updateCount("eventPasses", activePasses.length);
+
+          const eventEntries = await Promise.all(
+            activePasses.map(async (pass) => {
+              try {
+                const eventSnap = await getDoc(doc(db, "events", pass.eventId));
+                return eventSnap.exists()
+                  ? [
+                      pass.eventId,
+                      { id: eventSnap.id, ...eventSnap.data() } as ArtistEvent,
+                    ]
+                  : null;
+              } catch {
+                return null;
+              }
+            })
+          );
+          setEventPassEvents(
+            Object.fromEntries(eventEntries.filter(Boolean) as [string, ArtistEvent][])
+          );
+
+          const qrEntries = await Promise.all(
+            activePasses.map(async (pass) => {
+              if (!pass.qrToken) return null;
+              const url = `${window.location.origin}/events/check-in/${pass.id}/${pass.qrToken}`;
+              const dataUrl = await QRCode.toDataURL(url, {
+                margin: 1,
+                width: 220,
+                color: {
+                  dark: "#111111",
+                  light: "#ffffff",
+                },
+              });
+              return [pass.id, dataUrl] as const;
+            })
+          );
+          setEventPassQrCodes(
+            Object.fromEntries(
+              qrEntries.filter(
+                (entry): entry is readonly [string, string] => Boolean(entry)
+              )
+            )
+          );
+        },
+        (error) => console.error("Client event passes listener failed:", error)
       ),
     ];
 
@@ -636,6 +735,28 @@ const ClientDashboardView = () => {
     }
   };
 
+  const handleCancelEventPass = async (pass: EventRegistration) => {
+    if (pass.status === "checked_in") {
+      toast.error("Checked-in event passes cannot be cancelled.");
+      return;
+    }
+
+    setCancellingEventPassId(pass.id);
+    try {
+      const cancelRsvp = httpsCallable<
+        { registrationId: string },
+        { status: string }
+      >(functions, "cancelEventRsvp");
+      await cancelRsvp({ registrationId: pass.id });
+      toast.success("Event RSVP cancelled.");
+    } catch (error) {
+      console.error("Event RSVP cancellation failed:", error);
+      toast.error(getClientCallableErrorMessage(error, "Could not cancel this RSVP."));
+    } finally {
+      setCancellingEventPassId("");
+    }
+  };
+
   const profileCompletionItems = [
     Boolean(profileForm.displayName.trim()),
     Boolean(profileForm.email.trim()),
@@ -743,6 +864,15 @@ const ClientDashboardView = () => {
             onOpenRecord={setSelectedSession}
             onConfirmExternalPayment={handleConfirmExternalPayment}
             onDisputeExternalPayment={handleDisputeExternalPayment}
+          />
+        )}
+        {client && activeView === "eventPasses" && (
+          <ClientEventPassesSection
+            passes={eventPasses}
+            eventsById={eventPassEvents}
+            qrCodesByPassId={eventPassQrCodes}
+            cancellingPassId={cancellingEventPassId}
+            onCancelPass={handleCancelEventPass}
           />
         )}
       </main>
@@ -1747,6 +1877,13 @@ const ClientMetric = ({
   </div>
 );
 
+const EventPassMeta = ({ icon, text }: { icon: ReactNode; text: string }) => (
+  <div className="flex min-w-0 items-center gap-2">
+    <span className="shrink-0 text-white/35">{icon}</span>
+    <span className="truncate">{text}</span>
+  </div>
+);
+
 const MetricCard = ({ label, value }: { label: string; value: string | number }) => (
   <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:min-w-[220px]">
     <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">{label}</p>
@@ -1826,6 +1963,137 @@ const SessionPaymentSummary = ({
       </div>
     </div>
   </div>
+);
+
+const ClientEventPassesSection = ({
+  passes,
+  eventsById,
+  qrCodesByPassId,
+  cancellingPassId,
+  onCancelPass,
+}: {
+  passes: EventRegistration[];
+  eventsById: Record<string, ArtistEvent>;
+  qrCodesByPassId: Record<string, string>;
+  cancellingPassId: string;
+  onCancelPass: (pass: EventRegistration) => void;
+}) => (
+  <section className="mx-auto mt-8 w-full max-w-6xl space-y-6">
+    <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+          Client events
+        </p>
+        <h1 className="mt-2 text-3xl! font-semibold text-white">
+          Event passes
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+          Free RSVPs and future paid tickets live here. Show the QR pass at the
+          event so the host can check you in through SATX Ink.
+        </p>
+      </div>
+      <div className="rounded-lg border border-white/10 bg-white/[0.04] px-5 py-4">
+        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+          Active passes
+        </p>
+        <p className="mt-2 text-2xl font-semibold text-white">{passes.length}</p>
+      </div>
+    </div>
+
+    {passes.length === 0 ? (
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-8 text-center">
+        <Ticket className="mx-auto mb-3 text-white/30" size={36} />
+        <h3 className="text-lg font-semibold text-white">No event passes yet</h3>
+        <p className="mx-auto mt-2 max-w-md text-sm text-white/50">
+          RSVP to a public event and your scannable pass will appear here.
+        </p>
+      </div>
+    ) : (
+      <div className="grid gap-5 lg:grid-cols-2">
+        {passes.map((pass) => {
+          const event = eventsById[pass.eventId];
+          const qrCode = qrCodesByPassId[pass.id];
+          const statusLabel =
+            pass.status === "checked_in" ? "Checked in" : "Reserved";
+
+          return (
+            <article
+              key={pass.id}
+              className="overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl"
+            >
+              <div className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                        pass.status === "checked_in"
+                          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                          : "border-sky-300/25 bg-sky-300/10 text-sky-100"
+                      }`}
+                    >
+                      {statusLabel}
+                    </span>
+                    <span className="text-xs uppercase tracking-[0.14em] text-white/35">
+                      {pass.paymentStatus === "free" ? "Free RSVP" : pass.paymentStatus}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 line-clamp-2 text-2xl! font-semibold text-white">
+                    {event?.title || pass.eventTitle || "Event"}
+                  </h3>
+                  <div className="mt-4 space-y-2 text-sm text-white/60">
+                    <EventPassMeta
+                      icon={<CalendarDays size={16} />}
+                      text={formatClientEventPassDate(pass, event)}
+                    />
+                    <EventPassMeta
+                      icon={<Store size={16} />}
+                      text={pass.hostName || event?.shopName || "SATX Ink event"}
+                    />
+                    <EventPassMeta
+                      icon={<MapPin size={16} />}
+                      text={pass.address || event?.address || "Location TBD"}
+                    />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onCancelPass(pass)}
+                      disabled={
+                        pass.status === "checked_in" ||
+                        cancellingPassId === pass.id
+                      }
+                      className="rounded-md border border-white/10 bg-white/[0.04] px-4! py-2! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {cancellingPassId === pass.id ? "Cancelling..." : "Cancel RSVP"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white p-3 text-center text-black">
+                  {qrCode ? (
+                    <img
+                      src={qrCode}
+                      alt={`QR pass for ${pass.eventTitle || "event"}`}
+                      className="mx-auto h-36 w-36"
+                    />
+                  ) : (
+                    <div className="flex h-36 items-center justify-center text-sm text-black/50">
+                      Preparing QR
+                    </div>
+                  )}
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/55">
+                    Scan at check-in
+                  </p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    )}
+  </section>
 );
 
 const SessionStatusBadge = ({ status }: { status: string }) => {
@@ -1921,6 +2189,45 @@ const formatAppointment = (selectedDate?: { date: string; time: string }) => {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const formatClientEventPassDate = (
+  pass: EventRegistration,
+  event?: ArtistEvent
+) => {
+  const dateValue = event?.startDate || pass.eventStartDate;
+  const timeValue = event?.startTime || pass.eventStartTime;
+
+  if (!dateValue) return "Date TBD";
+
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hours = 0, minutes = 0] = (timeValue || "00:00").split(":").map(Number);
+  const date = new Date(year, month - 1, day, hours, minutes);
+
+  if (Number.isNaN(date.getTime())) {
+    return timeValue ? `${dateValue} at ${timeValue}` : dateValue;
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: timeValue ? "numeric" : undefined,
+    minute: timeValue ? "2-digit" : undefined,
+  });
+};
+
+const getClientCallableErrorMessage = (error: unknown, fallback: string) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 const getBookingCreatedTime = (booking: Booking) => {
