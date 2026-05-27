@@ -116,7 +116,9 @@ export const EventsPage = () => {
             const typedEvent = event as ArtistEvent;
             return Boolean(
               typedEvent.startDate &&
-                (typedEvent.artistId || typedEvent.shopId)
+                (typedEvent.artistId ||
+                  typedEvent.shopId ||
+                  typedEvent.ownerType === "shop")
             );
           });
 
@@ -140,7 +142,9 @@ export const EventsPage = () => {
             artist: event.artistId ? artistsById[event.artistId] : undefined,
             shop: event.shopId ? shopsById[event.shopId] : undefined,
           }))
-          .filter((event) => Boolean(event.artist || event.shop))
+          .filter((event) =>
+            Boolean(event.artist || event.shop || event.ownerType === "shop")
+          )
           .filter((event) => isPublicEventBookable(event))
           .filter((event) => !isPastEvent(event))
           .sort(sortEventsChronologically);

@@ -172,19 +172,47 @@ const EventsManager = ({
 
     try {
       setLoading(true);
-      const eventsQuery =
+      const snapshots =
         ownerType === "shop" && shopOverride?.id
-          ? query(
-              collection(db, "events"),
-              where("shopId", "==", shopOverride.id),
-              where("ownerType", "==", "shop")
-            )
-          : query(collection(db, "events"), where("artistId", "==", uid));
-      const snapshot = await getDocs(eventsQuery);
-      const result = snapshot.docs.map((eventDoc) => ({
-        id: eventDoc.id,
-        ...eventDoc.data(),
-      })) as ArtistEvent[];
+          ? await Promise.all([
+              getDocs(
+                query(
+                  collection(db, "events"),
+                  where("shopId", "==", shopOverride.id),
+                  where("ownerType", "==", "shop")
+                )
+              ),
+              getDocs(
+                query(
+                  collection(db, "events"),
+                  where("createdBy", "==", uid),
+                  where("ownerType", "==", "shop")
+                )
+              ),
+            ])
+          : [
+              await getDocs(
+                query(collection(db, "events"), where("artistId", "==", uid))
+              ),
+            ];
+      const eventsById = new Map<string, ArtistEvent>();
+      snapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((eventDoc) => {
+          const event = {
+            id: eventDoc.id,
+            ...eventDoc.data(),
+          } as ArtistEvent;
+
+          if (
+            ownerType !== "shop" ||
+            !shopOverride?.id ||
+            eventBelongsToShop(event, shopOverride)
+          ) {
+            eventsById.set(eventDoc.id, event);
+          }
+        });
+      });
+      const result = Array.from(eventsById.values());
 
       setEvents(result.sort((a, b) => getEventTime(a) - getEventTime(b)));
     } catch (err) {
@@ -393,7 +421,9 @@ const EventsManager = ({
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         locationType: form.locationType,
         shopId:
-          form.locationType === "shop"
+          ownerType === "shop"
+            ? shopOverride?.id || shopDefaults?.id || ""
+            : form.locationType === "shop"
             ? shopOverride?.id || artist?.shopId || shopDefaults?.id || ""
             : "",
         shopName: form.shopName.trim() || "",
@@ -1401,6 +1431,12 @@ const uploadEventThumbnail = async (
   const thumbnailUrl = await getDownloadURL(storageRef);
   return { thumbnailUrl, thumbnailPath };
 };
+
+const eventBelongsToShop = (event: ArtistEvent, shop: ShopDefaults) =>
+  event.shopId === shop.id ||
+  (!event.shopId &&
+    Boolean(event.shopName) &&
+    event.shopName === (shop.name || ""));
 
 const parseOptionalNumber = (value: string) => {
   if (!value.trim()) return null;
