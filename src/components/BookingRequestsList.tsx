@@ -249,7 +249,7 @@ const BookingRequestsList: React.FC<Props> = ({
                   onClick={() => setPreparationFilter(filter.value)}
                   className={`inline-flex h-10 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
                     preparationFilter === filter.value
-                      ? "border-amber-200 bg-amber-300 text-black shadow-[0_0_18px_rgba(252,211,77,0.14)]"
+                      ? "border-white bg-white text-black"
                       : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
                   }`}
                 >
@@ -638,9 +638,9 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onPrepareOffer}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/45 bg-amber-300 px-3! text-xs! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
+          className="inline-flex h-9 min-w-[118px] items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
         >
-          <Send size={14} />
+          <Send size={14} className="text-amber-200" />
           {isPreparingOffer ? "Update timing" : "Prepare offer"}
         </button>
         <button
@@ -845,9 +845,9 @@ const RequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/45 bg-amber-300 px-5! py-3! text-sm! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
                         >
-                          <Send size={16} />
+                          <Send size={16} className="text-amber-200" />
                           Prepare offer
                         </button>
                         <button
@@ -1032,9 +1032,9 @@ const FlashRequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/45 bg-amber-300 px-5! py-3! text-sm! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
                         >
-                          <Send size={16} />
+                          <Send size={16} className="text-amber-200" />
                           Prepare offer
                         </button>
                         <button
