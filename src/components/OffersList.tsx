@@ -316,12 +316,12 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(210px,1.15fr) 96px minmax(190px,.95fr) minmax(230px,1.2fr) minmax(190px,.88fr) minmax(210px,.86fr)";
+    "minmax(210px,1.1fr) 96px minmax(180px,.88fr) minmax(220px,1.08fr) minmax(170px,.72fr) minmax(270px,1fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+        <div className="min-w-[1200px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -441,25 +441,14 @@ const OfferRow = ({
 
       <div className="flex items-center justify-end gap-2">
         {offer.status === "declined" && (
-          <>
-            <button
-              type="button"
-              onClick={onRevise}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
-            >
-              <Send size={14} />
-              Send new
-            </button>
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] p-0! text-neutral-300 transition hover:bg-white/10 hover:text-white"
-              aria-label="Dismiss declined offer"
-              title="Dismiss declined offer"
-            >
-              <X size={14} />
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={onRevise}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+          >
+            <Send size={14} />
+            Send new
+          </button>
         )}
         <button
           type="button"
@@ -469,6 +458,20 @@ const OfferRow = ({
           <Eye size={14} />
           Details
         </button>
+        {offer.status === "declined" && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="group relative ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] p-0! text-neutral-300 transition hover:bg-white/10 hover:text-white"
+            aria-label="Dismiss declined offer"
+            title="Dismiss and remove from feed"
+          >
+            <X size={14} />
+            <span className="pointer-events-none absolute right-0 top-[-2.4rem] z-20 w-max max-w-[220px] rounded-md border border-white/10 bg-[#1b1b1b] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+              Dismiss and remove from feed
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

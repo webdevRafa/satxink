@@ -55,12 +55,20 @@ type BookingRequest = {
   offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
 };
 
+type PreparationFilter = "all" | "preparing" | "not_started";
+
 const OFFER_PREPARATION_ETA_OPTIONS = [
   "Later today",
   "Tomorrow",
   "2-3 days",
   "This week",
   "Next week",
+];
+
+const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Preparing", value: "preparing" },
+  { label: "Not started", value: "not_started" },
 ];
 
 interface Props {
@@ -84,6 +92,8 @@ const BookingRequestsList: React.FC<Props> = ({
     new Date().getFullYear()
   );
   const [isFiltering, setIsFiltering] = useState(false);
+  const [preparationFilter, setPreparationFilter] =
+    useState<PreparationFilter>("all");
   const [declinedRequestIds, setDeclinedRequestIds] = useState<string[]>([]);
   const [isDeclining, setIsDeclining] = useState(false);
   const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
@@ -99,18 +109,37 @@ const BookingRequestsList: React.FC<Props> = ({
   );
 
   const filteredRequests = useMemo(
-    () =>
-      isFiltering
+    () => {
+      const dateFilteredRequests = isFiltering
         ? visibleRequests.filter((request) =>
             requestMatchesMonth(request, selectedMonth, selectedYear)
           )
-        : visibleRequests,
-    [isFiltering, selectedMonth, selectedYear, visibleRequests]
+        : visibleRequests;
+
+      if (preparationFilter === "all") return dateFilteredRequests;
+
+      return dateFilteredRequests.filter((request) =>
+        preparationFilter === "preparing"
+          ? request.offerPreparationStatus === "preparing"
+          : request.offerPreparationStatus !== "preparing"
+      );
+    },
+    [
+      isFiltering,
+      preparationFilter,
+      selectedMonth,
+      selectedYear,
+      visibleRequests,
+    ]
   );
 
   const requestsWithReference = visibleRequests.filter(
     (request) => request.thumbUrl || request.fullUrl
   ).length;
+  const preparingCount = visibleRequests.filter(
+    (request) => request.offerPreparationStatus === "preparing"
+  ).length;
+  const filtersAreActive = isFiltering || preparationFilter !== "all";
 
   const newestRequest = visibleRequests[0];
 
@@ -186,8 +215,9 @@ const BookingRequestsList: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[640px] lg:grid-cols-4">
           <MetricCard label="Pending" value={visibleRequests.length} />
+          <MetricCard label="Preparing" value={preparingCount} />
           <MetricCard label="References" value={requestsWithReference} />
           <MetricCard
             label="Newest"
@@ -205,12 +235,29 @@ const BookingRequestsList: React.FC<Props> = ({
             <div>
               <h2 className="mb-0! text-lg!">Request filters</h2>
               <p className="text-sm text-neutral-400">
-                Filter by the client's preferred date range.
+                Filter by client update status or preferred date range.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {PREPARATION_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setPreparationFilter(filter.value)}
+                  className={`inline-flex h-10 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                    preparationFilter === filter.value
+                      ? "border-amber-200 bg-amber-300 text-black shadow-[0_0_18px_rgba(252,211,77,0.14)]"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
@@ -246,10 +293,13 @@ const BookingRequestsList: React.FC<Props> = ({
               Filter
             </button>
 
-            {isFiltering && (
+            {filtersAreActive && (
               <button
                 type="button"
-                onClick={() => setIsFiltering(false)}
+                onClick={() => {
+                  setIsFiltering(false);
+                  setPreparationFilter("all");
+                }}
                 className="inline-flex h-11 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
               >
                 Clear
@@ -264,7 +314,7 @@ const BookingRequestsList: React.FC<Props> = ({
       </div>
 
       {filteredRequests.length === 0 ? (
-        <EmptyRequests isFiltering={isFiltering} />
+        <EmptyRequests isFiltering={filtersAreActive} />
       ) : (
         <RequestTable
           requests={filteredRequests}
@@ -588,7 +638,7 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onPrepareOffer}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/45 bg-amber-300 px-3! text-xs! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
         >
           <Send size={14} />
           {isPreparingOffer ? "Update timing" : "Prepare offer"}
@@ -795,7 +845,7 @@ const RequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/45 bg-amber-300 px-5! py-3! text-sm! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
                         >
                           <Send size={16} />
                           Prepare offer
@@ -982,7 +1032,7 @@ const FlashRequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/45 bg-amber-300 px-5! py-3! text-sm! font-semibold text-black shadow-[0_0_18px_rgba(252,211,77,0.12)] transition hover:bg-amber-200"
                         >
                           <Send size={16} />
                           Prepare offer
