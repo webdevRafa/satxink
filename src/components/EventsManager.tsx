@@ -1692,7 +1692,7 @@ const EventEditorModal = ({
             </>
           )}
 
-          <div className="flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="sticky bottom-0 z-20 -mx-5 mt-6 flex flex-col gap-3 border-t border-white/10 bg-[#101010]/95 px-5 py-4 shadow-[0_-18px_30px_rgba(0,0,0,0.35)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-white/45">
               {hasCurrentStepErrors
                 ? getFirstStepError(activeStep, formErrors)
