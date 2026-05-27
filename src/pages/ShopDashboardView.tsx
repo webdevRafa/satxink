@@ -7,10 +7,11 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 import {
   Building2,
   CalendarDays,
@@ -18,12 +19,14 @@ import {
   Copy,
   FileUp,
   LinkIcon,
+  Pencil,
   Search,
   Store,
   UserMinus,
   Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
 import { auth, db, storage } from "../firebase/firebaseConfig";
 import EventsManager from "../components/EventsManager";
 
@@ -78,15 +81,17 @@ type ShopArtist = {
 };
 
 type ShopView = "artists" | "events";
+type ClaimMode = "existing" | "new";
 
 const ShopDashboardView = () => {
+  const [searchParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState<ShopUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [shops, setShops] = useState<ShopRecord[]>([]);
   const [claims, setClaims] = useState<ShopClaim[]>([]);
   const [artists, setArtists] = useState<ShopArtist[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
-  const [activeView, setActiveView] = useState<ShopView>("artists");
+  const [activeView, setActiveView] = useState<ShopView | "profile">("artists");
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
@@ -253,6 +258,7 @@ const ShopDashboardView = () => {
         user={currentUser}
         shops={shops}
         claims={claims}
+        initialShopId={searchParams.get("claimShopId") || ""}
       />
     );
   }
@@ -324,10 +330,19 @@ const ShopDashboardView = () => {
               label="Events"
               onClick={() => setActiveView("events")}
             />
+            <DashboardTab
+              active={activeView === "profile"}
+              icon={<Pencil size={17} />}
+              label="Profile"
+              onClick={() => setActiveView("profile")}
+            />
             <InviteCard inviteUrl={inviteUrl} shopName={activeShop?.name || "your shop"} />
           </aside>
 
           <section className="min-w-0">
+            {activeView === "profile" && activeShop && (
+              <ShopProfilePanel shop={activeShop} />
+            )}
             {activeView === "artists" && activeShop && (
               <ArtistsPanel
                 artists={filteredArtists}
@@ -357,12 +372,20 @@ const ShopClaimExperience = ({
   user,
   shops,
   claims,
+  initialShopId,
 }: {
   user: ShopUser;
   shops: ShopRecord[];
   claims: ShopClaim[];
+  initialShopId?: string;
 }) => {
-  const [selectedShopId, setSelectedShopId] = useState("");
+  const [claimMode, setClaimMode] = useState<ClaimMode>(
+    initialShopId ? "existing" : "existing"
+  );
+  const [selectedShopId, setSelectedShopId] = useState(initialShopId || "");
+  const [newShopName, setNewShopName] = useState("");
+  const [newShopAddress, setNewShopAddress] = useState("");
+  const [newShopMapLink, setNewShopMapLink] = useState("");
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -371,10 +394,15 @@ const ShopClaimExperience = ({
     .sort((a, b) => getRecordTime(b.createdAt) - getRecordTime(a.createdAt))[0];
 
   const selectedShop = shops.find((shop) => shop.id === selectedShopId);
+  const requestedShopName = newShopName.trim();
 
   const handleSubmit = async () => {
-    if (!selectedShop || !user.id) {
+    if (claimMode === "existing" && (!selectedShop || !user.id)) {
       toast.error("Choose the shop you want to claim.");
+      return;
+    }
+    if (claimMode === "new" && !requestedShopName) {
+      toast.error("Add the shop name you want to register.");
       return;
     }
     if (!files.length) {
@@ -387,18 +415,20 @@ const ShopClaimExperience = ({
       const uploadedDocuments = await Promise.all(
         files.map(async (file) => {
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-          const path = `shopClaims/${user.id}/${selectedShop.id}/${Date.now()}-${safeName}`;
+          const claimShopKey =
+            claimMode === "existing"
+              ? selectedShop?.id || "unknown-shop"
+              : `new-${requestedShopName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+          const path = `shopClaims/${user.id}/${claimShopKey}/${Date.now()}-${safeName}`;
           const storageRef = ref(storage, path);
           await uploadBytes(storageRef, file, {
             contentType: file.type || "application/octet-stream",
           });
-          const url = await getDownloadURL(storageRef);
           return {
             name: file.name,
             type: file.type,
             size: file.size,
             path,
-            url,
           };
         })
       );
@@ -408,8 +438,18 @@ const ShopClaimExperience = ({
         claimantName: user.displayName || user.name || "",
         claimantEmail: user.email || "",
         claimantRole: user.role || "client",
-        shopId: selectedShop.id,
-        shopName: selectedShop.name || "",
+        claimType: claimMode,
+        shopId: claimMode === "existing" ? selectedShop?.id || "" : "",
+        shopName:
+          claimMode === "existing" ? selectedShop?.name || "" : requestedShopName,
+        requestedShop:
+          claimMode === "new"
+            ? {
+                name: requestedShopName,
+                address: newShopAddress.trim(),
+                mapLink: newShopMapLink.trim(),
+              }
+            : null,
         status: "pending",
         notes: notes.trim(),
         proofDocuments: uploadedDocuments,
@@ -425,6 +465,9 @@ const ShopClaimExperience = ({
       setFiles([]);
       setNotes("");
       setSelectedShopId("");
+      setNewShopName("");
+      setNewShopAddress("");
+      setNewShopMapLink("");
       toast.success("Shop claim submitted for review.");
     } catch (error) {
       console.error("Failed to submit shop claim:", error);
@@ -486,18 +529,65 @@ const ShopClaimExperience = ({
               <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
                 Shop
               </span>
-              <select
-                value={selectedShopId}
-                onChange={(event) => setSelectedShopId(event.target.value)}
-                className="h-12 w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-              >
-                <option value="">Select a shop</option>
-                {shops.map((shop) => (
-                  <option key={shop.id} value={shop.id}>
-                    {shop.name || shop.id}
-                  </option>
-                ))}
-              </select>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setClaimMode("existing")}
+                  className={`rounded-md border px-3! py-3! text-left text-sm! font-semibold transition ${
+                    claimMode === "existing"
+                      ? "border-white/30 bg-white text-black"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.06]"
+                  }`}
+                >
+                  Claim listed shop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClaimMode("new")}
+                  className={`rounded-md border px-3! py-3! text-left text-sm! font-semibold transition ${
+                    claimMode === "new"
+                      ? "border-white/30 bg-white text-black"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.06]"
+                  }`}
+                >
+                  Request new shop
+                </button>
+              </div>
+              {claimMode === "existing" ? (
+                <select
+                  value={selectedShopId}
+                  onChange={(event) => setSelectedShopId(event.target.value)}
+                  className="mt-3 h-12 w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                >
+                  <option value="">Select a shop</option>
+                  {shops.map((shop) => (
+                    <option key={shop.id} value={shop.id}>
+                      {shop.name || shop.id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="mt-3 grid gap-3">
+                  <input
+                    value={newShopName}
+                    onChange={(event) => setNewShopName(event.target.value)}
+                    placeholder="Shop name"
+                    className="h-12 rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                  />
+                  <input
+                    value={newShopAddress}
+                    onChange={(event) => setNewShopAddress(event.target.value)}
+                    placeholder="Shop address"
+                    className="h-12 rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                  />
+                  <input
+                    value={newShopMapLink}
+                    onChange={(event) => setNewShopMapLink(event.target.value)}
+                    placeholder="Google Maps link"
+                    className="h-12 rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                  />
+                </div>
+              )}
             </label>
 
             <label className="block space-y-2">
@@ -562,6 +652,104 @@ const ShopClaimExperience = ({
           </div>
         </section>
       </main>
+    </div>
+  );
+};
+
+const ShopProfilePanel = ({ shop }: { shop: ShopRecord }) => {
+  const [name, setName] = useState(shop.name || "");
+  const [address, setAddress] = useState(shop.address || "");
+  const [mapLink, setMapLink] = useState(shop.mapLink || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(shop.name || "");
+    setAddress(shop.address || "");
+    setMapLink(shop.mapLink || "");
+  }, [shop.address, shop.mapLink, shop.name]);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast.error("Shop name is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await setDoc(
+        doc(db, "shops", shop.id),
+        {
+          name: name.trim(),
+          address: address.trim(),
+          mapLink: mapLink.trim(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      toast.success("Shop profile updated.");
+    } catch (error) {
+      console.error("Failed to update shop profile:", error);
+      toast.error("Could not update shop profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#111111] p-5 shadow-xl">
+      <div>
+        <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+          Shop profile
+        </p>
+        <h2 className="mt-1 text-xl! font-semibold text-white">
+          Public shop details
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
+          Keep the name, address, and map link current for artist profiles,
+          bookings, and shop events.
+        </p>
+      </div>
+      <div className="mt-5 grid gap-4">
+        <label className="space-y-2">
+          <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+            Name
+          </span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="h-11 w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition focus:border-white/25"
+          />
+        </label>
+        <label className="space-y-2">
+          <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+            Address
+          </span>
+          <input
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            className="h-11 w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition focus:border-white/25"
+          />
+        </label>
+        <label className="space-y-2">
+          <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+            Map link
+          </span>
+          <input
+            value={mapLink}
+            onChange={(event) => setMapLink(event.target.value)}
+            className="h-11 w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 text-sm text-white outline-none transition focus:border-white/25"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSave}
+          className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Pencil size={15} />
+          {saving ? "Saving..." : "Save shop profile"}
+        </button>
+      </div>
     </div>
   );
 };

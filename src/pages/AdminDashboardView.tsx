@@ -15,7 +15,8 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { auth, db } from "../firebase/firebaseConfig";
+import { getDownloadURL, ref } from "firebase/storage";
+import { auth, db, storage } from "../firebase/firebaseConfig";
 import {
   Users,
   Inbox,
@@ -988,9 +989,9 @@ const ShopClaimsTable: React.FC<{
 
   const handleApprove = async (claim: GenericRecord) => {
     const userId = getString(claim, "userId");
-    const shopId = getString(claim, "shopId");
-    if (!userId || !shopId) {
-      toast.error("Claim is missing a user or shop id.");
+    let shopId = getString(claim, "shopId");
+    if (!userId) {
+      toast.error("Claim is missing a user id.");
       return;
     }
 
@@ -998,6 +999,26 @@ const ShopClaimsTable: React.FC<{
     const nextRole = claimant?.role === "artist" ? "artist" : "shop_owner";
 
     try {
+      if (!shopId) {
+        const requestedShop = claim.requestedShop as
+          | { name?: string; address?: string; mapLink?: string }
+          | undefined;
+        if (!requestedShop?.name) {
+          toast.error("New shop claims need a requested shop name.");
+          return;
+        }
+
+        const shopRef = await addDoc(collection(db, "shops"), {
+          name: requestedShop.name,
+          address: requestedShop.address || "",
+          mapLink: requestedShop.mapLink || "",
+          ownerUserIds: [userId],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        shopId = shopRef.id;
+      }
+
       await updateDoc(doc(db, "users", userId), {
         role: nextRole,
         shopOwnerShopIds: arrayUnion(shopId),
@@ -1010,6 +1031,8 @@ const ShopClaimsTable: React.FC<{
       });
       await updateDoc(doc(db, "shopClaims", claim.id), {
         status: "approved",
+        shopId,
+        shopName: getString(claim, "shopName"),
         reviewedAt: serverTimestamp(),
         reviewedBy: adminUser?.id || null,
         updatedAt: serverTimestamp(),
@@ -1089,7 +1112,7 @@ const ShopClaimsTable: React.FC<{
             const claimant = usersById[getString(claim, "userId")];
             const statusValue = getString(claim, "status") || "pending";
             const proofDocuments = Array.isArray(claim.proofDocuments)
-              ? (claim.proofDocuments as Array<{ url?: string; name?: string }>)
+              ? (claim.proofDocuments as Array<{ path?: string; name?: string }>)
               : [];
 
             return (
@@ -1120,16 +1143,11 @@ const ShopClaimsTable: React.FC<{
                 <div className="flex flex-wrap gap-2">
                   {proofDocuments.length ? (
                     proofDocuments.slice(0, 2).map((proof, index) => (
-                      <a
-                        key={`${proof.url || proof.name}-${index}`}
-                        href={proof.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-neutral-200 hover:bg-white/10"
-                      >
-                        <ExternalLink size={12} />
-                        {proof.name || `Proof ${index + 1}`}
-                      </a>
+                      <ProofDocumentButton
+                        key={`${proof.path || proof.name}-${index}`}
+                        proof={proof}
+                        index={index}
+                      />
                     ))
                   ) : (
                     <span className="text-neutral-500">No files</span>
@@ -1180,6 +1198,47 @@ const getAdminStatusBadgeClass = (status: string) => {
     return `${base} border-red-300/25 bg-red-300/10 text-red-100`;
   }
   return `${base} border-amber-300/25 bg-amber-300/10 text-amber-100`;
+};
+
+const ProofDocumentButton = ({
+  proof,
+  index,
+}: {
+  proof: { path?: string; name?: string };
+  index: number;
+}) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleOpen = async () => {
+    if (!proof.path) {
+      toast.error("This proof document is missing its storage path.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const url = await getDownloadURL(ref(storage, proof.path));
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Failed to open proof document:", error);
+      toast.error("Could not open proof document.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleOpen}
+      disabled={loading}
+      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2! py-1! text-xs! font-semibold text-neutral-200 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60"
+      title="Generate a temporary Firebase Storage access URL"
+    >
+      <ExternalLink size={12} />
+      {loading ? "Opening..." : proof.name || `Proof ${index + 1}`}
+    </button>
+  );
 };
 
 /**
