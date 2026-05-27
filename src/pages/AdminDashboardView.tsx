@@ -3,12 +3,14 @@ import type { ComponentType } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -49,15 +51,20 @@ import toast from "react-hot-toast";
 type AdminView = "artists" | "requests" | "offers" | "bookings" | "sessions";
 type StripeFilter = "all" | "connected" | "not_connected";
 type FeaturedFilter = "all" | "featured" | "not_featured";
-type RequestStatusFilter = "all" | "waiting" | "responded";
-type OfferStatusFilter = "all" | "waiting" | "accepted" | "declined";
+type ArtistAttentionFilter = "all" | "needs_stripe" | "missing_name";
+type RequestStatusFilter = "all" | "waiting" | "responded" | "other";
+type RequestAttentionFilter = "all" | "waiting_24h";
+type OfferStatusFilter = "all" | "waiting" | "accepted" | "declined" | "other";
+type OfferAttentionFilter = "all" | "waiting_24h";
 type BookingStatusFilter =
   | "all"
   | "pending_payment"
   | "deposit_paid"
   | "paid"
   | "confirmed"
-  | "cancelled";
+  | "cancelled"
+  | "other";
+type BookingAttentionFilter = "all" | "waiting_deposit" | "open_balance" | "missing_session";
 type DateFilterMode = "created" | "session";
 type ReportPeriod = "custom" | "today" | "week" | "month" | "quarter" | "year";
 type SessionStatusFilter =
@@ -65,7 +72,9 @@ type SessionStatusFilter =
   | "not_started"
   | "in_progress"
   | "completed"
-  | "awaiting_next_session";
+  | "awaiting_next_session"
+  | "other";
+type SessionAttentionFilter = "all" | "overdue" | "missing_date";
 
 // Define minimal shape interfaces for our Firestore documents. These
 // interfaces are intentionally permissive – any additional fields
@@ -108,6 +117,12 @@ type UserLookup = Record<string, UserRecord>;
 type TimestampLike = {
   seconds?: number;
   toDate?: () => Date;
+};
+
+type CollectionStatus = {
+  loading: boolean;
+  error: string;
+  updatedAt: Date | null;
 };
 
 const tableHeaderClass =
@@ -174,6 +189,11 @@ const formatDateTime = (value: unknown) => {
   return date ? date.toLocaleString() : "-";
 };
 
+const formatUpdatedAt = (date: Date | null) =>
+  date
+    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "not synced";
+
 const formatStatusLabel = (status: unknown) => {
   if (!status || typeof status !== "string") return "-";
   return status.replace(/_/g, " ");
@@ -183,6 +203,9 @@ const getString = (record: GenericRecord | UserRecord | undefined, key: string) 
   const value = record?.[key];
   return typeof value === "string" && value.trim() ? value : "";
 };
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Unable to load this data.";
 
 const getNumber = (record: GenericRecord, key: string) => {
   const value = record[key];
@@ -335,19 +358,175 @@ const getFirstAppointmentValue = (booking: GenericRecord) => {
   return null;
 };
 
+const getOfferStatusKey = (offer: GenericRecord): OfferStatusFilter => {
+  const status = getString(offer, "status");
+  if (status === "accepted") return "accepted";
+  if (status === "declined") return "declined";
+  if (!status || status === "pending") return "waiting";
+  return "other";
+};
+
+const getBookingStatusKey = (booking: GenericRecord): BookingStatusFilter => {
+  const status = getString(booking, "status");
+  if (
+    status === "pending_payment" ||
+    status === "deposit_paid" ||
+    status === "paid" ||
+    status === "confirmed" ||
+    status === "cancelled"
+  ) {
+    return status;
+  }
+  return "other";
+};
+
+const getSessionStatusKey = (session: GenericRecord): SessionStatusFilter => {
+  const status = getString(session, "status");
+  if (
+    status === "not_started" ||
+    status === "in_progress" ||
+    status === "completed" ||
+    status === "awaiting_next_session"
+  ) {
+    return status;
+  }
+  return "other";
+};
+
+const isOlderThanHours = (value: unknown, hours: number) => {
+  const date = getComparableDate(value);
+  if (!date) return false;
+  return Date.now() - date.getTime() >= hours * 60 * 60 * 1000;
+};
+
+const hasOpenBalance = (booking: GenericRecord) =>
+  (getNumber(booking, "remainingBalanceAmount") || 0) > 0 ||
+  (getNumber(booking, "remainingBalanceCents") || 0) > 0;
+
+const hasFirstAppointment = (booking: GenericRecord) =>
+  getFirstAppointmentLabel(booking) !== "-";
+
+const isPastDate = (value: unknown) => {
+  const date = getComparableDate(value);
+  return Boolean(date && date.getTime() < Date.now());
+};
+
+const isRequestAttentionMatch = (
+  request: GenericRecord,
+  offers: GenericRecord[],
+  filter: RequestAttentionFilter
+) => {
+  if (filter === "all") return true;
+  return (
+    filter === "waiting_24h" &&
+    getRequestStatusKey(request, offers) === "waiting" &&
+    isOlderThanHours(request.createdAt, 24)
+  );
+};
+
+const isOfferAttentionMatch = (
+  offer: GenericRecord,
+  filter: OfferAttentionFilter
+) => {
+  if (filter === "all") return true;
+  return (
+    filter === "waiting_24h" &&
+    getOfferStatusKey(offer) === "waiting" &&
+    isOlderThanHours(offer.createdAt, 24)
+  );
+};
+
+const isBookingAttentionMatch = (
+  booking: GenericRecord,
+  filter: BookingAttentionFilter
+) => {
+  if (filter === "all") return true;
+  if (filter === "waiting_deposit") return getBookingStatusKey(booking) === "pending_payment";
+  if (filter === "open_balance") return hasOpenBalance(booking);
+  return !hasFirstAppointment(booking);
+};
+
+const isSessionAttentionMatch = (
+  session: GenericRecord,
+  filter: SessionAttentionFilter
+) => {
+  if (filter === "all") return true;
+  const appointmentValue = getFirstAppointmentValue(session);
+  if (filter === "missing_date") return !appointmentValue;
+  return (
+    isPastDate(appointmentValue) &&
+    !["completed", "cancelled"].includes(getString(session, "status"))
+  );
+};
+
+const getRequestAttentionCount = (
+  requests: GenericRecord[],
+  offers: GenericRecord[]
+) =>
+  requests.filter((request) =>
+    isRequestAttentionMatch(request, offers, "waiting_24h")
+  ).length;
+
+const getOfferAttentionCount = (offers: GenericRecord[]) =>
+  offers.filter((offer) => isOfferAttentionMatch(offer, "waiting_24h")).length;
+
+const getBookingAttentionCount = (
+  bookings: GenericRecord[],
+  filter: BookingAttentionFilter
+) =>
+  bookings.filter((booking) => isBookingAttentionMatch(booking, filter)).length;
+
+const getSessionAttentionCount = (
+  sessions: GenericRecord[],
+  filter: SessionAttentionFilter
+) =>
+  sessions.filter((session) => isSessionAttentionMatch(session, filter)).length;
+
+const getArtistAttentionCount = (
+  artists: ArtistRecord[],
+  filter: ArtistAttentionFilter
+) =>
+  artists.filter((artist) => {
+    if (filter === "needs_stripe") return !isStripeConnected(artist);
+    if (filter === "missing_name") return !getUserName(artist, "");
+    return true;
+  }).length;
+
+const getInitialCollectionStatus = (): Record<AdminView, CollectionStatus> => ({
+  artists: { loading: false, error: "", updatedAt: null },
+  requests: { loading: false, error: "", updatedAt: null },
+  offers: { loading: false, error: "", updatedAt: null },
+  bookings: { loading: false, error: "", updatedAt: null },
+  sessions: { loading: false, error: "", updatedAt: null },
+});
+
+const markAllCollectionsLoading = (): Record<AdminView, CollectionStatus> => ({
+  artists: { loading: true, error: "", updatedAt: null },
+  requests: { loading: true, error: "", updatedAt: null },
+  offers: { loading: true, error: "", updatedAt: null },
+  bookings: { loading: true, error: "", updatedAt: null },
+  sessions: { loading: true, error: "", updatedAt: null },
+});
+
+const getCollectionSuccessState = (): CollectionStatus => ({
+  loading: false,
+  error: "",
+  updatedAt: new Date(),
+});
+
+const getCollectionErrorState = (error: unknown): CollectionStatus => ({
+  loading: false,
+  error: getErrorMessage(error),
+  updatedAt: null,
+});
+
 const getOfferStatusLabel = (offer: GenericRecord) => {
   const status = getString(offer, "status");
   if (status === "accepted") return "Client accepted";
   if (status === "declined") return "Client declined";
   if (status === "expired") return "Expired";
-  return "Waiting for client";
-};
-
-const getOfferStatusKey = (offer: GenericRecord): OfferStatusFilter => {
-  const status = getString(offer, "status");
-  if (status === "accepted") return "accepted";
-  if (status === "declined") return "declined";
-  return "waiting";
+  if (!status || status === "pending") return "Waiting for client";
+  return formatStatusLabel(status);
 };
 
 const getRequestStatusLabel = (request: GenericRecord, offers: GenericRecord[]) => {
@@ -364,7 +543,9 @@ const getRequestStatusKey = (
   offers: GenericRecord[]
 ): RequestStatusFilter => {
   const label = getRequestStatusLabel(request, offers);
-  return label === "Artist responded" ? "responded" : "waiting";
+  if (label === "Artist responded") return "responded";
+  if (label === "Waiting for offer") return "waiting";
+  return "other";
 };
 
 const getTotalLabel = (booking: GenericRecord) => {
@@ -701,6 +882,79 @@ const ReportActionButton = ({
   </button>
 );
 
+const DataHealth = ({
+  status,
+  total,
+  visible,
+}: {
+  status?: CollectionStatus;
+  total: number;
+  visible: number;
+}) => (
+  <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">
+      {visible} visible / {total} total
+    </span>
+    <span
+      className={`rounded-full border px-3 py-1 ${
+        status?.error
+          ? "border-red-300/30 bg-red-400/10 text-red-200"
+          : "border-white/10 bg-white/[0.03]"
+      }`}
+    >
+      {status?.loading
+        ? "syncing..."
+        : status?.error
+        ? `sync issue: ${status.error}`
+        : `updated ${formatUpdatedAt(status?.updatedAt || null)}`}
+    </span>
+  </div>
+);
+
+const QuickFilterButton = ({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
+      active
+        ? "border-white/30 bg-white text-black"
+        : "border-white/10 text-neutral-300 hover:border-white/25 hover:text-white"
+    }`}
+  >
+    <span>{label}</span>
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs ${
+        active ? "bg-black/10 text-black" : "bg-white/[0.08] text-neutral-300"
+      }`}
+    >
+      {count}
+    </span>
+  </button>
+);
+
+const EmptyTableState = ({
+  total,
+  visible,
+}: {
+  total: number;
+  visible: number;
+}) =>
+  visible === 0 ? (
+    <div className="px-4 py-8 text-center text-sm text-neutral-500">
+      {total ? "No records match these tools." : "No records found yet."}
+    </div>
+  ) : null;
+
 /**
  * AdminSidebarNavigation
  *
@@ -966,15 +1220,19 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ item, onClose }) => {
 interface TableProps<T> {
   data: T[];
   onSelect: (item: T) => void;
+  status?: CollectionStatus;
 }
 
 const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
   data,
   onSelect,
+  status,
 }) => {
   const [search, setSearch] = useState("");
   const [stripeFilter, setStripeFilter] = useState<StripeFilter>("all");
   const [featuredFilter, setFeaturedFilter] = useState<FeaturedFilter>("all");
+  const [attentionFilter, setAttentionFilter] =
+    useState<ArtistAttentionFilter>("all");
 
   const filteredArtists = useMemo(
     () =>
@@ -989,9 +1247,14 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
           featuredFilter === "all" ||
           (featuredFilter === "featured" && featured) ||
           (featuredFilter === "not_featured" && !featured);
+        const matchesAttention =
+          attentionFilter === "all" ||
+          (attentionFilter === "needs_stripe" && !stripeConnected) ||
+          (attentionFilter === "missing_name" && !getUserName(artist, ""));
         return (
           matchesStripe &&
           matchesFeatured &&
+          matchesAttention &&
           matchesSearch(search, [
             artist.id,
             artist.displayName,
@@ -1001,19 +1264,42 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
           ])
         );
       }),
-    [data, featuredFilter, search, stripeFilter]
+    [attentionFilter, data, featuredFilter, search, stripeFilter]
   );
 
   const hasActiveTools =
-    search || stripeFilter !== "all" || featuredFilter !== "all";
+    search ||
+    stripeFilter !== "all" ||
+    featuredFilter !== "all" ||
+    attentionFilter !== "all";
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-2xl font-semibold text-white">Artists</h2>
-        <p className="text-sm text-neutral-500">
-          Showing {filteredArtists.length} of {data.length}
-        </p>
+        <DataHealth status={status} total={data.length} visible={filteredArtists.length} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Needs Stripe"
+          count={getArtistAttentionCount(data, "needs_stripe")}
+          active={attentionFilter === "needs_stripe"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "needs_stripe" ? "all" : "needs_stripe"
+            )
+          }
+        />
+        <QuickFilterButton
+          label="Missing name"
+          count={getArtistAttentionCount(data, "missing_name")}
+          active={attentionFilter === "missing_name"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "missing_name" ? "all" : "missing_name"
+            )
+          }
+        />
       </div>
       <ToolPanel>
         <ToolField label="Search">
@@ -1051,6 +1337,7 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
             setSearch("");
             setStripeFilter("all");
             setFeaturedFilter("all");
+            setAttentionFilter("all");
           }}
         />
       </ToolPanel>
@@ -1099,6 +1386,7 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
               </button>
             );
           })}
+          <EmptyTableState total={data.length} visible={filteredArtists.length} />
         </div>
       </div>
     </section>
@@ -1110,9 +1398,11 @@ const RequestsTable: React.FC<
     offers: GenericRecord[];
     usersById: UserLookup;
   }
-> = ({ data, onSelect, offers, usersById }) => {
+> = ({ data, onSelect, offers, usersById, status }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>("all");
+  const [attentionFilter, setAttentionFilter] =
+    useState<RequestAttentionFilter>("all");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
 
@@ -1137,6 +1427,7 @@ const RequestsTable: React.FC<
         const budgetAmount = getBudgetAmount(request);
         return (
           matchesStatus &&
+          isRequestAttentionMatch(request, offers, attentionFilter) &&
           isInMoneyRange(budgetAmount, minBudget, maxBudget) &&
           matchesSearch(search, [
             request.id,
@@ -1147,19 +1438,38 @@ const RequestsTable: React.FC<
           ])
         );
       }),
-    [data, maxBudget, minBudget, offers, search, statusFilter, usersById]
+    [
+      attentionFilter,
+      data,
+      maxBudget,
+      minBudget,
+      offers,
+      search,
+      statusFilter,
+      usersById,
+    ]
   );
 
   const hasActiveTools =
-    search || statusFilter !== "all" || minBudget || maxBudget;
+    search || statusFilter !== "all" || attentionFilter !== "all" || minBudget || maxBudget;
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-2xl font-semibold text-white">Tattoo requests</h2>
-        <p className="text-sm text-neutral-500">
-          Showing {filteredRequests.length} of {data.length}
-        </p>
+        <DataHealth status={status} total={data.length} visible={filteredRequests.length} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Waiting 24h"
+          count={getRequestAttentionCount(data, offers)}
+          active={attentionFilter === "waiting_24h"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "waiting_24h" ? "all" : "waiting_24h"
+            )
+          }
+        />
       </div>
       <ToolPanel>
         <ToolField label="Search">
@@ -1177,6 +1487,7 @@ const RequestsTable: React.FC<
               { label: "All requests", value: "all" },
               { label: "Waiting for offer", value: "waiting" },
               { label: "Artist responded", value: "responded" },
+              { label: "Other", value: "other" },
             ]}
           />
         </ToolField>
@@ -1191,6 +1502,7 @@ const RequestsTable: React.FC<
           onClick={() => {
             setSearch("");
             setStatusFilter("all");
+            setAttentionFilter("all");
             setMinBudget("");
             setMaxBudget("");
           }}
@@ -1253,6 +1565,7 @@ const RequestsTable: React.FC<
               </button>
             );
           })}
+          <EmptyTableState total={data.length} visible={filteredRequests.length} />
         </div>
       </div>
     </section>
@@ -1263,9 +1576,11 @@ const OffersTable: React.FC<
   TableProps<GenericRecord> & {
     usersById: UserLookup;
   }
-> = ({ data, onSelect, usersById }) => {
+> = ({ data, onSelect, usersById, status }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatusFilter>("all");
+  const [attentionFilter, setAttentionFilter] =
+    useState<OfferAttentionFilter>("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
@@ -1289,6 +1604,7 @@ const OffersTable: React.FC<
           statusFilter === "all" || statusFilter === offerStatus;
         return (
           matchesStatus &&
+          isOfferAttentionMatch(offer, attentionFilter) &&
           isInMoneyRange(getOfferAmount(offer), minPrice, maxPrice) &&
           matchesSearch(search, [
             offer.id,
@@ -1299,19 +1615,29 @@ const OffersTable: React.FC<
           ])
         );
       }),
-    [data, maxPrice, minPrice, search, statusFilter, usersById]
+    [attentionFilter, data, maxPrice, minPrice, search, statusFilter, usersById]
   );
 
   const hasActiveTools =
-    search || statusFilter !== "all" || minPrice || maxPrice;
+    search || statusFilter !== "all" || attentionFilter !== "all" || minPrice || maxPrice;
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-2xl font-semibold text-white">Tattoo offers</h2>
-        <p className="text-sm text-neutral-500">
-          Showing {filteredOffers.length} of {data.length}
-        </p>
+        <DataHealth status={status} total={data.length} visible={filteredOffers.length} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Waiting 24h"
+          count={getOfferAttentionCount(data)}
+          active={attentionFilter === "waiting_24h"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "waiting_24h" ? "all" : "waiting_24h"
+            )
+          }
+        />
       </div>
       <ToolPanel>
         <ToolField label="Search">
@@ -1330,6 +1656,7 @@ const OffersTable: React.FC<
               { label: "Waiting for client", value: "waiting" },
               { label: "Client accepted", value: "accepted" },
               { label: "Client declined", value: "declined" },
+              { label: "Other", value: "other" },
             ]}
           />
         </ToolField>
@@ -1344,6 +1671,7 @@ const OffersTable: React.FC<
           onClick={() => {
             setSearch("");
             setStatusFilter("all");
+            setAttentionFilter("all");
             setMinPrice("");
             setMaxPrice("");
           }}
@@ -1421,6 +1749,7 @@ const OffersTable: React.FC<
               </button>
             );
           })}
+          <EmptyTableState total={data.length} visible={filteredOffers.length} />
         </div>
       </div>
     </section>
@@ -1430,14 +1759,18 @@ const OffersTable: React.FC<
 const BookingsTable: React.FC<
   TableProps<GenericRecord> & {
     usersById: UserLookup;
+    adminUser: UserRecord | null;
   }
-> = ({ data, onSelect, usersById }) => {
+> = ({ data, onSelect, usersById, adminUser, status }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<BookingStatusFilter>("all");
+  const [attentionFilter, setAttentionFilter] =
+    useState<BookingAttentionFilter>("all");
   const [dateMode, setDateMode] = useState<DateFilterMode>("created");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("custom");
+  const [isSavingReport, setIsSavingReport] = useState(false);
 
   const filteredBookings = useMemo(
     () =>
@@ -1458,11 +1791,12 @@ const BookingsTable: React.FC<
           dateMode === "created"
             ? booking.createdAt
             : getFirstAppointmentValue(booking);
-        const bookingStatus = getString(booking, "status");
+        const bookingStatus = getBookingStatusKey(booking);
         const matchesStatus =
           statusFilter === "all" || bookingStatus === statusFilter;
         return (
           matchesStatus &&
+          isBookingAttentionMatch(booking, attentionFilter) &&
           isInDateRange(dateValue, startDate, endDate) &&
           matchesSearch(search, [
             booking.id,
@@ -1473,11 +1807,25 @@ const BookingsTable: React.FC<
           ])
         );
       }),
-    [data, dateMode, endDate, search, startDate, statusFilter, usersById]
+    [
+      attentionFilter,
+      data,
+      dateMode,
+      endDate,
+      search,
+      startDate,
+      statusFilter,
+      usersById,
+    ]
   );
 
   const hasActiveTools =
-    search || statusFilter !== "all" || startDate || endDate || dateMode !== "created";
+    search ||
+    statusFilter !== "all" ||
+    attentionFilter !== "all" ||
+    startDate ||
+    endDate ||
+    dateMode !== "created";
   const reportRows = filteredBookings;
   const reportSummary = useMemo(() => {
     const statusCounts = reportRows.reduce<Record<string, number>>((counts, booking) => {
@@ -1574,6 +1922,45 @@ const BookingsTable: React.FC<
       };
     });
 
+  const saveReport = async () => {
+    if (!reportSummary.bookingCount || isSavingReport) return;
+    setIsSavingReport(true);
+    try {
+      const savedSummary = {
+        bookingCount: reportSummary.bookingCount,
+        quotedTotal: reportSummary.quotedTotal,
+        depositTotal: reportSummary.depositTotal,
+        remainingTotal: reportSummary.remainingTotal,
+        statusCounts: reportSummary.statusCounts,
+        firstDate: reportSummary.firstDate?.toISOString() || null,
+        lastDate: reportSummary.lastDate?.toISOString() || null,
+      };
+      await addDoc(collection(db, "adminReports"), {
+        type: "bookings",
+        generatedAt: serverTimestamp(),
+        generatedBy: adminUser
+          ? {
+              id: adminUser.id,
+              email: adminUser.email || null,
+              name: getUserName(adminUser, adminUser.id),
+            }
+          : null,
+        period: getReportPeriodLabel(reportPeriod),
+        dateBasis: dateMode,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        summary: savedSummary,
+        bookings: getReportPayload(),
+      });
+      toast.success("Booking report saved");
+    } catch (error) {
+      console.error("Failed to save booking report", error);
+      toast.error("Could not save booking report");
+    } finally {
+      setIsSavingReport(false);
+    }
+  };
+
   const downloadCsvReport = () => {
     const rows = getReportPayload();
     const headers = [
@@ -1641,9 +2028,39 @@ const BookingsTable: React.FC<
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-2xl font-semibold text-white">Bookings</h2>
-        <p className="text-sm text-neutral-500">
-          Showing {filteredBookings.length} of {data.length}
-        </p>
+        <DataHealth status={status} total={data.length} visible={filteredBookings.length} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Waiting deposit"
+          count={getBookingAttentionCount(data, "waiting_deposit")}
+          active={attentionFilter === "waiting_deposit"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "waiting_deposit" ? "all" : "waiting_deposit"
+            )
+          }
+        />
+        <QuickFilterButton
+          label="Open balance"
+          count={getBookingAttentionCount(data, "open_balance")}
+          active={attentionFilter === "open_balance"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "open_balance" ? "all" : "open_balance"
+            )
+          }
+        />
+        <QuickFilterButton
+          label="Missing session"
+          count={getBookingAttentionCount(data, "missing_session")}
+          active={attentionFilter === "missing_session"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "missing_session" ? "all" : "missing_session"
+            )
+          }
+        />
       </div>
       <ToolPanel>
         <ToolField label="Search">
@@ -1664,6 +2081,7 @@ const BookingsTable: React.FC<
               { label: "Paid in full", value: "paid" },
               { label: "Confirmed", value: "confirmed" },
               { label: "Cancelled", value: "cancelled" },
+              { label: "Other", value: "other" },
             ]}
           />
         </ToolField>
@@ -1688,6 +2106,7 @@ const BookingsTable: React.FC<
           onClick={() => {
             setSearch("");
             setStatusFilter("all");
+            setAttentionFilter("all");
             setDateMode("created");
             setReportPeriod("custom");
             setStartDate("");
@@ -1768,6 +2187,13 @@ const BookingsTable: React.FC<
             )}
           </div>
           <div className="flex flex-wrap gap-2">
+            <ReportActionButton
+              onClick={saveReport}
+              disabled={!reportSummary.bookingCount || isSavingReport}
+            >
+              <FileDown size={15} />
+              {isSavingReport ? "Saving..." : "Save report"}
+            </ReportActionButton>
             <ReportActionButton
               onClick={copyReportSummary}
               disabled={!reportSummary.bookingCount}
@@ -1862,6 +2288,7 @@ const BookingsTable: React.FC<
               </button>
             );
           })}
+          <EmptyTableState total={data.length} visible={filteredBookings.length} />
         </div>
       </div>
     </section>
@@ -1872,9 +2299,11 @@ const SessionsTable: React.FC<
   TableProps<GenericRecord> & {
     usersById: UserLookup;
   }
-> = ({ data, onSelect, usersById }) => {
+> = ({ data, onSelect, usersById, status }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SessionStatusFilter>("all");
+  const [attentionFilter, setAttentionFilter] =
+    useState<SessionAttentionFilter>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -1893,11 +2322,12 @@ const SessionsTable: React.FC<
           ["clientName"],
           ["clientId"]
         );
-        const status = getString(session, "status");
+        const sessionStatus = getSessionStatusKey(session);
         const matchesStatus =
-          statusFilter === "all" || status === statusFilter;
+          statusFilter === "all" || sessionStatus === statusFilter;
         return (
           matchesStatus &&
+          isSessionAttentionMatch(session, attentionFilter) &&
           isInDateRange(getFirstAppointmentValue(session), startDate, endDate) &&
           matchesSearch(search, [
             session.id,
@@ -1909,19 +2339,37 @@ const SessionsTable: React.FC<
           ])
         );
       }),
-    [data, endDate, search, startDate, statusFilter, usersById]
+    [attentionFilter, data, endDate, search, startDate, statusFilter, usersById]
   );
 
   const hasActiveTools =
-    search || statusFilter !== "all" || startDate || endDate;
+    search || statusFilter !== "all" || attentionFilter !== "all" || startDate || endDate;
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-2xl font-semibold text-white">Sessions</h2>
-        <p className="text-sm text-neutral-500">
-          Showing {filteredSessions.length} of {data.length}
-        </p>
+        <DataHealth status={status} total={data.length} visible={filteredSessions.length} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Overdue"
+          count={getSessionAttentionCount(data, "overdue")}
+          active={attentionFilter === "overdue"}
+          onClick={() =>
+            setAttentionFilter(attentionFilter === "overdue" ? "all" : "overdue")
+          }
+        />
+        <QuickFilterButton
+          label="Missing date"
+          count={getSessionAttentionCount(data, "missing_date")}
+          active={attentionFilter === "missing_date"}
+          onClick={() =>
+            setAttentionFilter(
+              attentionFilter === "missing_date" ? "all" : "missing_date"
+            )
+          }
+        />
       </div>
       <ToolPanel>
         <ToolField label="Search">
@@ -1941,6 +2389,7 @@ const SessionsTable: React.FC<
               { label: "In progress", value: "in_progress" },
               { label: "Completed", value: "completed" },
               { label: "Awaiting next", value: "awaiting_next_session" },
+              { label: "Other", value: "other" },
             ]}
           />
         </ToolField>
@@ -1955,6 +2404,7 @@ const SessionsTable: React.FC<
           onClick={() => {
             setSearch("");
             setStatusFilter("all");
+            setAttentionFilter("all");
             setStartDate("");
             setEndDate("");
           }}
@@ -2052,6 +2502,7 @@ const SessionsTable: React.FC<
               </button>
             );
           })}
+          <EmptyTableState total={data.length} visible={filteredSessions.length} />
         </div>
       </div>
     </section>
@@ -2073,6 +2524,9 @@ const AdminDashboardView: React.FC = () => {
   const [offers, setOffers] = useState<GenericRecord[]>([]);
   const [bookings, setBookings] = useState<GenericRecord[]>([]);
   const [sessions, setSessions] = useState<GenericRecord[]>([]);
+  const [collectionStatuses, setCollectionStatuses] = useState(
+    getInitialCollectionStatus
+  );
 
   const [selectedItem, setSelectedItem] = useState<
     GenericRecord | ArtistRecord | null
@@ -2117,13 +2571,24 @@ const AdminDashboardView: React.FC = () => {
   // Subscribe to Firestore collections once an admin is authenticated
   useEffect(() => {
     if (!currentUser) return;
-    const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
-      const results: UserRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as UserRecord);
-      });
-      setUsers(results);
-    });
+    setCollectionStatuses(markAllCollectionsLoading());
+    const updateStatus = (view: AdminView, status: CollectionStatus) => {
+      setCollectionStatuses((current) => ({ ...current, [view]: status }));
+    };
+    const unsubUsers = onSnapshot(
+      collection(db, "users"),
+      (snap) => {
+        const results: UserRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as UserRecord);
+        });
+        setUsers(results);
+      },
+      (error) => {
+        console.error("Failed to load users for admin dashboard", error);
+        toast.error("Could not load user lookup data");
+      }
+    );
     // Artists
     // Avoid requiring a composite index for ordering by createdAt on a filtered query.
     // Instead, query all artists and perform client-side sorting by createdAt descending.
@@ -2131,69 +2596,94 @@ const AdminDashboardView: React.FC = () => {
       collection(db, "users"),
       where("role", "==", "artist")
     );
-    const unsubArtists = onSnapshot(artistsQuery, (snap) => {
-      const results: ArtistRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as ArtistRecord);
-      });
-      results.sort((a, b) => {
-        const aDate = getTimestampDate(a.createdAt);
-        const bDate = getTimestampDate(b.createdAt);
-        if (!aDate && !bDate) return 0;
-        if (!aDate) return 1;
-        if (!bDate) return -1;
-        return bDate.getTime() - aDate.getTime();
-      });
-      setArtists(results);
-    });
+    const unsubArtists = onSnapshot(
+      artistsQuery,
+      (snap) => {
+        const results: ArtistRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as ArtistRecord);
+        });
+        results.sort((a, b) => {
+          const aDate = getTimestampDate(a.createdAt);
+          const bDate = getTimestampDate(b.createdAt);
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return 1;
+          if (!bDate) return -1;
+          return bDate.getTime() - aDate.getTime();
+        });
+        setArtists(results);
+        updateStatus("artists", getCollectionSuccessState());
+      },
+      (error) => updateStatus("artists", getCollectionErrorState(error))
+    );
     // Booking requests
     const requestsQuery = query(
       collection(db, "bookingRequests"),
       orderBy("createdAt", "desc")
     );
-    const unsubRequests = onSnapshot(requestsQuery, (snap) => {
-      const results: GenericRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
-      });
-      setRequests(results);
-    });
+    const unsubRequests = onSnapshot(
+      requestsQuery,
+      (snap) => {
+        const results: GenericRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+        });
+        setRequests(results);
+        updateStatus("requests", getCollectionSuccessState());
+      },
+      (error) => updateStatus("requests", getCollectionErrorState(error))
+    );
     // Offers
     const offersQuery = query(
       collection(db, "offers"),
       orderBy("createdAt", "desc")
     );
-    const unsubOffers = onSnapshot(offersQuery, (snap) => {
-      const results: GenericRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
-      });
-      setOffers(results);
-    });
+    const unsubOffers = onSnapshot(
+      offersQuery,
+      (snap) => {
+        const results: GenericRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+        });
+        setOffers(results);
+        updateStatus("offers", getCollectionSuccessState());
+      },
+      (error) => updateStatus("offers", getCollectionErrorState(error))
+    );
     // Bookings
     const bookingsQuery = query(
       collection(db, "bookings"),
       orderBy("createdAt", "desc")
     );
-    const unsubBookings = onSnapshot(bookingsQuery, (snap) => {
-      const results: GenericRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
-      });
-      setBookings(results);
-    });
+    const unsubBookings = onSnapshot(
+      bookingsQuery,
+      (snap) => {
+        const results: GenericRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+        });
+        setBookings(results);
+        updateStatus("bookings", getCollectionSuccessState());
+      },
+      (error) => updateStatus("bookings", getCollectionErrorState(error))
+    );
     // Sessions
     const sessionsQuery = query(
       collection(db, "sessions"),
       orderBy("createdAt", "desc")
     );
-    const unsubSessions = onSnapshot(sessionsQuery, (snap) => {
-      const results: GenericRecord[] = [];
-      snap.forEach((docSnap) => {
-        results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
-      });
-      setSessions(results);
-    });
+    const unsubSessions = onSnapshot(
+      sessionsQuery,
+      (snap) => {
+        const results: GenericRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+        });
+        setSessions(results);
+        updateStatus("sessions", getCollectionSuccessState());
+      },
+      (error) => updateStatus("sessions", getCollectionErrorState(error))
+    );
     return () => {
       unsubUsers();
       unsubArtists();
@@ -2239,6 +2729,7 @@ const AdminDashboardView: React.FC = () => {
         {activeView === "artists" && (
           <ArtistsTable
             data={artists}
+            status={collectionStatuses.artists}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
@@ -2247,6 +2738,7 @@ const AdminDashboardView: React.FC = () => {
             data={requests}
             offers={offers}
             usersById={usersById}
+            status={collectionStatuses.requests}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
@@ -2254,6 +2746,7 @@ const AdminDashboardView: React.FC = () => {
           <OffersTable
             data={offers}
             usersById={usersById}
+            status={collectionStatuses.offers}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
@@ -2261,6 +2754,8 @@ const AdminDashboardView: React.FC = () => {
           <BookingsTable
             data={bookings}
             usersById={usersById}
+            adminUser={currentUser}
+            status={collectionStatuses.bookings}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
@@ -2268,6 +2763,7 @@ const AdminDashboardView: React.FC = () => {
           <SessionsTable
             data={sessionRows}
             usersById={usersById}
+            status={collectionStatuses.sessions}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}
