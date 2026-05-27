@@ -15,8 +15,8 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref } from "firebase/storage";
-import { auth, db, storage } from "../firebase/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase/firebaseConfig";
 import {
   Users,
   Inbox,
@@ -1145,6 +1145,7 @@ const ShopClaimsTable: React.FC<{
                     proofDocuments.slice(0, 2).map((proof, index) => (
                       <ProofDocumentButton
                         key={`${proof.path || proof.name}-${index}`}
+                        claimId={claim.id}
                         proof={proof}
                         index={index}
                       />
@@ -1201,9 +1202,11 @@ const getAdminStatusBadgeClass = (status: string) => {
 };
 
 const ProofDocumentButton = ({
+  claimId,
   proof,
   index,
 }: {
+  claimId: string;
   proof: { path?: string; name?: string };
   index: number;
 }) => {
@@ -1217,8 +1220,12 @@ const ProofDocumentButton = ({
 
     try {
       setLoading(true);
-      const url = await getDownloadURL(ref(storage, proof.path));
-      window.open(url, "_blank", "noopener,noreferrer");
+      const getProofAccess = httpsCallable<
+        { claimId: string; path: string },
+        { url: string; expiresAt: number }
+      >(functions, "createShopClaimProofAccess");
+      const result = await getProofAccess({ claimId, path: proof.path });
+      window.open(result.data.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       console.error("Failed to open proof document:", error);
       toast.error("Could not open proof document.");
@@ -1233,7 +1240,7 @@ const ProofDocumentButton = ({
       onClick={handleOpen}
       disabled={loading}
       className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2! py-1! text-xs! font-semibold text-neutral-200 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60"
-      title="Generate a temporary Firebase Storage access URL"
+      title="Generate a short-lived admin access link"
     >
       <ExternalLink size={12} />
       {loading ? "Opening..." : proof.name || `Proof ${index + 1}`}
