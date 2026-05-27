@@ -44,7 +44,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod: "stripe" | "external" = "stripe"
+    remainingPaymentMethod: "stripe" | "external" = "stripe",
+    declinedReason?: { value: string; label: string }
   ) => {
     try {
       const offerRef = doc(db, "offers", offerId);
@@ -59,6 +60,13 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
       await updateDoc(offerRef, {
         status: action,
         respondedAt: serverTimestamp(),
+        ...(action === "declined"
+          ? {
+              declinedAt: serverTimestamp(),
+              declinedReason: declinedReason?.value || null,
+              declinedReasonLabel: declinedReason?.label || null,
+            }
+          : {}),
       });
 
       if (action === "accepted") {
@@ -237,12 +245,19 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         offer={selectedOffer}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onRespond={async (offerId, action, selectedDate, remainingPaymentMethod) => {
+        onRespond={async (
+          offerId,
+          action,
+          selectedDate,
+          remainingPaymentMethod,
+          declinedReason
+        ) => {
           const bookingId = await handleResponse(
             offerId,
             action,
             selectedDate,
-            remainingPaymentMethod
+            remainingPaymentMethod,
+            declinedReason
           );
           if (bookingId) {
             setSelectedOffer((prev) => (prev ? { ...prev, bookingId } : prev));

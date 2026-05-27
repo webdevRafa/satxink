@@ -25,19 +25,31 @@ type Props = {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod?: "stripe" | "external"
+    remainingPaymentMethod?: "stripe" | "external",
+    declinedReason?: { value: string; label: string }
   ) => Promise<string | void>;
 };
+
+const DECLINE_REASON_OPTIONS = [
+  { value: "appointment_timing", label: "Appointment timing" },
+  { value: "price", label: "Price" },
+  { value: "changed_mind", label: "Changed my mind" },
+  { value: "other", label: "Other" },
+];
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
   const [remainingPaymentMethod, setRemainingPaymentMethod] =
     useState<"stripe" | "external">("stripe");
 
   useEffect(() => {
     setSelectedDateOption(null);
     setRemainingPaymentMethod("stripe");
+    setIsDeclining(false);
+    setDeclineReason("");
   }, [offer?.id]);
 
   if (!isOpen || !offer) return null;
@@ -112,8 +124,23 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   };
 
   const handleDecline = async () => {
+    const selectedReason = DECLINE_REASON_OPTIONS.find(
+      (reason) => reason.value === declineReason
+    );
+
+    if (!selectedReason) {
+      toast.error("Please choose a decline reason.");
+      return;
+    }
+
     setIsResponding(true);
-    await onRespond(offer.id, "declined");
+    await onRespond(
+      offer.id,
+      "declined",
+      undefined,
+      undefined,
+      selectedReason
+    );
     setIsResponding(false);
     onClose();
   };
@@ -333,24 +360,80 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </div>
 
           {offer.status === "pending" && (
-            <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <button
-                type="button"
-                disabled={isResponding}
-                onClick={handleDecline}
-                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                disabled={isResponding}
-                onClick={handleAccept}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isResponding ? "Processing..." : "Accept and checkout"}
-                <Send size={16} />
-              </button>
+            <div className="border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+              {isDeclining && (
+                <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
+                  <p className="text-sm font-semibold text-white">
+                    Why are you declining this offer?
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-red-50/75">
+                    This helps the artist understand whether to adjust timing,
+                    pricing, or the overall offer.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {DECLINE_REASON_OPTIONS.map((reason) => (
+                      <button
+                        key={reason.value}
+                        type="button"
+                        onClick={() => setDeclineReason(reason.value)}
+                        className={`inline-flex h-9 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                          declineReason === reason.value
+                            ? "border-red-100 bg-red-100 text-black"
+                            : "border-red-100/20 bg-black/20 text-red-50 hover:bg-red-100/10"
+                        }`}
+                      >
+                        {reason.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                {isDeclining ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => {
+                        setIsDeclining(false);
+                        setDeclineReason("");
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding || !declineReason}
+                      onClick={handleDecline}
+                      className="inline-flex items-center justify-center rounded-md border border-red-200/40 bg-red-200 px-5! py-3! text-sm! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isResponding ? "Declining..." : "Submit decline"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => setIsDeclining(true)}
+                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={handleAccept}
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isResponding ? "Processing..." : "Accept and checkout"}
+                      <Send size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

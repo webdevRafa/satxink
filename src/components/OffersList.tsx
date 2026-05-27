@@ -44,6 +44,8 @@ type DashboardOffer = Offer & {
   createdAt?: Date | FirestoreTimestampLike | null;
   status: "pending" | "accepted" | "declined" | "expired" | string;
   artistDismissedAt?: FirestoreTimestampLike | Date | null;
+  declinedReason?: string | null;
+  declinedReasonLabel?: string | null;
   revisionOfOfferId?: string;
   revisedByOfferId?: string;
 };
@@ -437,7 +439,14 @@ const OfferRow = ({
         </p>
       </div>
 
-      <StatusBadge status={offer.status} />
+      <div className="min-w-0">
+        <StatusBadge status={offer.status} />
+        {offer.status === "declined" && (
+          <p className="mt-2 truncate text-xs text-red-100/75">
+            Reason: {getDeclineReasonLabel(offer)}
+          </p>
+        )}
+      </div>
 
       <div className="flex items-center justify-end gap-2">
         {offer.status === "declined" && (
@@ -585,6 +594,9 @@ const OfferDetailsDialog = ({
                             message, or appointment options. Clearing it only removes
                             it from your list.
                           </p>
+                          <div className="mt-3 inline-flex rounded-md border border-red-100/20 bg-black/20 px-3 py-2 text-sm font-semibold text-red-50">
+                            Reason: {getDeclineReasonLabel(offer)}
+                          </div>
                           <div className="mt-4 flex flex-wrap gap-2">
                             <button
                               type="button"
@@ -786,6 +798,17 @@ const getOfferStatusLabel = (status: string) => {
   if (status === "declined") return "Declined";
   if (status === "accepted") return "Accepted";
   return status.replace("_", " ");
+};
+
+const getDeclineReasonLabel = (offer: DashboardOffer) => {
+  if (offer.declinedReasonLabel) return offer.declinedReasonLabel;
+  if (offer.declinedReason === "appointment_timing") {
+    return "Appointment timing";
+  }
+  if (offer.declinedReason === "price") return "Price";
+  if (offer.declinedReason === "changed_mind") return "Changed my mind";
+  if (offer.declinedReason === "other") return "Other";
+  return "Reason not provided";
 };
 
 const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
