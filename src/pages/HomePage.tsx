@@ -786,6 +786,7 @@ const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "paid_ticket";
 
 const isPublicEventBookable = (event: HomeEvent) => {
+  if (event.bookingMode === "paid_ticket") return true;
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
   return isStripeConnectReady(event.artist);
 };

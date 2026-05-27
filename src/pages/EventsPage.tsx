@@ -14,6 +14,7 @@ import {
   Search,
   Store,
   Tag,
+  Ticket,
   Users,
 } from "lucide-react";
 import {
@@ -97,6 +98,7 @@ export const EventsPage = () => {
     Record<string, EventRegistration>
   >({});
   const [reservingEventId, setReservingEventId] = useState("");
+  const [purchasingEventId, setPurchasingEventId] = useState("");
   const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
@@ -128,7 +130,7 @@ export const EventsPage = () => {
               ...registrationDoc.data(),
             } as EventRegistration;
 
-            if (registration.status !== "cancelled") {
+            if (registration.status !== "cancelled" && registration.status !== "refunded") {
               nextRegistrations[registration.eventId] = registration;
             }
           });
@@ -240,6 +242,46 @@ export const EventsPage = () => {
       toast.error(getCallableErrorMessage(error, "Could not reserve this event."));
     } finally {
       setReservingEventId("");
+    }
+  };
+
+  const handlePaidTicket = async (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to buy event tickets.");
+      return;
+    }
+
+    if (event.bookingMode !== "paid_ticket") return;
+
+    setPurchasingEventId(event.id);
+    try {
+      const createCheckout = httpsCallable<
+        {
+          eventId: string;
+          origin: string;
+          successUrl: string;
+          cancelUrl: string;
+        },
+        { url?: string; registrationId: string }
+      >(functions, "createEventCheckoutSession");
+      const origin = window.location.origin;
+      const response = await createCheckout({
+        eventId: event.id,
+        origin,
+        successUrl: `${origin}/dashboard?tab=eventPasses&eventCheckout=success`,
+        cancelUrl: `${origin}/events?eventCheckout=cancelled`,
+      });
+
+      if (!response.data.url) {
+        throw new Error("Missing Stripe checkout URL.");
+      }
+
+      window.location.href = response.data.url;
+    } catch (error) {
+      console.error("Event ticket checkout failed:", error);
+      toast.error(getCallableErrorMessage(error, "Could not start ticket checkout."));
+    } finally {
+      setPurchasingEventId("");
     }
   };
 
@@ -408,7 +450,9 @@ export const EventsPage = () => {
                 dateFilter,
                 registrationsByEventId,
                 reservingEventId,
+                purchasingEventId,
                 onFreeRsvp: handleFreeRsvp,
+                onPaidTicket: handlePaidTicket,
               })}
             </div>
           ))}
@@ -439,7 +483,9 @@ const renderEventContent = ({
   dateFilter,
   registrationsByEventId,
   reservingEventId,
+  purchasingEventId,
   onFreeRsvp,
+  onPaidTicket,
 }: {
   loading: boolean;
   filteredEvents: PublicEvent[];
@@ -449,7 +495,9 @@ const renderEventContent = ({
   dateFilter: DateFilter;
   registrationsByEventId: Record<string, EventRegistration>;
   reservingEventId: string;
+  purchasingEventId: string;
   onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
 }) => {
   if (loading) return <EventsPageSkeleton />;
   if (filteredEvents.length === 0) return <EmptyEventsState />;
@@ -464,7 +512,9 @@ const renderEventContent = ({
           layout="rail"
           registrationsByEventId={registrationsByEventId}
           reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
           onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
         />
       </div>
     );
@@ -480,7 +530,9 @@ const renderEventContent = ({
           layout="rail"
           registrationsByEventId={registrationsByEventId}
           reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
           onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
         />
       )}
 
@@ -492,7 +544,9 @@ const renderEventContent = ({
           layout="rail"
           registrationsByEventId={registrationsByEventId}
           reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
           onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
         />
       )}
 
@@ -504,7 +558,9 @@ const renderEventContent = ({
           layout="rail"
           registrationsByEventId={registrationsByEventId}
           reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
           onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
         />
       )}
     </div>
@@ -582,7 +638,9 @@ const EventSection = ({
   layout = "grid",
   registrationsByEventId,
   reservingEventId,
+  purchasingEventId,
   onFreeRsvp,
+  onPaidTicket,
 }: {
   eyebrow: string;
   title: string;
@@ -590,7 +648,9 @@ const EventSection = ({
   layout?: "grid" | "rail";
   registrationsByEventId: Record<string, EventRegistration>;
   reservingEventId: string;
+  purchasingEventId: string;
   onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const hasRailControls = layout === "rail" && events.length > 1;
@@ -682,7 +742,9 @@ const EventSection = ({
               event={event}
               registration={registrationsByEventId[event.id]}
               isReserving={reservingEventId === event.id}
+              isPurchasing={purchasingEventId === event.id}
               onFreeRsvp={onFreeRsvp}
+              onPaidTicket={onPaidTicket}
               className="shrink-0 snap-start"
               style={{ width: EVENT_CARD_WIDTH }}
             />
@@ -696,7 +758,9 @@ const EventSection = ({
               event={event}
               registration={registrationsByEventId[event.id]}
               isReserving={reservingEventId === event.id}
+              isPurchasing={purchasingEventId === event.id}
               onFreeRsvp={onFreeRsvp}
+              onPaidTicket={onPaidTicket}
             />
           ))}
         </div>
@@ -729,14 +793,18 @@ const PublicEventCard = ({
   event,
   registration,
   isReserving,
+  isPurchasing,
   onFreeRsvp,
+  onPaidTicket,
   className = "",
   style,
 }: {
   event: PublicEvent;
   registration?: EventRegistration;
   isReserving: boolean;
+  isPurchasing: boolean;
   onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
   className?: string;
   style?: React.CSSProperties;
 }) => {
@@ -745,7 +813,14 @@ const PublicEventCard = ({
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
   const isRsvpEvent = event.bookingMode === "rsvp";
-  const isReserved = Boolean(registration);
+  const isPaidTicketEvent = event.bookingMode === "paid_ticket";
+  const isReserved = Boolean(
+    registration &&
+      registration.status !== "cancelled" &&
+      registration.status !== "refunded"
+  );
+  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
+  const isPendingPayment = registration?.status === "pending_payment";
 
   return (
     <article
@@ -817,6 +892,12 @@ const PublicEventCard = ({
                 text="Free RSVP pass available"
               />
             )}
+            {isPaidTicketEvent && (
+              <EventMeta
+                icon={<Ticket size={16} />}
+                text="Paid SATX Ink pass with QR check-in"
+              />
+            )}
           </div>
 
           {event.description && (
@@ -852,6 +933,31 @@ const PublicEventCard = ({
                 }`}
               >
                 {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
+              </button>
+            )}
+            {isPaidTicketEvent && (
+              <button
+                type="button"
+                onClick={() => onPaidTicket(event)}
+                disabled={isPaid || isPurchasing}
+                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+                  isPaid
+                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+                }`}
+                title={
+                  isPendingPayment
+                    ? "Resume checkout to finish reserving your paid event pass."
+                    : "Buy a ticket and receive a QR pass in your dashboard."
+                }
+              >
+                {isPurchasing
+                  ? "Opening checkout..."
+                  : isPaid
+                  ? "Ticket purchased"
+                  : isPendingPayment
+                  ? "Resume checkout"
+                  : "Buy ticket"}
               </button>
             )}
             {!isShopHosted && event.artistId ? (
@@ -1024,6 +1130,7 @@ const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "paid_ticket";
 
 const isPublicEventBookable = (event: PublicEvent) => {
+  if (event.bookingMode === "paid_ticket") return true;
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
   if (event.ownerType === "shop" && !event.artist) return false;
   return isStripeConnectReady(event.artist);

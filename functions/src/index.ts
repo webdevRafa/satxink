@@ -50,6 +50,12 @@ const hashEventPassToken = (token: string) =>
 const getEventHostUserId = (event: admin.firestore.DocumentData) =>
   String(event.createdBy || event.artistId || "");
 
+const isActiveEventRegistrationStatus = (status: unknown) =>
+  status === "reserved" ||
+  status === "paid" ||
+  status === "checked_in" ||
+  status === "pending_payment";
+
 const userCanManageEvent = (
   uid: string,
   user: admin.firestore.DocumentData,
@@ -65,6 +71,12 @@ const userCanManageEvent = (
 
   return Boolean(shopId && ownedShopIds.includes(shopId));
 };
+
+const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
+  user.role === "artist" ||
+  user.role === "shop_owner" ||
+  (Array.isArray(user.shopOwnerShopIds) && user.shopOwnerShopIds.length > 0) ||
+  (Array.isArray(user.ownedShopIds) && user.ownedShopIds.length > 0);
 
 const calculatePlatformFeeCents = (artistAmountCents: number) => {
   if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) return 0;
@@ -515,7 +527,7 @@ const handleOfferImageUpload = onObjectFinalized(
 
 const getStripeClient = () =>
   new Stripe(STRIPE_SECRET_KEY.value(), {
-    apiVersion: '2023-10-16' as any,
+    apiVersion: '2023-10-16' as Stripe.LatestApiVersion,
   });
 
 const getBaseUrl = (rawUrl?: unknown) => {
@@ -620,8 +632,11 @@ const createStripeConnectAccount = onCall(
     }
 
     const artist = userSnap.data() || {};
-    if (artist.role !== "artist") {
-      throw new HttpsError("permission-denied", "Only artists can connect payouts.");
+    if (!userCanConnectPayouts(artist)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only artists and verified shop owners can connect payouts."
+      );
     }
 
     const existingAccountId = artist.stripeConnect?.accountId;
@@ -652,8 +667,11 @@ const createStripeConnectOnboardingLink = onCall(
     const userSnap = await userRef.get();
     const artist = userSnap.data() || {};
 
-    if (artist.role !== "artist") {
-      throw new HttpsError("permission-denied", "Only artists can connect payouts.");
+    if (!userCanConnectPayouts(artist)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only artists and verified shop owners can connect payouts."
+      );
     }
 
     let accountId = artist.stripeConnect?.accountId as string | undefined;
@@ -1233,7 +1251,7 @@ const createEventRsvp = onCall(
       );
       const activeRegistrations = registrationsSnap.docs.filter((docSnap) => {
         const status = docSnap.data().status;
-        return status === "reserved" || status === "paid" || status === "checked_in";
+        return isActiveEventRegistrationStatus(status);
       });
       const capacity = Number(event.capacity || 0);
 
@@ -1293,6 +1311,238 @@ const createEventRsvp = onCall(
   }
 );
 
+const createEventCheckoutSession = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to buy event tickets.");
+    }
+
+    const eventId = String(req.data?.eventId || "").trim();
+    if (!eventId) {
+      throw new HttpsError("invalid-argument", "Event ID is required.");
+    }
+
+    const eventRef = db.collection("events").doc(eventId);
+    const userRef = db.collection("users").doc(uid);
+    const registrationRef = db.collection("eventRegistrations").doc(`${eventId}_${uid}`);
+    const stripe = getStripeClient();
+
+    const { event, qrToken } = await db.runTransaction(async (transaction) => {
+      const [eventSnap, userSnap, existingRegistrationSnap] = await Promise.all([
+        transaction.get(eventRef),
+        transaction.get(userRef),
+        transaction.get(registrationRef),
+      ]);
+
+      if (!eventSnap.exists) {
+        throw new HttpsError("not-found", "Event not found.");
+      }
+
+      const eventData = eventSnap.data() || {};
+      if (eventData.status !== "published" || eventData.visibility !== "public") {
+        throw new HttpsError("failed-precondition", "This event is not selling tickets.");
+      }
+
+      if (eventData.bookingMode !== "paid_ticket") {
+        throw new HttpsError("failed-precondition", "This event is not a paid ticket event.");
+      }
+
+      const priceCents = Math.round(Number(eventData.price || 0) * 100);
+      if (!priceCents || priceCents <= PLATFORM_FEE_MIN_CENTS) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Paid ticket prices must be greater than the platform fee."
+        );
+      }
+
+      const existingRegistration = existingRegistrationSnap.data();
+      if (
+        existingRegistrationSnap.exists &&
+        (existingRegistration?.status === "paid" ||
+          existingRegistration?.status === "checked_in")
+      ) {
+        throw new HttpsError("already-exists", "You already have a ticket for this event.");
+      }
+
+      const registrationsSnap = await transaction.get(
+        db.collection("eventRegistrations").where("eventId", "==", eventId)
+      );
+      const activeRegistrations = registrationsSnap.docs.filter((docSnap) =>
+        docSnap.id !== registrationRef.id &&
+        isActiveEventRegistrationStatus(docSnap.data().status)
+      );
+      const capacity = Number(eventData.capacity || 0);
+
+      if (capacity > 0 && activeRegistrations.length >= capacity) {
+        throw new HttpsError("resource-exhausted", "This event is already full.");
+      }
+
+      const userData = userSnap.data() || {};
+      const nextQrToken = existingRegistration?.qrToken || createEventPassToken();
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      transaction.set(
+        registrationRef,
+        {
+          eventId,
+          eventTitle: eventData.title || "",
+          eventStartDate: eventData.startDate || "",
+          eventStartTime: eventData.startTime || "",
+          eventEndDate: eventData.endDate || "",
+          eventEndTime: eventData.endTime || "",
+          eventThumbnailUrl: eventData.thumbnailUrl || "",
+          eventType: eventData.eventType || "",
+          bookingMode: eventData.bookingMode || "paid_ticket",
+          clientId: uid,
+          clientName:
+            userData.displayName || userData.name || req.auth?.token?.name || "Client",
+          clientAvatarUrl: userData.avatarUrl || req.auth?.token?.picture || "",
+          hostUserId: getEventHostUserId(eventData),
+          artistId: eventData.artistId || "",
+          shopId: eventData.shopId || "",
+          ownerType: eventData.ownerType || "artist",
+          hostName: eventData.shopName || eventData.artistName || "",
+          locationName: eventData.shopName || "",
+          address: eventData.address || "",
+          mapLink: eventData.mapLink || "",
+          status: "pending_payment",
+          paymentStatus: "pending",
+          qrToken: nextQrToken,
+          qrTokenHash: hashEventPassToken(nextQrToken),
+          ticketPriceCents: priceCents,
+          updatedAt: now,
+          createdAt: existingRegistrationSnap.exists
+            ? existingRegistration?.createdAt || now
+            : now,
+        },
+        { merge: true }
+      );
+
+      return { event: eventData, qrToken: nextQrToken };
+    });
+
+    try {
+      const hostUserId = getEventHostUserId(event);
+      if (!hostUserId) {
+        throw new HttpsError("failed-precondition", "This event does not have a payout host.");
+      }
+
+      const hostSnap = await db.collection("users").doc(hostUserId).get();
+      const host = hostSnap.data() || {};
+      const connectedAccountId = host.stripeConnect?.accountId as string | undefined;
+
+      if (!connectedAccountId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This event host has not connected Stripe payouts yet."
+        );
+      }
+
+      const connectStatus = await syncArtistStripeAccount(hostUserId, stripe, connectedAccountId);
+      if (!connectStatus.chargesEnabled || !connectStatus.onboardingComplete) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This event host needs to finish Stripe onboarding before selling tickets."
+        );
+      }
+
+      const artistAmountCents = Math.round(Number(event.price || 0) * 100);
+      const platformFeeCents = calculatePlatformFeeCents(artistAmountCents);
+      const { clientTotalCents, stripeFeeCents } = calculateClientPaymentBreakdown(
+        artistAmountCents,
+        platformFeeCents
+      );
+      const baseUrl = getBaseUrl(req.data?.origin || req.data?.returnUrl);
+      const registrationId = `${eventId}_${uid}`;
+
+      const session = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          mode: "payment",
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                unit_amount: clientTotalCents,
+                product_data: {
+                  name: `${event.title || "SATX Ink event"} ticket`,
+                  description: event.shopName || event.address || "Event ticket",
+                  images: event.thumbnailUrl ? [event.thumbnailUrl] : undefined,
+                },
+              },
+              quantity: 1,
+            },
+          ],
+          payment_intent_data: {
+            application_fee_amount: platformFeeCents,
+            metadata: {
+              eventPaymentType: "event_ticket",
+              eventId,
+              registrationId,
+              clientId: uid,
+              hostUserId,
+              artistAmountCents: String(artistAmountCents),
+              platformFeeCents: String(platformFeeCents),
+              estimatedStripeFeeCents: String(stripeFeeCents),
+              clientTotalCents: String(clientTotalCents),
+              stripeConnectedAccountId: connectedAccountId,
+            },
+          },
+          metadata: {
+            eventPaymentType: "event_ticket",
+            eventId,
+            registrationId,
+            clientId: uid,
+            hostUserId,
+            artistAmountCents: String(artistAmountCents),
+            platformFeeCents: String(platformFeeCents),
+            estimatedStripeFeeCents: String(stripeFeeCents),
+            clientTotalCents: String(clientTotalCents),
+            stripeConnectedAccountId: connectedAccountId,
+            qrTokenHash: hashEventPassToken(qrToken),
+          },
+          success_url:
+            req.data?.successUrl ||
+            `${baseUrl}/dashboard?tab=eventPasses&eventCheckout=success`,
+          cancel_url:
+            req.data?.cancelUrl ||
+            `${baseUrl}/events?eventCheckout=cancelled`,
+        },
+        { stripeAccount: connectedAccountId }
+      );
+
+      await registrationRef.set(
+        {
+          stripeCheckoutSessionId: session.id,
+          stripeConnectedAccountId: connectedAccountId,
+          clientPaymentAmountCents: clientTotalCents,
+          platformFeeCents,
+          estimatedStripeFeeCents: stripeFeeCents,
+          hostPayoutCents: artistAmountCents,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return { url: session.url, registrationId };
+    } catch (error) {
+      await registrationRef.set(
+        {
+          status: "cancelled",
+          paymentStatus: "none",
+          checkoutError:
+            error instanceof Error ? error.message : "Could not start checkout.",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      throw error;
+    }
+  }
+);
+
 const cancelEventRsvp = onCall(
   { cors: true, region: "us-central1" },
   async (req) => {
@@ -1321,6 +1571,13 @@ const cancelEventRsvp = onCall(
 
       if (registration.status === "checked_in") {
         throw new HttpsError("failed-precondition", "Checked-in passes cannot be cancelled.");
+      }
+
+      if (registration.paymentStatus !== "free") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Paid event tickets cannot be cancelled from the RSVP tool yet."
+        );
       }
 
       const eventRef = db.collection("events").doc(String(registration.eventId || ""));
@@ -1399,6 +1656,10 @@ const checkInEventRegistration = onCall(
       throw new HttpsError("failed-precondition", "This pass is no longer active.");
     }
 
+    if (registration.status === "pending_payment") {
+      throw new HttpsError("failed-precondition", "This ticket has not been paid yet.");
+    }
+
     if (registration.status === "checked_in") {
       return { status: "checked_in", alreadyCheckedIn: true };
     }
@@ -1417,14 +1678,113 @@ const checkInEventRegistration = onCall(
   }
 );
 
+const applyCompletedEventTicketCheckout = async (
+  session: Stripe.Checkout.Session,
+  connectedAccountId?: string | null
+) => {
+  const metadata = session.metadata || {};
+  const registrationId = metadata.registrationId;
+  const eventId = metadata.eventId;
+
+  if (!registrationId || !eventId) {
+    throw new Error("Missing event registration metadata.");
+  }
+
+  const registrationRef = db.collection("eventRegistrations").doc(registrationId);
+  const eventRef = db.collection("events").doc(eventId);
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  await db.runTransaction(async (transaction) => {
+    const [registrationSnap, eventSnap] = await Promise.all([
+      transaction.get(registrationRef),
+      transaction.get(eventRef),
+    ]);
+
+    if (!registrationSnap.exists) {
+      throw new Error(`Event registration ${registrationId} not found.`);
+    }
+
+    const registration = registrationSnap.data() || {};
+    const event = eventSnap.data() || {};
+    const alreadyApplied =
+      registration.lastCompletedCheckoutSessionId === session.id ||
+      registration.status === "paid" ||
+      registration.status === "checked_in";
+
+    if (!alreadyApplied) {
+      const activeRegistrationsSnap = await transaction.get(
+        db.collection("eventRegistrations").where("eventId", "==", eventId)
+      );
+      const activeRegistrations = activeRegistrationsSnap.docs.filter((docSnap) => {
+        if (docSnap.id === registrationId) return false;
+        return isActiveEventRegistrationStatus(docSnap.data().status);
+      });
+      const capacity = Number(event.capacity || 0);
+
+      if (capacity > 0 && activeRegistrations.length >= capacity) {
+        transaction.set(
+          registrationRef,
+          {
+            status: "paid",
+            paymentStatus: "paid",
+            capacityReviewRequired: true,
+            stripeCheckoutSessionId: session.id,
+            lastCompletedCheckoutSessionId: session.id,
+            stripePaymentIntentId: paymentIntentId,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      transaction.set(
+        eventRef,
+        {
+          spotsClaimed: activeRegistrations.length + 1,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    transaction.set(
+      registrationRef,
+      {
+        status: registration.status === "checked_in" ? "checked_in" : "paid",
+        paymentStatus: "paid",
+        paidAt: registration.paidAt || timestamp,
+        stripeCheckoutSessionId: session.id,
+        lastCompletedCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+        stripeConnectedAccountId:
+          connectedAccountId ?? metadata.stripeConnectedAccountId ?? null,
+        hostPayoutCents: parseMetadataCents(metadata, "artistAmountCents"),
+        platformFeeCents: parseMetadataCents(metadata, "platformFeeCents"),
+        estimatedStripeFeeCents: parseMetadataCents(
+          metadata,
+          "estimatedStripeFeeCents"
+        ),
+        clientPaymentAmountCents: parseMetadataCents(metadata, "clientTotalCents"),
+        updatedAt: timestamp,
+      },
+      { merge: true }
+    );
+  });
+};
+
 const stripeWebhook = onRequest(
   {
     region: 'us-central1',
     secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
   },
-  async (req: any, res: any): Promise<void> => {
+  async (req, res): Promise<void> => {
     const stripe = new Stripe(STRIPE_SECRET_KEY.value(), {
-      apiVersion: '2023-10-16' as any,
+      apiVersion: '2023-10-16' as Stripe.LatestApiVersion,
     });
 
     const sig = req.headers['stripe-signature'] as string;
@@ -1433,11 +1793,12 @@ const stripeWebhook = onRequest(
     let event;
 
     try {
-      const rawBody = (req as any).rawBody;
+      const rawBody = req.rawBody;
       event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Webhook verification failed:', err);
-      res.status(400).send(`Webhook Error: ${err.message}`);
+      const message = err instanceof Error ? err.message : "Invalid webhook payload.";
+      res.status(400).send(`Webhook Error: ${message}`);
       return;
     }
 
@@ -1462,6 +1823,20 @@ const stripeWebhook = onRequest(
     // Handle specific event types
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
+      if (session.metadata?.eventPaymentType === "event_ticket") {
+        try {
+          await applyCompletedEventTicketCheckout(
+            session,
+            event.account ?? session.metadata?.stripeConnectedAccountId ?? null
+          );
+          res.status(200).send("Event ticket updated.");
+        } catch (err) {
+          console.error("Error updating event ticket:", err);
+          res.status(500).send("Failed to update event ticket.");
+        }
+        return;
+      }
+
       const bookingId = session.metadata?.bookingId;
 
       if (!bookingId) {
@@ -1806,6 +2181,7 @@ module.exports = {
   syncBookingPaymentStatus,
   createShopClaimProofAccess,
   createEventRsvp,
+  createEventCheckoutSession,
   cancelEventRsvp,
   checkInEventRegistration,
   stripeWebhook,

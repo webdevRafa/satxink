@@ -19,6 +19,7 @@ import {
   Copy,
   FileUp,
   LinkIcon,
+  CreditCard,
   Pencil,
   Search,
   Store,
@@ -29,6 +30,8 @@ import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
 import { auth, db, storage } from "../firebase/firebaseConfig";
 import EventsManager from "../components/EventsManager";
+import StripeConnectPanel from "../components/StripeConnectPanel";
+import type { StripeConnectStatus } from "../types/StripeCheckout";
 
 type ShopRecord = {
   id: string;
@@ -49,6 +52,8 @@ type ShopUser = {
   shopOwnerShopIds?: string[];
   ownedShopIds?: string[];
   shopClaimStatus?: string;
+  paymentType?: string;
+  stripeConnect?: Partial<StripeConnectStatus>;
   [key: string]: unknown;
 };
 
@@ -80,7 +85,7 @@ type ShopArtist = {
   };
 };
 
-type ShopView = "artists" | "events";
+type ShopView = "artists" | "events" | "payments";
 type ClaimMode = "existing" | "new";
 
 const ShopDashboardView = () => {
@@ -336,6 +341,12 @@ const ShopDashboardView = () => {
               label="Profile"
               onClick={() => setActiveView("profile")}
             />
+            <DashboardTab
+              active={activeView === "payments"}
+              icon={<CreditCard size={17} />}
+              label="Payments"
+              onClick={() => setActiveView("payments")}
+            />
             <InviteCard inviteUrl={inviteUrl} shopName={activeShop?.name || "your shop"} />
           </aside>
 
@@ -355,11 +366,16 @@ const ShopDashboardView = () => {
             {activeView === "events" && activeShop && (
               <EventsManager
                 uid={currentUser.id}
+                artist={currentUser}
                 ownerType="shop"
                 shopOverride={activeShop}
+                onOpenPayments={() => setActiveView("payments")}
                 managerTitle="Shop events"
                 managerDescription="Create flash days, walk-in days, guest spots, pop-ups, and public shop events for the SATX Ink events page."
               />
+            )}
+            {activeView === "payments" && (
+              <StripeConnectPanel artist={currentUser} />
             )}
           </section>
         </div>

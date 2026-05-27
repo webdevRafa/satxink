@@ -173,8 +173,6 @@ const eventAttendanceModes: Array<{
   {
     value: "paid_ticket",
     label: "Paid ticket",
-    disabled: true,
-    note: "Coming soon",
   },
 ];
 
@@ -251,7 +249,7 @@ const EventsManager = ({
     Record<string, EventRegistration[]>
   >({});
   const [checkingInRegistrationId, setCheckingInRegistrationId] = useState("");
-  const stripeReady = ownerType === "artist" && isStripeConnectReady(artist);
+  const stripeReady = isStripeConnectReady(artist);
 
   const fetchEvents = async () => {
     if (!uid) return;
@@ -327,7 +325,7 @@ const EventsManager = ({
             ...registrationDoc.data(),
           } as EventRegistration;
 
-          if (registration.status === "cancelled") return;
+          if (registration.status === "cancelled" || registration.status === "refunded") return;
           grouped[registration.eventId] = [
             ...(grouped[registration.eventId] || []),
             registration,
@@ -903,36 +901,45 @@ const EventCard = ({
                 </span>
               </div>
               <div className="mt-3 space-y-2">
-                {registrations.slice(0, 4).map((registration) => (
-                  <div
-                    key={registration.id}
-                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white/80">
-                        {registration.clientName || "Client"}
-                      </p>
-                      <p className="text-xs capitalize text-white/40">
-                        {registration.status.replace("_", " ")}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onCheckInRegistration(registration)}
-                      disabled={
-                        registration.status === "checked_in" ||
-                        checkingInRegistrationId === registration.id
-                      }
-                      className="rounded-md bg-white px-3! py-1.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                {registrations.slice(0, 4).map((registration) => {
+                  const canCheckIn =
+                    registration.status === "reserved" ||
+                    registration.status === "paid";
+
+                  return (
+                    <div
+                      key={registration.id}
+                      className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2"
                     >
-                      {checkingInRegistrationId === registration.id
-                        ? "Checking..."
-                        : registration.status === "checked_in"
-                        ? "Checked in"
-                        : "Check in"}
-                    </button>
-                  </div>
-                ))}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white/80">
+                          {registration.clientName || "Client"}
+                        </p>
+                        <p className="text-xs capitalize text-white/40">
+                          {registration.status.replace("_", " ")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onCheckInRegistration(registration)}
+                        disabled={
+                          !canCheckIn ||
+                          registration.status === "checked_in" ||
+                          checkingInRegistrationId === registration.id
+                        }
+                        className="rounded-md bg-white px-3! py-1.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {checkingInRegistrationId === registration.id
+                          ? "Checking..."
+                          : registration.status === "checked_in"
+                          ? "Checked in"
+                          : registration.status === "pending_payment"
+                          ? "Unpaid"
+                          : "Check in"}
+                      </button>
+                    </div>
+                  );
+                })}
                 {registrations.length > 4 && (
                   <p className="text-xs text-white/35">
                     +{registrations.length - 4} more attendee
@@ -1224,6 +1231,10 @@ const EventEditorModal = ({
                   setForm((current) => ({
                     ...current,
                     bookingMode: event.target.value as EventBookingMode,
+                    priceType:
+                      event.target.value === "paid_ticket"
+                        ? "fixed"
+                        : current.priceType,
                     depositRequired:
                       event.target.value === "deposit_required" ||
                       event.target.value === "flash_reservation"
@@ -1429,12 +1440,12 @@ const EventEditorModal = ({
 
           <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
             <p className="text-sm font-semibold text-sky-100">
-              Purchasable events are being staged behind RSVP first.
+              Paid tickets create SATX Ink event passes.
             </p>
             <p className="mt-1 text-sm leading-6 text-sky-100/70">
-              Free RSVP creates client event passes and attendee check-in tools
-              today. Paid tickets and deposit reservations will unlock after the
-              pass and verification flow is battle-tested.
+              Clients pay through Stripe, receive a QR pass in their dashboard,
+              and can be checked in by the host. Deposit and flash-specific
+              reservations are still staged for a later workflow.
             </p>
           </div>
 
@@ -2110,7 +2121,7 @@ const getBookingModeHelp = (bookingMode: EventBookingMode) => {
     return "Coming soon: clients will reserve specific flash or priority access for flash-day workflows.";
   }
 
-  return "Coming soon: clients will buy a ticket and receive a scannable SATX Ink event pass.";
+  return "Clients buy a ticket through Stripe and receive a scannable SATX Ink event pass.";
 };
 
 const getEventTime = (event: ArtistEvent) => {

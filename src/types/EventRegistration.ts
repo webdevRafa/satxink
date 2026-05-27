@@ -1,6 +1,7 @@
 import type { FieldValue, Timestamp } from "firebase/firestore";
 
 export type EventRegistrationStatus =
+  | "pending_payment"
   | "reserved"
   | "paid"
   | "checked_in"
@@ -40,6 +41,14 @@ export type EventRegistration = {
   paymentStatus: EventRegistrationPaymentStatus;
   qrToken?: string;
   qrTokenHash?: string;
+  ticketPriceCents?: number;
+  clientPaymentAmountCents?: number;
+  hostPayoutCents?: number;
+  platformFeeCents?: number;
+  estimatedStripeFeeCents?: number;
+  stripeCheckoutSessionId?: string;
+  stripeConnectedAccountId?: string;
+  stripePaymentIntentId?: string;
   checkedInAt?: Timestamp | Date | FieldValue | null;
   checkedInBy?: string;
   cancelledAt?: Timestamp | Date | FieldValue | null;

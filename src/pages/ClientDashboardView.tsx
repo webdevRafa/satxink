@@ -403,7 +403,7 @@ const ClientDashboardView = () => {
 
           const qrEntries = await Promise.all(
             activePasses.map(async (pass) => {
-              if (!pass.qrToken) return null;
+              if (!pass.qrToken || pass.status === "pending_payment") return null;
               const url = `${window.location.origin}/events/check-in/${pass.id}/${pass.qrToken}`;
               const dataUrl = await QRCode.toDataURL(url, {
                 margin: 1,
@@ -738,6 +738,11 @@ const ClientDashboardView = () => {
   const handleCancelEventPass = async (pass: EventRegistration) => {
     if (pass.status === "checked_in") {
       toast.error("Checked-in event passes cannot be cancelled.");
+      return;
+    }
+
+    if (pass.paymentStatus !== "free") {
+      toast.error("Paid event tickets cannot be cancelled from RSVP tools yet.");
       return;
     }
 
@@ -2014,7 +2019,22 @@ const ClientEventPassesSection = ({
           const event = eventsById[pass.eventId];
           const qrCode = qrCodesByPassId[pass.id];
           const statusLabel =
-            pass.status === "checked_in" ? "Checked in" : "Reserved";
+            pass.status === "pending_payment"
+              ? "Checkout pending"
+              : pass.status === "checked_in"
+              ? "Checked in"
+              : pass.status === "paid"
+              ? "Paid"
+              : "Reserved";
+          const paymentLabel =
+            pass.paymentStatus === "free"
+              ? "Free RSVP"
+              : pass.paymentStatus === "paid"
+              ? "Paid ticket"
+              : pass.paymentStatus === "pending"
+              ? "Payment pending"
+              : pass.paymentStatus;
+          const canCancel = pass.paymentStatus === "free" && pass.status !== "checked_in";
 
           return (
             <article
@@ -2028,13 +2048,17 @@ const ClientEventPassesSection = ({
                       className={`rounded-full border px-3 py-1 text-xs font-semibold ${
                         pass.status === "checked_in"
                           ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                          : pass.status === "pending_payment"
+                          ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
+                          : pass.status === "paid"
+                          ? "border-sky-300/25 bg-sky-300/10 text-sky-100"
                           : "border-sky-300/25 bg-sky-300/10 text-sky-100"
                       }`}
                     >
                       {statusLabel}
                     </span>
                     <span className="text-xs uppercase tracking-[0.14em] text-white/35">
-                      {pass.paymentStatus === "free" ? "Free RSVP" : pass.paymentStatus}
+                      {paymentLabel}
                     </span>
                   </div>
 
@@ -2057,22 +2081,38 @@ const ClientEventPassesSection = ({
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onCancelPass(pass)}
-                      disabled={
-                        pass.status === "checked_in" ||
-                        cancellingPassId === pass.id
-                      }
-                      className="rounded-md border border-white/10 bg-white/[0.04] px-4! py-2! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {cancellingPassId === pass.id ? "Cancelling..." : "Cancel RSVP"}
-                    </button>
+                    {canCancel ? (
+                      <button
+                        type="button"
+                        onClick={() => onCancelPass(pass)}
+                        disabled={cancellingPassId === pass.id}
+                        className="rounded-md border border-white/10 bg-white/[0.04] px-4! py-2! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {cancellingPassId === pass.id ? "Cancelling..." : "Cancel RSVP"}
+                      </button>
+                    ) : (
+                      <span className="rounded-md border border-white/10 bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/45">
+                        {pass.status === "pending_payment"
+                          ? "Finish checkout from the event page"
+                          : "Managed by ticket checkout"}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white p-3 text-center text-black">
-                  {qrCode ? (
+                <div
+                  className={`rounded-xl border p-3 text-center ${
+                    pass.status === "pending_payment"
+                      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
+                      : "border-white/10 bg-white text-black"
+                  }`}
+                >
+                  {pass.status === "pending_payment" ? (
+                    <div className="flex h-36 flex-col items-center justify-center text-sm">
+                      <Ticket className="mb-2 opacity-70" size={28} />
+                      Complete checkout before this QR pass unlocks.
+                    </div>
+                  ) : qrCode ? (
                     <img
                       src={qrCode}
                       alt={`QR pass for ${pass.eventTitle || "event"}`}
@@ -2083,7 +2123,13 @@ const ClientEventPassesSection = ({
                       Preparing QR
                     </div>
                   )}
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-black/55">
+                  <p
+                    className={`mt-2 text-xs font-semibold uppercase tracking-[0.12em] ${
+                      pass.status === "pending_payment"
+                        ? "text-amber-100/65"
+                        : "text-black/55"
+                    }`}
+                  >
                     Scan at check-in
                   </p>
                 </div>

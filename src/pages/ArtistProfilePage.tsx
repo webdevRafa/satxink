@@ -2152,6 +2152,7 @@ const isPublicEventBookable = (
   event: ArtistEvent,
   artist?: StripeReadyArtist | null
 ) => {
+  if (event.bookingMode === "paid_ticket") return true;
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
   return isStripeConnectReady(artist);
 };
