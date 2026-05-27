@@ -97,7 +97,9 @@ type Props = {
   setOfferMessage: Dispatch<SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
   setDateOptions: Dispatch<SetStateAction<{ date: string; time: string }[]>>;
-  onOfferSent?: (requestId: string) => void;
+  onOfferSent?: (requestId: string, offerId?: string) => void | Promise<void>;
+  shouldUpdateRequestStatus?: boolean;
+  additionalOfferData?: Record<string, unknown>;
 };
 
 const MakeOfferModal = ({
@@ -115,6 +117,8 @@ const MakeOfferModal = ({
   onOfferSent,
   uid,
   artist,
+  shouldUpdateRequestStatus = true,
+  additionalOfferData,
 }: Props) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [offerImage, setOfferImage] = useState<File | null>(null);
@@ -355,18 +359,21 @@ const MakeOfferModal = ({
         sessionScheduling: submitAsMultiSession
           ? "first_session_now_rest_later"
           : "single_session",
+        ...additionalOfferData,
         status: "pending",
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, "offers"), offerData);
-      await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
-        status: "offered",
-        offeredAt: serverTimestamp(),
-      });
+      const offerRef = await addDoc(collection(db, "offers"), offerData);
+      if (shouldUpdateRequestStatus) {
+        await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
+          status: "offered",
+          offeredAt: serverTimestamp(),
+        });
+      }
 
       toast.success("Offer sent.");
-      onOfferSent?.(selectedRequest.id);
+      await onOfferSent?.(selectedRequest.id, offerRef.id);
       resetOfferForm();
       onClose();
     } catch (error) {

@@ -711,7 +711,9 @@ const ArtistDashboardView = () => {
         (snap) =>
           updateCount(
             "offers",
-            snap.docs.filter((offerDoc) => offerDoc.data().status !== "accepted")
+            snap.docs
+              .filter((offerDoc) => !["accepted", "revised"].includes(String(offerDoc.data().status)))
+              .filter((offerDoc) => !offerDoc.data().artistDismissedAt)
               .length
           ),
         (error) => console.error("Artist offer count listener failed:", error)
@@ -1690,7 +1692,9 @@ const ArtistDashboardView = () => {
           />
         )}
 
-        {activeTab === "offers" && uid && <OffersList uid={uid} />}
+        {activeTab === "offers" && uid && (
+          <OffersList uid={uid} artist={artist} />
+        )}
 
         {/* Booking cards */}
         {["pending", "confirmed", "paid", "cancelled", "sessions", "projects"].includes(activeTab) && (
