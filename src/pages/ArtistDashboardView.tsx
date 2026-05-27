@@ -2195,7 +2195,7 @@ const SessionsTable = ({
   onBalancePaid: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(190px,1.25fr) 78px minmax(190px,1.12fr) minmax(168px,.9fr) minmax(150px,.82fr) minmax(190px,1fr) minmax(172px,.78fr)";
+    "minmax(190px,1.15fr) 78px minmax(170px,.95fr) minmax(190px,1fr) minmax(150px,.82fr) minmax(190px,1fr) minmax(172px,.78fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -2207,8 +2207,8 @@ const SessionsTable = ({
           >
             <span>Client</span>
             <span>Created</span>
-            <span>Status</span>
-            <span>Money</span>
+            <span>Session</span>
+            <span>Payment</span>
             <span>Scheduled</span>
             <span>Location</span>
             <span className="text-right">Actions</span>
@@ -2224,6 +2224,11 @@ const SessionsTable = ({
               const sessionCount = getEstimatedSessionCount(booking);
               const remainingPaymentStatus =
                 booking.remainingPaymentStatus || "due";
+              const remainingBalance = getDashboardRemainingBalance(booking);
+              const dueThisSession =
+                remainingPaymentStatus === "confirmed"
+                  ? 0
+                  : getDashboardSessionInstallmentAmount(booking);
               const canStart = sessionStatus === "awaiting_next_session";
               const canComplete = sessionStatus === "in_progress";
               const canMarkBalancePaid =
@@ -2249,8 +2254,8 @@ const SessionsTable = ({
                       <p className="truncate font-semibold text-white">
                         {clientName}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">
-                        {booking.shopName || "Studio not listed"}
+                      <p className="mt-0.5 truncate text-xs text-neutral-500 uppercase tracking-[0.12em]">
+                        Booking {getShortBookingId(booking.id)}
                       </p>
                     </div>
                   </div>
@@ -2259,39 +2264,24 @@ const SessionsTable = ({
                     {formatDashboardDate(booking.createdAt)}
                   </span>
 
-                  <div className="flex min-w-0 flex-col items-start gap-1.5 pr-3">
-                    <SessionStatusBadge status={sessionStatus} prefix="Session" />
+                  <div className="flex min-w-0 flex-col items-start gap-2 pr-3">
+                    <SessionStatusBadge status={sessionStatus} />
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
+                      Session {activeSessionNumber} of {sessionCount}
+                    </span>
                     <RemainingPaymentBadge
                       status={remainingPaymentStatus}
-                      prefix="Payment"
+                      viewer="artist"
                     />
-                    {isMultiSession && (
-                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-medium text-neutral-300">
-                        Session {activeSessionNumber}/{sessionCount}
-                      </span>
-                    )}
                   </div>
 
-                  <div className="space-y-1.5 pr-3">
-                    <MoneySummaryLine
-                      label="Total"
-                      value={formatDashboardMoney(booking.price)}
-                    />
-                    <MoneySummaryLine
-                      label="Deposit paid"
-                      value={formatDashboardMoney(booking.depositAmount)}
-                      muted
-                    />
-                    {isMultiSession && (
-                      <MoneySummaryLine
-                        label="This session"
-                        value={formatDashboardMoney(
-                          getDashboardSessionInstallmentAmount(booking)
-                        )}
-                        muted
-                      />
-                    )}
-                  </div>
+                  <SessionPaymentSummary
+                    primaryLabel={isMultiSession ? "Due this session" : "Balance due"}
+                    primaryAmount={dueThisSession}
+                    remainingBalance={remainingBalance}
+                    depositAmount={booking.depositAmount}
+                    totalAmount={booking.price}
+                  />
 
                   <span className="pr-3 text-sm font-medium leading-5 text-neutral-300">
                     {formatBookingAppointment(booking.selectedDate)}
@@ -3158,26 +3148,42 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-const MoneySummaryLine = ({
-  label,
-  value,
-  muted = false,
+const SessionPaymentSummary = ({
+  primaryLabel,
+  primaryAmount,
+  remainingBalance,
+  depositAmount,
+  totalAmount,
 }: {
-  label: string;
-  value: string;
-  muted?: boolean;
+  primaryLabel: string;
+  primaryAmount: number;
+  remainingBalance: number;
+  depositAmount?: number;
+  totalAmount?: number;
 }) => (
-  <div className="flex items-baseline justify-between gap-3">
-    <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-neutral-500">
-      {label}
-    </span>
-    <span
-      className={`text-right font-semibold ${
-        muted ? "text-xs text-neutral-400" : "text-sm text-white"
-      }`}
-    >
-      {value}
-    </span>
+  <div className="pr-3">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+      {primaryLabel}
+    </p>
+    <p className="mt-1 text-base font-semibold text-white">
+      {formatDashboardMoney(primaryAmount)}
+    </p>
+    <div className="mt-2 space-y-1 text-xs text-neutral-500">
+      <div className="flex items-center justify-between gap-3">
+        <span>Remaining</span>
+        <span className="font-medium text-neutral-300">
+          {formatDashboardMoney(remainingBalance)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span>Deposit paid</span>
+        <span>{formatDashboardMoney(depositAmount)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span>Total</span>
+        <span>{formatDashboardMoney(totalAmount)}</span>
+      </div>
+    </div>
   </div>
 );
 
@@ -3204,9 +3210,11 @@ const SessionStatusBadge = ({
 const RemainingPaymentBadge = ({
   status,
   prefix,
+  viewer = "artist",
 }: {
   status: string;
   prefix?: string;
+  viewer?: "client" | "artist";
 }) => {
   const className =
     status === "confirmed"
@@ -3218,9 +3226,13 @@ const RemainingPaymentBadge = ({
       : "border-white/10 bg-white/[0.05] text-neutral-300";
   const label =
     status === "artist_confirmed"
-      ? "Awaiting client"
+      ? viewer === "client"
+        ? "Confirm direct pay"
+        : "Awaiting client"
       : status === "client_confirmed"
-      ? "Awaiting artist"
+      ? viewer === "client"
+        ? "Awaiting artist"
+        : "Confirm direct pay"
       : status === "confirmed"
       ? "Balance paid"
       : status === "disputed"
@@ -3235,6 +3247,9 @@ const RemainingPaymentBadge = ({
     </span>
   );
 };
+
+const getShortBookingId = (bookingId?: string) =>
+  bookingId ? `#${bookingId.slice(0, 7)}` : "#";
 
 const formatDashboardMoney = (amount?: number) =>
   new Intl.NumberFormat("en-US", {

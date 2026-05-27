@@ -1350,7 +1350,7 @@ const ClientSessionsTable = ({
   onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(180px,1.35fr) 72px minmax(130px,.85fr) minmax(112px,.65fr) minmax(128px,.75fr) minmax(150px,1fr) minmax(235px,1.2fr)";
+    "minmax(180px,1.15fr) 72px minmax(165px,.95fr) minmax(190px,1fr) minmax(128px,.75fr) minmax(165px,1fr) minmax(155px,.82fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -1362,8 +1362,8 @@ const ClientSessionsTable = ({
           >
             <span>Artist</span>
             <span>Created</span>
-            <span>Status</span>
-            <span>Money</span>
+            <span>Session</span>
+            <span>Payment</span>
             <span>Scheduled</span>
             <span>Location</span>
             <span className="text-right">Actions</span>
@@ -1373,6 +1373,14 @@ const ClientSessionsTable = ({
             {sessions.map((booking) => {
               const sessionStatus = booking.sessionStatus || "in_progress";
               const remainingPaymentStatus = booking.remainingPaymentStatus || "due";
+              const isMultiSession = isClientMultiSessionBooking(booking);
+              const activeSessionNumber = getPayableSessionNumber(booking);
+              const sessionCount = Math.max(Number(booking.estimatedSessionCount || 1), 1);
+              const remainingBalance = getRemainingBalance(booking);
+              const dueThisSession =
+                remainingPaymentStatus === "confirmed"
+                  ? 0
+                  : getClientSessionInstallmentAmount(booking);
               const canConfirm =
                 booking.remainingPaymentMethod === "external" &&
                 booking.status === "deposit_paid" &&
@@ -1397,8 +1405,8 @@ const ClientSessionsTable = ({
                       <p className="truncate font-semibold text-white">
                         {booking.artistName || "Artist"}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500">
-                        {booking.shopName || "Studio not listed"}
+                      <p className="mt-0.5 truncate text-xs text-neutral-500 uppercase tracking-[0.12em]">
+                        Booking {getShortBookingId(booking.id)}
                       </p>
                     </div>
                   </div>
@@ -1407,19 +1415,21 @@ const ClientSessionsTable = ({
                     {formatDashboardDate(booking.createdAt)}
                   </span>
 
-                  <div className="flex min-w-0 flex-col items-start gap-1.5 pr-3">
+                  <div className="flex min-w-0 flex-col items-start gap-2 pr-3">
                     <SessionStatusBadge status={sessionStatus} />
                     <RemainingPaymentBadge status={remainingPaymentStatus} viewer="client" />
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
+                      Session {activeSessionNumber} of {sessionCount}
+                    </span>
                   </div>
 
-                  <div className="pr-3">
-                    <p className="text-sm font-semibold text-white">
-                      {formatMoney(booking.price)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {formatMoney(booking.depositAmount)} deposit
-                    </p>
-                  </div>
+                  <SessionPaymentSummary
+                    primaryLabel={isMultiSession ? "Due this session" : "Balance due"}
+                    primaryAmount={dueThisSession}
+                    remainingBalance={remainingBalance}
+                    depositAmount={booking.depositAmount}
+                    totalAmount={booking.price}
+                  />
 
                   <span className="pr-3 text-sm leading-5 text-neutral-300">
                     {formatAppointment(booking.selectedDate)}
@@ -1434,12 +1444,12 @@ const ClientSessionsTable = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex flex-col items-stretch justify-end gap-2">
                     <button
                       type="button"
                       disabled={!canConfirm}
                       onClick={() => onConfirmExternalPayment(booking)}
-                      className="inline-flex min-w-24 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <DollarSign size={14} />
                       {alreadyConfirmed ? "Confirmed" : "Confirm"}
@@ -1451,14 +1461,14 @@ const ClientSessionsTable = ({
                         remainingPaymentStatus === "confirmed"
                       }
                       onClick={() => onDisputeExternalPayment(booking)}
-                      className="inline-flex min-w-20 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       Issue
                     </button>
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
-                      className="inline-flex min-w-20 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                     >
                       <Eye size={14} />
                       Record
@@ -1779,6 +1789,45 @@ const EmptyState = ({
   </div>
 );
 
+const SessionPaymentSummary = ({
+  primaryLabel,
+  primaryAmount,
+  remainingBalance,
+  depositAmount,
+  totalAmount,
+}: {
+  primaryLabel: string;
+  primaryAmount: number;
+  remainingBalance: number;
+  depositAmount?: number;
+  totalAmount?: number;
+}) => (
+  <div className="pr-3">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+      {primaryLabel}
+    </p>
+    <p className="mt-1 text-base font-semibold text-white">
+      {formatMoney(primaryAmount)}
+    </p>
+    <div className="mt-2 space-y-1 text-xs text-neutral-500">
+      <div className="flex items-center justify-between gap-3">
+        <span>Remaining</span>
+        <span className="font-medium text-neutral-300">
+          {formatMoney(remainingBalance)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span>Deposit paid</span>
+        <span>{formatMoney(depositAmount)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span>Total</span>
+        <span>{formatMoney(totalAmount)}</span>
+      </div>
+    </div>
+  </div>
+);
+
 const SessionStatusBadge = ({ status }: { status: string }) => {
   const className =
     status === "completed"
@@ -1826,6 +1875,9 @@ const getRemainingPaymentLabel = (status: string, viewer: "client" | "artist") =
   if (status === "disputed") return "Disputed";
   return "Balance due";
 };
+
+const getShortBookingId = (bookingId?: string) =>
+  bookingId ? `#${bookingId.slice(0, 7)}` : "#";
 
 const formatMoney = (amount?: number) =>
   new Intl.NumberFormat("en-US", {
