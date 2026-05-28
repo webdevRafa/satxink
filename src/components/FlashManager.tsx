@@ -394,21 +394,21 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900 disabled:opacity-100"
                   disabled={!stripeReady}
                 >
-                  <Upload size={16} />
+                  <Upload size={16} className="text-current" />
                   Upload item
                 </button>
               ) : (
                 <label
-                  className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-semibold text-black transition hover:bg-zinc-200 ${
+                  className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 ${
                     stripeReady
                       ? "cursor-pointer"
-                      : "cursor-not-allowed opacity-50"
+                      : "cursor-not-allowed bg-white/90 text-neutral-900 opacity-100"
                   }`}
                 >
-                  <Upload size={16} />
+                  <Upload size={16} className="text-current" />
                   Upload sheet
                   {stripeReady && (
                     <input

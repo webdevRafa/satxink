@@ -32,7 +32,6 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
   const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
 
   const tabs = [
-    { key: "profile", label: "Profile" },
     { key: "requests", label: "Requests" },
     { key: "offers", label: "Offers" },
     { key: "bookings", label: "Bookings" },
@@ -43,6 +42,7 @@ const SidebarNavigation: React.FC<SidebarProps> = ({
     { key: "events", label: "Events" },
     { key: "payments", label: "Payments" },
     { key: "calendar", label: "Calendar Sync" },
+    { key: "profile", label: "Profile" },
   ];
 
   const bookingTabs = [

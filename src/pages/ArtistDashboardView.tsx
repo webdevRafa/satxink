@@ -210,7 +210,7 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "payments",
   ].includes(tab || "")
     ? (tab as ArtistDashboardTab)
-    : "profile";
+    : "requests";
 
 const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
   [
