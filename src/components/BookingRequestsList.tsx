@@ -74,6 +74,7 @@ const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
 ];
 
 const REQUESTS_PER_PAGE = 6;
+const MOBILE_FILTERS_DOCK_TOP = 152;
 
 interface Props {
   bookingRequests: BookingRequest[];
@@ -186,7 +187,9 @@ const BookingRequestsList: React.FC<Props> = ({
         return;
       }
 
-      const hasPassedFilters = filtersAnchorRef.current.getBoundingClientRect().top <= 80;
+      const hasPassedFilters =
+        filtersAnchorRef.current.getBoundingClientRect().top <=
+        MOBILE_FILTERS_DOCK_TOP;
       const previousScrollY = lastScrollYRef.current;
       const scrollingUp = currentScrollY < previousScrollY - 4;
       const scrollingDown = currentScrollY > previousScrollY + 4;
@@ -317,10 +320,10 @@ const BookingRequestsList: React.FC<Props> = ({
 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
-        className={`rounded-lg border border-white/10 bg-white/[0.03] p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:opacity-100 ${
+        className={`rounded-lg border border-white/10 p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
           mobileFiltersDocked
-            ? "sticky top-20 z-40 shadow-2xl shadow-black/35"
-            : ""
+            ? "sticky top-[9.5rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
+            : "bg-white/[0.03]"
         } ${
           mobileFiltersDocked && !mobileFiltersVisible
             ? "pointer-events-none -translate-y-[calc(100%+5rem)] opacity-0"
