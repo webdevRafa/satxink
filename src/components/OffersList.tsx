@@ -915,11 +915,11 @@ const MobileSummaryTile = ({
   label: string;
   value: string;
 }) => (
-  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-1.5">
-    <p className="text-[9px] uppercase tracking-[0.1em] text-neutral-500">
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2 py-1">
+    <p className="text-[8px] uppercase tracking-[0.1em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-white">
+    <p className="mt-px truncate text-[10px] font-semibold leading-3 text-white">
       {value}
     </p>
   </div>
