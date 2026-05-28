@@ -133,9 +133,6 @@ const BookingRequestsList: React.FC<Props> = ({
     ]
   );
 
-  const requestsWithReference = visibleRequests.filter(
-    (request) => request.thumbUrl || request.fullUrl
-  ).length;
   const preparingCount = visibleRequests.filter(
     (request) => request.offerPreparationStatus === "preparing"
   ).length;
@@ -201,7 +198,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
   return (
     <section className="mt-6 w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
             Artist inbox
@@ -215,10 +212,9 @@ const BookingRequestsList: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[640px] lg:grid-cols-4">
+        <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Pending" value={visibleRequests.length} />
           <MetricCard label="Preparing" value={preparingCount} />
-          <MetricCard label="References" value={requestsWithReference} />
           <MetricCard
             label="Newest"
             value={newestRequest ? formatShortDate(newestRequest.createdAt) : "-"}
@@ -355,11 +351,13 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+  <div className="rounded-md border border-white/10 bg-white/[0.025] px-3! py-2.5!">
+    <p className="text-[10px]! uppercase tracking-[0.14em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-1 text-lg! font-semibold leading-none text-white">
+      {value}
+    </p>
   </div>
 );
 
