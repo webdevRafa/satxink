@@ -341,14 +341,14 @@ const BookingRequestsList: React.FC<Props> = ({
 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
-        className={`rounded-lg border border-white/10 p-3 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
           mobileFiltersDocked
             ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
             : "bg-white/[0.03]"
         } ${
           mobileFiltersDocked && !mobileFiltersVisible
-            ? "pointer-events-none -translate-y-[calc(100%+5rem)] opacity-0"
-            : "translate-y-0 opacity-100"
+            ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
+            : "translate-y-0"
         }`}
       >
         <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
