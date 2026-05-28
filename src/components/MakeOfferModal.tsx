@@ -948,7 +948,7 @@ const MakeOfferModal = ({
             )}
           </div>
 
-          <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-5 py-4 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
             <p className="text-sm text-neutral-500">
               {isPreviewingOffer
                 ? "Review the offer summary before sending."
@@ -956,7 +956,11 @@ const MakeOfferModal = ({
                     completedDateOptions.length === 1 ? "" : "s"
                   } ready`}
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div
+              className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
+                isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
+              }`}
+            >
               <button
                 type="button"
                 onClick={
@@ -964,7 +968,7 @@ const MakeOfferModal = ({
                     ? () => setIsPreviewingOffer(false)
                     : handleClose
                 }
-                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.03] px-2.5! py-3! text-xs! font-semibold text-white transition hover:bg-white/10 sm:px-5! sm:text-sm!"
               >
                 {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
@@ -972,7 +976,7 @@ const MakeOfferModal = ({
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                  className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! py-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2 sm:px-5! sm:text-sm!"
                 >
                   Preview offer
                   <ReceiptText size={16} className="text-amber-200" />
@@ -981,7 +985,7 @@ const MakeOfferModal = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2.5! py-3! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2 sm:px-5! sm:text-sm!"
               >
                 {isSubmitting ? "Sending..." : "Send offer"}
                 <Send size={16} />
