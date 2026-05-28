@@ -341,7 +341,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
-        className={`rounded-lg border border-white/10 p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
           mobileFiltersDocked
             ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
             : "bg-white/[0.03]"
@@ -351,27 +351,27 @@ const BookingRequestsList: React.FC<Props> = ({
             : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+        <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
               <SlidersHorizontal size={18} aria-hidden="true" />
             </span>
             <div>
-              <h2 className="mb-0! text-lg!">Request filters</h2>
-              <p className="text-sm text-neutral-400">
+              <h2 className="mb-0! text-base! sm:text-lg!">Request filters</h2>
+              <p className="hidden text-sm text-neutral-400 sm:block">
                 Filter by client update status or preferred date range.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
               {PREPARATION_FILTERS.map((filter) => (
                 <button
                   key={filter.value}
                   type="button"
                   onClick={() => setPreparationFilter(filter.value)}
-                  className={`inline-flex h-10 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     preparationFilter === filter.value
                       ? "border-white bg-white text-black"
                       : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
@@ -385,7 +385,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-10 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-9 w-[7rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-[7.5rem] sm:px-3 sm:text-xs!"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -399,7 +399,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-10 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-9 w-[4.75rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-20 sm:px-3 sm:text-xs!"
             >
               {[2025, 2026, 2027].map((year) => (
                 <option key={year} value={year}>
@@ -411,7 +411,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-10 w-[5.5rem] items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex h-9 w-[5.25rem] items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-[11px]! font-semibold text-black transition hover:bg-white/85 sm:h-10 sm:w-[5.5rem] sm:gap-2 sm:px-3! sm:text-xs!"
             >
               <Filter size={16} />
               Filter
@@ -429,13 +429,13 @@ const BookingRequestsList: React.FC<Props> = ({
                 type="button"
                 onClick={clearFilters}
                 tabIndex={filtersAreActive ? 0 : -1}
-                className="inline-flex h-10 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex h-9 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-[11px]! font-semibold text-white transition hover:bg-white/10 sm:h-10 sm:px-3! sm:text-xs!"
               >
                 Clear
               </button>
             </div>
 
-            <span className="min-w-[6.5rem] whitespace-nowrap text-sm text-neutral-500">
+            <span className="min-w-[5.75rem] whitespace-nowrap text-xs text-neutral-500 sm:min-w-[6.5rem] sm:text-sm">
               Showing {filteredRequests.length} of {visibleRequests.length}
             </span>
           </div>
