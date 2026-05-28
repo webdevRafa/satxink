@@ -1048,8 +1048,8 @@ const RequestMobileCard = ({
         </div>
       </button>
 
-      <div className="space-y-2.5 border-t border-white/10 px-3 py-3">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2 border-t border-white/10 px-3 py-2.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <MobileSummaryTile
             label="Dates"
             value={formatCompactDateRange(request.preferredDateRange || [])}
@@ -1115,13 +1115,13 @@ const MobileSummaryTile = ({
   label: string;
   value: string;
 }) => (
-  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2 py-1">
-    <p className="text-[8px] uppercase tracking-[0.1em] text-neutral-500">
+  <div className="flex h-10 min-w-0 flex-col justify-center rounded-md border border-white/10 bg-white/[0.025] px-2">
+    <span className="block truncate text-[8px] uppercase leading-none tracking-[0.1em] text-neutral-500">
       {label}
-    </p>
-    <p className="mt-px truncate text-[10px] font-semibold leading-3 text-white">
+    </span>
+    <span className="mt-1 block truncate text-[11px] font-semibold leading-none text-white">
       {value}
-    </p>
+    </span>
   </div>
 );
 
