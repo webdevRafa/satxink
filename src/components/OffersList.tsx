@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Dialog, Transition } from "@headlessui/react";
@@ -61,6 +62,10 @@ const statusFilters: { label: string; value: OfferStatusFilter }[] = [
   { label: "Declined", value: "declined" },
 ];
 
+const MOBILE_FILTERS_DOCK_TOP = 142;
+const MOBILE_FILTERS_REVEAL_DISTANCE = 196;
+const MOBILE_FILTERS_HIDE_DISTANCE = 10;
+
 const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) => {
   const [offers, setOffers] = useState<DashboardOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<DashboardOffer | null>(
@@ -81,6 +86,12 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     { date: "", time: "" },
     { date: "", time: "" },
   ]);
+  const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const mobileFilterHiddenScrollPeakRef = useRef(0);
+  const mobileFilterHideDistanceRef = useRef(0);
+  const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
+  const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -139,6 +150,77 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
   const pendingCount = activeOffers.filter((offer) => offer.status === "pending").length;
   const declinedCount = activeOffers.filter((offer) => offer.status === "declined").length;
   const newestOffer = sortedOffers[0];
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    let frameId = 0;
+
+    const updateFilterPosition = () => {
+      frameId = 0;
+      const currentScrollY = window.scrollY;
+
+      if (!mediaQuery.matches || !filtersAnchorRef.current) {
+        setMobileFiltersDocked(false);
+        setMobileFiltersVisible(false);
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+        mobileFilterHideDistanceRef.current = 0;
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      const hasPassedFilters =
+        filtersAnchorRef.current.getBoundingClientRect().top <=
+        MOBILE_FILTERS_DOCK_TOP;
+      const previousScrollY = lastScrollYRef.current;
+      const scrollDelta = currentScrollY - previousScrollY;
+
+      setMobileFiltersDocked(hasPassedFilters);
+
+      if (!hasPassedFilters) {
+        setMobileFiltersVisible(false);
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+        mobileFilterHideDistanceRef.current = 0;
+      } else if (scrollDelta < -1) {
+        mobileFilterHideDistanceRef.current = 0;
+        const upwardTravel =
+          mobileFilterHiddenScrollPeakRef.current - currentScrollY;
+
+        if (upwardTravel >= MOBILE_FILTERS_REVEAL_DISTANCE) {
+          setMobileFiltersVisible(true);
+        }
+      } else if (scrollDelta > 2) {
+        mobileFilterHideDistanceRef.current += scrollDelta;
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+
+        if (
+          mobileFilterHideDistanceRef.current >= MOBILE_FILTERS_HIDE_DISTANCE
+        ) {
+          setMobileFiltersVisible(false);
+        }
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    const queueUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateFilterPosition);
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    updateFilterPosition();
+
+    window.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      mediaQuery.removeEventListener("change", queueUpdate);
+    };
+  }, []);
 
   const handleReviseOffer = (offer: DashboardOffer) => {
     setSelectedOffer(null);
@@ -221,36 +303,49 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
+          mobileFiltersDocked
+            ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
+            : "bg-white/[0.03]"
+        } ${
+          mobileFiltersDocked && !mobileFiltersVisible
+            ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
+            : "translate-y-0"
+        }`}
+      >
+        <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
               <ReceiptText size={18} aria-hidden="true" />
             </span>
             <div>
-              <h2 className="mb-0! text-lg!">Offer filters</h2>
+              <h2 className="mb-0! text-base! sm:text-lg!">Offer filters</h2>
               <p className="text-sm text-neutral-400">
                 Filter sent offers by current client response.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {statusFilters.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setStatusFilter(filter.value)}
-                className={`inline-flex h-10 items-center justify-center rounded-md border px-4! text-sm! font-semibold transition ${
-                  statusFilter === filter.value
-                    ? "border-white bg-white text-black"
-                    : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-            <span className="ml-1 text-sm text-neutral-500">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              {statusFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-4! sm:text-sm! ${
+                    statusFilter === filter.value
+                      ? "border-white bg-white text-black"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
               Showing {filteredOffers.length} of {activeOffers.length}
             </span>
           </div>
