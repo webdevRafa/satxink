@@ -78,9 +78,6 @@ const SidebarNavigation: FC<SidebarProps> = ({
   const handleMobileTabChange = (tab: ViewTab) => {
     onTabChange(tab);
     setShowMobileMenu(false);
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
   };
 
   return (

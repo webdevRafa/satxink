@@ -706,12 +706,14 @@ const OfferRow = ({
       </div>
 
       <div className="min-w-0">
-        <StatusBadge status={offer.status} />
-        {offer.status === "declined" && (
-          <p className="mt-2 truncate text-xs text-red-100/75">
-            Reason: {getDeclineReasonLabel(offer)}
-          </p>
-        )}
+        <StatusBadge
+          status={offer.status}
+          label={
+            offer.status === "declined"
+              ? `Declined: ${getDeclineReasonLabel(offer)}`
+              : undefined
+          }
+        />
       </div>
 
       <div className="flex items-center justify-end gap-2">
@@ -770,11 +772,20 @@ const OfferMobileCard = ({
   const isDeclined = offer.status === "declined";
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
-  const projectLabel = isFlashOffer
-    ? offer.flashTitle || "Flash item"
+  const scopeTile = isFlashOffer
+    ? {
+        label: "Flash",
+        value: offer.flashTitle || "Flash item",
+      }
     : isMultiSessionOffer
-    ? `${offer.estimatedSessionCount || 2} sessions`
-    : offer.shopName || "Single session";
+    ? {
+        label: "Sessions",
+        value: `${offer.estimatedSessionCount || 2} sessions`,
+      }
+    : {
+        label: "Session",
+        value: "Single session",
+      };
 
   return (
     <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -786,11 +797,7 @@ const OfferMobileCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500">
             <span>Sent {formatShortDate(offer.createdAt)}</span>
-            {isDeclined && (
-              <span className="rounded-full border border-red-200/25 bg-red-300/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-red-50">
-                Declined
-              </span>
-            )}
+            <StatusBadge status={offer.status || "pending"} />
           </div>
           <div className="mt-3 flex min-w-0 items-center gap-3">
             <img
@@ -824,8 +831,8 @@ const OfferMobileCard = ({
         </div>
       </button>
 
-      <div className="space-y-2.5 border-t border-white/10 px-3 py-3">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2 border-t border-white/10 px-3 py-2.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <MobileSummaryTile
             label="Schedule"
             value={
@@ -834,7 +841,7 @@ const OfferMobileCard = ({
                 : "No date set"
             }
           />
-          <MobileSummaryTile label="Project" value={projectLabel} />
+          <MobileSummaryTile label={scopeTile.label} value={scopeTile.value} />
         </div>
 
         <MobileOfferMetaRows
@@ -844,21 +851,11 @@ const OfferMobileCard = ({
               value: `$${offer.price}`,
             },
             {
-              label: "Status",
-              value: getOfferStatusLabel(offer.status || "pending"),
-            },
-            {
               label: "Message",
               value: offer.message || "No message included.",
             },
           ]}
         />
-
-        {isDeclined && (
-          <div className="rounded-md border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-medium text-red-50">
-            Reason: {getDeclineReasonLabel(offer)}
-          </div>
-        )}
       </div>
 
       <div
@@ -906,20 +903,20 @@ const MobileSummaryTile = ({
   label: string;
   value: string;
 }) => (
-  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-1.5">
-    <p className="text-[9px] uppercase tracking-[0.1em] text-neutral-500">
+  <div className="flex min-h-12 min-w-0 flex-col justify-center rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-1.5">
+    <span className="block truncate text-xs uppercase leading-none tracking-[0.08em] text-neutral-500">
       {label}
-    </p>
-    <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-white">
+    </span>
+    <span className="mt-1 block truncate text-xs font-semibold leading-4 text-white">
       {value}
-    </p>
+    </span>
   </div>
 );
 
 const MobileOfferMetaRows = ({
   rows,
 }: {
-  rows: { label: string; value: string }[];
+  rows: { label: string; value: ReactNode }[];
 }) => (
   <dl className="grid min-w-0 gap-1.5 pr-1 text-xs leading-5">
     {rows.map((row) => {
@@ -1200,7 +1197,13 @@ const MetricCard = ({
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({
+  status,
+  label,
+}: {
+  status: string;
+  label?: string;
+}) => {
   const normalized = status || "pending";
   const className =
     normalized === "accepted"
@@ -1211,9 +1214,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 
   return (
     <span
-      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium normal-case tracking-normal ${className}`}
     >
-      {getOfferStatusLabel(normalized)}
+      {label || getOfferStatusLabel(normalized)}
     </span>
   );
 };
