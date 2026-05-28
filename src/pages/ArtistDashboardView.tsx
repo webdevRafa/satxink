@@ -2079,7 +2079,10 @@ const ArtistDashboardProfileHeader = ({
   const socialLinks = getArtistDashboardSocialLinks(artist);
 
   return (
-    <section className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-4 shadow-lg sm:p-5">
+    <section
+      aria-label="Artist profile summary"
+      className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-4 shadow-lg sm:p-5"
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative mx-auto shrink-0 sm:mx-0">
           <img
