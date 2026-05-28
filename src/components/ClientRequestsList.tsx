@@ -163,7 +163,7 @@ const RequestTable = ({
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(120px,.56fr) minmax(190px,1fr) minmax(210px,1.05fr) 96px minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
+    "minmax(120px,.58fr) minmax(155px,.78fr) minmax(220px,1.08fr) 96px minmax(270px,1.3fr) minmax(185px,.82fr) minmax(120px,.55fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
