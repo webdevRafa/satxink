@@ -243,17 +243,22 @@ const RequestRow = ({
         </span>
       </button>
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-xs font-semibold text-white">
-          {formatCompactDateRange(request.preferredDateRange || [])}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-400">
-          {formatAvailableDaysSummary(request)}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {formatAvailableTimeWindow(request)}
-        </p>
-      </div>
+      <PreviewMetaRows
+        rows={[
+          {
+            label: "Dates",
+            value: formatCompactDateRange(request.preferredDateRange || []),
+          },
+          {
+            label: "Days",
+            value: formatAvailableDaysSummary(request),
+          },
+          {
+            label: "Time",
+            value: formatAvailableTimeWindow(request),
+          },
+        ]}
+      />
 
       <button
         type="button"
@@ -274,14 +279,22 @@ const RequestRow = ({
         )}
       </button>
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm text-neutral-300">
-          {request.description || "No description provided."}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {request.bodyPlacement || "Placement open"} - {request.size || "Size open"} - {formatBudget(request.budget)}
-        </p>
-      </div>
+      <PreviewMetaRows
+        rows={[
+          {
+            label: "Placement",
+            value: request.bodyPlacement || "Placement open",
+          },
+          {
+            label: "Size",
+            value: request.size || "Size open",
+          },
+          {
+            label: "Budget",
+            value: formatBudget(request.budget),
+          },
+        ]}
+      />
 
       <div className="min-w-0 pr-3">
         <RequestStatusCell request={request} />
@@ -415,6 +428,26 @@ const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
   return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>{display}</span>;
 };
 
+const PreviewMetaRows = ({
+  rows,
+}: {
+  rows: { label: string; value: string }[];
+}) => (
+  <dl className="grid min-w-0 gap-1 pr-4 text-xs leading-5">
+    {rows.map((row) => (
+      <div
+        key={row.label}
+        className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] items-baseline gap-2"
+      >
+        <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
+          {row.label}
+        </dt>
+        <dd className="truncate font-medium text-neutral-200">{row.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
+
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
   <div className="rounded-lg border border-white/10 bg-black/25 p-3">
     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">{icon}{label}</div>
@@ -447,7 +480,9 @@ const formatBudget = (budget?: string | number) => {
   if (budget.endsWith("+")) return `$${budget}`;
   if (budget.includes("-")) {
     const [min, max] = budget.split("-");
-    return `$${min}-$${max}`;
+    const minAmount = min.trim().replace(/^\$/, "");
+    const maxAmount = max.trim().replace(/^\$/, "");
+    return `$${minAmount} - $${maxAmount}`;
   }
   return budget;
 };
