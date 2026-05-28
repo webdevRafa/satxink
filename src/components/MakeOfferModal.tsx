@@ -1252,7 +1252,7 @@ const OfferPreview = ({
               </span>
               <div>
                 <h4 className="text-lg! font-semibold! text-white">
-                  Client message
+                  Message to client
                 </h4>
                 <p className="text-sm text-neutral-400">
                   This message is included with the offer.
