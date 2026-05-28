@@ -56,6 +56,9 @@ const isActiveEventRegistrationStatus = (status: unknown) =>
   status === "checked_in" ||
   status === "pending_payment";
 
+const isClaimedEventRegistrationStatus = (status: unknown) =>
+  status === "reserved" || status === "paid" || status === "checked_in";
+
 const userCanManageEvent = (
   uid: string,
   user: admin.firestore.DocumentData,
@@ -1371,7 +1374,7 @@ const createEventCheckoutSession = onCall(
       );
       const activeRegistrations = registrationsSnap.docs.filter((docSnap) =>
         docSnap.id !== registrationRef.id &&
-        isActiveEventRegistrationStatus(docSnap.data().status)
+        isClaimedEventRegistrationStatus(docSnap.data().status)
       );
       const capacity = Number(eventData.capacity || 0);
 
@@ -1721,7 +1724,7 @@ const applyCompletedEventTicketCheckout = async (
       );
       const activeRegistrations = activeRegistrationsSnap.docs.filter((docSnap) => {
         if (docSnap.id === registrationId) return false;
-        return isActiveEventRegistrationStatus(docSnap.data().status);
+        return isClaimedEventRegistrationStatus(docSnap.data().status);
       });
       const capacity = Number(event.capacity || 0);
 

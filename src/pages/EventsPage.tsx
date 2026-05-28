@@ -7,15 +7,18 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   DollarSign,
   Filter,
   ImageOff,
   MapPin,
   Search,
+  ShieldCheck,
   Store,
   Tag,
   Ticket,
   Users,
+  X,
 } from "lucide-react";
 import {
   collection,
@@ -28,6 +31,10 @@ import {
 import { auth, db, functions } from "../firebase/firebaseConfig";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import type { EventRegistration } from "../types/EventRegistration";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../utils/paymentFees";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type DateFilter = "all" | "today" | "this_week" | "this_month";
@@ -99,6 +106,9 @@ export const EventsPage = () => {
   >({});
   const [reservingEventId, setReservingEventId] = useState("");
   const [purchasingEventId, setPurchasingEventId] = useState("");
+  const [selectedTicketEvent, setSelectedTicketEvent] = useState<PublicEvent | null>(
+    null
+  );
   const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
@@ -245,7 +255,18 @@ export const EventsPage = () => {
     }
   };
 
-  const handlePaidTicket = async (event: PublicEvent) => {
+  const handlePaidTicket = (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to buy event tickets.");
+      return;
+    }
+
+    if (event.bookingMode !== "paid_ticket") return;
+
+    setSelectedTicketEvent(event);
+  };
+
+  const handleConfirmPaidTicket = async (event: PublicEvent) => {
     if (!currentUserId) {
       toast.error("Sign in as a client to buy event tickets.");
       return;
@@ -276,6 +297,7 @@ export const EventsPage = () => {
         throw new Error("Missing Stripe checkout URL.");
       }
 
+      setSelectedTicketEvent(null);
       window.location.href = response.data.url;
     } catch (error) {
       console.error("Event ticket checkout failed:", error);
@@ -346,7 +368,8 @@ export const EventsPage = () => {
   );
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-20 text-white">
+    <>
+      <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-20 text-white">
       <section className="mx-auto max-w-6xl">
         <div className="rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-4 shadow-xl md:p-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -458,7 +481,24 @@ export const EventsPage = () => {
           ))}
         </EventHostStage>
       </section>
-    </main>
+      </main>
+
+      <TicketCheckoutPreviewModal
+        event={selectedTicketEvent}
+        registration={
+          selectedTicketEvent
+            ? registrationsByEventId[selectedTicketEvent.id]
+            : undefined
+        }
+        isPurchasing={Boolean(
+          selectedTicketEvent && purchasingEventId === selectedTicketEvent.id
+        )}
+        onClose={() => {
+          if (!purchasingEventId) setSelectedTicketEvent(null);
+        }}
+        onConfirm={handleConfirmPaidTicket}
+      />
+    </>
   );
 };
 
@@ -787,6 +827,259 @@ const RailButton = ({
   >
     {children}
   </button>
+);
+
+const TicketCheckoutPreviewModal = ({
+  event,
+  registration,
+  isPurchasing,
+  onClose,
+  onConfirm,
+}: {
+  event: PublicEvent | null;
+  registration?: EventRegistration;
+  isPurchasing: boolean;
+  onClose: () => void;
+  onConfirm: (event: PublicEvent) => void;
+}) => {
+  if (!event) return null;
+
+  const hostName = getEventHostName(event);
+  const locationLabel = getLocationLabel(event);
+  const price = Number(event.price || 0);
+  const paymentBreakdown = calculateClientPaymentBreakdown(price);
+  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
+  const isPendingPayment = registration?.status === "pending_payment";
+  const actionLabel = isPendingPayment ? "Resume checkout" : "Continue to Stripe";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Close ticket preview"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <section className="relative z-10 flex max-h-[min(88vh,780px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#151515] text-white shadow-2xl shadow-black/60">
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
+              Ticket checkout
+            </p>
+            <h2 className="mt-1 text-2xl! font-semibold text-white">
+              Review your event pass
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPurchasing}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Close ticket preview"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="satx-scrollbar min-h-0 overflow-y-auto">
+          <div className="grid gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="border-b border-white/10 bg-black/20 lg:border-b-0 lg:border-r">
+              <div className="sticky top-0 space-y-4 p-5 sm:p-6">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black/35">
+                  {event.thumbnailUrl ? (
+                    <img
+                      src={event.thumbnailUrl}
+                      alt={event.title}
+                      className="h-64 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-white/30">
+                      <ImageOff size={36} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Host
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-white">{hostName}</p>
+                  <p className="mt-1 text-sm text-white/50">{locationLabel}</p>
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white/55">
+                  {eventTypeLabels[event.eventType] || "Event"}
+                </span>
+                <h3 className="mt-4 text-3xl! font-semibold leading-tight text-white">
+                  {event.title}
+                </h3>
+                {event.description && (
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    {event.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TicketPreviewFact
+                  icon={<CalendarDays size={16} />}
+                  label="When"
+                  value={formatEventDate(event)}
+                />
+                <TicketPreviewFact
+                  icon={<MapPin size={16} />}
+                  label="Where"
+                  value={locationLabel}
+                />
+                <TicketPreviewFact
+                  icon={<Users size={16} />}
+                  label="Availability"
+                  value={getPaidTicketAvailabilityLabel(event)}
+                />
+                <TicketPreviewFact
+                  icon={<Ticket size={16} />}
+                  label="Pass type"
+                  value="Paid QR event pass"
+                />
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/20">
+                <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.06] text-white/65">
+                    <CreditCard size={18} />
+                  </span>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Checkout breakdown
+                    </h4>
+                    <p className="text-sm text-white/45">
+                      Your spot is claimed only after Stripe confirms payment.
+                    </p>
+                  </div>
+                </div>
+                <div className="divide-y divide-white/10">
+                  <TicketBreakdownRow
+                    label="Event ticket"
+                    note={`Paid to ${hostName}`}
+                    value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
+                  />
+                  <TicketBreakdownRow
+                    label="SATX Ink fee"
+                    note="Platform fee for ticketing and QR check-in"
+                    value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
+                  />
+                  <TicketBreakdownRow
+                    label="Estimated Stripe processing"
+                    note="Final amount is confirmed by Stripe checkout"
+                    value={formatMoneyFromCents(paymentBreakdown.stripeFeeCents)}
+                  />
+                  <div className="flex items-center justify-between gap-4 bg-emerald-400/10 px-4 py-4">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-50">
+                        Estimated total today
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-50/60">
+                        Includes ticket, SATX Ink fee, and processing.
+                      </p>
+                    </div>
+                    <p className="text-xl font-semibold text-emerald-50">
+                      {formatMoneyFromCents(paymentBreakdown.clientTotalCents)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+                <div className="flex gap-3">
+                  <ShieldCheck className="mt-0.5 shrink-0 text-amber-100" size={18} />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-50">
+                      QR pass unlocks after successful payment.
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-amber-50/65">
+                      Clicking continue creates or resumes checkout. The event capacity
+                      count updates after Stripe confirms the payment, not when checkout
+                      opens.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className="text-sm text-white/45">
+            {isPaid
+              ? "This ticket is already in your dashboard."
+              : isPendingPayment
+              ? "You have a pending checkout for this event."
+              : "Review the ticket details before opening Stripe."}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPurchasing}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-5! py-3! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(event)}
+              disabled={isPurchasing || isPaid}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPurchasing ? "Opening Stripe..." : isPaid ? "Ticket purchased" : actionLabel}
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+};
+
+const TicketPreviewFact = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+    <div className="flex items-center gap-2 text-white/35">
+      {icon}
+      <p className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</p>
+    </div>
+    <p className="mt-3 text-sm font-semibold leading-5 text-white">{value}</p>
+  </div>
+);
+
+const TicketBreakdownRow = ({
+  label,
+  note,
+  value,
+}: {
+  label: string;
+  note: string;
+  value: string;
+}) => (
+  <div className="flex items-start justify-between gap-4 px-4 py-4">
+    <div>
+      <p className="text-sm font-semibold text-white">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-white/40">{note}</p>
+    </div>
+    <p className="shrink-0 text-sm font-semibold text-white/85">{value}</p>
+  </div>
 );
 
 const PublicEventCard = ({
@@ -1254,6 +1547,16 @@ const getEventCapacityLabel = (event: ArtistEvent) => {
   }
 
   return `${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`;
+};
+
+const getPaidTicketAvailabilityLabel = (event: ArtistEvent) => {
+  const claimed = Number(event.spotsClaimed || 0);
+  const capacity = Number(event.capacity || 0);
+
+  if (!capacity) return "Open ticket capacity";
+
+  const remaining = Math.max(capacity - claimed, 0);
+  return `${remaining} of ${capacity} tickets available`;
 };
 
 const getPriceLabel = (event: ArtistEvent) => {
