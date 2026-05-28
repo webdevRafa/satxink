@@ -163,7 +163,7 @@ const RequestTable = ({
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(150px,.76fr) 84px minmax(180px,.95fr) minmax(210px,1.05fr) minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
+    "minmax(120px,.56fr) minmax(190px,1fr) 96px minmax(210px,1.05fr) minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -173,9 +173,9 @@ const RequestTable = ({
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
-            <span>Request</span>
-            <span>Reference</span>
+            <span>Created</span>
             <span>Artist</span>
+            <span>Reference</span>
             <span>Availability</span>
             <span>Idea</span>
             <span>Status</span>
@@ -218,29 +218,9 @@ const RequestRow = ({
       style={{ gridTemplateColumns: columns }}
     >
       <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
-        <p className="truncate font-semibold text-white">Tattoo request</p>
-        <p className="text-sm text-neutral-400">
+        <p className="truncate text-sm font-semibold text-white">
           {formatShortDate(request.createdAt)}
         </p>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpen}
-        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
-        aria-label="View request reference"
-      >
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt="Tattoo request reference"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-neutral-500">
-            <ImageIcon size={18} />
-          </span>
-        )}
       </button>
 
       <button
@@ -261,6 +241,25 @@ const RequestRow = ({
             Artist
           </span>
         </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
+        aria-label="View request reference"
+      >
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Tattoo request reference"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={18} />
+          </span>
+        )}
       </button>
 
       <div className="min-w-0 pr-4">
