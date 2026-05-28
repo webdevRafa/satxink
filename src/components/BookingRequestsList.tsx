@@ -1115,11 +1115,11 @@ const MobileSummaryTile = ({
   label: string;
   value: string;
 }) => (
-  <div className="flex h-10 min-w-0 flex-col justify-center rounded-md border border-white/10 bg-white/[0.025] px-2">
-    <span className="block truncate text-[8px] uppercase leading-none tracking-[0.1em] text-neutral-500">
+  <div className="flex min-h-12 min-w-0 flex-col justify-center rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-1.5">
+    <span className="block truncate text-xs uppercase leading-none tracking-[0.08em] text-neutral-500">
       {label}
     </span>
-    <span className="mt-1 block truncate text-[11px] font-semibold leading-none text-white">
+    <span className="mt-1 block truncate text-xs font-semibold leading-4 text-white">
       {value}
     </span>
   </div>
