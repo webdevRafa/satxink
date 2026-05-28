@@ -163,12 +163,12 @@ const RequestTable = ({
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(120px,.58fr) minmax(155px,.78fr) minmax(220px,1.08fr) 96px minmax(270px,1.3fr) minmax(185px,.82fr) minmax(120px,.55fr)";
+    "minmax(110px,.52fr) minmax(155px,.72fr) minmax(240px,1.06fr) 88px minmax(215px,.82fr) minmax(165px,.62fr) minmax(110px,.48fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1240px]">
+        <div className="min-w-[1160px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -244,6 +244,7 @@ const RequestRow = ({
       </button>
 
       <PreviewMetaRows
+        labelWidth="3.75rem"
         rows={[
           {
             label: "Dates",
@@ -429,15 +430,18 @@ const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
 };
 
 const PreviewMetaRows = ({
+  labelWidth = "5.25rem",
   rows,
 }: {
+  labelWidth?: string;
   rows: { label: string; value: string }[];
 }) => (
-  <dl className="grid min-w-0 gap-1 pr-4 text-xs leading-5">
+  <dl className="grid min-w-0 gap-1 pr-3 text-xs leading-5">
     {rows.map((row) => (
       <div
         key={row.label}
-        className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] items-baseline gap-2"
+        className="grid min-w-0 items-baseline gap-2"
+        style={{ gridTemplateColumns: `${labelWidth} minmax(0, 1fr)` }}
       >
         <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
           {row.label}
