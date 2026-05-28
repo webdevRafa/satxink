@@ -77,6 +77,8 @@ const REQUESTS_PER_PAGE = 6;
 const MOBILE_FILTERS_DOCK_TOP = 142;
 const MOBILE_FILTERS_REVEAL_DISTANCE = 176;
 const MOBILE_FILTERS_HIDE_DISTANCE = 10;
+const MOBILE_PAGINATION_SCROLL_OFFSET = 154;
+const DESKTOP_PAGINATION_SCROLL_OFFSET = 96;
 const MOBILE_MODAL_ACTION_DOCK_TRIGGER = 120;
 
 interface Props {
@@ -109,9 +111,12 @@ const BookingRequestsList: React.FC<Props> = ({
     useState<BookingRequest | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
+  const filtersPanelRef = useRef<HTMLDivElement | null>(null);
+  const requestPageTopRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
   const mobileFilterHiddenScrollPeakRef = useRef(0);
   const mobileFilterHideDistanceRef = useRef(0);
+  const suppressMobileFilterRevealUntilRef = useRef(0);
   const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
   const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
 
@@ -202,7 +207,11 @@ const BookingRequestsList: React.FC<Props> = ({
 
       setMobileFiltersDocked(hasPassedFilters);
 
-      if (!hasPassedFilters) {
+      if (Date.now() < suppressMobileFilterRevealUntilRef.current) {
+        setMobileFiltersVisible(false);
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+        mobileFilterHideDistanceRef.current = 0;
+      } else if (!hasPassedFilters) {
         setMobileFiltersVisible(false);
         mobileFilterHiddenScrollPeakRef.current = currentScrollY;
         mobileFilterHideDistanceRef.current = 0;
@@ -254,7 +263,37 @@ const BookingRequestsList: React.FC<Props> = ({
   };
 
   const goToPage = (page: number) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const scrollTarget = isMobile
+      ? requestPageTopRef.current
+      : filtersPanelRef.current || requestPageTopRef.current;
+
+    setCurrentPage(nextPage);
+
+    if (isMobile) {
+      suppressMobileFilterRevealUntilRef.current = Date.now() + 900;
+      setMobileFiltersVisible(false);
+      mobileFilterHiddenScrollPeakRef.current = window.scrollY;
+      mobileFilterHideDistanceRef.current = 0;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!scrollTarget) return;
+
+        const offset = isMobile
+          ? MOBILE_PAGINATION_SCROLL_OFFSET
+          : DESKTOP_PAGINATION_SCROLL_OFFSET;
+        const targetTop =
+          scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
+
+        window.scrollTo({
+          top: Math.max(targetTop, 0),
+          behavior: "smooth",
+        });
+      });
+    });
   };
 
   const handleMakeOffer = (request: BookingRequest) => {
@@ -341,6 +380,7 @@ const BookingRequestsList: React.FC<Props> = ({
 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
+        ref={filtersPanelRef}
         className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
           mobileFiltersDocked
             ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
@@ -445,7 +485,7 @@ const BookingRequestsList: React.FC<Props> = ({
       {filteredRequests.length === 0 ? (
         <EmptyRequests isFiltering={filtersAreActive} />
       ) : (
-        <div className="space-y-3">
+        <div ref={requestPageTopRef} className="space-y-3">
           <RequestTable
             requests={paginatedRequests}
             onOpen={setSelectedRequest}
