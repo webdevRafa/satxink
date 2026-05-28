@@ -1214,7 +1214,7 @@ const OfferPreview = ({
           </div>
         </section>
 
-        <aside className="space-y-5">
+        <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
           <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
