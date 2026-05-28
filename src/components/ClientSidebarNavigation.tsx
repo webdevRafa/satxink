@@ -29,7 +29,7 @@ const ClientSidebarNavigation: React.FC<Props> = ({
   ];
 
   return (
-    <aside className="hidden w-64 shrink-0 self-start border-r border-white/5 bg-black/20 p-4 md:sticky md:top-24 md:block md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
+    <aside className="hidden md:block w-64 p-4 bg-black/20 border-r border-white/5 sticky top-20 self-start h-[calc(100vh-5rem)]">
       <nav className="flex md:flex-col gap-2">
         {links.map((link) => (
           <button
