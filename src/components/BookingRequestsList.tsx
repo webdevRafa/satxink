@@ -499,20 +499,21 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(190px,1fr) 82px minmax(150px,.74fr) minmax(205px,.92fr) minmax(170px,.78fr) minmax(282px,1fr)";
+    "minmax(170px,.8fr) minmax(92px,.4fr) 88px minmax(240px,1fr) minmax(230px,.95fr) minmax(145px,.56fr) minmax(284px,1.08fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+        <div className="min-w-[1240px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
             <span>Client</span>
+            <span>Created</span>
             <span>Reference</span>
-            <span>Availability</span>
             <span>Idea</span>
+            <span>Availability</span>
             <span>Budget</span>
             <span className="text-right">Actions</span>
           </div>
@@ -570,10 +571,13 @@ const RequestRow = ({
           <p className="truncate font-semibold text-white">
             {request.clientName || "Client"}
           </p>
-          <p className="text-sm text-neutral-400">
-            {formatShortDate(request.createdAt)}
-          </p>
         </div>
+      </button>
+
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <p className="truncate text-sm font-semibold text-white">
+          {formatShortDate(request.createdAt)}
+        </p>
       </button>
 
       <button
@@ -595,26 +599,40 @@ const RequestRow = ({
         )}
       </button>
 
-      <div className="min-w-0 max-w-[165px] pr-3">
-        <p className="truncate text-sm font-medium text-white">
-          {formatCompactDateRange(request.preferredDateRange || [])}
-        </p>
-        <p
-          className="mt-1 truncate text-xs text-neutral-500"
-          title={formatAvailabilitySummary(request)}
-        >
-          {formatAvailabilitySummary(request)}
-        </p>
-      </div>
+      <PreviewMetaRows
+        rows={[
+          {
+            label: "Placement",
+            value: request.bodyPlacement || "Placement open",
+          },
+          {
+            label: "Size",
+            value: request.size || "Size open",
+          },
+          {
+            label: "Message",
+            value: request.description || "No message provided.",
+          },
+        ]}
+      />
 
-      <div className="min-w-0 pr-3">
-        <p className="truncate text-sm text-neutral-300">
-          {request.description || "No description provided."}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
-        </p>
-      </div>
+      <PreviewMetaRows
+        labelWidth="3.75rem"
+        rows={[
+          {
+            label: "Dates",
+            value: formatCompactDateRange(request.preferredDateRange || []),
+          },
+          {
+            label: "Days",
+            value: formatAvailableDaysSummary(request),
+          },
+          {
+            label: "Time",
+            value: formatAvailableTimeWindow(request),
+          },
+        ]}
+      />
 
       <div className="min-w-0 pr-3">
         <p className="truncate text-sm font-semibold text-white">
@@ -682,6 +700,29 @@ const RequestRow = ({
     </div>
   );
 };
+
+const PreviewMetaRows = ({
+  labelWidth = "5.25rem",
+  rows,
+}: {
+  labelWidth?: string;
+  rows: { label: string; value: string }[];
+}) => (
+  <dl className="grid min-w-0 gap-1 pr-3 text-xs leading-5">
+    {rows.map((row) => (
+      <div
+        key={row.label}
+        className="grid min-w-0 items-baseline gap-2"
+        style={{ gridTemplateColumns: `${labelWidth} minmax(0, 1fr)` }}
+      >
+        <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
+          {row.label}
+        </dt>
+        <dd className="truncate font-medium text-neutral-200">{row.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
 
 const RequestDetailsDialog = ({
   request,
@@ -1177,7 +1218,9 @@ const formatBudget = (budget?: string | number) => {
   if (budget.endsWith("+")) return `$${budget}`;
   if (budget.includes("-")) {
     const [min, max] = budget.split("-");
-    return `$${min}-$${max}`;
+    const minAmount = min.trim().replace(/^\$/, "");
+    const maxAmount = max.trim().replace(/^\$/, "");
+    return `$${minAmount} - $${maxAmount}`;
   }
   return budget;
 };
@@ -1187,16 +1230,19 @@ const formatFlashPrice = (price?: number | null) =>
     ? `$${price}`
     : "Price not listed";
 
-const formatAvailabilitySummary = (request: BookingRequest) => {
-  const days = request.availableDays?.length
+const formatAvailableDaysSummary = (request: BookingRequest) =>
+  request.availableDays?.length
     ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
-  const time =
-    request.availableTime?.from || request.availableTime?.to
-      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
-      : "Any time";
 
-  return `${days} - ${time}`;
+const formatAvailableTimeWindow = (request: BookingRequest) => {
+  const from = request.availableTime?.from;
+  const to = request.availableTime?.to;
+
+  if (from && to) return `${formatTime(from)} - ${formatTime(to)}`;
+  if (from) return `${formatTime(from)} - Any time`;
+  if (to) return `Any time - ${formatTime(to)}`;
+  return "Any time";
 };
 
 const formatDateRange = (dates: string[]): string => {
