@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -231,6 +231,8 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "payments",
   ].includes(tab || "");
 
+const MOBILE_DASHBOARD_CONTENT_SCROLL_OFFSET = 154;
+
 const createProfileFormState = (
   artist: DashboardArtist | null
 ): ArtistProfileFormState => ({
@@ -286,6 +288,7 @@ const ArtistDashboardView = () => {
   const [activeTab, setActiveTab] = useState<ArtistDashboardTab>(() =>
     getArtistDashboardTab(searchParams.get("tab"))
   );
+  const dashboardContentStartRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedBooking, setSelectedBooking] =
     useState<DashboardBookingRequest | null>(null);
@@ -332,6 +335,29 @@ const ArtistDashboardView = () => {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  const handleDashboardTabChange = (tab: ArtistDashboardTab) => {
+    setActiveTab(tab);
+
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const target = dashboardContentStartRef.current;
+        if (!target) return;
+
+        const targetTop =
+          target.getBoundingClientRect().top +
+          window.scrollY -
+          MOBILE_DASHBOARD_CONTENT_SCROLL_OFFSET;
+
+        window.scrollTo({
+          top: Math.max(targetTop, 0),
+          behavior: "smooth",
+        });
+      });
+    });
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -1086,13 +1112,15 @@ const ArtistDashboardView = () => {
       <SidebarNavigation
         activeTab={activeTab}
         counts={navCounts}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={handleDashboardTabChange}
       />
 
       <main className="relative flex-1 p-6 h-full">
         {artist && (
           <ArtistDashboardProfileHeader artist={artist} />
         )}
+
+        <div ref={dashboardContentStartRef} className="h-px" aria-hidden="true" />
 
         {activeTab === "profile" && (
           <section className="mt-6 w-full max-w-6xl space-y-6">
