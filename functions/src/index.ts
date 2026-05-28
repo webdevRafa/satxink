@@ -1777,6 +1777,100 @@ const applyCompletedEventTicketCheckout = async (
   });
 };
 
+const syncEventTicketPaymentStatus = onCall(
+  { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to refresh this event pass.");
+    }
+
+    const registrationId = String(req.data?.registrationId || "").trim();
+    if (!registrationId) {
+      throw new HttpsError("invalid-argument", "Registration ID is required.");
+    }
+
+    const registrationRef = db.collection("eventRegistrations").doc(registrationId);
+    const registrationSnap = await registrationRef.get();
+    if (!registrationSnap.exists) {
+      throw new HttpsError("not-found", "Event pass not found.");
+    }
+
+    const registration = registrationSnap.data() || {};
+    if (registration.clientId !== uid) {
+      const [eventSnap, userSnap] = await Promise.all([
+        db.collection("events").doc(String(registration.eventId || "")).get(),
+        db.collection("users").doc(uid).get(),
+      ]);
+      const event = eventSnap.data() || {};
+      const user = userSnap.data() || {};
+      if (!eventSnap.exists || !userCanManageEvent(uid, user, event)) {
+        throw new HttpsError(
+          "permission-denied",
+          "You cannot refresh this event pass."
+        );
+      }
+    }
+
+    if (registration.status === "paid" || registration.status === "checked_in") {
+      return { paid: true, status: registration.status };
+    }
+
+    const sessionId = String(registration.stripeCheckoutSessionId || "").trim();
+    const connectedAccountId = String(
+      registration.stripeConnectedAccountId || ""
+    ).trim();
+
+    if (!sessionId || !connectedAccountId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This event pass is missing checkout details."
+      );
+    }
+
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(
+      sessionId,
+      {
+        expand: ["payment_intent"],
+      },
+      { stripeAccount: connectedAccountId }
+    );
+
+    if (
+      session.metadata?.registrationId &&
+      session.metadata.registrationId !== registrationId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "This checkout session does not belong to this event pass."
+      );
+    }
+
+    if (session.payment_status !== "paid") {
+      await registrationRef.set(
+        {
+          lastPaymentSyncAt: admin.firestore.FieldValue.serverTimestamp(),
+          stripeCheckoutStatus: session.status || null,
+          stripePaymentStatus: session.payment_status || null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return {
+        paid: false,
+        status: registration.status || "pending_payment",
+        paymentStatus: session.payment_status,
+      };
+    }
+
+    await applyCompletedEventTicketCheckout(session, connectedAccountId);
+
+    return { paid: true, status: "paid" };
+  }
+);
+
 const stripeWebhook = onRequest(
   {
     region: 'us-central1',
@@ -2182,6 +2276,7 @@ module.exports = {
   createShopClaimProofAccess,
   createEventRsvp,
   createEventCheckoutSession,
+  syncEventTicketPaymentStatus,
   cancelEventRsvp,
   checkInEventRegistration,
   stripeWebhook,

@@ -1,4 +1,4 @@
-import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -235,6 +235,8 @@ const ClientDashboardView = () => {
   const [eventPassEvents, setEventPassEvents] = useState<Record<string, ArtistEvent>>({});
   const [eventPassQrCodes, setEventPassQrCodes] = useState<Record<string, string>>({});
   const [cancellingEventPassId, setCancellingEventPassId] = useState("");
+  const [syncingEventPassId, setSyncingEventPassId] = useState("");
+  const eventPassSyncAttemptsRef = useRef<Record<string, number>>({});
   const [profileForm, setProfileForm] = useState<ClientProfileFormState>(
     createProfileFormState(null)
   );
@@ -252,6 +254,44 @@ const ClientDashboardView = () => {
     sessions: 0,
     eventPasses: 0,
   });
+
+  const syncEventTicketPass = async (
+    pass: EventRegistration,
+    options: { quiet?: boolean } = {}
+  ) => {
+    if (!pass.stripeCheckoutSessionId || pass.status !== "pending_payment") {
+      return;
+    }
+
+    setSyncingEventPassId(pass.id);
+    try {
+      const syncPaymentStatus = httpsCallable<
+        { registrationId: string },
+        { paid: boolean; status: string; paymentStatus?: string }
+      >(functions, "syncEventTicketPaymentStatus");
+      const result = await syncPaymentStatus({ registrationId: pass.id });
+
+      if (result.data.paid) {
+        if (!options.quiet) {
+          toast.success("Ticket payment confirmed. Your QR pass is ready.");
+        }
+        return;
+      }
+
+      if (!options.quiet) {
+        toast("Stripe still shows this ticket as pending.");
+      }
+    } catch (error) {
+      console.error("Event ticket payment refresh failed:", error);
+      if (!options.quiet) {
+        toast.error(
+          getClientCallableErrorMessage(error, "Could not refresh this ticket.")
+        );
+      }
+    } finally {
+      setSyncingEventPassId("");
+    }
+  };
 
   useEffect(() => {
     const viewParam = searchParams.get("tab");
@@ -381,6 +421,24 @@ const ClientDashboardView = () => {
 
           setEventPasses(activePasses);
           updateCount("eventPasses", activePasses.length);
+
+          activePasses.forEach((pass) => {
+            if (
+              pass.status !== "pending_payment" ||
+              !pass.stripeCheckoutSessionId ||
+              pass.paymentStatus !== "pending"
+            ) {
+              return;
+            }
+
+            const attemptKey = `${pass.id}:${pass.stripeCheckoutSessionId}`;
+            const lastAttempt = eventPassSyncAttemptsRef.current[attemptKey] || 0;
+            const now = Date.now();
+            if (now - lastAttempt < 15000) return;
+
+            eventPassSyncAttemptsRef.current[attemptKey] = now;
+            void syncEventTicketPass(pass, { quiet: true });
+          });
 
           const eventEntries = await Promise.all(
             activePasses.map(async (pass) => {
@@ -877,7 +935,9 @@ const ClientDashboardView = () => {
             eventsById={eventPassEvents}
             qrCodesByPassId={eventPassQrCodes}
             cancellingPassId={cancellingEventPassId}
+            syncingPassId={syncingEventPassId}
             onCancelPass={handleCancelEventPass}
+            onSyncPass={syncEventTicketPass}
           />
         )}
       </main>
@@ -1975,13 +2035,17 @@ const ClientEventPassesSection = ({
   eventsById,
   qrCodesByPassId,
   cancellingPassId,
+  syncingPassId,
   onCancelPass,
+  onSyncPass,
 }: {
   passes: EventRegistration[];
   eventsById: Record<string, ArtistEvent>;
   qrCodesByPassId: Record<string, string>;
   cancellingPassId: string;
+  syncingPassId: string;
   onCancelPass: (pass: EventRegistration) => void;
+  onSyncPass: (pass: EventRegistration, options?: { quiet?: boolean }) => void;
 }) => (
   <section className="mx-auto mt-8 w-full max-w-6xl space-y-6">
     <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -2089,6 +2153,22 @@ const ClientEventPassesSection = ({
                         className="rounded-md border border-white/10 bg-white/[0.04] px-4! py-2! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {cancellingPassId === pass.id ? "Cancelling..." : "Cancel RSVP"}
+                      </button>
+                    ) : pass.status === "pending_payment" && pass.stripeCheckoutSessionId ? (
+                      <button
+                        type="button"
+                        onClick={() => void onSyncPass(pass)}
+                        disabled={syncingPassId === pass.id}
+                        className="inline-flex items-center gap-2 rounded-md border border-amber-300/25 bg-amber-300/10 px-4! py-2! text-sm! font-semibold text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {syncingPassId === pass.id ? (
+                          <LoaderCircle size={15} className="animate-spin" />
+                        ) : (
+                          <RefreshCcw size={15} />
+                        )}
+                        {syncingPassId === pass.id
+                          ? "Checking payment..."
+                          : "Refresh ticket status"}
                       </button>
                     ) : (
                       <span className="rounded-md border border-white/10 bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/45">
