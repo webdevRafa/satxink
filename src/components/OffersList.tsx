@@ -706,12 +706,14 @@ const OfferRow = ({
       </div>
 
       <div className="min-w-0">
-        <StatusBadge status={offer.status} />
-        {offer.status === "declined" && (
-          <p className="mt-2 truncate text-xs text-red-100/75">
-            Reason: {getDeclineReasonLabel(offer)}
-          </p>
-        )}
+        <StatusBadge
+          status={offer.status}
+          label={
+            offer.status === "declined"
+              ? `Declined: ${getDeclineReasonLabel(offer)}`
+              : undefined
+          }
+        />
       </div>
 
       <div className="flex items-center justify-end gap-2">
@@ -795,11 +797,7 @@ const OfferMobileCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500">
             <span>Sent {formatShortDate(offer.createdAt)}</span>
-            {isDeclined && (
-              <span className="rounded-full border border-red-200/25 bg-red-300/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-red-50">
-                Declined
-              </span>
-            )}
+            <StatusBadge status={offer.status || "pending"} />
           </div>
           <div className="mt-3 flex min-w-0 items-center gap-3">
             <img
@@ -853,21 +851,11 @@ const OfferMobileCard = ({
               value: `$${offer.price}`,
             },
             {
-              label: "Status",
-              value: <StatusBadge status={offer.status || "pending"} />,
-            },
-            {
               label: "Message",
               value: offer.message || "No message included.",
             },
           ]}
         />
-
-        {isDeclined && (
-          <div className="rounded-md border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-medium text-red-50">
-            Reason: {getDeclineReasonLabel(offer)}
-          </div>
-        )}
       </div>
 
       <div
@@ -1209,7 +1197,13 @@ const MetricCard = ({
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({
+  status,
+  label,
+}: {
+  status: string;
+  label?: string;
+}) => {
   const normalized = status || "pending";
   const className =
     normalized === "accepted"
@@ -1220,9 +1214,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 
   return (
     <span
-      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium normal-case tracking-normal ${className}`}
     >
-      {getOfferStatusLabel(normalized)}
+      {label || getOfferStatusLabel(normalized)}
     </span>
   );
 };
