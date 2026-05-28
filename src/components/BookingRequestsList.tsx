@@ -75,6 +75,7 @@ const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
 
 const REQUESTS_PER_PAGE = 6;
 const MOBILE_FILTERS_DOCK_TOP = 152;
+const MOBILE_MODAL_ACTION_DOCK_TRIGGER = 120;
 
 interface Props {
   bookingRequests: BookingRequest[];
@@ -624,37 +625,51 @@ const RequestTable = ({
     "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-        <div className="min-w-[1240px]">
-          <div
-            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
-            style={{ gridTemplateColumns: columns }}
-          >
-            <span>Created</span>
-            <span>Client</span>
-            <span>Reference</span>
-            <span>Idea</span>
-            <span>Availability</span>
-            <span>Budget</span>
-            <span className="text-right">Actions</span>
-          </div>
+    <>
+      <div className="space-y-3 md:hidden">
+        {requests.map((request) => (
+          <RequestMobileCard
+            key={request.id}
+            request={request}
+            onOpen={() => onOpen(request)}
+            onMakeOffer={() => onMakeOffer(request)}
+            onPrepareOffer={() => onPrepareOffer(request)}
+          />
+        ))}
+      </div>
 
-          <div className="divide-y divide-white/10">
-            {requests.map((request) => (
-              <RequestRow
-                key={request.id}
-                request={request}
-                columns={columns}
-                onOpen={() => onOpen(request)}
-                onMakeOffer={() => onMakeOffer(request)}
-                onPrepareOffer={() => onPrepareOffer(request)}
-              />
-            ))}
+      <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
+        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
+          <div className="min-w-[1240px]">
+            <div
+              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+              style={{ gridTemplateColumns: columns }}
+            >
+              <span>Created</span>
+              <span>Client</span>
+              <span>Reference</span>
+              <span>Idea</span>
+              <span>Availability</span>
+              <span>Budget</span>
+              <span className="text-right">Actions</span>
+            </div>
+
+            <div className="divide-y divide-white/10">
+              {requests.map((request) => (
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  columns={columns}
+                  onOpen={() => onOpen(request)}
+                  onMakeOffer={() => onMakeOffer(request)}
+                  onPrepareOffer={() => onPrepareOffer(request)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -907,6 +922,148 @@ const RequestRow = ({
   );
 };
 
+const RequestMobileCard = ({
+  request,
+  onOpen,
+  onMakeOffer,
+  onPrepareOffer,
+}: {
+  request: BookingRequest;
+  onOpen: () => void;
+  onMakeOffer: () => void;
+  onPrepareOffer: () => void;
+}) => {
+  const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const budgetLabel =
+    request.sourceType === "flash"
+      ? formatFlashPrice(request.flashPrice)
+      : formatBudget(request.budget);
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-start gap-3 p-3! text-left transition hover:bg-white/[0.025]"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            <span>{formatShortDate(request.createdAt)}</span>
+            {isPreparingOffer && (
+              <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-50">
+                Preparing
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex min-w-0 items-center gap-3">
+            <img
+              src={request.clientAvatar || "/default-avatar.png"}
+              alt={request.clientName || "Client"}
+              className="h-10 w-10 rounded-full border border-white/10 object-cover"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold text-white">
+                {request.clientName || "Client"}
+              </p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-neutral-400">
+                {budgetLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035]">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="Tattoo request reference"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-neutral-500">
+              <ImageIcon size={20} />
+            </span>
+          )}
+        </div>
+      </button>
+
+      <div className="space-y-3 border-t border-white/10 px-3 py-3">
+        <div className="grid grid-cols-2 gap-2">
+          <MobileSummaryTile
+            label="Dates"
+            value={formatCompactDateRange(request.preferredDateRange || [])}
+          />
+          <MobileSummaryTile
+            label="Time"
+            value={formatAvailableTimeWindow(request)}
+          />
+        </div>
+
+        <PreviewMetaRows
+          labelWidth="4.75rem"
+          rows={[
+            {
+              label: "Placement",
+              value: request.bodyPlacement || "Placement open",
+            },
+            {
+              label: "Size",
+              value: request.size || "Size open",
+            },
+            {
+              label: "Message",
+              value: request.description || "No message provided.",
+            },
+          ]}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-3">
+        <button
+          type="button"
+          onClick={onPrepareOffer}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+        >
+          <Send size={13} className="text-amber-200" />
+          {isPreparingOffer ? "Timing" : "Prepare"}
+        </button>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2! text-[11px]! font-semibold text-white transition hover:bg-white/10"
+        >
+          <Eye size={13} />
+          Details
+        </button>
+        <button
+          type="button"
+          onClick={onMakeOffer}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-white px-2! text-[11px]! font-semibold text-black transition hover:bg-white/85"
+        >
+          <Send size={13} />
+          Offer
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const MobileSummaryTile = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-3 py-2">
+    <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-1 truncate text-xs font-semibold text-white">{value}</p>
+  </div>
+);
+
 const PreviewMetaRows = ({
   labelWidth = "5.25rem",
   rows,
@@ -930,6 +1087,126 @@ const PreviewMetaRows = ({
   </dl>
 );
 
+const useMobileModalActionDock = (isOpen: boolean) => {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = useRef(0);
+  const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+
+    if (!isOpen || !scrollContainer) {
+      setMobileActionsVisible(false);
+      lastScrollTopRef.current = 0;
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    let frameId = 0;
+
+    const updateActionDock = () => {
+      frameId = 0;
+
+      if (!mediaQuery.matches) {
+        setMobileActionsVisible(false);
+        lastScrollTopRef.current = scrollContainer.scrollTop;
+        return;
+      }
+
+      const currentScrollTop = scrollContainer.scrollTop;
+      const previousScrollTop = lastScrollTopRef.current;
+      const scrollingDown = currentScrollTop > previousScrollTop + 6;
+      const scrollingUp = currentScrollTop < previousScrollTop - 6;
+      const pastIntro = currentScrollTop > MOBILE_MODAL_ACTION_DOCK_TRIGGER;
+      const nearBottom =
+        currentScrollTop + scrollContainer.clientHeight >=
+        scrollContainer.scrollHeight - 120;
+
+      if (!pastIntro || scrollingUp || nearBottom) {
+        setMobileActionsVisible(false);
+      } else if (scrollingDown) {
+        setMobileActionsVisible(true);
+      }
+
+      lastScrollTopRef.current = currentScrollTop;
+    };
+
+    const queueUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateActionDock);
+    };
+
+    lastScrollTopRef.current = scrollContainer.scrollTop;
+    updateActionDock();
+
+    scrollContainer.addEventListener("scroll", queueUpdate, { passive: true });
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      scrollContainer.removeEventListener("scroll", queueUpdate);
+      mediaQuery.removeEventListener("change", queueUpdate);
+    };
+  }, [isOpen]);
+
+  return { scrollContainerRef, mobileActionsVisible };
+};
+
+const MobileRequestActionDock = ({
+  request,
+  visible,
+  isDeclining,
+  primaryLabel,
+  onDecline,
+  onMakeOffer,
+  onPrepareOffer,
+}: {
+  request: BookingRequest;
+  visible: boolean;
+  isDeclining: boolean;
+  primaryLabel: string;
+  onDecline: (request: BookingRequest) => void;
+  onMakeOffer: (request: BookingRequest) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
+}) => (
+  <div
+    className={`fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+      visible
+        ? "pointer-events-auto translate-y-0 opacity-100"
+        : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
+    }`}
+  >
+    <div className="rounded-t-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <button
+        type="button"
+        onClick={() => onMakeOffer(request)}
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
+      >
+        <Send size={16} />
+        {primaryLabel}
+      </button>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onPrepareOffer(request)}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+        >
+          <Send size={14} className="text-amber-200" />
+          Prepare
+        </button>
+        <button
+          type="button"
+          disabled={isDeclining}
+          onClick={() => onDecline(request)}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isDeclining ? "Declining..." : "Decline"}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const RequestDetailsDialog = ({
   request,
   isDeclining,
@@ -945,6 +1222,9 @@ const RequestDetailsDialog = ({
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
+  const { scrollContainerRef, mobileActionsVisible } =
+    useMobileModalActionDock(Boolean(request));
+
   if (request?.sourceType === "flash") {
     return (
       <FlashRequestDetailsDialog
@@ -973,7 +1253,10 @@ const RequestDetailsDialog = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+      <div
+        ref={scrollContainerRef}
+        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+      >
         <div className="flex min-h-full items-center justify-center p-4">
           <Transition.Child
             as={Fragment}
@@ -1013,18 +1296,18 @@ const RequestDetailsDialog = ({
                           <img
                             src={request.fullUrl || request.thumbUrl}
                             alt="Tattoo request reference"
-                            className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                            className="h-full max-h-[72vh] min-h-[360px] w-full object-contain sm:min-h-[420px]"
                           />
                         </Zoom>
                       ) : (
-                        <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
                           <span>No reference image uploaded</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-5 sm:p-6">
+                    <div className="p-5 pb-28 sm:p-6">
                       <div className="flex items-center gap-4">
                         <img
                           src={request.clientAvatar || "/default-avatar.png"}
@@ -1131,6 +1414,17 @@ const RequestDetailsDialog = ({
               )}
             </Dialog.Panel>
           </Transition.Child>
+          {request && (
+            <MobileRequestActionDock
+              request={request}
+              visible={mobileActionsVisible}
+              isDeclining={isDeclining}
+              primaryLabel="Make an offer"
+              onDecline={onDecline}
+              onMakeOffer={onMakeOffer}
+              onPrepareOffer={onPrepareOffer}
+            />
+          )}
         </div>
       </div>
     </Dialog>
@@ -1152,7 +1446,11 @@ const FlashRequestDetailsDialog = ({
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
-}) => (
+}) => {
+  const { scrollContainerRef, mobileActionsVisible } =
+    useMobileModalActionDock(Boolean(request));
+
+  return (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child
@@ -1167,7 +1465,10 @@ const FlashRequestDetailsDialog = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+      <div
+        ref={scrollContainerRef}
+        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+      >
         <div className="flex min-h-full items-center justify-center p-4">
           <Transition.Child
             as={Fragment}
@@ -1205,7 +1506,7 @@ const FlashRequestDetailsDialog = ({
                       <FlashRequestPreviewCard request={request} />
                     </div>
 
-                    <div className="p-5 sm:p-6">
+                    <div className="p-5 pb-28 sm:p-6">
                       <div className="flex items-center gap-4">
                         <img
                           src={request.clientAvatar || "/default-avatar.png"}
@@ -1318,11 +1619,23 @@ const FlashRequestDetailsDialog = ({
               )}
             </Dialog.Panel>
           </Transition.Child>
+          {request && (
+            <MobileRequestActionDock
+              request={request}
+              visible={mobileActionsVisible}
+              isDeclining={isDeclining}
+              primaryLabel="Make flash offer"
+              onDecline={onDecline}
+              onMakeOffer={onMakeOffer}
+              onPrepareOffer={onPrepareOffer}
+            />
+          )}
         </div>
       </div>
     </Dialog>
   </Transition>
-);
+  );
+};
 
 const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
