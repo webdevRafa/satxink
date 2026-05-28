@@ -2079,80 +2079,88 @@ const ArtistDashboardProfileHeader = ({
   const socialLinks = getArtistDashboardSocialLinks(artist);
 
   return (
-    <section className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
-      <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
-        <div className="relative shrink-0">
+    <section className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-4 shadow-lg sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="relative mx-auto shrink-0 sm:mx-0">
           <img
             src={artist.avatarUrl || "/fallback-avatar.jpg"}
             alt={artistDisplayName}
-            className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
+            className="aspect-square h-20 w-20 rounded-full border border-white/10 object-cover shadow-lg sm:h-24 sm:w-24"
           />
-          <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-white/10">
+          <span className="absolute bottom-0 right-0 rounded-full bg-black px-2 py-0.5 text-[9px] font-semibold text-white ring-1 ring-white/10">
             Artist
           </span>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-            Artist profile
-          </p>
-          <h1 className="mt-2 text-3xl! font-semibold text-white">
-            {artistDisplayName}
-          </h1>
-
-          {artistShopName &&
-            (artist.shopMapLink ? (
-              <a
-                href={normalizeUrl(artist.shopMapLink)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 transition hover:text-white md:justify-start"
-              >
-                <MapPin size={15} />
-                {artistShopName}
-              </a>
-            ) : (
-              <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
-                <MapPin size={15} />
-                {artistShopName}
-              </p>
-            ))}
-
-          {artist.bio && (
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
-              {artist.bio}
+        <div className="min-w-0 flex-1 text-center sm:text-left">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-primary)]">
+              Artist profile
             </p>
-          )}
+            <h1 className="truncate text-2xl! font-semibold text-white">
+              {artistDisplayName}
+            </h1>
+          </div>
 
-          {socialLinks.length > 0 && (
-            <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-              {socialLinks.map((link) => (
+          <div className="mt-1 flex flex-col gap-1 text-sm text-neutral-400 sm:flex-row sm:items-center sm:gap-3">
+            {artistShopName &&
+              (artist.shopMapLink ? (
                 <a
-                  key={link.label}
-                  href={link.href}
+                  href={normalizeUrl(artist.shopMapLink)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={link.label}
-                  title={link.label}
-                  className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                  className="inline-flex min-w-0 items-center justify-center gap-1.5 font-medium text-neutral-300 transition hover:text-white sm:justify-start"
                 >
-                  {link.icon}
+                  <MapPin size={14} className="shrink-0" />
+                  <span className="truncate">{artistShopName}</span>
                 </a>
+              ) : (
+                <p className="inline-flex min-w-0 items-center justify-center gap-1.5 font-medium text-neutral-300 sm:justify-start">
+                  <MapPin size={14} className="shrink-0" />
+                  <span className="truncate">{artistShopName}</span>
+                </p>
               ))}
-            </div>
-          )}
 
-          {artistStyles.length > 0 && (
-            <ul className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-              {artistStyles.map((style) => (
-                <li
-                  key={style}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
-                >
-                  {style}
-                </li>
-              ))}
-            </ul>
+            {artist.bio && (
+              <p className="min-w-0 truncate text-neutral-400">
+                {artist.bio}
+              </p>
+            )}
+          </div>
+
+          {(socialLinks.length > 0 || artistStyles.length > 0) && (
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {artistStyles.length > 0 && (
+                <ul className="flex min-w-0 flex-wrap justify-center gap-1.5 sm:justify-start">
+                  {artistStyles.map((style) => (
+                    <li
+                      key={style}
+                      className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] text-neutral-200"
+                    >
+                      {style}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {socialLinks.length > 0 && (
+                <div className="flex shrink-0 justify-center gap-2 sm:justify-end">
+                  {socialLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      title={link.label}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                    >
+                      {link.icon}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
