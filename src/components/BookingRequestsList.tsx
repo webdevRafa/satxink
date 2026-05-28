@@ -74,7 +74,10 @@ const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
 ];
 
 const REQUESTS_PER_PAGE = 6;
-const MOBILE_FILTERS_DOCK_TOP = 152;
+const MOBILE_FILTERS_DOCK_TOP = 142;
+const MOBILE_FILTERS_REVEAL_DISTANCE = 176;
+const MOBILE_FILTERS_HIDE_DISTANCE = 10;
+const MOBILE_MODAL_ACTION_DOCK_TRIGGER = 120;
 
 interface Props {
   bookingRequests: BookingRequest[];
@@ -107,6 +110,8 @@ const BookingRequestsList: React.FC<Props> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
+  const mobileFilterHiddenScrollPeakRef = useRef(0);
+  const mobileFilterHideDistanceRef = useRef(0);
   const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
   const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
 
@@ -183,6 +188,8 @@ const BookingRequestsList: React.FC<Props> = ({
       if (!mediaQuery.matches || !filtersAnchorRef.current) {
         setMobileFiltersDocked(false);
         setMobileFiltersVisible(false);
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+        mobileFilterHideDistanceRef.current = 0;
         lastScrollYRef.current = currentScrollY;
         return;
       }
@@ -191,17 +198,31 @@ const BookingRequestsList: React.FC<Props> = ({
         filtersAnchorRef.current.getBoundingClientRect().top <=
         MOBILE_FILTERS_DOCK_TOP;
       const previousScrollY = lastScrollYRef.current;
-      const scrollingUp = currentScrollY < previousScrollY - 4;
-      const scrollingDown = currentScrollY > previousScrollY + 4;
+      const scrollDelta = currentScrollY - previousScrollY;
 
       setMobileFiltersDocked(hasPassedFilters);
 
       if (!hasPassedFilters) {
         setMobileFiltersVisible(false);
-      } else if (scrollingUp) {
-        setMobileFiltersVisible(true);
-      } else if (scrollingDown) {
-        setMobileFiltersVisible(false);
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+        mobileFilterHideDistanceRef.current = 0;
+      } else if (scrollDelta < -1) {
+        mobileFilterHideDistanceRef.current = 0;
+        const upwardTravel =
+          mobileFilterHiddenScrollPeakRef.current - currentScrollY;
+
+        if (upwardTravel >= MOBILE_FILTERS_REVEAL_DISTANCE) {
+          setMobileFiltersVisible(true);
+        }
+      } else if (scrollDelta > 2) {
+        mobileFilterHideDistanceRef.current += scrollDelta;
+        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
+
+        if (
+          mobileFilterHideDistanceRef.current >= MOBILE_FILTERS_HIDE_DISTANCE
+        ) {
+          setMobileFiltersVisible(false);
+        }
       }
 
       lastScrollYRef.current = currentScrollY;
@@ -320,37 +341,37 @@ const BookingRequestsList: React.FC<Props> = ({
 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
-        className={`rounded-lg border border-white/10 p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
           mobileFiltersDocked
-            ? "sticky top-[9.5rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
+            ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
             : "bg-white/[0.03]"
         } ${
           mobileFiltersDocked && !mobileFiltersVisible
-            ? "pointer-events-none -translate-y-[calc(100%+5rem)] opacity-0"
-            : "translate-y-0 opacity-100"
+            ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
+            : "translate-y-0"
         }`}
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+        <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
               <SlidersHorizontal size={18} aria-hidden="true" />
             </span>
             <div>
-              <h2 className="mb-0! text-lg!">Request filters</h2>
-              <p className="text-sm text-neutral-400">
+              <h2 className="mb-0! text-base! sm:text-lg!">Request filters</h2>
+              <p className="hidden text-sm text-neutral-400 sm:block">
                 Filter by client update status or preferred date range.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
               {PREPARATION_FILTERS.map((filter) => (
                 <button
                   key={filter.value}
                   type="button"
                   onClick={() => setPreparationFilter(filter.value)}
-                  className={`inline-flex h-10 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     preparationFilter === filter.value
                       ? "border-white bg-white text-black"
                       : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
@@ -364,7 +385,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-10 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-9 w-[7rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-[7.5rem] sm:px-3 sm:text-xs!"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -378,7 +399,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-10 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-9 w-[4.75rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-20 sm:px-3 sm:text-xs!"
             >
               {[2025, 2026, 2027].map((year) => (
                 <option key={year} value={year}>
@@ -390,7 +411,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-10 w-[5.5rem] items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex h-9 w-[5.25rem] items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-[11px]! font-semibold text-black transition hover:bg-white/85 sm:h-10 sm:w-[5.5rem] sm:gap-2 sm:px-3! sm:text-xs!"
             >
               <Filter size={16} />
               Filter
@@ -408,13 +429,13 @@ const BookingRequestsList: React.FC<Props> = ({
                 type="button"
                 onClick={clearFilters}
                 tabIndex={filtersAreActive ? 0 : -1}
-                className="inline-flex h-10 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex h-9 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-[11px]! font-semibold text-white transition hover:bg-white/10 sm:h-10 sm:px-3! sm:text-xs!"
               >
                 Clear
               </button>
             </div>
 
-            <span className="min-w-[6.5rem] whitespace-nowrap text-sm text-neutral-500">
+            <span className="min-w-[5.75rem] whitespace-nowrap text-xs text-neutral-500 sm:min-w-[6.5rem] sm:text-sm">
               Showing {filteredRequests.length} of {visibleRequests.length}
             </span>
           </div>
@@ -624,37 +645,51 @@ const RequestTable = ({
     "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-        <div className="min-w-[1240px]">
-          <div
-            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
-            style={{ gridTemplateColumns: columns }}
-          >
-            <span>Created</span>
-            <span>Client</span>
-            <span>Reference</span>
-            <span>Idea</span>
-            <span>Availability</span>
-            <span>Budget</span>
-            <span className="text-right">Actions</span>
-          </div>
+    <>
+      <div className="space-y-3 md:hidden">
+        {requests.map((request) => (
+          <RequestMobileCard
+            key={request.id}
+            request={request}
+            onOpen={() => onOpen(request)}
+            onMakeOffer={() => onMakeOffer(request)}
+            onPrepareOffer={() => onPrepareOffer(request)}
+          />
+        ))}
+      </div>
 
-          <div className="divide-y divide-white/10">
-            {requests.map((request) => (
-              <RequestRow
-                key={request.id}
-                request={request}
-                columns={columns}
-                onOpen={() => onOpen(request)}
-                onMakeOffer={() => onMakeOffer(request)}
-                onPrepareOffer={() => onPrepareOffer(request)}
-              />
-            ))}
+      <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
+        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
+          <div className="min-w-[1240px]">
+            <div
+              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+              style={{ gridTemplateColumns: columns }}
+            >
+              <span>Created</span>
+              <span>Client</span>
+              <span>Reference</span>
+              <span>Idea</span>
+              <span>Availability</span>
+              <span>Budget</span>
+              <span className="text-right">Actions</span>
+            </div>
+
+            <div className="divide-y divide-white/10">
+              {requests.map((request) => (
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  columns={columns}
+                  onOpen={() => onOpen(request)}
+                  onMakeOffer={() => onMakeOffer(request)}
+                  onPrepareOffer={() => onPrepareOffer(request)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -907,6 +942,180 @@ const RequestRow = ({
   );
 };
 
+const RequestMobileCard = ({
+  request,
+  onOpen,
+  onMakeOffer,
+  onPrepareOffer,
+}: {
+  request: BookingRequest;
+  onOpen: () => void;
+  onMakeOffer: () => void;
+  onPrepareOffer: () => void;
+}) => {
+  const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const budgetLabel =
+    request.sourceType === "flash"
+      ? formatFlashPrice(request.flashPrice)
+      : formatBudget(request.budget);
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-start gap-3 p-3! text-left transition hover:bg-white/[0.025]"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            <span>{formatShortDate(request.createdAt)}</span>
+            {isPreparingOffer && (
+              <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-50">
+                Preparing
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex min-w-0 items-center gap-3">
+            <img
+              src={request.clientAvatar || "/default-avatar.png"}
+              alt={request.clientName || "Client"}
+              className="h-10 w-10 rounded-full border border-white/10 object-cover"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold text-white">
+                {request.clientName || "Client"}
+              </p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-neutral-400">
+                {budgetLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035]">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="Tattoo request reference"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-neutral-500">
+              <ImageIcon size={20} />
+            </span>
+          )}
+        </div>
+      </button>
+
+      <div className="space-y-2.5 border-t border-white/10 px-3 py-3">
+        <div className="grid grid-cols-2 gap-2">
+          <MobileSummaryTile
+            label="Dates"
+            value={formatCompactDateRange(request.preferredDateRange || [])}
+          />
+          <MobileSummaryTile
+            label="Time"
+            value={formatAvailableTimeWindow(request)}
+          />
+        </div>
+
+        <MobilePreviewMetaRows
+          rows={[
+            {
+              label: "Placement",
+              value: request.bodyPlacement || "Placement open",
+            },
+            {
+              label: "Size",
+              value: request.size || "Size open",
+            },
+            {
+              label: "Message",
+              value: request.description || "No message provided.",
+            },
+          ]}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-3">
+        <button
+          type="button"
+          onClick={onPrepareOffer}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+        >
+          <Send size={13} className="text-amber-200" />
+          {isPreparingOffer ? "Timing" : "Prepare"}
+        </button>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2! text-[11px]! font-semibold text-white transition hover:bg-white/10"
+        >
+          <Eye size={13} />
+          Details
+        </button>
+        <button
+          type="button"
+          onClick={onMakeOffer}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-white px-2! text-[11px]! font-semibold text-black transition hover:bg-white/85"
+        >
+          <Send size={13} />
+          Offer
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const MobileSummaryTile = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5 py-1.5">
+    <p className="text-[9px] uppercase tracking-[0.1em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-white">
+      {value}
+    </p>
+  </div>
+);
+
+const MobilePreviewMetaRows = ({
+  rows,
+}: {
+  rows: { label: string; value: string }[];
+}) => (
+  <dl className="grid min-w-0 gap-1.5 pr-1 text-xs leading-5">
+    {rows.map((row) => {
+      const isMessage = row.label === "Message";
+
+      return (
+        <div
+          key={row.label}
+          className="grid min-w-0 items-start gap-2"
+          style={{ gridTemplateColumns: "5.35rem minmax(0, 1fr)" }}
+        >
+          <dt className="whitespace-nowrap uppercase tracking-[0.08em] text-neutral-500">
+            {row.label}
+          </dt>
+          <dd
+            className={`font-medium text-neutral-200 ${
+              isMessage ? "line-clamp-2 leading-5" : "truncate"
+            }`}
+          >
+            {row.value}
+          </dd>
+        </div>
+      );
+    })}
+  </dl>
+);
+
 const PreviewMetaRows = ({
   labelWidth = "5.25rem",
   rows,
@@ -930,6 +1139,126 @@ const PreviewMetaRows = ({
   </dl>
 );
 
+const useMobileModalActionDock = (isOpen: boolean) => {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = useRef(0);
+  const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+
+    if (!isOpen || !scrollContainer) {
+      setMobileActionsVisible(false);
+      lastScrollTopRef.current = 0;
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    let frameId = 0;
+
+    const updateActionDock = () => {
+      frameId = 0;
+
+      if (!mediaQuery.matches) {
+        setMobileActionsVisible(false);
+        lastScrollTopRef.current = scrollContainer.scrollTop;
+        return;
+      }
+
+      const currentScrollTop = scrollContainer.scrollTop;
+      const previousScrollTop = lastScrollTopRef.current;
+      const scrollingDown = currentScrollTop > previousScrollTop + 6;
+      const scrollingUp = currentScrollTop < previousScrollTop - 6;
+      const pastIntro = currentScrollTop > MOBILE_MODAL_ACTION_DOCK_TRIGGER;
+      const nearBottom =
+        currentScrollTop + scrollContainer.clientHeight >=
+        scrollContainer.scrollHeight - 120;
+
+      if (!pastIntro || scrollingUp || nearBottom) {
+        setMobileActionsVisible(false);
+      } else if (scrollingDown) {
+        setMobileActionsVisible(true);
+      }
+
+      lastScrollTopRef.current = currentScrollTop;
+    };
+
+    const queueUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateActionDock);
+    };
+
+    lastScrollTopRef.current = scrollContainer.scrollTop;
+    updateActionDock();
+
+    scrollContainer.addEventListener("scroll", queueUpdate, { passive: true });
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      scrollContainer.removeEventListener("scroll", queueUpdate);
+      mediaQuery.removeEventListener("change", queueUpdate);
+    };
+  }, [isOpen]);
+
+  return { scrollContainerRef, mobileActionsVisible };
+};
+
+const MobileRequestActionDock = ({
+  request,
+  visible,
+  isDeclining,
+  primaryLabel,
+  onDecline,
+  onMakeOffer,
+  onPrepareOffer,
+}: {
+  request: BookingRequest;
+  visible: boolean;
+  isDeclining: boolean;
+  primaryLabel: string;
+  onDecline: (request: BookingRequest) => void;
+  onMakeOffer: (request: BookingRequest) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
+}) => (
+  <div
+    className={`fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+      visible
+        ? "pointer-events-auto translate-y-0 opacity-100"
+        : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
+    }`}
+  >
+    <div className="rounded-t-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <button
+        type="button"
+        onClick={() => onMakeOffer(request)}
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
+      >
+        <Send size={16} />
+        {primaryLabel}
+      </button>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onPrepareOffer(request)}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+        >
+          <Send size={14} className="text-amber-200" />
+          Prepare
+        </button>
+        <button
+          type="button"
+          disabled={isDeclining}
+          onClick={() => onDecline(request)}
+          className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isDeclining ? "Declining..." : "Decline"}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const RequestDetailsDialog = ({
   request,
   isDeclining,
@@ -945,6 +1274,9 @@ const RequestDetailsDialog = ({
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
+  const { scrollContainerRef, mobileActionsVisible } =
+    useMobileModalActionDock(Boolean(request));
+
   if (request?.sourceType === "flash") {
     return (
       <FlashRequestDetailsDialog
@@ -973,7 +1305,10 @@ const RequestDetailsDialog = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+      <div
+        ref={scrollContainerRef}
+        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+      >
         <div className="flex min-h-full items-center justify-center p-4">
           <Transition.Child
             as={Fragment}
@@ -1013,18 +1348,18 @@ const RequestDetailsDialog = ({
                           <img
                             src={request.fullUrl || request.thumbUrl}
                             alt="Tattoo request reference"
-                            className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                            className="h-full max-h-[72vh] min-h-[360px] w-full object-contain sm:min-h-[420px]"
                           />
                         </Zoom>
                       ) : (
-                        <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
                           <span>No reference image uploaded</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-5 sm:p-6">
+                    <div className="p-5 pb-28 sm:p-6">
                       <div className="flex items-center gap-4">
                         <img
                           src={request.clientAvatar || "/default-avatar.png"}
@@ -1131,6 +1466,17 @@ const RequestDetailsDialog = ({
               )}
             </Dialog.Panel>
           </Transition.Child>
+          {request && (
+            <MobileRequestActionDock
+              request={request}
+              visible={mobileActionsVisible}
+              isDeclining={isDeclining}
+              primaryLabel="Make an offer"
+              onDecline={onDecline}
+              onMakeOffer={onMakeOffer}
+              onPrepareOffer={onPrepareOffer}
+            />
+          )}
         </div>
       </div>
     </Dialog>
@@ -1152,7 +1498,11 @@ const FlashRequestDetailsDialog = ({
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
-}) => (
+}) => {
+  const { scrollContainerRef, mobileActionsVisible } =
+    useMobileModalActionDock(Boolean(request));
+
+  return (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child
@@ -1167,7 +1517,10 @@ const FlashRequestDetailsDialog = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+      <div
+        ref={scrollContainerRef}
+        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+      >
         <div className="flex min-h-full items-center justify-center p-4">
           <Transition.Child
             as={Fragment}
@@ -1205,7 +1558,7 @@ const FlashRequestDetailsDialog = ({
                       <FlashRequestPreviewCard request={request} />
                     </div>
 
-                    <div className="p-5 sm:p-6">
+                    <div className="p-5 pb-28 sm:p-6">
                       <div className="flex items-center gap-4">
                         <img
                           src={request.clientAvatar || "/default-avatar.png"}
@@ -1318,11 +1671,23 @@ const FlashRequestDetailsDialog = ({
               )}
             </Dialog.Panel>
           </Transition.Child>
+          {request && (
+            <MobileRequestActionDock
+              request={request}
+              visible={mobileActionsVisible}
+              isDeclining={isDeclining}
+              primaryLabel="Make flash offer"
+              onDecline={onDecline}
+              onMakeOffer={onMakeOffer}
+              onPrepareOffer={onPrepareOffer}
+            />
+          )}
         </div>
       </div>
     </Dialog>
   </Transition>
-);
+  );
+};
 
 const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
