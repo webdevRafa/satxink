@@ -119,7 +119,7 @@ const SidebarNavigation: FC<SidebarProps> = ({
         </button>
       </div>
 
-      <aside className="hidden md:block w-64 p-4 bg-[var(--color-bg-base)] rounded-xl sticky top-30 self-start h-fit">
+      <aside className="request-modal-scrollbar hidden max-h-[calc(100vh-5rem)] w-64 self-start overflow-y-auto rounded-xl bg-[var(--color-bg-base)] p-4 md:sticky md:top-20">
         <ul className="space-y-2">
           {tabs.map(({ key, label }) => (
             <li key={key}>
