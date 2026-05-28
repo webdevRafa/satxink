@@ -3,6 +3,8 @@ import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   DollarSign,
   Eye,
@@ -71,6 +73,8 @@ const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
   { label: "Not started", value: "not_started" },
 ];
 
+const REQUESTS_PER_PAGE = 6;
+
 interface Props {
   bookingRequests: BookingRequest[];
   onMakeOffer: (request: BookingRequest) => void;
@@ -99,6 +103,7 @@ const BookingRequestsList: React.FC<Props> = ({
   const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
   const [prepareOfferRequest, setPrepareOfferRequest] =
     useState<BookingRequest | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const visibleRequests = useMemo(
     () =>
@@ -139,10 +144,36 @@ const BookingRequestsList: React.FC<Props> = ({
   const filtersAreActive = isFiltering || preparationFilter !== "all";
 
   const newestRequest = visibleRequests[0];
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE)
+  );
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + REQUESTS_PER_PAGE,
+    filteredRequests.length
+  );
+  const paginatedRequests = useMemo(
+    () => filteredRequests.slice(pageStartIndex, pageEndIndex),
+    [filteredRequests, pageEndIndex, pageStartIndex]
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [isFiltering, preparationFilter, selectedMonth, selectedYear]);
 
   const clearFilters = () => {
     setIsFiltering(false);
     setPreparationFilter("all");
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
   const handleMakeOffer = (request: BookingRequest) => {
@@ -322,12 +353,24 @@ const BookingRequestsList: React.FC<Props> = ({
       {filteredRequests.length === 0 ? (
         <EmptyRequests isFiltering={filtersAreActive} />
       ) : (
-        <RequestTable
-          requests={filteredRequests}
-          onOpen={setSelectedRequest}
-          onMakeOffer={handleMakeOffer}
-          onPrepareOffer={setPrepareOfferRequest}
-        />
+        <div className="space-y-3">
+          <RequestTable
+            requests={paginatedRequests}
+            onOpen={setSelectedRequest}
+            onMakeOffer={handleMakeOffer}
+            onPrepareOffer={setPrepareOfferRequest}
+          />
+          {totalPages > 1 && (
+            <RequestPagination
+              currentPage={activePage}
+              totalPages={totalPages}
+              totalItems={filteredRequests.length}
+              pageStart={pageStartIndex + 1}
+              pageEnd={pageEndIndex}
+              onPageChange={goToPage}
+            />
+          )}
+        </div>
       )}
 
       <RequestDetailsDialog
@@ -510,11 +553,11 @@ const RequestTable = ({
     "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto">
+    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
         <div className="min-w-[1240px]">
           <div
-            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
             style={{ gridTemplateColumns: columns }}
           >
             <span>Created</span>
@@ -541,6 +584,90 @@ const RequestTable = ({
         </div>
       </div>
     </div>
+  );
+};
+
+const RequestPagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageStart,
+  pageEnd,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageStart: number;
+  pageEnd: number;
+  onPageChange: (page: number) => void;
+}) => {
+  const pageItems = getPaginationItems(currentPage, totalPages);
+
+  return (
+    <nav
+      aria-label="Tattoo requests pagination"
+      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.025] px-3! py-3! sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-neutral-500">
+        Showing{" "}
+        <span className="font-semibold text-neutral-300">
+          {pageStart}-{pageEnd}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
+        requests
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronLeft size={14} aria-hidden="true" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-1">
+          {pageItems.map((item) =>
+            typeof item === "number" ? (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onPageChange(item)}
+                aria-current={item === currentPage ? "page" : undefined}
+                className={`h-9 min-w-9 rounded-md px-3! text-xs! font-semibold transition ${
+                  item === currentPage
+                    ? "bg-white text-black"
+                    : "border border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                }`}
+              >
+                {item}
+              </button>
+            ) : (
+              <span
+                key={item}
+                className="flex h-9 min-w-8 items-center justify-center text-xs font-semibold text-neutral-600"
+              >
+                ...
+              </span>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
   );
 };
 
@@ -1219,6 +1346,28 @@ const EmptyRequests = ({ isFiltering }: { isFiltering: boolean }) => (
     </p>
   </div>
 );
+
+const getPaginationItems = (
+  currentPage: number,
+  totalPages: number
+): Array<number | "start-ellipsis" | "end-ellipsis"> => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "start-ellipsis" | "end-ellipsis"> = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) items.push("start-ellipsis");
+  for (let page = start; page <= end; page += 1) {
+    items.push(page);
+  }
+  if (end < totalPages - 1) items.push("end-ellipsis");
+  items.push(totalPages);
+
+  return items;
+};
 
 const formatBudget = (budget?: string | number) => {
   if (typeof budget === "number") return `$${budget}`;
