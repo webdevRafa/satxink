@@ -2088,6 +2088,7 @@ const ArtistDashboardProfileHeader = ({
           <img
             src={artist.avatarUrl || "/fallback-avatar.jpg"}
             alt={artistDisplayName}
+            decoding="async"
             className="aspect-square h-20 w-20 rounded-full border border-white/10 object-cover shadow-lg sm:h-24 sm:w-24"
           />
           <span className="absolute bottom-0 right-0 rounded-full bg-black px-2 py-0.5 text-[9px] font-semibold text-white ring-1 ring-white/10">
