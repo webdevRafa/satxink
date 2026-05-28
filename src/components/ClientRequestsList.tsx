@@ -163,7 +163,7 @@ const RequestTable = ({
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(120px,.56fr) minmax(190px,1fr) 96px minmax(210px,1.05fr) minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
+    "minmax(120px,.56fr) minmax(190px,1fr) minmax(210px,1.05fr) 96px minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -175,8 +175,8 @@ const RequestTable = ({
           >
             <span>Created</span>
             <span>Artist</span>
-            <span>Reference</span>
             <span>Availability</span>
+            <span>Reference</span>
             <span>Idea</span>
             <span>Status</span>
             <span className="text-right">Actions</span>
@@ -226,7 +226,7 @@ const RequestRow = ({
       <button
         type="button"
         onClick={onOpen}
-        className="flex min-w-0 items-center gap-3 pr-4 text-left"
+        className="flex min-w-0 items-center gap-3 p-0! pr-4! text-left"
       >
         <img
           src={requestArtist.avatarUrl}
@@ -242,6 +242,18 @@ const RequestRow = ({
           </span>
         </span>
       </button>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-xs font-semibold text-white">
+          {formatCompactDateRange(request.preferredDateRange || [])}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-400">
+          {formatAvailableDaysSummary(request)}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {formatAvailableTimeWindow(request)}
+        </p>
+      </div>
 
       <button
         type="button"
@@ -261,18 +273,6 @@ const RequestRow = ({
           </span>
         )}
       </button>
-
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-xs font-semibold text-white">
-          {formatCompactDateRange(request.preferredDateRange || [])}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-400">
-          {formatAvailableDaysSummary(request)}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {formatAvailableTimeWindow(request)}
-        </p>
-      </div>
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm text-neutral-300">
