@@ -368,7 +368,7 @@ const BookingRequestsList: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-[420px]">
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Pending" value={visibleRequests.length} />
           <MetricCard label="Preparing" value={preparingCount} />
           <MetricCard
@@ -536,11 +536,11 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-md border border-white/10 bg-white/[0.025] px-3! py-2.5!">
-    <p className="text-[10px]! uppercase tracking-[0.14em] text-neutral-500">
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-1 text-lg! font-semibold leading-none text-white">
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
       {value}
     </p>
   </div>

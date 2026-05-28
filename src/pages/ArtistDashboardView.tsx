@@ -2081,15 +2081,15 @@ const ArtistDashboardProfileHeader = ({
   return (
     <section
       aria-label="Artist profile summary"
-      className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-4 shadow-lg sm:p-5"
+      className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-3 shadow-lg sm:p-5"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
         <div className="relative mx-auto shrink-0 sm:mx-0">
           <img
             src={artist.avatarUrl || "/fallback-avatar.jpg"}
             alt={artistDisplayName}
             decoding="async"
-            className="aspect-square h-20 w-20 rounded-full border border-white/10 object-cover shadow-lg sm:h-24 sm:w-24"
+            className="aspect-square h-16 w-16 rounded-full border border-white/10 object-cover shadow-lg sm:h-24 sm:w-24"
           />
           <span className="absolute bottom-0 right-0 rounded-full bg-black px-2 py-0.5 text-[9px] font-semibold text-white ring-1 ring-white/10">
             Artist
@@ -2097,16 +2097,16 @@ const ArtistDashboardProfileHeader = ({
         </div>
 
         <div className="min-w-0 flex-1 text-center sm:text-left">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-primary)]">
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-primary)] sm:text-[11px] sm:tracking-[0.18em]">
               Artist profile
             </p>
-            <h1 className="truncate text-2xl! font-semibold text-white">
+            <h1 className="truncate text-xl! font-semibold text-white sm:text-2xl!">
               {artistDisplayName}
             </h1>
           </div>
 
-          <div className="mt-1 flex flex-col gap-1 text-sm text-neutral-400 sm:flex-row sm:items-center sm:gap-3">
+          <div className="mt-0.5 flex flex-col gap-0.5 text-xs text-neutral-400 sm:mt-1 sm:flex-row sm:items-center sm:gap-3 sm:text-sm">
             {artistShopName &&
               (artist.shopMapLink ? (
                 <a
@@ -2133,13 +2133,13 @@ const ArtistDashboardProfileHeader = ({
           </div>
 
           {(socialLinks.length > 0 || artistStyles.length > 0) && (
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-2 flex flex-col gap-2 sm:mt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               {artistStyles.length > 0 && (
-                <ul className="flex min-w-0 flex-wrap justify-center gap-1.5 sm:justify-start">
+                <ul className="flex min-w-0 flex-wrap justify-center gap-1 sm:justify-start sm:gap-1.5">
                   {artistStyles.map((style) => (
                     <li
                       key={style}
-                      className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] text-neutral-200"
+                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] leading-4 text-neutral-200 sm:px-2.5 sm:text-[11px]"
                     >
                       {style}
                     </li>
@@ -2148,7 +2148,7 @@ const ArtistDashboardProfileHeader = ({
               )}
 
               {socialLinks.length > 0 && (
-                <div className="flex shrink-0 justify-center gap-2 sm:justify-end">
+                <div className="flex shrink-0 justify-center gap-1.5 sm:justify-end sm:gap-2">
                   {socialLinks.map((link) => (
                     <a
                       key={link.label}
@@ -2157,7 +2157,7 @@ const ArtistDashboardProfileHeader = ({
                       rel="noopener noreferrer"
                       aria-label={link.label}
                       title={link.label}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08] sm:h-8 sm:w-8"
                     >
                       {link.icon}
                     </a>
