@@ -140,6 +140,11 @@ const BookingRequestsList: React.FC<Props> = ({
 
   const newestRequest = visibleRequests[0];
 
+  const clearFilters = () => {
+    setIsFiltering(false);
+    setPreparationFilter("all");
+  };
+
   const handleMakeOffer = (request: BookingRequest) => {
     onMakeOffer(request);
     setSelectedRequest(null);
@@ -236,7 +241,7 @@ const BookingRequestsList: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
             <div className="flex flex-wrap items-center gap-2">
               {PREPARATION_FILTERS.map((filter) => (
                 <button
@@ -257,7 +262,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-11 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -271,7 +276,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-11 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {[2025, 2026, 2027].map((year) => (
                 <option key={year} value={year}>
@@ -283,26 +288,31 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex h-11 w-[5.75rem] items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
             >
               <Filter size={16} />
               Filter
             </button>
 
-            {filtersAreActive && (
+            <div
+              className={`overflow-hidden motion-safe:transition-[width,opacity,transform,margin] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+                filtersAreActive
+                  ? "ml-0 w-[5.25rem] translate-x-0 opacity-100"
+                  : "-ml-3 w-0 translate-x-2 opacity-0"
+              }`}
+              aria-hidden={!filtersAreActive}
+            >
               <button
                 type="button"
-                onClick={() => {
-                  setIsFiltering(false);
-                  setPreparationFilter("all");
-                }}
-                className="inline-flex h-11 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                onClick={clearFilters}
+                tabIndex={filtersAreActive ? 0 : -1}
+                className="inline-flex h-11 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
               >
                 Clear
               </button>
-            )}
+            </div>
 
-            <span className="text-sm text-neutral-500">
+            <span className="min-w-[6.5rem] whitespace-nowrap text-sm text-neutral-500">
               Showing {filteredRequests.length} of {visibleRequests.length}
             </span>
           </div>
