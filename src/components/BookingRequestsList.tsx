@@ -499,7 +499,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(170px,.8fr) minmax(92px,.4fr) 88px minmax(240px,1fr) minmax(230px,.95fr) minmax(145px,.56fr) minmax(284px,1.08fr)";
+    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(135px,.5fr) minmax(284px,1.08fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -509,8 +509,8 @@ const RequestTable = ({
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
-            <span>Client</span>
             <span>Created</span>
+            <span>Client</span>
             <span>Reference</span>
             <span>Idea</span>
             <span>Availability</span>
@@ -557,6 +557,12 @@ const RequestRow = ({
       className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
       style={{ gridTemplateColumns: columns }}
     >
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <p className="truncate text-sm font-semibold text-white">
+          {formatShortDate(request.createdAt)}
+        </p>
+      </button>
+
       <button
         type="button"
         onClick={onOpen}
@@ -572,12 +578,6 @@ const RequestRow = ({
             {request.clientName || "Client"}
           </p>
         </div>
-      </button>
-
-      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
-        <p className="truncate text-sm font-semibold text-white">
-          {formatShortDate(request.createdAt)}
-        </p>
       </button>
 
       <button
