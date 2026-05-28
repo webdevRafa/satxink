@@ -1854,6 +1854,8 @@ const FlashRequestModal = ({
 
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
+        artistName: getArtistDisplayName(artist),
+        artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
         clientName: client.name,
         clientAvatar: client.avatarUrl,

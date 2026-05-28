@@ -11,7 +11,7 @@ import {
   Ruler,
   X,
 } from "lucide-react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, documentId, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 type FirestoreTimestampLike = {
@@ -21,6 +21,11 @@ type FirestoreTimestampLike = {
 
 type BookingRequest = {
   id: string;
+  artistId?: string;
+  artistName?: string;
+  artistAvatar?: string;
+  artistAvatarUrl?: string;
+  displayName?: string;
   clientId: string;
   clientName: string;
   clientAvatar: string;
@@ -43,12 +48,20 @@ type BookingRequest = {
   createdAt?: Date | FirestoreTimestampLike | null;
 };
 
+type RequestArtist = {
+  id: string;
+  name?: string;
+  displayName?: string;
+  avatarUrl?: string;
+};
+
 interface Props {
   clientId: string;
 }
 
 const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [requestArtists, setRequestArtists] = useState<Record<string, RequestArtist>>({});
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
     null
   );
@@ -57,6 +70,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   useEffect(() => {
     if (!clientId) return;
 
+    let isMounted = true;
     setLoading(true);
     const requestsQuery = query(
       collection(db, "bookingRequests"),
@@ -71,16 +85,24 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           id: requestDoc.id,
           ...requestDoc.data(),
         })) as BookingRequest[];
+        if (!isMounted) return;
         setRequests(data);
+        void loadRequestArtists(data, (artists) => {
+          if (!isMounted) return;
+          setRequestArtists((current) => ({ ...current, ...artists }));
+        });
         setLoading(false);
       },
       (error) => {
         console.error("Error listening to client requests:", error);
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [clientId]);
 
   const sortedRequests = useMemo(
@@ -116,7 +138,11 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           description="Requests you send from artist profiles will appear here with references, dates, and status."
         />
       ) : (
-        <RequestTable requests={sortedRequests} onOpen={setSelectedRequest} />
+        <RequestTable
+          requests={sortedRequests}
+          requestArtists={requestArtists}
+          onOpen={setSelectedRequest}
+        />
       )}
 
       <RequestDetailsDialog
@@ -129,24 +155,27 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
 
 const RequestTable = ({
   requests,
+  requestArtists,
   onOpen,
 }: {
   requests: BookingRequest[];
+  requestArtists: Record<string, RequestArtist>;
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(180px,.9fr) 96px minmax(220px,1.15fr) minmax(300px,1.45fr) minmax(210px,.92fr) minmax(140px,.65fr)";
+    "minmax(150px,.76fr) 84px minmax(180px,.95fr) minmax(210px,1.05fr) minmax(250px,1.2fr) minmax(185px,.82fr) minmax(120px,.55fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+        <div className="min-w-[1240px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
             <span>Request</span>
             <span>Reference</span>
+            <span>Artist</span>
             <span>Availability</span>
             <span>Idea</span>
             <span>Status</span>
@@ -157,6 +186,7 @@ const RequestTable = ({
               <RequestRow
                 key={request.id}
                 request={request}
+                artist={request.artistId ? requestArtists[request.artistId] : undefined}
                 columns={columns}
                 onOpen={() => onOpen(request)}
               />
@@ -170,14 +200,17 @@ const RequestTable = ({
 
 const RequestRow = ({
   request,
+  artist,
   columns,
   onOpen,
 }: {
   request: BookingRequest;
+  artist?: RequestArtist;
   columns: string;
   onOpen: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const requestArtist = getRequestArtist(request, artist);
 
   return (
     <div
@@ -210,12 +243,35 @@ const RequestRow = ({
         )}
       </button>
 
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 items-center gap-3 pr-4 text-left"
+      >
+        <img
+          src={requestArtist.avatarUrl}
+          alt={requestArtist.name}
+          className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
+        />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-white">
+            {requestArtist.name}
+          </span>
+          <span className="block truncate text-xs text-neutral-500">
+            Artist
+          </span>
+        </span>
+      </button>
+
       <div className="min-w-0 pr-4">
-        <p className="truncate text-sm font-medium text-white">
+        <p className="truncate text-xs font-semibold text-white">
           {formatCompactDateRange(request.preferredDateRange || [])}
         </p>
+        <p className="mt-1 truncate text-xs text-neutral-400">
+          {formatAvailableDaysSummary(request)}
+        </p>
         <p className="mt-1 truncate text-xs text-neutral-500">
-          {formatAvailabilitySummary(request)}
+          {formatAvailableTimeWindow(request)}
         </p>
       </div>
 
@@ -397,16 +453,19 @@ const formatBudget = (budget?: string | number) => {
   return budget;
 };
 
-const formatAvailabilitySummary = (request: BookingRequest) => {
-  const days = request.availableDays?.length
+const formatAvailableDaysSummary = (request: BookingRequest) =>
+  request.availableDays?.length
     ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
-  const time =
-    request.availableTime?.from || request.availableTime?.to
-      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
-      : "Any time";
 
-  return `${days} - ${time}`;
+const formatAvailableTimeWindow = (request: BookingRequest) => {
+  const from = request.availableTime?.from;
+  const to = request.availableTime?.to;
+
+  if (from && to) return `${formatTime(from)} - ${formatTime(to)}`;
+  if (from) return `${formatTime(from)} - Any time`;
+  if (to) return `Any time - ${formatTime(to)}`;
+  return "Any time";
 };
 
 const getFormattedAvailableDays = (days: string[]): string => {
@@ -482,6 +541,77 @@ const formatShortDate = (createdAt?: BookingRequest["createdAt"]) => {
       ? new Date(createdAt.seconds * 1000)
       : null;
   return date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "New";
+};
+
+const getRequestArtist = (request: BookingRequest, artist?: RequestArtist) => ({
+  name:
+    artist?.displayName ||
+    request.artistName ||
+    artist?.name ||
+    request.displayName ||
+    "Artist",
+  avatarUrl:
+    artist?.avatarUrl ||
+    request.artistAvatar ||
+    request.artistAvatarUrl ||
+    "/default-avatar.png",
+});
+
+const loadRequestArtists = async (
+  requests: BookingRequest[],
+  onLoaded: (artists: Record<string, RequestArtist>) => void
+) => {
+  const artistIds = Array.from(
+    new Set(
+      requests
+        .map((request) => request.artistId)
+        .filter((artistId): artistId is string => Boolean(artistId))
+    )
+  );
+
+  if (artistIds.length === 0) return;
+
+  try {
+    const artistChunks = chunkArray(artistIds, 10);
+    const snapshots = await Promise.all(
+      artistChunks.map((artistChunk) =>
+        getDocs(
+          query(
+            collection(db, "users"),
+            where(documentId(), "in", artistChunk)
+          )
+        )
+      )
+    );
+
+    const artists = snapshots.reduce<Record<string, RequestArtist>>(
+      (acc, snapshot) => {
+        snapshot.docs.forEach((artistDoc) => {
+          const data = artistDoc.data() as Omit<RequestArtist, "id">;
+          acc[artistDoc.id] = {
+            id: artistDoc.id,
+            name: data.name,
+            displayName: data.displayName,
+            avatarUrl: data.avatarUrl,
+          };
+        });
+        return acc;
+      },
+      {}
+    );
+
+    onLoaded(artists);
+  } catch (error) {
+    console.error("Error loading request artists:", error);
+  }
+};
+
+const chunkArray = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 };
 
 export default ClientRequestsList;

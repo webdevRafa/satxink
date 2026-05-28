@@ -153,6 +153,7 @@ const RequestTattooModal: React.FC<Props> = ({
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
         artistName,
+        artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
         clientName,
         clientAvatar,
