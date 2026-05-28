@@ -1,8 +1,10 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   DollarSign,
   Eye,
@@ -50,7 +52,29 @@ type BookingRequest = {
   flashPrice?: number | null;
   flashSheetId?: string | null;
   isFromSheet?: boolean;
+  offerPreparationStatus?: string;
+  offerPreparationEta?: string;
+  offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
 };
+
+type PreparationFilter = "all" | "preparing" | "not_started";
+
+const OFFER_PREPARATION_ETA_OPTIONS = [
+  "Later today",
+  "Tomorrow",
+  "2-3 days",
+  "This week",
+  "Next week",
+];
+
+const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Preparing", value: "preparing" },
+  { label: "Not started", value: "not_started" },
+];
+
+const REQUESTS_PER_PAGE = 6;
+const MOBILE_FILTERS_DOCK_TOP = 152;
 
 interface Props {
   bookingRequests: BookingRequest[];
@@ -73,8 +97,18 @@ const BookingRequestsList: React.FC<Props> = ({
     new Date().getFullYear()
   );
   const [isFiltering, setIsFiltering] = useState(false);
+  const [preparationFilter, setPreparationFilter] =
+    useState<PreparationFilter>("all");
   const [declinedRequestIds, setDeclinedRequestIds] = useState<string[]>([]);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
+  const [prepareOfferRequest, setPrepareOfferRequest] =
+    useState<BookingRequest | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
+  const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
 
   const visibleRequests = useMemo(
     () =>
@@ -85,20 +119,122 @@ const BookingRequestsList: React.FC<Props> = ({
   );
 
   const filteredRequests = useMemo(
-    () =>
-      isFiltering
+    () => {
+      const dateFilteredRequests = isFiltering
         ? visibleRequests.filter((request) =>
             requestMatchesMonth(request, selectedMonth, selectedYear)
           )
-        : visibleRequests,
-    [isFiltering, selectedMonth, selectedYear, visibleRequests]
+        : visibleRequests;
+
+      if (preparationFilter === "all") return dateFilteredRequests;
+
+      return dateFilteredRequests.filter((request) =>
+        preparationFilter === "preparing"
+          ? request.offerPreparationStatus === "preparing"
+          : request.offerPreparationStatus !== "preparing"
+      );
+    },
+    [
+      isFiltering,
+      preparationFilter,
+      selectedMonth,
+      selectedYear,
+      visibleRequests,
+    ]
   );
 
-  const requestsWithReference = visibleRequests.filter(
-    (request) => request.thumbUrl || request.fullUrl
+  const preparingCount = visibleRequests.filter(
+    (request) => request.offerPreparationStatus === "preparing"
   ).length;
+  const filtersAreActive = isFiltering || preparationFilter !== "all";
 
   const newestRequest = visibleRequests[0];
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE)
+  );
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + REQUESTS_PER_PAGE,
+    filteredRequests.length
+  );
+  const paginatedRequests = useMemo(
+    () => filteredRequests.slice(pageStartIndex, pageEndIndex),
+    [filteredRequests, pageEndIndex, pageStartIndex]
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [isFiltering, preparationFilter, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    let frameId = 0;
+
+    const updateFilterPosition = () => {
+      frameId = 0;
+      const currentScrollY = window.scrollY;
+
+      if (!mediaQuery.matches || !filtersAnchorRef.current) {
+        setMobileFiltersDocked(false);
+        setMobileFiltersVisible(false);
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      const hasPassedFilters =
+        filtersAnchorRef.current.getBoundingClientRect().top <=
+        MOBILE_FILTERS_DOCK_TOP;
+      const previousScrollY = lastScrollYRef.current;
+      const scrollingUp = currentScrollY < previousScrollY - 4;
+      const scrollingDown = currentScrollY > previousScrollY + 4;
+
+      setMobileFiltersDocked(hasPassedFilters);
+
+      if (!hasPassedFilters) {
+        setMobileFiltersVisible(false);
+      } else if (scrollingUp) {
+        setMobileFiltersVisible(true);
+      } else if (scrollingDown) {
+        setMobileFiltersVisible(false);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    const queueUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateFilterPosition);
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    updateFilterPosition();
+
+    window.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      mediaQuery.removeEventListener("change", queueUpdate);
+    };
+  }, []);
+
+  const clearFilters = () => {
+    setIsFiltering(false);
+    setPreparationFilter("all");
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  };
 
   const handleMakeOffer = (request: BookingRequest) => {
     onMakeOffer(request);
@@ -124,9 +260,41 @@ const BookingRequestsList: React.FC<Props> = ({
     }
   };
 
+  const handleMarkPreparing = async (request: BookingRequest, eta: string) => {
+    if (!eta) return false;
+    try {
+      setPreparingRequestIds((current) => [...current, request.id]);
+      await updateDoc(doc(db, "bookingRequests", request.id), {
+        status: "pending",
+        offerPreparationStatus: "preparing",
+        offerPreparationEta: eta,
+        offerPreparationUpdatedAt: serverTimestamp(),
+      });
+      setSelectedRequest((current) =>
+        current?.id === request.id
+          ? {
+              ...current,
+              offerPreparationStatus: "preparing",
+              offerPreparationEta: eta,
+            }
+          : current
+      );
+      toast.success("Client will see that you are preparing an offer.");
+      return true;
+    } catch (error) {
+      console.error("Failed to update offer timing:", error);
+      toast.error("Could not update this request.");
+      return false;
+    } finally {
+      setPreparingRequestIds((current) =>
+        current.filter((requestId) => requestId !== request.id)
+      );
+    }
+  };
+
   return (
     <section className="mt-6 w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
             Artist inbox
@@ -140,9 +308,9 @@ const BookingRequestsList: React.FC<Props> = ({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Pending" value={visibleRequests.length} />
-          <MetricCard label="References" value={requestsWithReference} />
+          <MetricCard label="Preparing" value={preparingCount} />
           <MetricCard
             label="Newest"
             value={newestRequest ? formatShortDate(newestRequest.createdAt) : "-"}
@@ -150,7 +318,18 @@ const BookingRequestsList: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        className={`rounded-lg border border-white/10 p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow,background-color] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:bg-white/[0.03] md:opacity-100 ${
+          mobileFiltersDocked
+            ? "sticky top-[9.5rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
+            : "bg-white/[0.03]"
+        } ${
+          mobileFiltersDocked && !mobileFiltersVisible
+            ? "pointer-events-none -translate-y-[calc(100%+5rem)] opacity-0"
+            : "translate-y-0 opacity-100"
+        }`}
+      >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
@@ -159,16 +338,33 @@ const BookingRequestsList: React.FC<Props> = ({
             <div>
               <h2 className="mb-0! text-lg!">Request filters</h2>
               <p className="text-sm text-neutral-400">
-                Filter by the client's preferred date range.
+                Filter by client update status or preferred date range.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
+            <div className="flex flex-wrap items-center gap-2">
+              {PREPARATION_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setPreparationFilter(filter.value)}
+                  className={`inline-flex h-10 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                    preparationFilter === filter.value
+                      ? "border-white bg-white text-black"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-10 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -182,7 +378,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-10 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {[2025, 2026, 2027].map((year) => (
                 <option key={year} value={year}>
@@ -194,23 +390,31 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex h-10 w-[5.5rem] items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
             >
               <Filter size={16} />
               Filter
             </button>
 
-            {isFiltering && (
+            <div
+              className={`overflow-hidden motion-safe:transition-[width,opacity,transform,margin] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+                filtersAreActive
+                  ? "ml-0 w-[5.25rem] translate-x-0 opacity-100"
+                  : "-ml-3 w-0 translate-x-2 opacity-0"
+              }`}
+              aria-hidden={!filtersAreActive}
+            >
               <button
                 type="button"
-                onClick={() => setIsFiltering(false)}
-                className="inline-flex h-11 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                onClick={clearFilters}
+                tabIndex={filtersAreActive ? 0 : -1}
+                className="inline-flex h-10 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
               >
                 Clear
               </button>
-            )}
+            </div>
 
-            <span className="text-sm text-neutral-500">
+            <span className="min-w-[6.5rem] whitespace-nowrap text-sm text-neutral-500">
               Showing {filteredRequests.length} of {visibleRequests.length}
             </span>
           </div>
@@ -218,13 +422,26 @@ const BookingRequestsList: React.FC<Props> = ({
       </div>
 
       {filteredRequests.length === 0 ? (
-        <EmptyRequests isFiltering={isFiltering} />
+        <EmptyRequests isFiltering={filtersAreActive} />
       ) : (
-        <RequestTable
-          requests={filteredRequests}
-          onOpen={setSelectedRequest}
-          onMakeOffer={handleMakeOffer}
-        />
+        <div className="space-y-3">
+          <RequestTable
+            requests={paginatedRequests}
+            onOpen={setSelectedRequest}
+            onMakeOffer={handleMakeOffer}
+            onPrepareOffer={setPrepareOfferRequest}
+          />
+          {totalPages > 1 && (
+            <RequestPagination
+              currentPage={activePage}
+              totalPages={totalPages}
+              totalItems={filteredRequests.length}
+              pageStart={pageStartIndex + 1}
+              pageEnd={pageEndIndex}
+              onPageChange={goToPage}
+            />
+          )}
+        </div>
       )}
 
       <RequestDetailsDialog
@@ -233,6 +450,19 @@ const BookingRequestsList: React.FC<Props> = ({
         onClose={() => setSelectedRequest(null)}
         onDecline={handleDecline}
         onMakeOffer={handleMakeOffer}
+        onPrepareOffer={(request) => setPrepareOfferRequest(request)}
+      />
+      <PrepareOfferDialog
+        request={prepareOfferRequest}
+        isSaving={Boolean(
+          prepareOfferRequest &&
+            preparingRequestIds.includes(prepareOfferRequest.id)
+        )}
+        onClose={() => setPrepareOfferRequest(null)}
+        onConfirm={async (request, eta) => {
+          const didUpdate = await handleMarkPreparing(request, eta);
+          if (didUpdate) setPrepareOfferRequest(null);
+        }}
       />
     </section>
   );
@@ -245,38 +475,167 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+  <div className="rounded-md border border-white/10 bg-white/[0.025] px-3! py-2.5!">
+    <p className="text-[10px]! uppercase tracking-[0.14em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-1 text-lg! font-semibold leading-none text-white">
+      {value}
+    </p>
   </div>
 );
+
+const PrepareOfferDialog = ({
+  request,
+  isSaving,
+  onClose,
+  onConfirm,
+}: {
+  request: BookingRequest | null;
+  isSaving: boolean;
+  onClose: () => void;
+  onConfirm: (request: BookingRequest, eta: string) => void | Promise<void>;
+}) => {
+  const [selectedEta, setSelectedEta] = useState("");
+
+  useEffect(() => {
+    setSelectedEta(request?.offerPreparationEta || "");
+  }, [request?.id, request?.offerPreparationEta]);
+
+  return (
+    <Transition appear show={!!request} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="ease-in duration-150"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <Dialog.Panel className="w-full max-w-md rounded-lg border border-white/10 bg-[#111111] p-5 text-white shadow-2xl">
+                {request && (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                          Client update
+                        </p>
+                        <Dialog.Title className="mt-2 text-xl! font-semibold! text-white">
+                          {request.offerPreparationStatus === "preparing"
+                            ? `Update offer timing for ${
+                                request.clientName || "Client"
+                              }`
+                            : `Prepare offer for ${
+                                request.clientName || "Client"
+                              }`}
+                        </Dialog.Title>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                        aria-label="Close prepare offer dialog"
+                      >
+                        <X size={17} />
+                      </button>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-6 text-neutral-400">
+                      Let {request.clientName || "the client"} know you are
+                      preparing an offer. This keeps the request active on their
+                      dashboard and shows when they can expect your offer.
+                    </p>
+
+                    <label className="mt-5 block">
+                      <span className="text-sm font-semibold text-white">
+                        When should they expect the offer?
+                      </span>
+                      <select
+                        value={selectedEta}
+                        onChange={(event) => setSelectedEta(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+                      >
+                        <option value="">Choose expected timing</option>
+                        {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
+                          <option key={eta} value={eta} className="bg-[#111]">
+                            {eta}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!selectedEta || isSaving}
+                        onClick={() => onConfirm(request, selectedEta)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Send size={15} />
+                        {isSaving ? "Updating..." : "Notify client"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
 
 const RequestTable = ({
   requests,
   onOpen,
   onMakeOffer,
+  onPrepareOffer,
 }: {
   requests: BookingRequest[];
   onOpen: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(220px,1.2fr) 96px minmax(210px,1.1fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(190px,.8fr)";
+    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1180px]">
+    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
+        <div className="min-w-[1240px]">
           <div
-            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
             style={{ gridTemplateColumns: columns }}
           >
+            <span>Created</span>
             <span>Client</span>
             <span>Reference</span>
-            <span>Availability</span>
             <span>Idea</span>
+            <span>Availability</span>
             <span>Budget</span>
             <span className="text-right">Actions</span>
           </div>
@@ -289,6 +648,7 @@ const RequestTable = ({
                 columns={columns}
                 onOpen={() => onOpen(request)}
                 onMakeOffer={() => onMakeOffer(request)}
+                onPrepareOffer={() => onPrepareOffer(request)}
               />
             ))}
           </div>
@@ -298,24 +658,117 @@ const RequestTable = ({
   );
 };
 
+const RequestPagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageStart,
+  pageEnd,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageStart: number;
+  pageEnd: number;
+  onPageChange: (page: number) => void;
+}) => {
+  const pageItems = getPaginationItems(currentPage, totalPages);
+
+  return (
+    <nav
+      aria-label="Tattoo requests pagination"
+      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.025] px-3! py-3! sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-neutral-500">
+        Showing{" "}
+        <span className="font-semibold text-neutral-300">
+          {pageStart}-{pageEnd}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
+        requests
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronLeft size={14} aria-hidden="true" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-1">
+          {pageItems.map((item) =>
+            typeof item === "number" ? (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onPageChange(item)}
+                aria-current={item === currentPage ? "page" : undefined}
+                className={`h-9 min-w-9 rounded-md px-3! text-xs! font-semibold transition ${
+                  item === currentPage
+                    ? "bg-white text-black"
+                    : "border border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                }`}
+              >
+                {item}
+              </button>
+            ) : (
+              <span
+                key={item}
+                className="flex h-9 min-w-8 items-center justify-center text-xs font-semibold text-neutral-600"
+              >
+                ...
+              </span>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
+  );
+};
+
 const RequestRow = ({
   request,
   columns,
   onOpen,
   onMakeOffer,
+  onPrepareOffer,
 }: {
   request: BookingRequest;
   columns: string;
   onOpen: () => void;
   onMakeOffer: () => void;
+  onPrepareOffer: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const isPreparingOffer = request.offerPreparationStatus === "preparing";
 
   return (
     <div
       className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
       style={{ gridTemplateColumns: columns }}
     >
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <p className="truncate text-sm font-semibold text-white">
+          {formatShortDate(request.createdAt)}
+        </p>
+      </button>
+
       <button
         type="button"
         onClick={onOpen}
@@ -329,9 +782,6 @@ const RequestRow = ({
         <div className="min-w-0">
           <p className="truncate font-semibold text-white">
             {request.clientName || "Client"}
-          </p>
-          <p className="text-sm text-neutral-400">
-            {formatShortDate(request.createdAt)}
           </p>
         </div>
       </button>
@@ -355,23 +805,40 @@ const RequestRow = ({
         )}
       </button>
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm font-medium text-white">
-          {formatCompactDateRange(request.preferredDateRange || [])}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {formatAvailabilitySummary(request)}
-        </p>
-      </div>
+      <PreviewMetaRows
+        rows={[
+          {
+            label: "Placement",
+            value: request.bodyPlacement || "Placement open",
+          },
+          {
+            label: "Size",
+            value: request.size || "Size open",
+          },
+          {
+            label: "Message",
+            value: request.description || "No message provided.",
+          },
+        ]}
+      />
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm text-neutral-300">
-          {request.description || "No description provided."}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
-        </p>
-      </div>
+      <PreviewMetaRows
+        labelWidth="3.75rem"
+        rows={[
+          {
+            label: "Dates",
+            value: formatCompactDateRange(request.preferredDateRange || []),
+          },
+          {
+            label: "Days",
+            value: formatAvailableDaysSummary(request),
+          },
+          {
+            label: "Time",
+            value: formatAvailableTimeWindow(request),
+          },
+        ]}
+      />
 
       <div className="min-w-0 pr-3">
         <p className="truncate text-sm font-semibold text-white">
@@ -384,9 +851,41 @@ const RequestRow = ({
             {request.flashTitle || "Flash request"}
           </p>
         )}
+        {isPreparingOffer && (
+          <div className="mt-2 flex min-w-0">
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[11px] font-medium text-amber-50">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
+              <span className="truncate">
+                {request.offerPreparationEta
+                  ? `Preparing: ${request.offerPreparationEta}`
+                  : "Preparing offer"}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 pr-2">
+        <button
+          type="button"
+          onClick={onPrepareOffer}
+          className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
+            isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
+          }`}
+          aria-label={
+            isPreparingOffer
+              ? "Update offer preparation timing"
+              : "Prepare offer and notify client"
+          }
+        >
+          <Send size={14} className="text-amber-200" />
+          {isPreparingOffer ? "Timing" : "Prepare"}
+          <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+            {isPreparingOffer
+              ? "Update when the client should expect your offer."
+              : "Let the client know you are preparing an offer."}
+          </span>
+        </button>
         <button
           type="button"
           onClick={onOpen}
@@ -408,18 +907,43 @@ const RequestRow = ({
   );
 };
 
+const PreviewMetaRows = ({
+  labelWidth = "5.25rem",
+  rows,
+}: {
+  labelWidth?: string;
+  rows: { label: string; value: string }[];
+}) => (
+  <dl className="grid min-w-0 gap-1 pr-3 text-xs leading-5">
+    {rows.map((row) => (
+      <div
+        key={row.label}
+        className="grid min-w-0 items-baseline gap-2"
+        style={{ gridTemplateColumns: `${labelWidth} minmax(0, 1fr)` }}
+      >
+        <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
+          {row.label}
+        </dt>
+        <dd className="truncate font-medium text-neutral-200">{row.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
+
 const RequestDetailsDialog = ({
   request,
   isDeclining,
   onClose,
   onDecline,
   onMakeOffer,
+  onPrepareOffer,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   if (request?.sourceType === "flash") {
     return (
@@ -429,6 +953,7 @@ const RequestDetailsDialog = ({
         onClose={onClose}
         onDecline={onDecline}
         onMakeOffer={onMakeOffer}
+        onPrepareOffer={onPrepareOffer}
       />
     );
   }
@@ -585,6 +1110,14 @@ const RequestDetailsDialog = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => onPrepareOffer(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                        >
+                          <Send size={16} className="text-amber-200" />
+                          Prepare offer
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onMakeOffer(request)}
                           className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                         >
@@ -611,12 +1144,14 @@ const FlashRequestDetailsDialog = ({
   onClose,
   onDecline,
   onMakeOffer,
+  onPrepareOffer,
 }: {
   request: BookingRequest | null;
   isDeclining: boolean;
   onClose: () => void;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
+  onPrepareOffer: (request: BookingRequest) => void;
 }) => (
   <Transition appear show={!!request} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -762,6 +1297,14 @@ const FlashRequestDetailsDialog = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => onPrepareOffer(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                        >
+                          <Send size={16} className="text-amber-200" />
+                          Prepare offer
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onMakeOffer(request)}
                           className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                         >
@@ -875,13 +1418,37 @@ const EmptyRequests = ({ isFiltering }: { isFiltering: boolean }) => (
   </div>
 );
 
+const getPaginationItems = (
+  currentPage: number,
+  totalPages: number
+): Array<number | "start-ellipsis" | "end-ellipsis"> => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "start-ellipsis" | "end-ellipsis"> = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) items.push("start-ellipsis");
+  for (let page = start; page <= end; page += 1) {
+    items.push(page);
+  }
+  if (end < totalPages - 1) items.push("end-ellipsis");
+  items.push(totalPages);
+
+  return items;
+};
+
 const formatBudget = (budget?: string | number) => {
   if (typeof budget === "number") return `$${budget}`;
   if (!budget) return "Flexible";
   if (budget.endsWith("+")) return `$${budget}`;
   if (budget.includes("-")) {
     const [min, max] = budget.split("-");
-    return `$${min}-$${max}`;
+    const minAmount = min.trim().replace(/^\$/, "");
+    const maxAmount = max.trim().replace(/^\$/, "");
+    return `$${minAmount} - $${maxAmount}`;
   }
   return budget;
 };
@@ -891,16 +1458,19 @@ const formatFlashPrice = (price?: number | null) =>
     ? `$${price}`
     : "Price not listed";
 
-const formatAvailabilitySummary = (request: BookingRequest) => {
-  const days = request.availableDays?.length
-    ? request.availableDays.join(", ")
+const formatAvailableDaysSummary = (request: BookingRequest) =>
+  request.availableDays?.length
+    ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
-  const time =
-    request.availableTime?.from || request.availableTime?.to
-      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
-      : "Any time";
 
-  return `${days} · ${time}`;
+const formatAvailableTimeWindow = (request: BookingRequest) => {
+  const from = request.availableTime?.from;
+  const to = request.availableTime?.to;
+
+  if (from && to) return `${formatTime(from)} - ${formatTime(to)}`;
+  if (from) return `${formatTime(from)} - Any time`;
+  if (to) return `Any time - ${formatTime(to)}`;
+  return "Any time";
 };
 
 const formatDateRange = (dates: string[]): string => {

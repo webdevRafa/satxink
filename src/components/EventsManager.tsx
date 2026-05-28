@@ -6,20 +6,28 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import {
   CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   DollarSign,
   Eye,
   EyeOff,
+  Info,
+  Loader2,
   MapPin,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
   Users,
@@ -32,7 +40,7 @@ import {
   ref,
   uploadBytes,
 } from "firebase/storage";
-import { db, storage } from "../firebase/firebaseConfig";
+import { db, functions, storage } from "../firebase/firebaseConfig";
 import type {
   ArtistEvent,
   EventBookingMode,
@@ -41,6 +49,7 @@ import type {
   EventStatus,
   EventType,
 } from "../types/Event";
+import type { EventRegistration } from "../types/EventRegistration";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type EventFilter = "all" | EventStatus;
@@ -69,6 +78,17 @@ type EventFormState = {
   visibility: "public" | "private";
 };
 
+type EventFormErrorKey =
+  | keyof EventFormState
+  | "dateRange"
+  | "timeRange"
+  | "location"
+  | "stripe";
+
+type EventFormErrors = Partial<Record<EventFormErrorKey, string>>;
+
+type EventEditorStepKey = "basics" | "schedule" | "pricing" | "publish";
+
 type ArtistLite = {
   shopId?: string;
   studioName?: string;
@@ -94,7 +114,7 @@ const emptyForm: EventFormState = {
   address: "",
   mapLink: "",
   priceType: "varies",
-  bookingMode: "deposit_required",
+  bookingMode: "rsvp",
   price: "",
   depositRequired: false,
   depositAmount: "",
@@ -125,9 +145,69 @@ const priceTypeLabels: Record<EventPriceType, string> = {
 const bookingModeLabels: Record<EventBookingMode, string> = {
   info_only: "Info only",
   rsvp: "Free RSVP",
-  deposit_required: "Deposit required",
+  deposit_required: "Deposit reservation",
   flash_reservation: "Flash reservation",
   paid_ticket: "Paid ticket",
+};
+
+const eventAttendanceModes: Array<{
+  value: EventBookingMode;
+  label: string;
+  disabled?: boolean;
+  note?: string;
+}> = [
+  { value: "info_only", label: "Info only" },
+  { value: "rsvp", label: "Free RSVP" },
+  {
+    value: "deposit_required",
+    label: "Deposit reservation",
+    disabled: true,
+    note: "Coming soon",
+  },
+  {
+    value: "flash_reservation",
+    label: "Flash reservation",
+    disabled: true,
+    note: "Coming soon",
+  },
+  {
+    value: "paid_ticket",
+    label: "Paid ticket",
+  },
+];
+
+const eventEditorSteps: Array<{
+  key: EventEditorStepKey;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "basics",
+    title: "Event story",
+    description: "Name the event, choose the format, and add the visual.",
+  },
+  {
+    key: "schedule",
+    title: "Time and place",
+    description: "Set when it happens and where visitors should go.",
+  },
+  {
+    key: "pricing",
+    title: "Access",
+    description: "Choose how visitors access the event.",
+  },
+  {
+    key: "publish",
+    title: "Review",
+    description: "Add search tags, confirm visibility, and publish when ready.",
+  },
+];
+
+const stepErrorKeys: Record<EventEditorStepKey, EventFormErrorKey[]> = {
+  basics: ["title"],
+  schedule: ["startDate", "dateRange", "timeRange", "location"],
+  pricing: ["price", "depositAmount", "capacity", "stripe"],
+  publish: [],
 };
 
 const statusStyles: Record<EventStatus, string> = {
@@ -141,10 +221,18 @@ const EventsManager = ({
   uid,
   artist,
   onOpenPayments,
+  ownerType = "artist",
+  shopOverride,
+  managerTitle = "Artist events",
+  managerDescription = "Promote flash days, guest spots, conventions, pop-ups, and shop events from one place.",
 }: {
   uid: string;
   artist?: ArtistLite | null;
   onOpenPayments?: () => void;
+  ownerType?: "artist" | "shop";
+  shopOverride?: ShopDefaults | null;
+  managerTitle?: string;
+  managerDescription?: string;
 }) => {
   const [events, setEvents] = useState<ArtistEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +245,10 @@ const EventsManager = ({
   const [isSaving, setIsSaving] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<ArtistEvent | null>(null);
   const [shopDefaults, setShopDefaults] = useState<ShopDefaults | null>(null);
+  const [registrationsByEventId, setRegistrationsByEventId] = useState<
+    Record<string, EventRegistration[]>
+  >({});
+  const [checkingInRegistrationId, setCheckingInRegistrationId] = useState("");
   const stripeReady = isStripeConnectReady(artist);
 
   const fetchEvents = async () => {
@@ -164,15 +256,47 @@ const EventsManager = ({
 
     try {
       setLoading(true);
-      const eventsQuery = query(
-        collection(db, "events"),
-        where("artistId", "==", uid)
-      );
-      const snapshot = await getDocs(eventsQuery);
-      const result = snapshot.docs.map((eventDoc) => ({
-        id: eventDoc.id,
-        ...eventDoc.data(),
-      })) as ArtistEvent[];
+      const snapshots =
+        ownerType === "shop" && shopOverride?.id
+          ? await Promise.all([
+              getDocs(
+                query(
+                  collection(db, "events"),
+                  where("shopId", "==", shopOverride.id),
+                  where("ownerType", "==", "shop")
+                )
+              ),
+              getDocs(
+                query(
+                  collection(db, "events"),
+                  where("createdBy", "==", uid),
+                  where("ownerType", "==", "shop")
+                )
+              ),
+            ])
+          : [
+              await getDocs(
+                query(collection(db, "events"), where("artistId", "==", uid))
+              ),
+            ];
+      const eventsById = new Map<string, ArtistEvent>();
+      snapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((eventDoc) => {
+          const event = {
+            id: eventDoc.id,
+            ...eventDoc.data(),
+          } as ArtistEvent;
+
+          if (
+            ownerType !== "shop" ||
+            !shopOverride?.id ||
+            eventBelongsToShop(event, shopOverride)
+          ) {
+            eventsById.set(eventDoc.id, event);
+          }
+        });
+      });
+      const result = Array.from(eventsById.values());
 
       setEvents(result.sort((a, b) => getEventTime(a) - getEventTime(b)));
     } catch (err) {
@@ -186,12 +310,50 @@ const EventsManager = ({
   useEffect(() => {
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, ownerType, shopOverride?.id]);
+
+  useEffect(() => {
+    if (!uid) return undefined;
+
+    const unsubscribe = onSnapshot(
+      query(collection(db, "eventRegistrations"), where("hostUserId", "==", uid)),
+      (snapshot) => {
+        const grouped: Record<string, EventRegistration[]> = {};
+        snapshot.docs.forEach((registrationDoc) => {
+          const registration = {
+            id: registrationDoc.id,
+            ...registrationDoc.data(),
+          } as EventRegistration;
+
+          if (registration.status === "cancelled" || registration.status === "refunded") return;
+          grouped[registration.eventId] = [
+            ...(grouped[registration.eventId] || []),
+            registration,
+          ];
+        });
+
+        Object.values(grouped).forEach((items) =>
+          items.sort((a, b) =>
+            String(a.clientName || "").localeCompare(String(b.clientName || ""))
+          )
+        );
+        setRegistrationsByEventId(grouped);
+      },
+      (error) => console.error("Event attendee listener failed:", error)
+    );
+
+    return () => unsubscribe();
   }, [uid]);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchShopDefaults = async () => {
+      if (shopOverride) {
+        setShopDefaults(shopOverride);
+        return;
+      }
+
       if (!artist?.shopId) {
         setShopDefaults(null);
         return;
@@ -219,7 +381,7 @@ const EventsManager = ({
     return () => {
       isMounted = false;
     };
-  }, [artist?.shopId]);
+  }, [artist?.shopId, shopOverride]);
 
   useEffect(() => {
     if (!thumbnailFile) {
@@ -250,6 +412,8 @@ const EventsManager = ({
     setEditingEvent(null);
     setForm({
       ...emptyForm,
+      bookingMode: ownerType === "shop" ? "info_only" : emptyForm.bookingMode,
+      depositRequired: ownerType === "shop" ? false : emptyForm.depositRequired,
       shopName: shopDefaults?.name || artist?.studioName || "",
       address: shopDefaults?.address || "",
       mapLink: shopDefaults?.mapLink || "",
@@ -259,6 +423,8 @@ const EventsManager = ({
   };
 
   const openEditModal = (event: ArtistEvent) => {
+    const bookingMode = event.bookingMode || getDefaultBookingMode(event.eventType);
+
     setEditingEvent(event);
     setForm({
       title: event.title || "",
@@ -276,14 +442,15 @@ const EventsManager = ({
         (event.priceType as string) === "deposit_required"
           ? "fixed"
           : event.priceType || "varies",
-      bookingMode: event.bookingMode || getDefaultBookingMode(event.eventType),
+      bookingMode,
       price: typeof event.price === "number" ? String(event.price) : "",
       depositRequired:
-        Boolean(event.depositRequired) ||
-        (event.priceType as string) === "deposit_required" ||
-        (typeof event.depositAmount === "number" && event.depositAmount > 0),
+        bookingMode !== "info_only" &&
+        (Boolean(event.depositRequired) ||
+          (event.priceType as string) === "deposit_required" ||
+          (typeof event.depositAmount === "number" && event.depositAmount > 0)),
       depositAmount:
-        typeof event.depositAmount === "number"
+        bookingMode !== "info_only" && typeof event.depositAmount === "number"
           ? String(event.depositAmount)
           : "",
       capacity:
@@ -311,47 +478,20 @@ const EventsManager = ({
 
   const handleSave = async () => {
     if (!uid || isSaving) return;
-    if (!form.title.trim()) {
-      toast.error("Add an event title.");
-      return;
-    }
-    if (!form.startDate) {
-      toast.error("Choose a start date.");
+
+    const validationErrors = getEventFormErrors(form, stripeReady);
+    const firstValidationError = getFirstEventFormError(validationErrors);
+
+    if (firstValidationError) {
+      toast.error(firstValidationError);
       return;
     }
 
     const parsedCapacity = parseOptionalNumber(form.capacity);
-
-    if (!parsedCapacity || parsedCapacity <= 0) {
-      toast.error("Add a valid event capacity.");
-      return;
-    }
-
     const bookingRequiresDeposit =
       form.bookingMode === "deposit_required" ||
       form.bookingMode === "flash_reservation";
-    const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
-
-    if (
-      bookingRequiresDeposit &&
-      (!Number(form.depositAmount || 0) || Number(form.depositAmount || 0) <= 5)
-    ) {
-      toast.error("Paid event deposits must be greater than the platform fee.");
-      return;
-    }
-
-    if (
-      form.bookingMode === "paid_ticket" &&
-      (!Number(form.price || 0) || Number(form.price || 0) <= 5)
-    ) {
-      toast.error("Paid event prices must be greater than the platform fee.");
-      return;
-    }
-
-    if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
-      toast.error("Connect Stripe before publishing paid events.");
-      return;
-    }
+    const bookingAllowsDeposit = bookingRequiresDeposit;
 
     try {
       setIsSaving(true);
@@ -361,7 +501,9 @@ const EventsManager = ({
         : null;
 
       const payload = {
-        artistId: uid,
+        artistId: ownerType === "artist" ? uid : "",
+        createdBy: uid,
+        ownerType,
         title: form.title.trim(),
         description: form.description.trim() || "",
         eventType: form.eventType,
@@ -372,8 +514,10 @@ const EventsManager = ({
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         locationType: form.locationType,
         shopId:
-          form.locationType === "shop"
-            ? artist?.shopId || shopDefaults?.id || ""
+          ownerType === "shop"
+            ? shopOverride?.id || shopDefaults?.id || ""
+            : form.locationType === "shop"
+            ? shopOverride?.id || artist?.shopId || shopDefaults?.id || ""
             : "",
         shopName: form.shopName.trim() || "",
         address: form.address.trim() || "",
@@ -386,13 +530,16 @@ const EventsManager = ({
             : parseOptionalNumber(form.price),
         depositRequired:
           bookingRequiresDeposit ||
-          (form.depositRequired && Number(form.depositAmount || 0) > 0),
+          (bookingAllowsDeposit &&
+            form.depositRequired &&
+            Number(form.depositAmount || 0) > 0),
         depositAmount:
-          (bookingRequiresDeposit || form.depositRequired) &&
+          (bookingRequiresDeposit ||
+            (bookingAllowsDeposit && form.depositRequired)) &&
           Number(form.depositAmount || 0) > 0
             ? parseOptionalNumber(form.depositAmount)
             : null,
-        capacity: parsedCapacity,
+        capacity: parsedCapacity || null,
         spotsClaimed: editingEvent?.spotsClaimed || 0,
         tags: form.tags,
         status: form.status,
@@ -482,17 +629,47 @@ const EventsManager = ({
     }
   };
 
+  const handleCheckInRegistration = async (registration: EventRegistration) => {
+    if (!registration.qrToken) {
+      toast.error("This event pass is missing its check-in token.");
+      return;
+    }
+
+    setCheckingInRegistrationId(registration.id);
+    try {
+      const checkIn = httpsCallable<
+        { registrationId: string; qrToken: string },
+        { status: string; alreadyCheckedIn?: boolean }
+      >(functions, "checkInEventRegistration");
+      const result = await checkIn({
+        registrationId: registration.id,
+        qrToken: registration.qrToken,
+      });
+      toast.success(
+        result.data.alreadyCheckedIn
+          ? "Attendee was already checked in."
+          : "Attendee checked in."
+      );
+    } catch (error) {
+      console.error("Event check-in failed:", error);
+      toast.error(
+        getEventManagerCallableErrorMessage(error, "Could not check in attendee.")
+      );
+    } finally {
+      setCheckingInRegistrationId("");
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mt-5 max-w-[800px]">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/40">
-            Artist events
+            {managerTitle}
           </p>
           <h2 className="mt-2 text-3xl! font-semibold text-white">Events</h2>
           <p className="max-w-2xl text-sm text-white/50">
-            Promote flash days, guest spots, conventions, pop-ups, and shop
-            events from one place.
+            {managerDescription}
           </p>
         </div>
         <button
@@ -564,6 +741,9 @@ const EventsManager = ({
               onDelete={() => setEventToDelete(event)}
               onStatusChange={(status) => handleStatusChange(event, status)}
               canPublishPaidEvent={stripeReady}
+              registrations={registrationsByEventId[event.id] || []}
+              checkingInRegistrationId={checkingInRegistrationId}
+              onCheckInRegistration={handleCheckInRegistration}
             />
           ))}
         </div>
@@ -582,6 +762,7 @@ const EventsManager = ({
           isSaving={isSaving}
           stripeReady={stripeReady}
           onOpenPayments={onOpenPayments}
+          ownerType={ownerType}
         />
       )}
 
@@ -622,18 +803,27 @@ const EventCard = ({
   onDelete,
   onStatusChange,
   canPublishPaidEvent,
+  registrations,
+  checkingInRegistrationId,
+  onCheckInRegistration,
 }: {
   event: ArtistEvent;
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: EventStatus) => void;
   canPublishPaidEvent: boolean;
+  registrations: EventRegistration[];
+  checkingInRegistrationId: string;
+  onCheckInRegistration: (registration: EventRegistration) => void;
 }) => {
   const priceLabel = getPriceLabel(event);
   const locationLabel = getLocationLabel(event);
   const requiresPayment = eventModeRequiresPayment(
     event.bookingMode || getDefaultBookingMode(event.eventType)
   );
+  const checkedInCount = registrations.filter(
+    (registration) => registration.status === "checked_in"
+  ).length;
 
   return (
     <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
@@ -701,11 +891,69 @@ const EventCard = ({
             />
             <EventMeta
               icon={<Users size={15} />}
-              text={`${event.spotsClaimed || 0}/${
-                event.capacity || 0
-              } spots claimed`}
+              text={getEventCapacityLabel(event, registrations.length)}
             />
           </div>
+
+          {registrations.length > 0 && (
+            <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
+                  Attendees
+                </p>
+                <span className="text-xs text-white/45">
+                  {checkedInCount}/{registrations.length} checked in
+                </span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {registrations.slice(0, 4).map((registration) => {
+                  const canCheckIn =
+                    registration.status === "reserved" ||
+                    registration.status === "paid";
+
+                  return (
+                    <div
+                      key={registration.id}
+                      className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white/80">
+                          {registration.clientName || "Client"}
+                        </p>
+                        <p className="text-xs capitalize text-white/40">
+                          {registration.status.replace("_", " ")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onCheckInRegistration(registration)}
+                        disabled={
+                          !canCheckIn ||
+                          registration.status === "checked_in" ||
+                          checkingInRegistrationId === registration.id
+                        }
+                        className="rounded-md bg-white px-3! py-1.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {checkingInRegistrationId === registration.id
+                          ? "Checking..."
+                          : registration.status === "checked_in"
+                          ? "Checked in"
+                          : registration.status === "pending_payment"
+                          ? "Unpaid"
+                          : "Check in"}
+                      </button>
+                    </div>
+                  );
+                })}
+                {registrations.length > 4 && (
+                  <p className="text-xs text-white/35">
+                    +{registrations.length - 4} more attendee
+                    {registrations.length - 4 === 1 ? "" : "s"}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {event.description && (
             <p className="mt-4 line-clamp-2 text-sm text-white/45">
@@ -781,6 +1029,7 @@ const EventEditorModal = ({
   isSaving,
   stripeReady,
   onOpenPayments,
+  ownerType,
 }: {
   form: EventFormState;
   setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
@@ -793,16 +1042,70 @@ const EventEditorModal = ({
   isSaving: boolean;
   stripeReady: boolean;
   onOpenPayments?: () => void;
-}) => (
+  ownerType: "artist" | "shop";
+}) => {
+  const [activeStep, setActiveStep] = useState<EventEditorStepKey>("basics");
+  const [stepDirection, setStepDirection] = useState<"forward" | "back">(
+    "forward"
+  );
+  const formErrors = getEventFormErrors(form, stripeReady);
+  const currentStepIndex = eventEditorSteps.findIndex(
+    (step) => step.key === activeStep
+  );
+  const currentStep = eventEditorSteps[currentStepIndex] || eventEditorSteps[0];
+  const hasCurrentStepErrors = stepHasErrors(activeStep, formErrors);
+  const canSave = !getFirstEventFormError(formErrors);
+  const isFinalStep = currentStepIndex === eventEditorSteps.length - 1;
+  const eventOwnerLabel = ownerType === "shop" ? "shop" : "artist";
+
+  const goToStep = (nextStep: EventEditorStepKey) => {
+    const nextIndex = eventEditorSteps.findIndex(
+      (step) => step.key === nextStep
+    );
+    setStepDirection(nextIndex > currentStepIndex ? "forward" : "back");
+    setActiveStep(nextStep);
+  };
+
+  const goToNextStep = () => {
+    if (hasCurrentStepErrors) {
+      toast.error(
+        getFirstStepError(activeStep, formErrors) ||
+          "Finish the required fields before continuing."
+      );
+      return;
+    }
+
+    const nextStep = eventEditorSteps[currentStepIndex + 1];
+    if (nextStep) goToStep(nextStep.key);
+  };
+
+  const goToPreviousStep = () => {
+    const previousStep = eventEditorSteps[currentStepIndex - 1];
+    if (previousStep) goToStep(previousStep.key);
+  };
+
+  return (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
-    <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
+    <style>{`
+      @keyframes event-step-in-forward {
+        from { opacity: 0; transform: translateX(18px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes event-step-in-back {
+        from { opacity: 0; transform: translateX(-18px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `}</style>
+    <div className="flex h-[92vh] max-h-[900px] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#101010] shadow-2xl">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-white/35">
             {editingEvent ? "Edit event" : "New event"}
           </p>
           <h3 className="text-xl font-semibold text-white">
-            {editingEvent ? editingEvent.title : "Create an artist event"}
+            {editingEvent
+              ? editingEvent.title
+              : `Create a ${eventOwnerLabel} event`}
           </h3>
         </div>
         <button
@@ -815,8 +1118,15 @@ const EventEditorModal = ({
         </button>
       </div>
 
-      <div className="grid max-h-[calc(92vh-82px)] overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
+      <EventStepTabs
+        activeStep={activeStep}
+        errors={formErrors}
+        onSelect={goToStep}
+      />
+
+      <div className="request-modal-scrollbar grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="border-b border-white/10 p-5 lg:border-b-0 lg:border-r">
+          <div className="lg:sticky lg:top-5">
           <label className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.035] text-center transition hover:border-white/35">
             {thumbnailPreview || editingEvent?.thumbnailUrl ? (
               <img
@@ -853,11 +1163,36 @@ const EventEditorModal = ({
               Remove selected image
             </button>
           )}
+          </div>
         </div>
 
-        <div className="space-y-5 p-5">
+        <div
+          key={activeStep}
+          className="space-y-5 p-5"
+          style={{
+            animation: `${
+              stepDirection === "forward"
+                ? "event-step-in-forward"
+                : "event-step-in-back"
+            } 240ms cubic-bezier(0.22, 1, 0.36, 1)`,
+          }}
+        >
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+              Step {currentStepIndex + 1} of {eventEditorSteps.length}
+            </p>
+            <h4 className="mt-2 text-2xl! font-semibold text-white">
+              {currentStep.title}
+            </h4>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              {currentStep.description}
+            </p>
+          </div>
+
+          {activeStep === "basics" && (
+            <>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Title">
+            <Field label="Title" error={formErrors.title}>
               <input
                 value={form.title}
                 onChange={(event) =>
@@ -896,25 +1231,41 @@ const EventEditorModal = ({
           </div>
 
           <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <Field label="Booking mode">
+            <Field label="Access mode">
               <select
                 value={form.bookingMode}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextBookingMode = event.target.value as EventBookingMode;
+
                   setForm((current) => ({
                     ...current,
-                    bookingMode: event.target.value as EventBookingMode,
+                    bookingMode: nextBookingMode,
+                    priceType:
+                      nextBookingMode === "paid_ticket"
+                        ? "fixed"
+                        : current.priceType,
                     depositRequired:
-                      event.target.value === "deposit_required" ||
-                      event.target.value === "flash_reservation"
+                      nextBookingMode === "deposit_required" ||
+                      nextBookingMode === "flash_reservation"
                         ? true
-                        : current.depositRequired,
-                  }))
-                }
+                        : false,
+                    depositAmount:
+                      nextBookingMode === "deposit_required" ||
+                      nextBookingMode === "flash_reservation"
+                        ? current.depositAmount
+                        : "",
+                  }));
+                }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
-                {Object.entries(bookingModeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
+                {eventAttendanceModes.map((mode) => (
+                  <option
+                    key={mode.value}
+                    value={mode.value}
+                    disabled={Boolean(mode.disabled && mode.value !== form.bookingMode)}
+                  >
+                    {mode.label}
+                    {mode.note ? ` - ${mode.note}` : ""}
                   </option>
                 ))}
               </select>
@@ -928,32 +1279,6 @@ const EventEditorModal = ({
               </p>
             </div>
           </div>
-
-          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
-            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-amber-100">
-                    Stripe Connect is required for paid event booking.
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-amber-100/70">
-                    You can save this event as a draft, but publishing it with
-                    deposits, flash reservations, or paid tickets requires a
-                    connected Stripe account.
-                  </p>
-                </div>
-                {onOpenPayments && (
-                  <button
-                    type="button"
-                    onClick={onOpenPayments}
-                    className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
-                  >
-                    Go to Payments
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           <Field label="Description">
             <textarea
@@ -970,8 +1295,13 @@ const EventEditorModal = ({
             />
           </Field>
 
+            </>
+          )}
+
+          {activeStep === "schedule" && (
+            <>
           <div className="grid gap-4 md:grid-cols-4">
-            <Field label="Start date">
+            <Field label="Start date" error={formErrors.startDate}>
               <input
                 type="date"
                 value={form.startDate}
@@ -1025,8 +1355,14 @@ const EventEditorModal = ({
             </Field>
           </div>
 
+          {(formErrors.dateRange || formErrors.timeRange) && (
+            <ValidationCallout
+              message={formErrors.dateRange || formErrors.timeRange || ""}
+            />
+          )}
+
           <div className="grid gap-4 md:grid-cols-3">
-            <Field label="Location type">
+            <Field label="Location type" error={formErrors.location}>
               <select
                 value={form.locationType}
                 onChange={(event) =>
@@ -1085,8 +1421,69 @@ const EventEditorModal = ({
             />
           </Field>
 
-          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]">
-            <Field label="Price type">
+            </>
+          )}
+
+          {activeStep === "pricing" && (
+            <>
+          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
+            <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-amber-100">
+                    Stripe Connect is required for paid event booking.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-100/70">
+                    You can save this event as a draft, but publishing it with
+                    deposits, flash reservations, or paid tickets requires a
+                    connected Stripe account.
+                  </p>
+                </div>
+                {onOpenPayments && (
+                  <button
+                    type="button"
+                    onClick={onOpenPayments}
+                    className="shrink-0 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Go to Payments
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
+            <p className="text-sm font-semibold text-sky-100">
+              {form.bookingMode === "info_only"
+                ? "Info-only events do not collect money on SATX Ink."
+                : form.bookingMode === "rsvp"
+                ? "Free RSVP creates SATX Ink event passes."
+                : "Paid tickets create SATX Ink event passes."}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-sky-100/70">
+              {form.bookingMode === "info_only"
+                ? "Use price only as public display context, such as Free, Varies, or Starting at. Deposits are hidden because checkout happens outside the platform for info-only events."
+                : form.bookingMode === "rsvp"
+                ? "Visitors can claim a free pass, and you get attendee capacity tracking plus check-in tools."
+                : "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host. Deposit and flash-specific reservations are still staged for a later workflow."}
+            </p>
+          </div>
+
+          <div
+            className={`grid gap-4 ${
+              form.bookingMode === "deposit_required" ||
+              form.bookingMode === "flash_reservation"
+                ? "md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]"
+                : "md:grid-cols-[1.15fr_0.85fr_0.85fr]"
+            }`}
+          >
+            <Field
+              label={
+                form.bookingMode === "info_only"
+                  ? "Displayed price"
+                  : "Price type"
+              }
+            >
               <select
                 value={form.priceType}
                 onChange={(event) =>
@@ -1110,76 +1507,92 @@ const EventEditorModal = ({
               </select>
             </Field>
 
-            <Field label="Price">
-              <input
-                type="number"
-                min="0"
-                disabled={
-                  form.priceType === "free" || form.priceType === "varies"
+            {(form.priceType === "fixed" ||
+              form.priceType === "starting_at") && (
+              <Field
+                label={
+                  form.bookingMode === "paid_ticket"
+                    ? "Ticket price"
+                    : form.bookingMode === "info_only"
+                    ? "Display amount"
+                    : "Price"
                 }
-                value={form.price}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    price: event.target.value,
-                  }))
-                }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
-                placeholder={
-                  form.priceType === "starting_at"
-                    ? "Starting price"
-                    : form.priceType === "fixed"
-                    ? "Fixed price"
-                    : "N/A"
-                }
-              />
-            </Field>
+              >
+                <input
+                  type="number"
+                  min="0"
+                  value={form.price}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      price: event.target.value,
+                    }))
+                  }
+                  className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+                  placeholder={
+                    form.priceType === "starting_at"
+                      ? "Starting price"
+                      : "Fixed price"
+                  }
+                />
+              </Field>
+            )}
 
-            <Field label="Deposit">
-              <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
-                <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
+            {(form.bookingMode === "deposit_required" ||
+              form.bookingMode === "flash_reservation") && (
+              <>
+                <Field label="Deposit">
+                  <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
+                    <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
+                      <input
+                        type="checkbox"
+                        checked={form.depositRequired}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            depositRequired: event.target.checked,
+                            depositAmount: event.target.checked
+                              ? current.depositAmount
+                              : "",
+                          }))
+                        }
+                        className="h-4 w-4 accent-[var(--color-primary)]"
+                      />
+                      Required
+                    </label>
+                  </div>
+                </Field>
+
+                <Field label="Deposit amount">
                   <input
-                    type="checkbox"
-                    checked={form.depositRequired}
+                    type="number"
+                    min="0"
+                    disabled={!form.depositRequired}
+                    value={form.depositAmount}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        depositRequired: event.target.checked,
-                        depositAmount: event.target.checked
-                          ? current.depositAmount
-                          : "",
+                        depositAmount: event.target.value,
+                        depositRequired: Number(event.target.value || 0) > 0,
                       }))
                     }
-                    className="h-4 w-4 accent-[var(--color-primary)]"
+                    className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
+                    placeholder={form.depositRequired ? "20" : "Off"}
                   />
-                  Required
-                </label>
-              </div>
-            </Field>
+                </Field>
+              </>
+            )}
 
-            <Field label="Deposit amount">
-              <input
-                type="number"
-                min="0"
-                disabled={!form.depositRequired}
-                value={form.depositAmount}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    depositAmount: event.target.value,
-                    depositRequired: Number(event.target.value || 0) > 0,
-                  }))
-                }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
-                placeholder={form.depositRequired ? "20" : "Off"}
-              />
-            </Field>
-
-            <Field label="Capacity">
+            <Field
+              label={
+                form.bookingMode === "info_only"
+                  ? "Venue capacity"
+                  : "Capacity"
+              }
+            >
               <input
                 type="number"
                 min="1"
-                required
                 value={form.capacity}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -1188,10 +1601,43 @@ const EventEditorModal = ({
                   }))
                 }
                 className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-                placeholder="100"
+                placeholder={
+                  form.bookingMode === "info_only" ? "Optional" : "100"
+                }
               />
             </Field>
           </div>
+          {form.bookingMode === "info_only" && (
+            <p className="text-xs leading-5 text-white/35">
+              Capacity is optional for info-only events and is shown as venue
+              context only. SATX Ink will not reserve spots or collect payment.
+            </p>
+          )}
+
+          {(formErrors.price ||
+            formErrors.depositAmount ||
+            formErrors.capacity ||
+            formErrors.stripe) && (
+            <ValidationCallout
+              message={
+                formErrors.price ||
+                formErrors.depositAmount ||
+                formErrors.capacity ||
+                formErrors.stripe ||
+                ""
+              }
+            />
+          )}
+
+            </>
+          )}
+
+          {activeStep === "publish" && (
+            <>
+          <EventReviewSummary
+            form={form}
+            ownerType={ownerType}
+          />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Status">
@@ -1299,32 +1745,65 @@ const EventEditorModal = ({
             </p>
           </Field>
 
-          <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
+            </>
+          )}
+
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-white/10 bg-[#101010]/95 px-5 py-4 shadow-[0_-18px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="min-w-0 text-sm text-white/45">
+            {hasCurrentStepErrors
+              ? getFirstStepError(activeStep, formErrors)
+              : !canSave
+              ? getFirstEventFormError(formErrors)
+              : isFinalStep
+              ? "Review the event before saving."
+              : "This step looks ready."}
+          </p>
+          <div className="flex shrink-0 justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={currentStepIndex === 0 ? onClose : goToPreviousStep}
               className="rounded-md bg-white/[0.06] px-4! py-2! text-sm! text-white/75 hover:bg-white/[0.1]"
             >
-              Cancel
+              {currentStepIndex === 0 ? (
+                "Cancel"
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <ChevronLeft size={16} />
+                  Back
+                </span>
+              )}
             </button>
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={isSaving}
-              className="rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving
-                ? "Saving..."
-                : editingEvent
-                ? "Save Event"
-                : "Create Event"}
-            </button>
+            {!isFinalStep ? (
+              <button
+                type="button"
+                onClick={goToNextStep}
+                className="inline-flex items-center gap-2 rounded-md bg-white px-4! py-2! text-sm! font-semibold text-black hover:bg-white/85"
+              >
+                Continue
+                <ChevronRight size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isSaving || !canSave}
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4! py-2! text-sm! font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving && <Loader2 className="animate-spin" size={16} />}
+                {isSaving ? "Saving..." : editingEvent ? "Save Event" : "Create Event"}
+              </button>
+            )}
           </div>
         </div>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 const EventStat = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-xl border border-white/10 bg-white/[0.035] p-2">
@@ -1340,18 +1819,154 @@ const EventMeta = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
   </div>
 );
 
+const EventStepTabs = ({
+  activeStep,
+  errors,
+  onSelect,
+}: {
+  activeStep: EventEditorStepKey;
+  errors: EventFormErrors;
+  onSelect: (step: EventEditorStepKey) => void;
+}) => (
+  <div className="border-b border-white/10 bg-black/20 px-5 py-4">
+    <div className="grid gap-2 md:grid-cols-4">
+      {eventEditorSteps.map((step, index) => {
+        const isActive = activeStep === step.key;
+        const hasErrors = stepHasErrors(step.key, errors);
+
+        return (
+          <button
+            key={step.key}
+            type="button"
+            onClick={() => onSelect(step.key)}
+            className={`rounded-xl border p-3! text-left transition ${
+              isActive
+                ? "border-white/25 bg-white/[0.09] text-white"
+                : "border-white/10 bg-white/[0.025] text-white/55 hover:border-white/20 hover:text-white"
+            }`}
+          >
+            <span
+              className={`mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${
+                hasErrors
+                  ? "border-amber-300/35 bg-amber-300/10 text-amber-100"
+                  : isActive
+                  ? "border-white bg-white text-black"
+                  : "border-white/15 bg-white/[0.04] text-white/55"
+              }`}
+            >
+              {hasErrors ? <Info size={14} /> : <Check size={14} />}
+            </span>
+            <p className="text-sm font-semibold">
+              {index + 1}. {step.title}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/40">
+              {step.description}
+            </p>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const ValidationCallout = ({ message }: { message: string }) => (
+  <div className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
+    <Info className="mt-0.5 shrink-0" size={16} />
+    <p className="leading-6">{message}</p>
+  </div>
+);
+
+const EventReviewSummary = ({
+  form,
+  ownerType,
+}: {
+  form: EventFormState;
+  ownerType: "artist" | "shop";
+}) => {
+  const dateLabel = form.startDate
+    ? `${form.startDate}${form.startTime ? ` at ${formatTime(form.startTime)}` : ""}`
+    : "Date not set";
+  const priceLabel =
+    form.bookingMode === "paid_ticket"
+      ? `Ticket ${formatCurrency(form.price)}`
+      : form.bookingMode === "info_only"
+      ? getInfoOnlyPriceLabel(form)
+      : form.depositRequired
+      ? `Deposit ${formatCurrency(form.depositAmount)}`
+      : priceTypeLabels[form.priceType];
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="flex items-start gap-3">
+        <span className="rounded-lg bg-[var(--color-primary)]/15 p-2 text-[var(--color-primary)]">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-white">Event preview</p>
+          <p className="mt-1 text-sm leading-6 text-white/50">
+            This is the version visitors will understand at a glance before
+            they decide to RSVP, reserve, or show up.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10 bg-black/20">
+        <ReviewRow
+          label="Host type"
+          value={ownerType === "shop" ? "Shop event" : "Artist event"}
+        />
+        <ReviewRow label="Title" value={form.title || "Untitled event"} />
+        <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
+        <ReviewRow
+          label="Access mode"
+          value={bookingModeLabels[form.bookingMode]}
+        />
+        <ReviewRow label="Starts" value={dateLabel} />
+        <ReviewRow
+          label="Location"
+          value={
+            form.locationType === "online"
+              ? "Online"
+              : form.locationType === "tbd"
+              ? "Location TBD"
+              : form.shopName || form.address || "Location not set"
+          }
+        />
+        <ReviewRow label="Price display" value={priceLabel} />
+        <ReviewRow
+          label={form.bookingMode === "info_only" ? "Venue capacity" : "Capacity"}
+          value={
+            form.capacity ||
+            (form.bookingMode === "info_only" ? "Not shown" : "Not set")
+          }
+        />
+      </div>
+    </div>
+  );
+};
+
+const ReviewRow = ({ label, value }: { label: string; value: string }) => (
+  <div className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[150px_minmax(0,1fr)]">
+    <span className="text-white/40">{label}</span>
+    <span className="font-semibold text-white/80">{value}</span>
+  </div>
+);
+
 const Field = ({
   label,
   children,
+  error,
 }: {
   label: string;
   children: React.ReactNode;
+  error?: string;
 }) => (
   <label className="block">
     <span className="mb-2 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.14em] text-white/40">
       {label}
     </span>
     {children}
+    {error && <span className="mt-2 block text-xs text-amber-200">{error}</span>}
   </label>
 );
 const EventsSkeleton = () => (
@@ -1382,10 +1997,144 @@ const uploadEventThumbnail = async (
   return { thumbnailUrl, thumbnailPath };
 };
 
+const eventBelongsToShop = (event: ArtistEvent, shop: ShopDefaults) =>
+  event.shopId === shop.id ||
+  (!event.shopId &&
+    Boolean(event.shopName) &&
+    event.shopName === (shop.name || ""));
+
 const parseOptionalNumber = (value: string) => {
   if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getEventFormErrors = (
+  form: EventFormState,
+  stripeReady: boolean
+): EventFormErrors => {
+  const errors: EventFormErrors = {};
+  const parsedCapacity = parseOptionalNumber(form.capacity);
+  const parsedPrice = parseOptionalNumber(form.price);
+  const parsedDeposit = parseOptionalNumber(form.depositAmount);
+  const bookingRequiresDeposit =
+    form.bookingMode === "deposit_required" ||
+    form.bookingMode === "flash_reservation";
+  const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
+
+  if (!form.title.trim()) {
+    errors.title = "Add a clear event title.";
+  }
+
+  if (!form.startDate) {
+    errors.startDate = "Choose the start date.";
+  }
+
+  if (form.endDate && form.startDate && form.endDate < form.startDate) {
+    errors.dateRange = "End date cannot be before the start date.";
+  }
+
+  if (
+    form.endDate &&
+    form.startDate &&
+    form.endDate === form.startDate &&
+    form.startTime &&
+    form.endTime &&
+    form.endTime <= form.startTime
+  ) {
+    errors.timeRange = "End time must be later than the start time.";
+  }
+
+  if (
+    (form.locationType === "shop" || form.locationType === "custom") &&
+    !form.shopName.trim() &&
+    !form.address.trim()
+  ) {
+    errors.location = "Add a shop, venue name, or address.";
+  }
+
+  if (
+    (form.priceType === "fixed" || form.priceType === "starting_at") &&
+    (!parsedPrice || parsedPrice <= 0)
+  ) {
+    errors.price = "Add a valid price for this price type.";
+  }
+
+  if (
+    form.bookingMode === "paid_ticket" &&
+    (!parsedPrice || parsedPrice <= 5)
+  ) {
+    errors.price = "Paid ticket prices must be greater than the platform fee.";
+  }
+
+  if (
+    (bookingRequiresDeposit || form.depositRequired) &&
+    (!parsedDeposit || parsedDeposit <= 5)
+  ) {
+    errors.depositAmount =
+      "Paid event deposits must be greater than the platform fee.";
+  }
+
+  if (
+    form.bookingMode !== "info_only" &&
+    (!parsedCapacity || parsedCapacity <= 0)
+  ) {
+    errors.capacity = "Add a valid event capacity.";
+  }
+
+  if (
+    form.bookingMode === "info_only" &&
+    parsedCapacity !== null &&
+    parsedCapacity <= 0
+  ) {
+    errors.capacity = "Use a positive venue capacity or leave it blank.";
+  }
+
+  if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
+    errors.stripe = "Connect Stripe before publishing paid events.";
+  }
+
+  return errors;
+};
+
+const getFirstEventFormError = (errors: EventFormErrors) =>
+  Object.values(errors).find(Boolean) || "";
+
+const getFirstStepError = (
+  step: EventEditorStepKey,
+  errors: EventFormErrors
+) => stepErrorKeys[step].map((key) => errors[key]).find(Boolean) || "";
+
+const stepHasErrors = (step: EventEditorStepKey, errors: EventFormErrors) =>
+  Boolean(getFirstStepError(step, errors));
+
+const formatCurrency = (value: string) => {
+  const parsed = parseOptionalNumber(value);
+  if (!parsed) return "$0";
+  return `$${parsed.toLocaleString()}`;
+};
+
+const getInfoOnlyPriceLabel = (form: EventFormState) => {
+  if (form.priceType === "free") return "Free";
+  if (form.priceType === "varies") return "Pricing varies";
+  if (form.priceType === "starting_at") {
+    return `Starting at ${formatCurrency(form.price)}`;
+  }
+  if (form.priceType === "fixed") return formatCurrency(form.price);
+  return priceTypeLabels[form.priceType];
+};
+
+const getEventManagerCallableErrorMessage = (error: unknown, fallback: string) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 const normalizeEventTag = (value: string) =>
@@ -1410,8 +2159,12 @@ const commitEventTags = (
 };
 
 const getDefaultBookingMode = (eventType: EventType): EventBookingMode => {
-  if (eventType === "flash_day" || eventType === "guest_spot") {
-    return "deposit_required";
+  if (
+    eventType === "flash_day" ||
+    eventType === "walk_in_day" ||
+    eventType === "shop_event"
+  ) {
+    return "rsvp";
   }
 
   if (eventType === "pop_up" || eventType === "convention") {
@@ -1428,22 +2181,22 @@ const eventModeRequiresPayment = (bookingMode: EventBookingMode) =>
 
 const getBookingModeHelp = (bookingMode: EventBookingMode) => {
   if (bookingMode === "info_only") {
-    return "Best for pop-ups and convention appearances where clients just show up.";
+    return "Best for announcements, pop-ups, and externally managed events. SATX Ink will not collect deposits, sell tickets, or reserve spots.";
   }
 
   if (bookingMode === "rsvp") {
-    return "Clients can claim a free spot so you can track interest and capacity.";
+    return "Clients can claim a free event pass. You get an attendee list, capacity tracking, and check-in tools.";
   }
 
   if (bookingMode === "deposit_required") {
-    return "Clients reserve a general event spot by paying a deposit through Stripe Connect.";
+    return "Coming soon: clients will reserve a general event spot by paying a deposit through Stripe.";
   }
 
   if (bookingMode === "flash_reservation") {
-    return "Use this for Flash Days where clients will reserve specific flash from event-selected sheets.";
+    return "Coming soon: clients will reserve specific flash or priority access for flash-day workflows.";
   }
 
-  return "Clients pay a fixed event price through Stripe Connect before attending.";
+  return "Clients buy a ticket through Stripe and receive a scannable SATX Ink event pass.";
 };
 
 const getEventTime = (event: ArtistEvent) => {
@@ -1484,11 +2237,25 @@ const getLocationLabel = (event: ArtistEvent) => {
   return event.shopName || event.address || "Location TBD";
 };
 
+const getEventCapacityLabel = (
+  event: ArtistEvent,
+  registrationCount?: number
+) => {
+  if (event.bookingMode === "info_only") {
+    return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  return `${registrationCount || event.spotsClaimed || 0}/${
+    event.capacity || 0
+  } spots claimed`;
+};
+
 const getPriceLabel = (event: ArtistEvent) => {
   const hasDeposit =
-    Boolean(event.depositRequired) ||
-    (event.priceType as string) === "deposit_required" ||
-    (typeof event.depositAmount === "number" && event.depositAmount > 0);
+    event.bookingMode !== "info_only" &&
+    (Boolean(event.depositRequired) ||
+      (event.priceType as string) === "deposit_required" ||
+      (typeof event.depositAmount === "number" && event.depositAmount > 0));
 
   const depositLabel =
     hasDeposit && event.depositAmount

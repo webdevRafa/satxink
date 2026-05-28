@@ -1,4 +1,11 @@
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
@@ -9,12 +16,24 @@ import {
   MapPin,
   MessageSquareText,
   ReceiptText,
+  Send,
   Store,
   X,
 } from "lucide-react";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
+import MakeOfferModal from "./MakeOfferModal";
 import type { Offer } from "../types/Offer";
+import { toast } from "react-hot-toast";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -24,23 +43,44 @@ type FirestoreTimestampLike = {
 type DashboardOffer = Offer & {
   createdAt?: Date | FirestoreTimestampLike | null;
   status: "pending" | "accepted" | "declined" | "expired" | string;
+  artistDismissedAt?: FirestoreTimestampLike | Date | null;
+  declinedReason?: string | null;
+  declinedReasonLabel?: string | null;
+  revisionOfOfferId?: string;
+  revisedByOfferId?: string;
 };
 
 type OfferStatusFilter = "all" | "pending" | "declined";
 
+type OffersListArtist = ComponentProps<typeof MakeOfferModal>["artist"];
+type RevisionRequest = ComponentProps<typeof MakeOfferModal>["selectedRequest"];
+
 const statusFilters: { label: string; value: OfferStatusFilter }[] = [
   { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
+  { label: "Waiting", value: "pending" },
   { label: "Declined", value: "declined" },
 ];
 
-const OffersList = ({ uid }: { uid: string }) => {
+const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) => {
   const [offers, setOffers] = useState<DashboardOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<DashboardOffer | null>(
     null
   );
   const [statusFilter, setStatusFilter] = useState<OfferStatusFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [revisionSourceOffer, setRevisionSourceOffer] =
+    useState<DashboardOffer | null>(null);
+  const [revisionRequest, setRevisionRequest] = useState<RevisionRequest>(null);
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [offerPrice, setOfferPrice] = useState(0);
+  const [offerMessage, setOfferMessage] = useState("");
+  const [dateOptions, setDateOptions] = useState<
+    { date: string; time: string }[]
+  >([
+    { date: "", time: "" },
+    { date: "", time: "" },
+    { date: "", time: "" },
+  ]);
 
   useEffect(() => {
     if (!uid) return;
@@ -73,7 +113,13 @@ const OffersList = ({ uid }: { uid: string }) => {
   }, [uid]);
 
   const activeOffers = useMemo(
-    () => offers.filter((offer) => offer.status !== "accepted"),
+    () =>
+      offers.filter(
+        (offer) =>
+          offer.status !== "accepted" &&
+          offer.status !== "revised" &&
+          !offer.artistDismissedAt
+      ),
     [offers]
   );
 
@@ -93,6 +139,45 @@ const OffersList = ({ uid }: { uid: string }) => {
   const pendingCount = activeOffers.filter((offer) => offer.status === "pending").length;
   const declinedCount = activeOffers.filter((offer) => offer.status === "declined").length;
   const newestOffer = sortedOffers[0];
+
+  const handleReviseOffer = (offer: DashboardOffer) => {
+    setSelectedOffer(null);
+    setRevisionSourceOffer(offer);
+    setRevisionRequest(getRevisionRequestFromOffer(offer));
+    setOfferPrice(Number(offer.price || 0));
+    setDepositAmount(Number(offer.depositPolicy?.amount || 0));
+    setOfferMessage(offer.message || "");
+    setDateOptions(normalizeDateOptions(offer.dateOptions));
+  };
+
+  const handleCloseRevisionModal = () => {
+    setRevisionSourceOffer(null);
+    setRevisionRequest(null);
+  };
+
+  const handleRevisionSent = async (_requestId: string, revisedOfferId?: string) => {
+    if (!revisionSourceOffer) return;
+    await updateDoc(doc(db, "offers", revisionSourceOffer.id), {
+      status: "revised",
+      artistDismissedAt: serverTimestamp(),
+      revisedAt: serverTimestamp(),
+      revisedByOfferId: revisedOfferId || null,
+    });
+  };
+
+  const handleDismissOffer = async (offer: DashboardOffer) => {
+    try {
+      await updateDoc(doc(db, "offers", offer.id), {
+        artistDismissedAt: serverTimestamp(),
+        artistDismissedReason: "artist_cleared_declined_offer",
+      });
+      if (selectedOffer?.id === offer.id) setSelectedOffer(null);
+      toast.success("Offer cleared from your list.");
+    } catch (error) {
+      console.error("Failed to dismiss offer", error);
+      toast.error("Could not clear this offer.");
+    }
+  };
 
   if (loading) {
     return (
@@ -127,7 +212,7 @@ const OffersList = ({ uid }: { uid: string }) => {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
-          <MetricCard label="Pending" value={pendingCount} />
+          <MetricCard label="Waiting" value={pendingCount} />
           <MetricCard label="Declined" value={declinedCount} />
           <MetricCard
             label="Newest"
@@ -175,12 +260,47 @@ const OffersList = ({ uid }: { uid: string }) => {
       {filteredOffers.length === 0 ? (
         <EmptyOffers statusFilter={statusFilter} />
       ) : (
-        <OffersTable offers={filteredOffers} onOpen={setSelectedOffer} />
+        <OffersTable
+          offers={filteredOffers}
+          onOpen={setSelectedOffer}
+          onRevise={handleReviseOffer}
+          onDismiss={handleDismissOffer}
+        />
       )}
 
       <OfferDetailsDialog
         offer={selectedOffer}
         onClose={() => setSelectedOffer(null)}
+        onRevise={handleReviseOffer}
+        onDismiss={handleDismissOffer}
+      />
+
+      <MakeOfferModal
+        isOpen={!!revisionRequest && !!revisionSourceOffer}
+        onClose={handleCloseRevisionModal}
+        selectedRequest={revisionRequest}
+        depositAmount={depositAmount}
+        setDepositAmount={setDepositAmount}
+        offerPrice={offerPrice}
+        setOfferPrice={setOfferPrice}
+        offerMessage={offerMessage}
+        setOfferMessage={setOfferMessage}
+        dateOptions={dateOptions}
+        setDateOptions={setDateOptions}
+        artist={artist}
+        uid={uid}
+        shouldUpdateRequestStatus={false}
+        additionalOfferData={
+          revisionSourceOffer
+            ? {
+                previousOfferId: revisionSourceOffer.id,
+                revisionOfOfferId:
+                  revisionSourceOffer.revisionOfOfferId || revisionSourceOffer.id,
+                revisionReason: "client_declined",
+              }
+            : undefined
+        }
+        onOfferSent={handleRevisionSent}
       />
     </section>
   );
@@ -189,17 +309,21 @@ const OffersList = ({ uid }: { uid: string }) => {
 const OffersTable = ({
   offers,
   onOpen,
+  onRevise,
+  onDismiss,
 }: {
   offers: DashboardOffer[];
   onOpen: (offer: DashboardOffer) => void;
+  onRevise: (offer: DashboardOffer) => void;
+  onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(210px,1.15fr) 96px minmax(190px,.95fr) minmax(230px,1.2fr) minmax(140px,.72fr) minmax(150px,.65fr)";
+    "minmax(210px,1.1fr) 96px minmax(180px,.88fr) minmax(220px,1.08fr) minmax(170px,.72fr) minmax(270px,1fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+        <div className="min-w-[1200px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -218,6 +342,8 @@ const OffersTable = ({
                 offer={offer}
                 columns={columns}
                 onOpen={() => onOpen(offer)}
+                onRevise={() => onRevise(offer)}
+                onDismiss={() => onDismiss(offer)}
               />
             ))}
           </div>
@@ -231,10 +357,14 @@ const OfferRow = ({
   offer,
   columns,
   onOpen,
+  onRevise,
+  onDismiss,
 }: {
   offer: DashboardOffer;
   columns: string;
   onOpen: () => void;
+  onRevise: () => void;
+  onDismiss: () => void;
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const firstDateOption = offer.dateOptions?.find(
@@ -309,9 +439,26 @@ const OfferRow = ({
         </p>
       </div>
 
-      <StatusBadge status={offer.status} />
+      <div className="min-w-0">
+        <StatusBadge status={offer.status} />
+        {offer.status === "declined" && (
+          <p className="mt-2 truncate text-xs text-red-100/75">
+            Reason: {getDeclineReasonLabel(offer)}
+          </p>
+        )}
+      </div>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {offer.status === "declined" && (
+          <button
+            type="button"
+            onClick={onRevise}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+          >
+            <Send size={14} />
+            Send new
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpen}
@@ -320,6 +467,20 @@ const OfferRow = ({
           <Eye size={14} />
           Details
         </button>
+        {offer.status === "declined" && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="group relative ml-1 inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] p-0! text-neutral-300 transition hover:bg-white/10 hover:text-white"
+            aria-label="Dismiss declined offer"
+            title="Dismiss and remove from feed"
+          >
+            <X size={14} />
+            <span className="pointer-events-none absolute right-0 top-[-2.4rem] z-20 w-max max-w-[220px] rounded-md border border-white/10 bg-[#1b1b1b] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+              Dismiss and remove from feed
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -328,9 +489,13 @@ const OfferRow = ({
 const OfferDetailsDialog = ({
   offer,
   onClose,
+  onRevise,
+  onDismiss,
 }: {
   offer: DashboardOffer | null;
   onClose: () => void;
+  onRevise: (offer: DashboardOffer) => void;
+  onDismiss: (offer: DashboardOffer) => void;
 }) => (
   <Transition appear show={!!offer} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -418,6 +583,40 @@ const OfferDetailsDialog = ({
                         </div>
                         <StatusBadge status={offer.status} />
                       </div>
+
+                      {offer.status === "declined" && (
+                        <div className="mt-5 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
+                          <p className="text-sm font-semibold text-white">
+                            Client declined this offer
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-red-50/75">
+                            You can send a fresh offer with updated price, deposit,
+                            message, or appointment options. Clearing it only removes
+                            it from your list.
+                          </p>
+                          <div className="mt-3 inline-flex rounded-md border border-red-100/20 bg-black/20 px-3 py-2 text-sm font-semibold text-red-50">
+                            Reason: {getDeclineReasonLabel(offer)}
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onRevise(offer)}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                            >
+                              <Send size={15} />
+                              Send new offer
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDismiss(offer)}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                            >
+                              <X size={15} />
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
                         {offer.sourceType === "flash" && (
@@ -549,9 +748,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 
   return (
     <span
-      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
     >
-      {normalized.replace("_", " ")}
+      {getOfferStatusLabel(normalized)}
     </span>
   );
 };
@@ -582,6 +781,8 @@ const EmptyOffers = ({ statusFilter }: { statusFilter: OfferStatusFilter }) => (
     <h2 className="mt-4 text-xl! font-semibold! text-white">
       {statusFilter === "all"
         ? "No offers sent yet"
+        : statusFilter === "pending"
+        ? "No offers waiting on clients"
         : `No ${statusFilter} offers`}
     </h2>
     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
@@ -591,6 +792,53 @@ const EmptyOffers = ({ statusFilter }: { statusFilter: OfferStatusFilter }) => (
     </p>
   </div>
 );
+
+const getOfferStatusLabel = (status: string) => {
+  if (status === "pending") return "Waiting client response";
+  if (status === "declined") return "Declined";
+  if (status === "accepted") return "Accepted";
+  return status.replace("_", " ");
+};
+
+const getDeclineReasonLabel = (offer: DashboardOffer) => {
+  if (offer.declinedReasonLabel) return offer.declinedReasonLabel;
+  if (offer.declinedReason === "appointment_timing") {
+    return "Appointment timing";
+  }
+  if (offer.declinedReason === "price") return "Price";
+  if (offer.declinedReason === "changed_mind") return "Changed my mind";
+  if (offer.declinedReason === "other") return "Other";
+  return "Reason not provided";
+};
+
+const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
+  id: offer.requestId || offer.id,
+  clientId: offer.clientId,
+  clientName: offer.clientName || "Client",
+  clientAvatar: offer.clientAvatar || "/default-avatar.png",
+  description: offer.message || "",
+  bodyPlacement: "",
+  size: "",
+  fullUrl: offer.fullUrl,
+  thumbUrl: offer.thumbUrl,
+  sourceType: offer.sourceType,
+  flashId: offer.flashId || undefined,
+  flashTitle: offer.flashTitle || undefined,
+  flashPrice: offer.flashPrice ?? undefined,
+  flashSheetId: offer.flashSheetId || undefined,
+  isFromSheet: Boolean(offer.isFromSheet),
+});
+
+const normalizeDateOptions = (
+  options: { date: string; time: string }[] | undefined
+) => {
+  const next = options?.length
+    ? options.slice(0, 3)
+    : [{ date: "", time: "" }];
+
+  while (next.length < 3) next.push({ date: "", time: "" });
+  return next;
+};
 
 const formatDeposit = (offer: DashboardOffer) => {
   const amount = offer.depositPolicy?.amount;

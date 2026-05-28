@@ -10,6 +10,8 @@ clientAvatar?: string;
     price: number;
     message: string;
     status: string;
+    declinedReason?: string | null;
+    declinedReasonLabel?: string | null;
     dateOptions: { date: string; time: string }[];
     fullUrl?: string;
     thumbUrl?: string;

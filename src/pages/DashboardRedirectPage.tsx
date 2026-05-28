@@ -23,6 +23,8 @@ const DashboardRedirectPage = () => {
 
       if (!data?.role) {
         navigate("/login-page");
+      } else if (data.role === "shop_owner") {
+        navigate("/shop-dashboard");
       } else if (data.role === "artist") {
         navigate("/artist-dashboard");
       } else {

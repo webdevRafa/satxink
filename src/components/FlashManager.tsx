@@ -326,30 +326,30 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     <div className="mt-6 space-y-8">
       {!stripeReady && <StripeRequiredNotice onOpenPayments={onOpenPayments} />}
 
-      <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
-        <div className="grid gap-4 border-b border-white/10 bg-white/[0.02] p-4 md:grid-cols-[1.1fr_0.9fr] md:p-5">
+      <section className="overflow-hidden rounded-lg border border-white/10 bg-[#121212]">
+        <div className="grid gap-3 border-b border-white/10 bg-white/[0.02] p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
               Flash studio
             </p>
-            <h2 className="mt-2 text-2xl! font-bold text-white">
+            <h2 className="mt-1 text-xl! font-bold text-white">
               Build a cleaner flash marketplace
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-400">
               Upload single designs, organize them into sheets, or crop clean
               purchasable pieces from a full flash sheet.
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 md:min-w-[420px]">
             <StatCard label="Sheets" value={flashSheets.length} />
             <StatCard label="Itemized" value={linkedFlashCount} />
             <StatCard label="Solo" value={standaloneFlashCount} />
           </div>
         </div>
 
-        <div className="grid gap-4 p-4 lg:grid-cols-[0.85fr_1.15fr] md:p-5">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="grid gap-3 p-3 lg:grid-cols-[0.98fr_1.02fr] md:p-4">
+          <div className="grid gap-2 sm:grid-cols-2">
             <ModeCard
               active={mode === "individual"}
               icon={<Plus size={18} />}
@@ -366,23 +366,23 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             />
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300">
+          <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-300">
                   {mode === "individual" ? (
-                    <ImageIcon size={19} />
+                    <ImageIcon size={18} />
                   ) : (
-                    <Scissors size={19} />
+                    <Scissors size={18} />
                   )}
                 </span>
-                <div>
-                  <h3 className="text-lg! font-bold text-white">
+                <div className="min-w-0">
+                  <h3 className="text-base! font-bold text-white">
                     {mode === "individual"
                       ? "Upload a flash item"
                       : "Upload a flash sheet"}
                   </h3>
-                  <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  <p className="mt-1 text-xs leading-5 text-zinc-400">
                     {mode === "individual"
                       ? "Perfect for one-off pieces, quick drops, and designs that do not need a full sheet."
                       : "Best for larger drops where clients should see the whole collection and each cropped piece."}
@@ -394,21 +394,21 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900 disabled:opacity-100"
                   disabled={!stripeReady}
                 >
-                  <Upload size={16} />
+                  <Upload size={16} className="text-current" />
                   Upload item
                 </button>
               ) : (
                 <label
-                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 ${
+                  className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 ${
                     stripeReady
                       ? "cursor-pointer"
-                      : "cursor-not-allowed opacity-50"
+                      : "cursor-not-allowed bg-white/90 text-neutral-900 opacity-100"
                   }`}
                 >
-                  <Upload size={16} />
+                  <Upload size={16} className="text-current" />
                   Upload sheet
                   {stripeReady && (
                     <input
@@ -759,7 +759,7 @@ const ModeCard = ({
   <button
     type="button"
     onClick={onClick}
-    className={`rounded-2xl border p-4! text-left transition ${
+    className={`rounded-lg border p-3! text-left transition ${
       active
         ? "border-red-300/45 bg-red-500/10"
         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
@@ -767,7 +767,7 @@ const ModeCard = ({
   >
     <div className="flex items-start gap-3">
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
           active ? "bg-red-500/15 text-red-200" : "bg-white/5 text-zinc-300"
         }`}
       >
@@ -778,7 +778,7 @@ const ModeCard = ({
           {title}
           {active && <Check size={15} className="text-red-200" />}
         </span>
-        <span className="mt-1 block text-xs leading-5 text-zinc-500">
+        <span className="mt-1 block text-xs leading-4 text-zinc-500">
           {description}
         </span>
       </span>
@@ -787,11 +787,11 @@ const ModeCard = ({
 );
 
 const StatCard = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+  <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
       {label}
     </p>
-    <p className="mt-2 text-xl! font-bold text-white">{value}</p>
+    <p className="mt-1 text-lg! font-bold text-white">{value}</p>
   </div>
 );
 

@@ -97,7 +97,9 @@ type Props = {
   setOfferMessage: Dispatch<SetStateAction<string>>;
   dateOptions: { date: string; time: string }[];
   setDateOptions: Dispatch<SetStateAction<{ date: string; time: string }[]>>;
-  onOfferSent?: (requestId: string) => void;
+  onOfferSent?: (requestId: string, offerId?: string) => void | Promise<void>;
+  shouldUpdateRequestStatus?: boolean;
+  additionalOfferData?: Record<string, unknown>;
 };
 
 const MakeOfferModal = ({
@@ -115,10 +117,13 @@ const MakeOfferModal = ({
   onOfferSent,
   uid,
   artist,
+  shouldUpdateRequestStatus = true,
+  additionalOfferData,
 }: Props) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [offerImage, setOfferImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreviewingOffer, setIsPreviewingOffer] = useState(false);
   const [allowExternalRemainingPayment, setAllowExternalRemainingPayment] =
     useState(false);
   const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
@@ -189,49 +194,42 @@ const MakeOfferModal = ({
     setExternalRemainingPaymentNote("");
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
+    setIsPreviewingOffer(false);
   };
 
   const handleClose = () => {
+    setIsPreviewingOffer(false);
     onClose();
   };
 
-  const handleOfferSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const getSubmissionOfferPrice = () =>
+    selectedRequest.sourceType === "flash"
+      ? Number(selectedRequest.flashPrice || 0)
+      : Number(offerPrice || 0);
 
-    if (!selectedRequest || !uid) return;
-
+  const getDraftValidationError = () => {
     if (!artist.paymentType || !["internal", "external"].includes(artist.paymentType)) {
-      toast.error("Set a valid payment type before sending an offer.");
-      return;
+      return "Set a valid payment type before sending an offer.";
     }
 
-    const submissionOfferPrice =
-      selectedRequest.sourceType === "flash"
-        ? Number(selectedRequest.flashPrice || 0)
-        : Number(offerPrice || 0);
+    const submissionOfferPrice = getSubmissionOfferPrice();
 
     if (!submissionOfferPrice || submissionOfferPrice <= 0) {
-      toast.error(
-        selectedRequest.sourceType === "flash"
+      return selectedRequest.sourceType === "flash"
           ? "This flash item needs a listed price before you can send an offer."
-          : "Enter a valid offer price."
-      );
-      return;
+          : "Enter a valid offer price.";
     }
 
     if (depositAmount < 0 || depositAmount > submissionOfferPrice) {
-      toast.error("Deposit must be between $0 and the offer price.");
-      return;
+      return "Deposit must be between $0 and the offer price.";
     }
 
     if (completedDateOptions.length === 0) {
-      toast.error("Add at least one appointment option.");
-      return;
+      return "Add at least one appointment option.";
     }
 
     if (completedDateOptions.some((option) => isPastDateInputValue(option.date))) {
-      toast.error("Appointment options must be today or later.");
-      return;
+      return "Appointment options must be today or later.";
     }
 
     const submitAsMultiSession =
@@ -239,15 +237,41 @@ const MakeOfferModal = ({
 
     if (submitAsMultiSession) {
       if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
-        toast.error("Multi-session projects need 2 to 12 estimated sessions.");
-        return;
+        return "Multi-session projects need 2 to 12 estimated sessions.";
       }
 
       if (remainingArtistBalance <= 0) {
-        toast.error("Multi-session projects need a remaining balance after the deposit.");
-        return;
+        return "Multi-session projects need a remaining balance after the deposit.";
       }
     }
+
+    return null;
+  };
+
+  const handlePreviewOffer = () => {
+    const validationError = getDraftValidationError();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    setIsPreviewingOffer(true);
+  };
+
+  const handleOfferSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!selectedRequest || !uid) return;
+
+    const validationError = getDraftValidationError();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const submissionOfferPrice = getSubmissionOfferPrice();
+    const submitAsMultiSession =
+      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
 
     try {
       setIsSubmitting(true);
@@ -355,18 +379,21 @@ const MakeOfferModal = ({
         sessionScheduling: submitAsMultiSession
           ? "first_session_now_rest_later"
           : "single_session",
+        ...additionalOfferData,
         status: "pending",
         createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, "offers"), offerData);
-      await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
-        status: "offered",
-        offeredAt: serverTimestamp(),
-      });
+      const offerRef = await addDoc(collection(db, "offers"), offerData);
+      if (shouldUpdateRequestStatus) {
+        await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
+          status: "offered",
+          offeredAt: serverTimestamp(),
+        });
+      }
 
       toast.success("Offer sent.");
-      onOfferSent?.(selectedRequest.id);
+      await onOfferSent?.(selectedRequest.id, offerRef.id);
       resetOfferForm();
       onClose();
     } catch (error) {
@@ -405,6 +432,34 @@ const MakeOfferModal = ({
           onSubmit={handleOfferSubmit}
           className="overflow-y-auto request-modal-scrollbar"
         >
+          {isPreviewingOffer ? (
+            <OfferPreview
+              artist={artist}
+              request={selectedRequest}
+              requestImageUrl={requestImageUrl}
+              sampleImageUrl={
+                previewUrl ||
+                (isFlashRequest
+                  ? selectedRequest.fullUrl || selectedRequest.thumbUrl || ""
+                  : "")
+              }
+              isFlashRequest={isFlashRequest}
+              isMultiSessionProject={!isFlashRequest && isMultiSessionProject}
+              offerPrice={effectiveOfferPrice}
+              depositAmount={Number(depositAmount || 0)}
+              remainingArtistBalance={remainingArtistBalance}
+              paymentPreview={paymentPreview}
+              allowExternalRemainingPayment={
+                canAllowExternalRemainingPayment &&
+                allowExternalRemainingPayment
+              }
+              sessionCount={estimatedSessionCount}
+              sessionEstimate={sessionEstimate}
+              dateOptions={completedDateOptions}
+              message={offerMessage}
+            />
+          ) : (
+          <>
           <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
             <aside className="border-b border-white/10 bg-black/25 p-5 lg:border-b-0 lg:border-r lg:p-6">
               {isFlashRequest ? (
@@ -888,20 +943,39 @@ const MakeOfferModal = ({
               </section>
             </div>
           </div>
+          </>
+          )}
 
           <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-sm text-neutral-500">
-              {completedDateOptions.length} appointment option
-              {completedDateOptions.length === 1 ? "" : "s"} ready
+              {isPreviewingOffer
+                ? "Review the offer summary before sending."
+                : `${completedDateOptions.length} appointment option${
+                    completedDateOptions.length === 1 ? "" : "s"
+                  } ready`}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={
+                  isPreviewingOffer
+                    ? () => setIsPreviewingOffer(false)
+                    : handleClose
+                }
                 className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
               >
-                Cancel
+                {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
+              {!isPreviewingOffer && (
+                <button
+                  type="button"
+                  onClick={handlePreviewOffer}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                >
+                  Preview offer
+                  <ReceiptText size={16} className="text-amber-200" />
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -913,6 +987,277 @@ const MakeOfferModal = ({
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+const OfferPreview = ({
+  artist,
+  request,
+  requestImageUrl,
+  sampleImageUrl,
+  isFlashRequest,
+  isMultiSessionProject,
+  offerPrice,
+  depositAmount,
+  remainingArtistBalance,
+  paymentPreview,
+  allowExternalRemainingPayment,
+  sessionCount,
+  sessionEstimate,
+  dateOptions,
+  message,
+}: {
+  artist: OfferArtist;
+  request: BookingRequest;
+  requestImageUrl: string;
+  sampleImageUrl: string;
+  isFlashRequest: boolean;
+  isMultiSessionProject: boolean;
+  offerPrice: number;
+  depositAmount: number;
+  remainingArtistBalance: number;
+  paymentPreview: ReturnType<typeof calculateClientPaymentBreakdown>;
+  allowExternalRemainingPayment: boolean;
+  sessionCount: number;
+  sessionEstimate: number;
+  dateOptions: { date: string; time: string }[];
+  message: string;
+}) => {
+  const isInternalPayment = artist.paymentType === "internal";
+  const todayClientPayment = isInternalPayment
+    ? formatMoneyFromCents(paymentPreview.clientTotalCents)
+    : formatMoneyFromCents(Math.round(depositAmount * 100));
+  const artistReceivesToday = isInternalPayment
+    ? formatMoneyFromCents(paymentPreview.artistAmountCents)
+    : formatMoneyFromCents(Math.round(depositAmount * 100));
+  const laterPaymentLabel =
+    remainingArtistBalance <= 0
+      ? "No later balance"
+      : !isInternalPayment
+      ? "Client pays the remaining balance through your external payment method."
+      : allowExternalRemainingPayment
+      ? "Client can choose to pay the remaining balance in shop."
+      : "Client pays the remaining balance later through Stripe.";
+
+  return (
+    <div className="p-5 sm:p-6">
+      <div className="mb-5 rounded-lg border border-white/10 bg-white/[0.035] p-5">
+        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+          Offer preview
+        </p>
+        <h3 className="mt-2 text-2xl! font-semibold! text-white">
+          Review what {request.clientName || "the client"} will receive
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">
+          This is a final check of price, payment timing, appointment options,
+          reference images, and your message before the offer is sent.
+        </p>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="space-y-5">
+          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                <DollarSign size={19} />
+              </span>
+              <div>
+                <h4 className="text-lg! font-semibold! text-white">
+                  Payment breakdown
+                </h4>
+                <p className="text-sm text-neutral-400">
+                  Total quote, deposit due today, and later balance.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-black/25">
+              <div className="border-b border-white/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Client checkout today
+                </p>
+              </div>
+              <div className="divide-y divide-white/10">
+                <ReceiptLine
+                  label="Artist deposit"
+                  value={formatMoneyFromCents(Math.round(depositAmount * 100))}
+                  note="Amount you are asking the client to reserve today."
+                />
+                {isInternalPayment && (
+                  <>
+                    <ReceiptLine
+                      label="SATX Ink fee"
+                      value={formatMoneyFromCents(
+                        paymentPreview.platformFeeCents
+                      )}
+                      note="Platform fee calculated from the full artist quote."
+                    />
+                    <ReceiptLine
+                      label="Estimated Stripe fee"
+                      value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
+                      note="Estimated processing cost for today's checkout."
+                    />
+                  </>
+                )}
+                <ReceiptLine
+                  label="Client pays today"
+                  value={todayClientPayment}
+                  total
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-black/25">
+              <div className="border-b border-white/10 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                  Artist payout and later balance
+                </p>
+              </div>
+              <div className="divide-y divide-white/10">
+                <ReceiptLine
+                  label="Total artist quote"
+                  value={formatMoneyFromCents(Math.round(offerPrice * 100))}
+                />
+                <ReceiptLine
+                  label="You receive from today's deposit"
+                  value={artistReceivesToday}
+                  emphasis
+                />
+                <ReceiptLine
+                  label="Remaining artist balance"
+                  value={formatMoneyFromCents(
+                    Math.round(remainingArtistBalance * 100)
+                  )}
+                  note={laterPaymentLabel}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                <Layers size={19} />
+              </span>
+              <div>
+                <h4 className="text-lg! font-semibold! text-white">
+                  Project structure
+                </h4>
+                <p className="text-sm text-neutral-400">
+                  How this offer will be framed to the client.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <PreviewTile
+                label="Offer type"
+                value={
+                  isFlashRequest
+                    ? "Flash booking"
+                    : isMultiSessionProject
+                    ? "Multi-session project"
+                    : "Single session"
+                }
+              />
+              <PreviewTile
+                label="Estimated sessions"
+                value={isMultiSessionProject ? `${sessionCount}` : "1"}
+              />
+              <PreviewTile
+                label="Estimated per session"
+                value={
+                  isMultiSessionProject
+                    ? formatMoneyFromCents(Math.round(sessionEstimate * 100))
+                    : "Not split"
+                }
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                <CalendarDays size={19} />
+              </span>
+              <div>
+                <h4 className="text-lg! font-semibold! text-white">
+                  Appointment options
+                </h4>
+                <p className="text-sm text-neutral-400">
+                  The client will choose one of these times.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {dateOptions.map((option, index) => (
+                <div
+                  key={`${option.date}-${option.time}-${index}`}
+                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                >
+                  <span className="font-semibold text-neutral-500">
+                    Option {index + 1}
+                  </span>
+                  <span className="text-right font-medium text-white">
+                    {formatOfferPreviewAppointment(option)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="space-y-5">
+          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                <ImageIcon size={19} />
+              </span>
+              <div>
+                <h4 className="text-lg! font-semibold! text-white">
+                  Visual references
+                </h4>
+                <p className="text-sm text-neutral-400">
+                  Client reference and your offer sample.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <PreviewImage
+                label="Client reference"
+                imageUrl={requestImageUrl}
+                emptyLabel="No client image"
+              />
+              <PreviewImage
+                label={isFlashRequest ? "Flash image" : "Offer sample"}
+                imageUrl={sampleImageUrl}
+                emptyLabel={
+                  isFlashRequest ? "No flash image" : "No sample included"
+                }
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                <MessageSquareText size={19} />
+              </span>
+              <div>
+                <h4 className="text-lg! font-semibold! text-white">
+                  Client message
+                </h4>
+                <p className="text-sm text-neutral-400">
+                  This message is included with the offer.
+                </p>
+              </div>
+            </div>
+            <p className="min-h-24 whitespace-pre-line rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-neutral-300">
+              {message || "No message included."}
+            </p>
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -1039,5 +1384,117 @@ const PreviewRow = ({ label, value }: { label: string; value: string }) => (
     <p className="mt-1 font-semibold text-white">{value}</p>
   </div>
 );
+
+const ReceiptLine = ({
+  label,
+  value,
+  note,
+  total,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  total?: boolean;
+  emphasis?: boolean;
+}) => (
+  <div
+    className={`flex items-start justify-between gap-4 px-4 py-3 ${
+      total ? "bg-emerald-300/10" : ""
+    }`}
+  >
+    <div className="min-w-0">
+      <p
+        className={`text-sm ${
+          total || emphasis ? "font-semibold text-white" : "text-neutral-300"
+        }`}
+      >
+        {label}
+      </p>
+      {note && <p className="mt-1 text-xs leading-5 text-neutral-500">{note}</p>}
+    </div>
+    <p
+      className={`shrink-0 text-right ${
+        total
+          ? "text-lg font-semibold text-emerald-50"
+          : emphasis
+          ? "font-semibold text-white"
+          : "font-medium text-white"
+      }`}
+    >
+      {value}
+    </p>
+  </div>
+);
+
+const PreviewTile = ({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "strong";
+}) => (
+  <div
+    className={`rounded-md border p-3 ${
+      tone === "strong"
+        ? "border-emerald-300/25 bg-emerald-300/10"
+        : "border-white/10 bg-black/25"
+    }`}
+  >
+    <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+  </div>
+);
+
+const PreviewImage = ({
+  label,
+  imageUrl,
+  emptyLabel,
+}: {
+  label: string;
+  imageUrl: string;
+  emptyLabel: string;
+}) => (
+  <div className="overflow-hidden rounded-md border border-white/10 bg-black/25">
+    <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+      <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
+        {label}
+      </p>
+    </div>
+    {imageUrl ? (
+      <img src={imageUrl} alt={label} className="h-48 w-full object-cover" />
+    ) : (
+      <div className="flex h-48 flex-col items-center justify-center gap-2 text-neutral-500">
+        <ImageIcon size={24} />
+        <span className="text-sm">{emptyLabel}</span>
+      </div>
+    )}
+  </div>
+);
+
+const formatOfferPreviewAppointment = (option: {
+  date: string;
+  time: string;
+}) => {
+  const [year, month, day] = option.date.split("-").map(Number);
+  const [hours, minutes] = option.time.split(":").map(Number);
+  const date = new Date(year, month - 1, day, hours, minutes);
+
+  if (Number.isNaN(date.getTime())) {
+    return `${option.date} at ${option.time}`;
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
 
 export default MakeOfferModal;

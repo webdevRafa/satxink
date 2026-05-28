@@ -4,6 +4,7 @@ import { httpsCallable } from "firebase/functions";
 import { getAuth } from "firebase/auth";
 import {
   CalendarDays,
+  CreditCard,
   DollarSign,
   ImageIcon,
   Layers,
@@ -16,6 +17,10 @@ import {
 } from "lucide-react";
 import type { Offer } from "../types/Offer";
 import { functions } from "../firebase/firebaseConfig";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../utils/paymentFees";
 
 type Props = {
   offer: (Offer & { bookingId?: string }) | null;
@@ -25,19 +30,33 @@ type Props = {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod?: "stripe" | "external"
+    remainingPaymentMethod?: "stripe" | "external",
+    declinedReason?: { value: string; label: string }
   ) => Promise<string | void>;
 };
+
+const DECLINE_REASON_OPTIONS = [
+  { value: "appointment_timing", label: "Appointment timing" },
+  { value: "price", label: "Price" },
+  { value: "changed_mind", label: "Changed my mind" },
+  { value: "other", label: "Other" },
+];
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
+  const [isReviewingCheckout, setIsReviewingCheckout] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
   const [remainingPaymentMethod, setRemainingPaymentMethod] =
     useState<"stripe" | "external">("stripe");
 
   useEffect(() => {
     setSelectedDateOption(null);
     setRemainingPaymentMethod("stripe");
+    setIsDeclining(false);
+    setIsReviewingCheckout(false);
+    setDeclineReason("");
   }, [offer?.id]);
 
   if (!isOpen || !offer) return null;
@@ -62,6 +81,15 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     Boolean(offer.allowExternalRemainingPayment) &&
     depositAmount > 0 &&
     remainingAmount > 0;
+  const checkoutPreview =
+    offer.paymentType === "internal"
+      ? calculateClientPaymentBreakdown(depositAmount, {
+          platformFeeBaseAmount: Number(offer.price || depositAmount || 0),
+        })
+      : null;
+  const clientPaysToday = checkoutPreview
+    ? formatMoneyFromCents(checkoutPreview.clientTotalCents)
+    : `$${depositAmount}`;
 
   const handleCheckout = async (bookingId?: string) => {
     if (!bookingId) {
@@ -85,9 +113,20 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     window.location.href = sessionUrl;
   };
 
-  const handleAccept = async () => {
+  const handleReviewCheckout = () => {
     if (selectedDateOption === null) {
       toast.error("Please select a date before accepting.");
+      return;
+    }
+
+    setIsDeclining(false);
+    setIsReviewingCheckout(true);
+  };
+
+  const handleAccept = async () => {
+    if (selectedDateOption === null) {
+      toast.error("Please select a date before continuing.");
+      setIsReviewingCheckout(false);
       return;
     }
 
@@ -101,6 +140,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       );
       if (bookingId) {
         onClose();
+        setIsReviewingCheckout(false);
         await handleCheckout(bookingId);
       }
     } catch (error) {
@@ -112,8 +152,23 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   };
 
   const handleDecline = async () => {
+    const selectedReason = DECLINE_REASON_OPTIONS.find(
+      (reason) => reason.value === declineReason
+    );
+
+    if (!selectedReason) {
+      toast.error("Please choose a decline reason.");
+      return;
+    }
+
     setIsResponding(true);
-    await onRespond(offer.id, "declined");
+    await onRespond(
+      offer.id,
+      "declined",
+      undefined,
+      undefined,
+      selectedReason
+    );
     setIsResponding(false);
     onClose();
   };
@@ -232,52 +287,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 </div>
               )}
 
-              {canChooseExternalRemaining && (
-                <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                    <ReceiptText size={17} />
-                    Choose balance payment
-                  </div>
-                  <div className="grid gap-3">
-                    <PaymentChoice
-                      title="Pay remaining balance through SATX Ink"
-                      description={
-                        isMultiSessionOffer
-                          ? "Pay each session installment later through Stripe. Later checkouts have Stripe processing only."
-                          : "Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
-                      }
-                      amount={`$${remainingAmount}`}
-                      checked={remainingPaymentMethod === "stripe"}
-                      onSelect={() => setRemainingPaymentMethod("stripe")}
-                    />
-                    <PaymentChoice
-                      title="Pay remaining balance at the shop"
-                      description={
-                        isMultiSessionOffer
-                          ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
-                          : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
-                      }
-                      amount={`$${remainingAmount}`}
-                      checked={remainingPaymentMethod === "external"}
-                      onSelect={() => setRemainingPaymentMethod("external")}
-                    />
-                  </div>
-                  {remainingPaymentMethod === "external" && (
-                    <div className="mt-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
-                      SATX Ink's platform fee is calculated from the full artist
-                      quote and collected with today's deposit checkout. The
-                      remaining artist balance is confirmed by both you and the
-                      artist after the session.
-                      {offer.externalRemainingPaymentNote && (
-                        <span className="mt-2 block text-white">
-                          Artist note: {offer.externalRemainingPaymentNote}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {offer.shopAddress && (
                 <a
                   href={offer.shopMapLink || undefined}
@@ -333,24 +342,195 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </div>
 
           {offer.status === "pending" && (
-            <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <button
-                type="button"
-                disabled={isResponding}
-                onClick={handleDecline}
-                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                disabled={isResponding}
-                onClick={handleAccept}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isResponding ? "Processing..." : "Accept and checkout"}
-                <Send size={16} />
-              </button>
+            <div className="border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+              {isDeclining && (
+                <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
+                  <p className="text-sm font-semibold text-white">
+                    Why are you declining this offer?
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-red-50/75">
+                    This helps the artist understand whether to adjust timing,
+                    pricing, or the overall offer.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {DECLINE_REASON_OPTIONS.map((reason) => (
+                      <button
+                        key={reason.value}
+                        type="button"
+                        onClick={() => setDeclineReason(reason.value)}
+                        className={`inline-flex h-9 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                          declineReason === reason.value
+                            ? "border-red-100 bg-red-100 text-black"
+                            : "border-red-100/20 bg-black/20 text-red-50 hover:bg-red-100/10"
+                        }`}
+                      >
+                        {reason.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                {isDeclining ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => {
+                        setIsDeclining(false);
+                        setDeclineReason("");
+                      }}
+                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding || !declineReason}
+                      onClick={handleDecline}
+                      className="inline-flex items-center justify-center rounded-md border border-red-200/40 bg-red-200 px-5! py-3! text-sm! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isResponding ? "Declining..." : "Submit decline"}
+                    </button>
+                  </>
+                ) : isReviewingCheckout ? null : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => setIsDeclining(true)}
+                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={handleReviewCheckout}
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Review checkout
+                      <CreditCard size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {isReviewingCheckout && !isDeclining && (
+                <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                  <div className="mb-4 flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
+                      <CreditCard size={18} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Confirm checkout details
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                        Nothing is final until you continue to Stripe. Review
+                        the appointment and how you want to handle the later
+                        artist balance.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <CheckoutSummaryRow
+                      label="Appointment selected"
+                      value={
+                        selectedDateOption !== null
+                          ? formatAppointment(offer.dateOptions[selectedDateOption])
+                          : "Select an appointment"
+                      }
+                    />
+                    <CheckoutSummaryRow
+                      label="Checkout due today"
+                      value={clientPaysToday}
+                    />
+                    <CheckoutSummaryRow
+                      label="Artist deposit"
+                      value={`$${depositAmount}`}
+                    />
+                    <CheckoutSummaryRow
+                      label="Remaining artist balance"
+                      value={`$${remainingAmount}`}
+                    />
+                  </div>
+
+                  {canChooseExternalRemaining && (
+                    <div className="mt-4">
+                      <p className="mb-2 text-xs uppercase tracking-[0.14em] text-emerald-50/60">
+                        Later balance
+                      </p>
+                      <div className="grid gap-3">
+                        <PaymentChoice
+                          title="Pay remaining balance through SATX Ink"
+                          description={
+                            isMultiSessionOffer
+                              ? "Pay each session installment later through Stripe. Later checkouts have Stripe processing only."
+                              : "Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
+                          }
+                          amount={`$${remainingAmount}`}
+                          checked={remainingPaymentMethod === "stripe"}
+                          onSelect={() => setRemainingPaymentMethod("stripe")}
+                        />
+                        <PaymentChoice
+                          title="Pay remaining balance at the shop"
+                          description={
+                            isMultiSessionOffer
+                              ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
+                              : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
+                          }
+                          amount={`$${remainingAmount}`}
+                          checked={remainingPaymentMethod === "external"}
+                          onSelect={() => setRemainingPaymentMethod("external")}
+                        />
+                      </div>
+                      {remainingPaymentMethod === "external" && (
+                        <div className="mt-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
+                          SATX Ink's platform fee is calculated from the full
+                          artist quote and collected with today's deposit
+                          checkout. The remaining artist balance is confirmed by
+                          both you and the artist after the session.
+                          {offer.externalRemainingPaymentNote && (
+                            <span className="mt-2 block text-white">
+                              Artist note: {offer.externalRemainingPaymentNote}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!canChooseExternalRemaining && remainingAmount > 0 && (
+                    <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-emerald-50/75">
+                      The remaining artist balance will be handled through the
+                      payment method set by the artist for this offer.
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={() => setIsReviewingCheckout(false)}
+                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResponding}
+                      onClick={handleAccept}
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isResponding ? "Creating checkout..." : "Continue to Stripe"}
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -374,6 +554,21 @@ const DetailTile = ({
       {label}
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const CheckoutSummaryRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-md border border-white/10 bg-black/25 p-3">
+    <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+      {label}
+    </p>
+    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
   </div>
 );
 

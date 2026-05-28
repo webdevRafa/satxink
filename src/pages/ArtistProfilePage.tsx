@@ -1854,6 +1854,8 @@ const FlashRequestModal = ({
 
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
+        artistName: getArtistDisplayName(artist),
+        artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
         clientName: client.name,
         clientAvatar: client.avatarUrl,
@@ -2152,6 +2154,7 @@ const isPublicEventBookable = (
   event: ArtistEvent,
   artist?: StripeReadyArtist | null
 ) => {
+  if (event.bookingMode === "paid_ticket") return true;
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
   return isStripeConnectReady(artist);
 };

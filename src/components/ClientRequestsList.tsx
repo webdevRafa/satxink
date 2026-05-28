@@ -2,6 +2,8 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   DollarSign,
   Eye,
@@ -11,7 +13,7 @@ import {
   Ruler,
   X,
 } from "lucide-react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, documentId, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 type FirestoreTimestampLike = {
@@ -21,6 +23,11 @@ type FirestoreTimestampLike = {
 
 type BookingRequest = {
   id: string;
+  artistId?: string;
+  artistName?: string;
+  artistAvatar?: string;
+  artistAvatarUrl?: string;
+  displayName?: string;
   clientId: string;
   clientName: string;
   clientAvatar: string;
@@ -37,23 +44,38 @@ type BookingRequest = {
   thumbUrl?: string;
   budget?: string | number;
   status?: string;
+  offerPreparationStatus?: string;
+  offerPreparationEta?: string;
+  offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
   createdAt?: Date | FirestoreTimestampLike | null;
+};
+
+type RequestArtist = {
+  id: string;
+  name?: string;
+  displayName?: string;
+  avatarUrl?: string;
 };
 
 interface Props {
   clientId: string;
 }
 
+const REQUESTS_PER_PAGE = 6;
+
 const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [requestArtists, setRequestArtists] = useState<Record<string, RequestArtist>>({});
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
     null
   );
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (!clientId) return;
 
+    let isMounted = true;
     setLoading(true);
     const requestsQuery = query(
       collection(db, "bookingRequests"),
@@ -68,24 +90,58 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           id: requestDoc.id,
           ...requestDoc.data(),
         })) as BookingRequest[];
+        if (!isMounted) return;
         setRequests(data);
+        void loadRequestArtists(data, (artists) => {
+          if (!isMounted) return;
+          setRequestArtists((current) => ({ ...current, ...artists }));
+        });
         setLoading(false);
       },
       (error) => {
         console.error("Error listening to client requests:", error);
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [clientId]);
 
   const sortedRequests = useMemo(
     () => [...requests].sort((a, b) => getItemTime(b) - getItemTime(a)),
     [requests]
   );
-  const pendingCount = requests.length;
-  const referencesCount = requests.filter((request) => request.thumbUrl || request.fullUrl).length;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(sortedRequests.length / REQUESTS_PER_PAGE)
+  );
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + REQUESTS_PER_PAGE,
+    sortedRequests.length
+  );
+  const visibleRequests = useMemo(
+    () => sortedRequests.slice(pageStartIndex, pageEndIndex),
+    [pageEndIndex, pageStartIndex, sortedRequests]
+  );
+  const preparingCount = requests.filter(isArtistPreparingOffer).length;
+  const waitingCount = requests.length - preparingCount;
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [clientId]);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  };
 
   if (loading) {
     return <RequestsSkeleton />;
@@ -101,8 +157,8 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
         />
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
           <MetricCard label="Total" value={requests.length} />
-          <MetricCard label="Pending" value={pendingCount} />
-          <MetricCard label="References" value={referencesCount} />
+          <MetricCard label="Waiting" value={waitingCount} />
+          <MetricCard label="Preparing" value={preparingCount} />
         </div>
       </div>
 
@@ -113,7 +169,23 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           description="Requests you send from artist profiles will appear here with references, dates, and status."
         />
       ) : (
-        <RequestTable requests={sortedRequests} onOpen={setSelectedRequest} />
+        <div className="space-y-3">
+          <RequestTable
+            requests={visibleRequests}
+            requestArtists={requestArtists}
+            onOpen={setSelectedRequest}
+          />
+          {totalPages > 1 && (
+            <RequestPagination
+              currentPage={activePage}
+              totalPages={totalPages}
+              totalItems={sortedRequests.length}
+              pageStart={pageStartIndex + 1}
+              pageEnd={pageEndIndex}
+              onPageChange={goToPage}
+            />
+          )}
+        </div>
       )}
 
       <RequestDetailsDialog
@@ -126,27 +198,30 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
 
 const RequestTable = ({
   requests,
+  requestArtists,
   onOpen,
 }: {
   requests: BookingRequest[];
+  requestArtists: Record<string, RequestArtist>;
   onOpen: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(180px,.9fr) 96px minmax(220px,1.15fr) minmax(260px,1.45fr) minmax(130px,.7fr) minmax(140px,.65fr)";
+    "minmax(110px,.52fr) minmax(155px,.72fr) minmax(240px,1.06fr) 88px minmax(215px,.82fr) minmax(165px,.62fr) minmax(110px,.48fr)";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
+        <div className="min-w-[1160px]">
           <div
-            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
             style={{ gridTemplateColumns: columns }}
           >
-            <span>Request</span>
-            <span>Reference</span>
+            <span>Created</span>
+            <span>Artist</span>
             <span>Availability</span>
+            <span>Reference</span>
             <span>Idea</span>
-            <span>Budget</span>
+            <span>Status</span>
             <span className="text-right">Actions</span>
           </div>
           <div className="divide-y divide-white/10">
@@ -154,6 +229,7 @@ const RequestTable = ({
               <RequestRow
                 key={request.id}
                 request={request}
+                artist={request.artistId ? requestArtists[request.artistId] : undefined}
                 columns={columns}
                 onOpen={() => onOpen(request)}
               />
@@ -165,16 +241,103 @@ const RequestTable = ({
   );
 };
 
+const RequestPagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageStart,
+  pageEnd,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageStart: number;
+  pageEnd: number;
+  onPageChange: (page: number) => void;
+}) => {
+  const pageItems = getPaginationItems(currentPage, totalPages);
+
+  return (
+    <nav
+      aria-label="My requests pagination"
+      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.025] px-3! py-3! sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-neutral-500">
+        Showing{" "}
+        <span className="font-semibold text-neutral-300">
+          {pageStart}-{pageEnd}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
+        requests
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronLeft size={14} aria-hidden="true" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-1">
+          {pageItems.map((item) =>
+            typeof item === "number" ? (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onPageChange(item)}
+                aria-current={item === currentPage ? "page" : undefined}
+                className={`h-9 min-w-9 rounded-md px-3! text-xs! font-semibold transition ${
+                  item === currentPage
+                    ? "bg-white text-black"
+                    : "border border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                }`}
+              >
+                {item}
+              </button>
+            ) : (
+              <span
+                key={item}
+                className="flex h-9 min-w-8 items-center justify-center text-xs font-semibold text-neutral-600"
+              >
+                ...
+              </span>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
+  );
+};
+
 const RequestRow = ({
   request,
+  artist,
   columns,
   onOpen,
 }: {
   request: BookingRequest;
+  artist?: RequestArtist;
   columns: string;
   onOpen: () => void;
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const requestArtist = getRequestArtist(request, artist);
 
   return (
     <div
@@ -182,11 +345,48 @@ const RequestRow = ({
       style={{ gridTemplateColumns: columns }}
     >
       <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
-        <p className="truncate font-semibold text-white">Tattoo request</p>
-        <p className="text-sm text-neutral-400">
+        <p className="truncate text-sm font-semibold text-white">
           {formatShortDate(request.createdAt)}
         </p>
       </button>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 items-center gap-3 p-0! pr-4! text-left"
+      >
+        <img
+          src={requestArtist.avatarUrl}
+          alt={requestArtist.name}
+          className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
+        />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-white">
+            {requestArtist.name}
+          </span>
+          <span className="block truncate text-xs text-neutral-500">
+            Artist
+          </span>
+        </span>
+      </button>
+
+      <PreviewMetaRows
+        labelWidth="3.75rem"
+        rows={[
+          {
+            label: "Dates",
+            value: formatCompactDateRange(request.preferredDateRange || []),
+          },
+          {
+            label: "Days",
+            value: formatAvailableDaysSummary(request),
+          },
+          {
+            label: "Time",
+            value: formatAvailableTimeWindow(request),
+          },
+        ]}
+      />
 
       <button
         type="button"
@@ -207,29 +407,25 @@ const RequestRow = ({
         )}
       </button>
 
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm font-medium text-white">
-          {formatCompactDateRange(request.preferredDateRange || [])}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {formatAvailabilitySummary(request)}
-        </p>
-      </div>
-
-      <div className="min-w-0 pr-4">
-        <p className="truncate text-sm text-neutral-300">
-          {request.description || "No description provided."}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {request.bodyPlacement || "Placement open"} · {request.size || "Size open"}
-        </p>
-      </div>
+      <PreviewMetaRows
+        rows={[
+          {
+            label: "Placement",
+            value: request.bodyPlacement || "Placement open",
+          },
+          {
+            label: "Size",
+            value: request.size || "Size open",
+          },
+          {
+            label: "Budget",
+            value: formatBudget(request.budget),
+          },
+        ]}
+      />
 
       <div className="min-w-0 pr-3">
-        <p className="truncate text-sm font-semibold text-white">
-          {formatBudget(request.budget)}
-        </p>
-        <StatusBadge status={request.status || "pending"} />
+        <RequestStatusCell request={request} />
       </div>
 
       <div className="flex justify-end">
@@ -290,7 +486,7 @@ const RequestDetailsDialog = ({
                           <p className="font-semibold text-white">Request sent</p>
                           <p className="text-sm text-neutral-500">{formatShortDate(request.createdAt)}</p>
                         </div>
-                        <StatusBadge status={request.status || "pending"} />
+                        <RequestStatusCell request={request} />
                       </div>
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
                         <DetailTile icon={<MapPin size={17} />} label="Placement" value={request.bodyPlacement || "Not specified"} />
@@ -298,7 +494,7 @@ const RequestDetailsDialog = ({
                         <DetailTile icon={<DollarSign size={17} />} label="Budget" value={formatBudget(request.budget)} />
                         <DetailTile icon={<CalendarDays size={17} />} label="Dates" value={request.preferredDateRange?.length === 2 ? formatDateRange(request.preferredDateRange) : "Flexible"} />
                         <DetailTile icon={<Clock size={17} />} label="Time" value={request.availableTime?.from && request.availableTime?.to ? `${formatTime(request.availableTime.from)} - ${formatTime(request.availableTime.to)}` : "Flexible"} />
-                        <DetailTile icon={<CalendarDays size={17} />} label="Days" value={request.availableDays?.length ? request.availableDays.join(", ") : "Flexible"} />
+                        <DetailTile icon={<CalendarDays size={17} />} label="Days" value={request.availableDays?.length ? getFormattedAvailableDays(request.availableDays) : "Flexible"} />
                       </div>
                       <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
@@ -334,15 +530,54 @@ const MetricCard = ({ label, value }: { label: string; value: string | number })
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
+const RequestStatusCell = ({ request }: { request: BookingRequest }) => {
+  const isPreparing = isArtistPreparingOffer(request);
+  const label = isPreparing ? "Artist is preparing an offer" : "Waiting for artist";
+  const eta = isPreparing && request.offerPreparationEta
+    ? `ETA: ${request.offerPreparationEta}`
+    : "";
+
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1.5">
+      <StatusBadge status={isPreparing ? "preparing" : request.status || "pending"} label={label} />
+      {eta && <span className="truncate text-xs text-neutral-500">{eta}</span>}
+    </div>
+  );
+};
+
+const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
   const className =
-    status === "offered"
+    status === "offered" || status === "preparing"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
       : status === "declined"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>{status.replace("_", " ")}</span>;
+  const display = label || (status === "pending" ? "Waiting for artist" : status.replace("_", " "));
+  return <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>{display}</span>;
 };
+
+const PreviewMetaRows = ({
+  labelWidth = "5.25rem",
+  rows,
+}: {
+  labelWidth?: string;
+  rows: { label: string; value: string }[];
+}) => (
+  <dl className="grid min-w-0 gap-1 pr-3 text-xs leading-5">
+    {rows.map((row) => (
+      <div
+        key={row.label}
+        className="grid min-w-0 items-baseline gap-2"
+        style={{ gridTemplateColumns: `${labelWidth} minmax(0, 1fr)` }}
+      >
+        <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
+          {row.label}
+        </dt>
+        <dd className="truncate font-medium text-neutral-200">{row.value}</dd>
+      </div>
+    ))}
+  </dl>
+);
 
 const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
   <div className="rounded-lg border border-white/10 bg-black/25 p-3">
@@ -370,28 +605,84 @@ const RequestsSkeleton = () => (
   </section>
 );
 
+const getPaginationItems = (
+  currentPage: number,
+  totalPages: number
+): Array<number | "start-ellipsis" | "end-ellipsis"> => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "start-ellipsis" | "end-ellipsis"> = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) items.push("start-ellipsis");
+  for (let page = start; page <= end; page += 1) {
+    items.push(page);
+  }
+  if (end < totalPages - 1) items.push("end-ellipsis");
+  items.push(totalPages);
+
+  return items;
+};
+
 const formatBudget = (budget?: string | number) => {
   if (typeof budget === "number") return `$${budget}`;
   if (!budget) return "Flexible";
   if (budget.endsWith("+")) return `$${budget}`;
   if (budget.includes("-")) {
     const [min, max] = budget.split("-");
-    return `$${min}-$${max}`;
+    const minAmount = min.trim().replace(/^\$/, "");
+    const maxAmount = max.trim().replace(/^\$/, "");
+    return `$${minAmount} - $${maxAmount}`;
   }
   return budget;
 };
 
-const formatAvailabilitySummary = (request: BookingRequest) => {
-  const days = request.availableDays?.length
-    ? request.availableDays.join(", ")
+const formatAvailableDaysSummary = (request: BookingRequest) =>
+  request.availableDays?.length
+    ? getFormattedAvailableDays(request.availableDays)
     : "Days flexible";
-  const time =
-    request.availableTime?.from || request.availableTime?.to
-      ? `${request.availableTime?.from || "Any"}-${request.availableTime?.to || "Any"}`
-      : "Any time";
 
-  return `${days} · ${time}`;
+const formatAvailableTimeWindow = (request: BookingRequest) => {
+  const from = request.availableTime?.from;
+  const to = request.availableTime?.to;
+
+  if (from && to) return `${formatTime(from)} - ${formatTime(to)}`;
+  if (from) return `${formatTime(from)} - Any time`;
+  if (to) return `Any time - ${formatTime(to)}`;
+  return "Any time";
 };
+
+const getFormattedAvailableDays = (days: string[]): string => {
+  const dayOrder = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const abbreviations: Record<string, string> = {
+    Sunday: "Sun",
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+  };
+
+  return [...days]
+    .sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b))
+    .map((day) => abbreviations[day] || day.slice(0, 3))
+    .join(", ");
+};
+
+const isArtistPreparingOffer = (request: BookingRequest) =>
+  request.offerPreparationStatus === "preparing";
 
 const formatDateRange = (dates: string[]) => {
   const [start, end] = dates;
@@ -437,6 +728,77 @@ const formatShortDate = (createdAt?: BookingRequest["createdAt"]) => {
       ? new Date(createdAt.seconds * 1000)
       : null;
   return date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "New";
+};
+
+const getRequestArtist = (request: BookingRequest, artist?: RequestArtist) => ({
+  name:
+    artist?.displayName ||
+    request.artistName ||
+    artist?.name ||
+    request.displayName ||
+    "Artist",
+  avatarUrl:
+    artist?.avatarUrl ||
+    request.artistAvatar ||
+    request.artistAvatarUrl ||
+    "/default-avatar.png",
+});
+
+const loadRequestArtists = async (
+  requests: BookingRequest[],
+  onLoaded: (artists: Record<string, RequestArtist>) => void
+) => {
+  const artistIds = Array.from(
+    new Set(
+      requests
+        .map((request) => request.artistId)
+        .filter((artistId): artistId is string => Boolean(artistId))
+    )
+  );
+
+  if (artistIds.length === 0) return;
+
+  try {
+    const artistChunks = chunkArray(artistIds, 10);
+    const snapshots = await Promise.all(
+      artistChunks.map((artistChunk) =>
+        getDocs(
+          query(
+            collection(db, "users"),
+            where(documentId(), "in", artistChunk)
+          )
+        )
+      )
+    );
+
+    const artists = snapshots.reduce<Record<string, RequestArtist>>(
+      (acc, snapshot) => {
+        snapshot.docs.forEach((artistDoc) => {
+          const data = artistDoc.data() as Omit<RequestArtist, "id">;
+          acc[artistDoc.id] = {
+            id: artistDoc.id,
+            name: data.name,
+            displayName: data.displayName,
+            avatarUrl: data.avatarUrl,
+          };
+        });
+        return acc;
+      },
+      {}
+    );
+
+    onLoaded(artists);
+  } catch (error) {
+    console.error("Error loading request artists:", error);
+  }
+};
+
+const chunkArray = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 };
 
 export default ClientRequestsList;

@@ -1,29 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
+import toast from "react-hot-toast";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   DollarSign,
   Filter,
   ImageOff,
   MapPin,
   Search,
+  ShieldCheck,
+  Store,
   Tag,
+  Ticket,
   Users,
+  X,
 } from "lucide-react";
 import {
   collection,
   documentId,
   getDocs,
+  onSnapshot,
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { auth, db, functions } from "../firebase/firebaseConfig";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import type { EventRegistration } from "../types/EventRegistration";
+import {
+  calculateClientPaymentBreakdown,
+  formatMoneyFromCents,
+} from "../utils/paymentFees";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type DateFilter = "all" | "today" | "this_week" | "this_month";
+type EventHostFilter = "artist" | "shop";
 
 type PublicArtist = {
   id: string;
@@ -39,6 +54,16 @@ type PublicArtist = {
 
 type PublicEvent = ArtistEvent & {
   artist?: PublicArtist;
+  shop?: PublicShop;
+};
+
+type PublicShop = {
+  id: string;
+  name?: string;
+  address?: string;
+  mapLink?: string;
+  logoUrl?: string;
+  avatarUrl?: string;
 };
 
 const eventTypeLabels: Record<EventType, string> = {
@@ -75,11 +100,61 @@ const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
 export const EventsPage = () => {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [registrationsByEventId, setRegistrationsByEventId] = useState<
+    Record<string, EventRegistration>
+  >({});
+  const [reservingEventId, setReservingEventId] = useState("");
+  const [purchasingEventId, setPurchasingEventId] = useState("");
+  const [selectedTicketEvent, setSelectedTicketEvent] = useState<PublicEvent | null>(
+    null
+  );
+  const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
     "all"
   );
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    let unsubscribeRegistrations: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      unsubscribeRegistrations?.();
+      unsubscribeRegistrations = undefined;
+      setCurrentUserId(user?.uid || "");
+      setRegistrationsByEventId({});
+
+      if (!user) return;
+
+      unsubscribeRegistrations = onSnapshot(
+        query(
+          collection(db, "eventRegistrations"),
+          where("clientId", "==", user.uid)
+        ),
+        (snapshot) => {
+          const nextRegistrations: Record<string, EventRegistration> = {};
+          snapshot.docs.forEach((registrationDoc) => {
+            const registration = {
+              id: registrationDoc.id,
+              ...registrationDoc.data(),
+            } as EventRegistration;
+
+            if (registration.status !== "cancelled" && registration.status !== "refunded") {
+              nextRegistrations[registration.eventId] = registration;
+            }
+          });
+          setRegistrationsByEventId(nextRegistrations);
+        },
+        (error) => console.error("Event registration listener failed:", error)
+      );
+    });
+
+    return () => {
+      unsubscribeRegistrations?.();
+      unsubscribeAuth();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,7 +178,12 @@ export const EventsPage = () => {
           }))
           .filter((event): event is ArtistEvent => {
             const typedEvent = event as ArtistEvent;
-            return Boolean(typedEvent.artistId && typedEvent.startDate);
+            return Boolean(
+              typedEvent.startDate &&
+                (typedEvent.artistId ||
+                  typedEvent.shopId ||
+                  typedEvent.ownerType === "shop")
+            );
           });
 
         const artistIds = Array.from(
@@ -111,13 +191,24 @@ export const EventsPage = () => {
         );
 
         const artistsById = await fetchVerifiedArtistsById(artistIds);
+        const shopIds = Array.from(
+          new Set(
+            rawEvents
+              .map((event) => event.shopId)
+              .filter((shopId): shopId is string => Boolean(shopId))
+          )
+        );
+        const shopsById = await fetchShopsById(shopIds);
 
         const publicEvents = rawEvents
           .map((event) => ({
             ...event,
-            artist: artistsById[event.artistId],
+            artist: event.artistId ? artistsById[event.artistId] : undefined,
+            shop: event.shopId ? shopsById[event.shopId] : undefined,
           }))
-          .filter((event) => Boolean(event.artist))
+          .filter((event) =>
+            Boolean(event.artist || event.shop || event.ownerType === "shop")
+          )
           .filter((event) => isPublicEventBookable(event))
           .filter((event) => !isPastEvent(event))
           .sort(sortEventsChronologically);
@@ -140,119 +231,183 @@ export const EventsPage = () => {
     };
   }, []);
 
-  const filteredEvents = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+  const handleFreeRsvp = async (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to RSVP for events.");
+      return;
+    }
 
-    return events.filter((event) => {
-      const matchesDate =
-        dateFilter === "all" || eventMatchesDateFilter(event, dateFilter);
+    if (event.bookingMode !== "rsvp") return;
 
-      const matchesType =
-        eventTypeFilter === "all" || event.eventType === eventTypeFilter;
+    setReservingEventId(event.id);
+    try {
+      const createRsvp = httpsCallable<{ eventId: string }, { registrationId: string }>(
+        functions,
+        "createEventRsvp"
+      );
+      await createRsvp({ eventId: event.id });
+      toast.success("Event pass added to your dashboard.");
+    } catch (error) {
+      console.error("Event RSVP failed:", error);
+      toast.error(getCallableErrorMessage(error, "Could not reserve this event."));
+    } finally {
+      setReservingEventId("");
+    }
+  };
 
-      const searchableText = [
-        event.title,
-        event.description,
-        event.shopName,
-        event.address,
-        event.artist?.displayName,
-        event.artist?.name,
-        event.artist?.studioName,
-        ...(event.tags || []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+  const handlePaidTicket = (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to buy event tickets.");
+      return;
+    }
 
-      const matchesSearch =
-        !normalizedSearch || searchableText.includes(normalizedSearch);
+    if (event.bookingMode !== "paid_ticket") return;
 
-      return matchesDate && matchesType && matchesSearch;
-    });
-  }, [events, dateFilter, eventTypeFilter, searchTerm]);
+    setSelectedTicketEvent(event);
+  };
 
-  const todayEvents = useMemo(
-    () =>
-      filteredEvents.filter((event) => eventMatchesDateFilter(event, "today")),
-    [filteredEvents]
+  const handleConfirmPaidTicket = async (event: PublicEvent) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to buy event tickets.");
+      return;
+    }
+
+    if (event.bookingMode !== "paid_ticket") return;
+
+    setPurchasingEventId(event.id);
+    try {
+      const createCheckout = httpsCallable<
+        {
+          eventId: string;
+          origin: string;
+          successUrl: string;
+          cancelUrl: string;
+        },
+        { url?: string; registrationId: string }
+      >(functions, "createEventCheckoutSession");
+      const origin = window.location.origin;
+      const response = await createCheckout({
+        eventId: event.id,
+        origin,
+        successUrl: `${origin}/dashboard?tab=eventPasses&eventCheckout=success`,
+        cancelUrl: `${origin}/events?eventCheckout=cancelled`,
+      });
+
+      if (!response.data.url) {
+        throw new Error("Missing Stripe checkout URL.");
+      }
+
+      setSelectedTicketEvent(null);
+      window.location.href = response.data.url;
+    } catch (error) {
+      console.error("Event ticket checkout failed:", error);
+      toast.error(getCallableErrorMessage(error, "Could not start ticket checkout."));
+    } finally {
+      setPurchasingEventId("");
+    }
+  };
+
+  const hostCounts = useMemo(
+    () => ({
+      artist: events.filter((event) => getEventHostType(event) === "artist")
+        .length,
+      shop: events.filter((event) => getEventHostType(event) === "shop").length,
+    }),
+    [events]
   );
 
-  const weekEvents = useMemo(
-    () =>
-      filteredEvents.filter(
-        (event) =>
-          eventMatchesDateFilter(event, "this_week") &&
-          !eventMatchesDateFilter(event, "today")
-      ),
-    [filteredEvents]
+  const filteredEventsByHost = useMemo<Record<EventHostFilter, PublicEvent[]>>(
+    () => {
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const groupedEvents: Record<EventHostFilter, PublicEvent[]> = {
+        artist: [],
+        shop: [],
+      };
+
+      events.forEach((event) => {
+        const matchesDate =
+          dateFilter === "all" || eventMatchesDateFilter(event, dateFilter);
+
+        const matchesType =
+          eventTypeFilter === "all" || event.eventType === eventTypeFilter;
+
+        const searchableText = [
+          event.title,
+          event.description,
+          event.shopName,
+          event.shop?.name,
+          event.address,
+          event.artist?.displayName,
+          event.artist?.name,
+          event.artist?.studioName,
+          ...(event.tags || []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch =
+          !normalizedSearch || searchableText.includes(normalizedSearch);
+
+        if (matchesDate && matchesType && matchesSearch) {
+          groupedEvents[getEventHostType(event)].push(event);
+        }
+      });
+
+      return groupedEvents;
+    },
+    [events, dateFilter, eventTypeFilter, searchTerm]
   );
 
-  const laterEvents = useMemo(
-    () =>
-      filteredEvents.filter(
-        (event) => !eventMatchesDateFilter(event, "this_week")
-      ),
-    [filteredEvents]
+  const eventDateGroupsByHost = useMemo(
+    () => ({
+      artist: getEventDateGroups(filteredEventsByHost.artist),
+      shop: getEventDateGroups(filteredEventsByHost.shop),
+    }),
+    [filteredEventsByHost]
   );
-
-  const heroEvent = filteredEvents[0];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-24 text-white">
+    <>
+      <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-20 text-white">
       <section className="mx-auto max-w-6xl">
-        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-5 shadow-xl md:p-6">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+        <div className="rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-4 shadow-xl md:p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
                 Events in San Antonio, TX
               </p>
-              <h1 className="mt-3 max-w-3xl text-3xl! font-bold leading-tight text-white md:text-4xl!">
-                Find tattoo events from verified SATX artists.
+              <h1 className="mt-2 max-w-3xl text-2xl! font-bold leading-tight text-white md:text-3xl!">
+                Find tattoo events from verified artists and local shops.
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60">
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
                 Browse flash days, pop-ups, guest spots, conventions, and shop
                 events without losing your place in the calendar.
               </p>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <HeroStat label="Upcoming events" value={events.length} />
-                <HeroStat
-                  label="Happening today"
-                  value={
-                    events.filter((event) =>
-                      eventMatchesDateFilter(event, "today")
-                    ).length
-                  }
-                />
-                <HeroStat
-                  label="This week"
-                  value={
-                    events.filter((event) =>
-                      eventMatchesDateFilter(event, "this_week")
-                    ).length
-                  }
-                />
-              </div>
             </div>
 
-            <div>
-              {heroEvent ? (
-                <FeaturedEventSummary event={heroEvent} />
-              ) : (
-                <div className="rounded-xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-                    Next event
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    Events will appear here
-                  </p>
-                </div>
-              )}
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+              <HeroStat label="Artist events" value={hostCounts.artist} />
+              <HeroStat label="Shop events" value={hostCounts.shop} />
+              <HeroStat
+                label="This week"
+                value={
+                  events.filter((event) =>
+                    eventMatchesDateFilter(event, "this_week")
+                  ).length
+                }
+              />
             </div>
           </div>
         </div>
 
-        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+        <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+          <HostToggle
+            value={hostFilter}
+            counts={hostCounts}
+            onChange={setHostFilter}
+          />
+
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
             <label className="relative block">
               <Search
@@ -306,64 +461,236 @@ export const EventsPage = () => {
           </div>
         </section>
 
-        {loading ? (
-          <EventsPageSkeleton />
-        ) : filteredEvents.length === 0 ? (
-          <EmptyEventsState />
-        ) : dateFilter === "all" ? (
-          <div className="mt-10 space-y-12">
-            {todayEvents.length > 0 && (
-              <EventSection
-                eyebrow="Happening now"
-                title="Today"
-                events={todayEvents}
-                layout="rail"
-              />
-            )}
-
-            {weekEvents.length > 0 && (
-              <EventSection
-                eyebrow="Coming up soon"
-                title="This week"
-                events={weekEvents}
-                layout="rail"
-              />
-            )}
-
-            {laterEvents.length > 0 && (
-              <EventSection
-                eyebrow="Plan ahead"
-                title="Later events"
-                events={laterEvents}
-                layout="rail"
-              />
-            )}
-          </div>
-        ) : (
-          <div className="mt-10">
-            <EventSection
-              eyebrow="Filtered results"
-              title={getDateFilterTitle(dateFilter)}
-              events={filteredEvents}
-              layout="rail"
-            />
-          </div>
-        )}
+        <EventHostStage activeHost={hostFilter}>
+          {(["artist", "shop"] as const).map((host) => (
+            <div key={host} className="min-w-0">
+              {renderEventContent({
+                loading,
+                filteredEvents: filteredEventsByHost[host],
+                todayEvents: eventDateGroupsByHost[host].todayEvents,
+                weekEvents: eventDateGroupsByHost[host].weekEvents,
+                laterEvents: eventDateGroupsByHost[host].laterEvents,
+                dateFilter,
+                registrationsByEventId,
+                reservingEventId,
+                purchasingEventId,
+                onFreeRsvp: handleFreeRsvp,
+                onPaidTicket: handlePaidTicket,
+              })}
+            </div>
+          ))}
+        </EventHostStage>
       </section>
-    </main>
+      </main>
+
+      <TicketCheckoutPreviewModal
+        event={selectedTicketEvent}
+        registration={
+          selectedTicketEvent
+            ? registrationsByEventId[selectedTicketEvent.id]
+            : undefined
+        }
+        isPurchasing={Boolean(
+          selectedTicketEvent && purchasingEventId === selectedTicketEvent.id
+        )}
+        onClose={() => {
+          if (!purchasingEventId) setSelectedTicketEvent(null);
+        }}
+        onConfirm={handleConfirmPaidTicket}
+      />
+    </>
   );
 };
+
+const getEventDateGroups = (events: PublicEvent[]) => ({
+  todayEvents: events.filter((event) => eventMatchesDateFilter(event, "today")),
+  weekEvents: events.filter(
+    (event) =>
+      eventMatchesDateFilter(event, "this_week") &&
+      !eventMatchesDateFilter(event, "today")
+  ),
+  laterEvents: events.filter(
+    (event) => !eventMatchesDateFilter(event, "this_week")
+  ),
+});
+
+const renderEventContent = ({
+  loading,
+  filteredEvents,
+  todayEvents,
+  weekEvents,
+  laterEvents,
+  dateFilter,
+  registrationsByEventId,
+  reservingEventId,
+  purchasingEventId,
+  onFreeRsvp,
+  onPaidTicket,
+}: {
+  loading: boolean;
+  filteredEvents: PublicEvent[];
+  todayEvents: PublicEvent[];
+  weekEvents: PublicEvent[];
+  laterEvents: PublicEvent[];
+  dateFilter: DateFilter;
+  registrationsByEventId: Record<string, EventRegistration>;
+  reservingEventId: string;
+  purchasingEventId: string;
+  onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
+}) => {
+  if (loading) return <EventsPageSkeleton />;
+  if (filteredEvents.length === 0) return <EmptyEventsState />;
+
+  if (dateFilter !== "all") {
+    return (
+      <div className="mt-10">
+        <EventSection
+          eyebrow="Filtered results"
+          title={getDateFilterTitle(dateFilter)}
+          events={filteredEvents}
+          layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
+          onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-10 space-y-12">
+      {todayEvents.length > 0 && (
+        <EventSection
+          eyebrow="Happening now"
+          title="Today"
+          events={todayEvents}
+          layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
+          onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
+        />
+      )}
+
+      {weekEvents.length > 0 && (
+        <EventSection
+          eyebrow="Coming up soon"
+          title="This week"
+          events={weekEvents}
+          layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
+          onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
+        />
+      )}
+
+      {laterEvents.length > 0 && (
+        <EventSection
+          eyebrow="Plan ahead"
+          title="Later events"
+          events={laterEvents}
+          layout="rail"
+          registrationsByEventId={registrationsByEventId}
+          reservingEventId={reservingEventId}
+          purchasingEventId={purchasingEventId}
+          onFreeRsvp={onFreeRsvp}
+          onPaidTicket={onPaidTicket}
+        />
+      )}
+    </div>
+  );
+};
+
+const EventHostStage = ({
+  activeHost,
+  children,
+}: {
+  activeHost: EventHostFilter;
+  children: React.ReactNode;
+}) => (
+  <div className="overflow-hidden">
+    <div
+      className="grid w-[200%] grid-cols-2 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      style={{
+        transform:
+          activeHost === "artist" ? "translateX(0%)" : "translateX(-50%)",
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+const HostToggle = ({
+  value,
+  counts,
+  onChange,
+}: {
+  value: EventHostFilter;
+  counts: Record<EventHostFilter, number>;
+  onChange: (value: EventHostFilter) => void;
+}) => (
+  <div className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="inline-grid w-full grid-cols-2 rounded-lg border border-white/10 bg-black/25 p-1 sm:w-[340px]">
+      {(["artist", "shop"] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => onChange(item)}
+          className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-3! text-sm! font-semibold capitalize transition ${
+            value === item
+              ? "bg-white text-black shadow-lg"
+              : "text-white/55 hover:bg-white/[0.06] hover:text-white"
+          }`}
+        >
+          {item === "artist" ? <Users size={15} /> : <Store size={15} />}
+          {item === "artist" ? "Artists" : "Shops"}
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] ${
+              value === item
+                ? "bg-black/10 text-black"
+                : "bg-white/[0.08] text-white/55"
+            }`}
+          >
+            {counts[item]}
+          </span>
+        </button>
+      ))}
+    </div>
+    <p className="text-sm text-white/45">
+      {value === "artist"
+        ? "Browsing events published by individual artists."
+        : "Browsing events hosted directly by shops."}
+    </p>
+  </div>
+);
 
 const EventSection = ({
   eyebrow,
   title,
   events,
   layout = "grid",
+  registrationsByEventId,
+  reservingEventId,
+  purchasingEventId,
+  onFreeRsvp,
+  onPaidTicket,
 }: {
   eyebrow: string;
   title: string;
   events: PublicEvent[];
   layout?: "grid" | "rail";
+  registrationsByEventId: Record<string, EventRegistration>;
+  reservingEventId: string;
+  purchasingEventId: string;
+  onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const hasRailControls = layout === "rail" && events.length > 1;
@@ -453,6 +780,11 @@ const EventSection = ({
             <PublicEventCard
               key={event.id}
               event={event}
+              registration={registrationsByEventId[event.id]}
+              isReserving={reservingEventId === event.id}
+              isPurchasing={purchasingEventId === event.id}
+              onFreeRsvp={onFreeRsvp}
+              onPaidTicket={onPaidTicket}
               className="shrink-0 snap-start"
               style={{ width: EVENT_CARD_WIDTH }}
             />
@@ -461,7 +793,15 @@ const EventSection = ({
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {events.map((event) => (
-            <PublicEventCard key={event.id} event={event} />
+            <PublicEventCard
+              key={event.id}
+              event={event}
+              registration={registrationsByEventId[event.id]}
+              isReserving={reservingEventId === event.id}
+              isPurchasing={purchasingEventId === event.id}
+              onFreeRsvp={onFreeRsvp}
+              onPaidTicket={onPaidTicket}
+            />
           ))}
         </div>
       )}
@@ -489,18 +829,291 @@ const RailButton = ({
   </button>
 );
 
+const TicketCheckoutPreviewModal = ({
+  event,
+  registration,
+  isPurchasing,
+  onClose,
+  onConfirm,
+}: {
+  event: PublicEvent | null;
+  registration?: EventRegistration;
+  isPurchasing: boolean;
+  onClose: () => void;
+  onConfirm: (event: PublicEvent) => void;
+}) => {
+  if (!event) return null;
+
+  const hostName = getEventHostName(event);
+  const locationLabel = getLocationLabel(event);
+  const price = Number(event.price || 0);
+  const paymentBreakdown = calculateClientPaymentBreakdown(price);
+  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
+  const isPendingPayment = registration?.status === "pending_payment";
+  const actionLabel = isPendingPayment ? "Resume checkout" : "Continue to Stripe";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Close ticket preview"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <section className="relative z-10 flex max-h-[min(88vh,780px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#151515] text-white shadow-2xl shadow-black/60">
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
+              Ticket checkout
+            </p>
+            <h2 className="mt-1 text-2xl! font-semibold text-white">
+              Review your event pass
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPurchasing}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Close ticket preview"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="satx-scrollbar min-h-0 overflow-y-auto">
+          <div className="grid gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="border-b border-white/10 bg-black/20 lg:border-b-0 lg:border-r">
+              <div className="sticky top-0 space-y-4 p-5 sm:p-6">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black/35">
+                  {event.thumbnailUrl ? (
+                    <img
+                      src={event.thumbnailUrl}
+                      alt={event.title}
+                      className="h-64 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-white/30">
+                      <ImageOff size={36} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Host
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-white">{hostName}</p>
+                  <p className="mt-1 text-sm text-white/50">{locationLabel}</p>
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white/55">
+                  {eventTypeLabels[event.eventType] || "Event"}
+                </span>
+                <h3 className="mt-4 text-3xl! font-semibold leading-tight text-white">
+                  {event.title}
+                </h3>
+                {event.description && (
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    {event.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TicketPreviewFact
+                  icon={<CalendarDays size={16} />}
+                  label="When"
+                  value={formatEventDate(event)}
+                />
+                <TicketPreviewFact
+                  icon={<MapPin size={16} />}
+                  label="Where"
+                  value={locationLabel}
+                />
+                <TicketPreviewFact
+                  icon={<Users size={16} />}
+                  label="Availability"
+                  value={getPaidTicketAvailabilityLabel(event)}
+                />
+                <TicketPreviewFact
+                  icon={<Ticket size={16} />}
+                  label="Pass type"
+                  value="Paid QR event pass"
+                />
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/20">
+                <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.06] text-white/65">
+                    <CreditCard size={18} />
+                  </span>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Checkout breakdown
+                    </h4>
+                    <p className="text-sm text-white/45">
+                      Your spot is claimed only after Stripe confirms payment.
+                    </p>
+                  </div>
+                </div>
+                <div className="divide-y divide-white/10">
+                  <TicketBreakdownRow
+                    label="Event ticket"
+                    note={`Paid to ${hostName}`}
+                    value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
+                  />
+                  <TicketBreakdownRow
+                    label="SATX Ink fee"
+                    note="Platform fee for ticketing and QR check-in"
+                    value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
+                  />
+                  <TicketBreakdownRow
+                    label="Estimated Stripe processing"
+                    note="Final amount is confirmed by Stripe checkout"
+                    value={formatMoneyFromCents(paymentBreakdown.stripeFeeCents)}
+                  />
+                  <div className="flex items-center justify-between gap-4 bg-emerald-400/10 px-4 py-4">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-50">
+                        Estimated total today
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-50/60">
+                        Includes ticket, SATX Ink fee, and processing.
+                      </p>
+                    </div>
+                    <p className="text-xl font-semibold text-emerald-50">
+                      {formatMoneyFromCents(paymentBreakdown.clientTotalCents)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+                <div className="flex gap-3">
+                  <ShieldCheck className="mt-0.5 shrink-0 text-amber-100" size={18} />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-50">
+                      QR pass unlocks after successful payment.
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-amber-50/65">
+                      Clicking continue creates or resumes checkout. The event capacity
+                      count updates after Stripe confirms the payment, not when checkout
+                      opens.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className="text-sm text-white/45">
+            {isPaid
+              ? "This ticket is already in your dashboard."
+              : isPendingPayment
+              ? "You have a pending checkout for this event."
+              : "Review the ticket details before opening Stripe."}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPurchasing}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-5! py-3! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(event)}
+              disabled={isPurchasing || isPaid}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPurchasing ? "Opening Stripe..." : isPaid ? "Ticket purchased" : actionLabel}
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+};
+
+const TicketPreviewFact = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+    <div className="flex items-center gap-2 text-white/35">
+      {icon}
+      <p className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</p>
+    </div>
+    <p className="mt-3 text-sm font-semibold leading-5 text-white">{value}</p>
+  </div>
+);
+
+const TicketBreakdownRow = ({
+  label,
+  note,
+  value,
+}: {
+  label: string;
+  note: string;
+  value: string;
+}) => (
+  <div className="flex items-start justify-between gap-4 px-4 py-4">
+    <div>
+      <p className="text-sm font-semibold text-white">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-white/40">{note}</p>
+    </div>
+    <p className="shrink-0 text-sm font-semibold text-white/85">{value}</p>
+  </div>
+);
+
 const PublicEventCard = ({
   event,
+  registration,
+  isReserving,
+  isPurchasing,
+  onFreeRsvp,
+  onPaidTicket,
   className = "",
   style,
 }: {
   event: PublicEvent;
+  registration?: EventRegistration;
+  isReserving: boolean;
+  isPurchasing: boolean;
+  onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
   className?: string;
   style?: React.CSSProperties;
 }) => {
-  const artistName = getArtistName(event.artist);
+  const hostName = getEventHostName(event);
+  const isShopHosted = getEventHostType(event) === "shop";
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
+  const isRsvpEvent = event.bookingMode === "rsvp";
+  const isPaidTicketEvent = event.bookingMode === "paid_ticket";
+  const isReserved = Boolean(
+    registration &&
+      registration.status !== "cancelled" &&
+      registration.status !== "refunded"
+  );
+  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
+  const isPendingPayment = registration?.status === "pending_payment";
 
   return (
     <article
@@ -528,17 +1141,23 @@ const PublicEventCard = ({
 
         <div className="flex min-w-0 flex-col p-5">
           <div className="flex items-start gap-3">
-            <img
-              src={event.artist?.avatarUrl || "/default-avatar.png"}
-              alt={artistName}
-              className="h-11 w-11 rounded-full border border-white/10 object-cover"
-            />
+            {isShopHosted ? (
+              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/60">
+                <Store size={19} />
+              </span>
+            ) : (
+              <img
+                src={event.artist?.avatarUrl || "/default-avatar.png"}
+                alt={hostName}
+                className="h-11 w-11 rounded-full border border-white/10 object-cover"
+              />
+            )}
             <div className="min-w-0">
               <h3 className="line-clamp-2 text-xl! font-semibold text-white">
                 {event.title}
               </h3>
               <p className="mt-1 truncate text-sm text-white/50">
-                by {artistName}
+                by {hostName}
               </p>
             </div>
           </div>
@@ -556,10 +1175,20 @@ const PublicEventCard = ({
             <EventMeta icon={<DollarSign size={16} />} text={priceLabel} />
             <EventMeta
               icon={<Users size={16} />}
-              text={`${event.spotsClaimed || 0}/${
-                event.capacity || 0
-              } spots claimed`}
+              text={getEventCapacityLabel(event)}
             />
+            {isRsvpEvent && (
+              <EventMeta
+                icon={<CalendarDays size={16} />}
+                text="Free RSVP pass available"
+              />
+            )}
+            {isPaidTicketEvent && (
+              <EventMeta
+                icon={<Ticket size={16} />}
+                text="Paid SATX Ink pass with QR check-in"
+              />
+            )}
           </div>
 
           {event.description && (
@@ -582,58 +1211,66 @@ const PublicEventCard = ({
             </div>
           )}
 
-          <div className="mt-auto flex justify-end pt-5">
-            <Link
-              to={`/artists/${event.artistId}`}
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
-            >
-              View artist
-              <ChevronRight size={16} />
-            </Link>
+          <div className="mt-auto flex flex-wrap justify-end gap-2 pt-5">
+            {isRsvpEvent && (
+              <button
+                type="button"
+                onClick={() => onFreeRsvp(event)}
+                disabled={isReserved || isReserving}
+                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+                  isReserved
+                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+                }`}
+              >
+                {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
+              </button>
+            )}
+            {isPaidTicketEvent && (
+              <button
+                type="button"
+                onClick={() => onPaidTicket(event)}
+                disabled={isPaid || isPurchasing}
+                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+                  isPaid
+                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+                }`}
+                title={
+                  isPendingPayment
+                    ? "Resume checkout to finish reserving your paid event pass."
+                    : "Buy a ticket and receive a QR pass in your dashboard."
+                }
+              >
+                {isPurchasing
+                  ? "Opening checkout..."
+                  : isPaid
+                  ? "Ticket purchased"
+                  : isPendingPayment
+                  ? "Resume checkout"
+                  : "Buy ticket"}
+              </button>
+            )}
+            {!isShopHosted && event.artistId ? (
+              <Link
+                to={`/artists/${event.artistId}`}
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+              >
+                View artist
+                <ChevronRight size={16} />
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/70">
+                Shop event
+                <ChevronRight size={16} />
+              </span>
+            )}
           </div>
         </div>
       </div>
     </article>
   );
 };
-
-const FeaturedEventSummary = ({ event }: { event: PublicEvent }) => (
-  <div className="rounded-xl border border-white/10 bg-black/25 p-4">
-    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/35">
-      Next event
-    </p>
-    <div className="mt-3 flex items-center gap-3">
-      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
-        {event.thumbnailUrl ? (
-          <img
-            src={event.thumbnailUrl}
-            alt={event.title}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <CalendarDays className="text-white/25" size={24} />
-          </div>
-        )}
-      </div>
-      <div className="min-w-0">
-        <h3 className="line-clamp-2 text-base! font-semibold text-white">
-          {event.title}
-        </h3>
-        <p className="mt-1 truncate text-sm text-white/45">
-          {formatEventDate(event)}
-        </p>
-      </div>
-    </div>
-    <Link
-      to={`/artists/${event.artistId}`}
-      className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"
-    >
-      View {getArtistName(event.artist)}
-      <ChevronRight size={16} />
-    </Link>
-  </div>
-);
 
 const HeroStat = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
@@ -687,7 +1324,7 @@ const EmptyEventsState = () => (
     <CalendarDays className="mx-auto mb-4 text-white/25" size={42} />
     <h2 className="text-2xl! font-semibold text-white">No events found</h2>
     <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-white/50">
-      Try changing your filters or checking back when verified artists publish
+      Try changing your filters or checking back when artists and shops publish
       new flash days, pop-ups, guest spots, or shop events.
     </p>
   </div>
@@ -723,6 +1360,31 @@ const fetchVerifiedArtistsById = async (artistIds: string[]) => {
   return artistsById;
 };
 
+const fetchShopsById = async (shopIds: string[]) => {
+  const shopsById: Record<string, PublicShop> = {};
+  const chunks = chunkArray(shopIds, 30);
+
+  for (const chunk of chunks) {
+    if (!chunk.length) continue;
+
+    const shopsQuery = query(
+      collection(db, "shops"),
+      where(documentId(), "in", chunk)
+    );
+
+    const snapshot = await getDocs(shopsQuery);
+
+    snapshot.docs.forEach((shopDoc) => {
+      shopsById[shopDoc.id] = {
+        id: shopDoc.id,
+        ...shopDoc.data(),
+      } as PublicShop;
+    });
+  }
+
+  return shopsById;
+};
+
 const chunkArray = <T,>(items: T[], size: number) => {
   const chunks: T[][] = [];
 
@@ -740,13 +1402,28 @@ const isArtistVerified = (artist?: PublicArtist) =>
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "Verified artist";
 
+const getEventHostType = (event: PublicEvent): EventHostFilter =>
+  event.ownerType === "shop" || (!event.artistId && Boolean(event.shopId))
+    ? "shop"
+    : "artist";
+
+const getEventHostName = (event: PublicEvent) => {
+  if (getEventHostType(event) === "shop") {
+    return event.shop?.name || event.shopName || "Verified shop";
+  }
+
+  return event.artist ? getArtistName(event.artist) : "Verified artist";
+};
+
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
   bookingMode === "flash_reservation" ||
   bookingMode === "paid_ticket";
 
 const isPublicEventBookable = (event: PublicEvent) => {
+  if (event.bookingMode === "paid_ticket") return true;
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
+  if (event.ownerType === "shop" && !event.artist) return false;
   return isStripeConnectReady(event.artist);
 };
 
@@ -864,10 +1541,29 @@ const getLocationLabel = (event: ArtistEvent) => {
   return event.shopName || event.address || "Location TBD";
 };
 
+const getEventCapacityLabel = (event: ArtistEvent) => {
+  if (event.bookingMode === "info_only") {
+    return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  return `${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`;
+};
+
+const getPaidTicketAvailabilityLabel = (event: ArtistEvent) => {
+  const claimed = Number(event.spotsClaimed || 0);
+  const capacity = Number(event.capacity || 0);
+
+  if (!capacity) return "Open ticket capacity";
+
+  const remaining = Math.max(capacity - claimed, 0);
+  return `${remaining} of ${capacity} tickets available`;
+};
+
 const getPriceLabel = (event: ArtistEvent) => {
   const hasDeposit =
-    Boolean(event.depositRequired) ||
-    (typeof event.depositAmount === "number" && event.depositAmount > 0);
+    event.bookingMode !== "info_only" &&
+    (Boolean(event.depositRequired) ||
+      (typeof event.depositAmount === "number" && event.depositAmount > 0));
 
   const depositLabel =
     hasDeposit && event.depositAmount
@@ -896,6 +1592,19 @@ const getDateFilterTitle = (filter: DateFilter) => {
   if (filter === "this_week") return "This week";
   if (filter === "this_month") return "This month";
   return "All upcoming";
+};
+
+const getCallableErrorMessage = (error: unknown, fallback: string) => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 const startOfToday = () => {

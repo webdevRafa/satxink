@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Listbox } from "@headlessui/react";
 import slugify from "slugify";
 import { toast } from "react-hot-toast";
@@ -89,6 +89,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [instagram, setInstagram] = useState<string>("");
   const [facebook, setFacebook] = useState<string>("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const invitedShopId = searchParams.get("shopId") || "";
 
   useEffect(() => {
     setSubmitting(false);
@@ -116,9 +118,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
         ...(doc.data() as Omit<Shop, "id">),
       }));
       setShops(shopList);
+      if (invitedShopId) {
+        const invitedShop = shopList.find((shop) => shop.id === invitedShopId);
+        if (invitedShop) setSelectedShop(invitedShop);
+      }
     };
     fetchShops();
-  }, []);
+  }, [invitedShopId]);
 
   useEffect(() => {
     if (!displayName.trim() || !user) {
@@ -548,6 +554,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
                       {selectedShop && (
                         <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
+                          {invitedShopId === selectedShop.id && (
+                            <p className="mb-3 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-50/85">
+                              This invite is connected to {selectedShop.name}.
+                            </p>
+                          )}
                           <p className="text-sm font-semibold text-white">
                             {selectedShop.name}
                           </p>
