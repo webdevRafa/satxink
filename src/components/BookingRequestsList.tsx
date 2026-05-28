@@ -262,7 +262,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-11 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-10 w-[7.5rem] rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -276,7 +276,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-11 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+              className="h-10 w-20 rounded-md border border-white/10 bg-[#101010] px-3 text-xs! font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
             >
               {[2025, 2026, 2027].map((year) => (
                 <option key={year} value={year}>
@@ -288,7 +288,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-11 w-[5.75rem] items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85"
+              className="inline-flex h-10 w-[5.5rem] items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
             >
               <Filter size={16} />
               Filter
@@ -306,7 +306,7 @@ const BookingRequestsList: React.FC<Props> = ({
                 type="button"
                 onClick={clearFilters}
                 tabIndex={filtersAreActive ? 0 : -1}
-                className="inline-flex h-11 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex h-10 w-[5.25rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
               >
                 Clear
               </button>
@@ -507,7 +507,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(135px,.5fr) minmax(284px,1.08fr)";
+    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -667,12 +667,12 @@ const RequestRow = ({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 pr-2">
         <button
           type="button"
           onClick={onPrepareOffer}
           className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
-            isPreparingOffer ? "min-w-[88px]" : "min-w-[118px]"
+            isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
           }`}
           aria-label={
             isPreparingOffer
@@ -681,7 +681,7 @@ const RequestRow = ({
           }
         >
           <Send size={14} className="text-amber-200" />
-          {isPreparingOffer ? "Timing" : "Prepare offer"}
+          {isPreparingOffer ? "Timing" : "Prepare"}
           <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
             {isPreparingOffer
               ? "Update when the client should expect your offer."
