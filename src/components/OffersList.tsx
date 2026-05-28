@@ -197,7 +197,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
 
   return (
     <section className="mt-6 w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
             Artist inbox
@@ -211,7 +211,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Waiting" value={pendingCount} />
           <MetricCard label="Declined" value={declinedCount} />
           <MetricCard
@@ -729,11 +729,13 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
