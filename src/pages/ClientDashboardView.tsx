@@ -867,7 +867,7 @@ const ClientDashboardView = () => {
         onViewChange={setActiveView}
       />
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 p-6">
         {client && activeView !== "profile" && (
           <ClientHero
             client={client}
