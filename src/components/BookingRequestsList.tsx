@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
@@ -104,6 +104,10 @@ const BookingRequestsList: React.FC<Props> = ({
   const [prepareOfferRequest, setPrepareOfferRequest] =
     useState<BookingRequest | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
+  const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
+  const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
 
   const visibleRequests = useMemo(
     () =>
@@ -166,6 +170,59 @@ const BookingRequestsList: React.FC<Props> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [isFiltering, preparationFilter, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    let frameId = 0;
+
+    const updateFilterPosition = () => {
+      frameId = 0;
+      const currentScrollY = window.scrollY;
+
+      if (!mediaQuery.matches || !filtersAnchorRef.current) {
+        setMobileFiltersDocked(false);
+        setMobileFiltersVisible(false);
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      const hasPassedFilters = filtersAnchorRef.current.getBoundingClientRect().top <= 80;
+      const previousScrollY = lastScrollYRef.current;
+      const scrollingUp = currentScrollY < previousScrollY - 4;
+      const scrollingDown = currentScrollY > previousScrollY + 4;
+
+      setMobileFiltersDocked(hasPassedFilters);
+
+      if (!hasPassedFilters) {
+        setMobileFiltersVisible(false);
+      } else if (scrollingUp) {
+        setMobileFiltersVisible(true);
+      } else if (scrollingDown) {
+        setMobileFiltersVisible(false);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    const queueUpdate = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateFilterPosition);
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    updateFilterPosition();
+
+    window.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      mediaQuery.removeEventListener("change", queueUpdate);
+    };
+  }, []);
 
   const clearFilters = () => {
     setIsFiltering(false);
@@ -258,7 +315,18 @@ const BookingRequestsList: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        className={`rounded-lg border border-white/10 bg-white/[0.03] p-4 backdrop-blur motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none md:static md:translate-y-0 md:opacity-100 ${
+          mobileFiltersDocked
+            ? "sticky top-20 z-40 shadow-2xl shadow-black/35"
+            : ""
+        } ${
+          mobileFiltersDocked && !mobileFiltersVisible
+            ? "pointer-events-none -translate-y-[calc(100%+5rem)] opacity-0"
+            : "translate-y-0 opacity-100"
+        }`}
+      >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
