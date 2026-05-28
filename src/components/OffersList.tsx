@@ -335,7 +335,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
                   key={filter.value}
                   type="button"
                   onClick={() => setStatusFilter(filter.value)}
-                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-4! sm:text-sm! ${
+                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     statusFilter === filter.value
                       ? "border-white bg-white text-black"
                       : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
