@@ -770,11 +770,20 @@ const OfferMobileCard = ({
   const isDeclined = offer.status === "declined";
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
-  const projectLabel = isFlashOffer
-    ? offer.flashTitle || "Flash item"
+  const scopeTile = isFlashOffer
+    ? {
+        label: "Flash",
+        value: offer.flashTitle || "Flash item",
+      }
     : isMultiSessionOffer
-    ? `${offer.estimatedSessionCount || 2} sessions`
-    : offer.shopName || "Single session";
+    ? {
+        label: "Sessions",
+        value: `${offer.estimatedSessionCount || 2} sessions`,
+      }
+    : {
+        label: "Session",
+        value: "Single session",
+      };
 
   return (
     <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -834,7 +843,7 @@ const OfferMobileCard = ({
                 : "No date set"
             }
           />
-          <MobileSummaryTile label="Project" value={projectLabel} />
+          <MobileSummaryTile label={scopeTile.label} value={scopeTile.value} />
         </div>
 
         <MobileOfferMetaRows
