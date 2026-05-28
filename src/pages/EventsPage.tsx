@@ -882,9 +882,7 @@ const PublicEventCard = ({
             <EventMeta icon={<DollarSign size={16} />} text={priceLabel} />
             <EventMeta
               icon={<Users size={16} />}
-              text={`${event.spotsClaimed || 0}/${
-                event.capacity || 0
-              } spots claimed`}
+              text={getEventCapacityLabel(event)}
             />
             {isRsvpEvent && (
               <EventMeta
@@ -1250,10 +1248,19 @@ const getLocationLabel = (event: ArtistEvent) => {
   return event.shopName || event.address || "Location TBD";
 };
 
+const getEventCapacityLabel = (event: ArtistEvent) => {
+  if (event.bookingMode === "info_only") {
+    return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  return `${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`;
+};
+
 const getPriceLabel = (event: ArtistEvent) => {
   const hasDeposit =
-    Boolean(event.depositRequired) ||
-    (typeof event.depositAmount === "number" && event.depositAmount > 0);
+    event.bookingMode !== "info_only" &&
+    (Boolean(event.depositRequired) ||
+      (typeof event.depositAmount === "number" && event.depositAmount > 0));
 
   const depositLabel =
     hasDeposit && event.depositAmount

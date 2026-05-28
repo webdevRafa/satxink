@@ -194,7 +194,7 @@ const eventEditorSteps: Array<{
   {
     key: "pricing",
     title: "Access",
-    description: "Choose capacity and how visitors reserve their spot.",
+    description: "Choose how visitors access the event.",
   },
   {
     key: "publish",
@@ -423,6 +423,8 @@ const EventsManager = ({
   };
 
   const openEditModal = (event: ArtistEvent) => {
+    const bookingMode = event.bookingMode || getDefaultBookingMode(event.eventType);
+
     setEditingEvent(event);
     setForm({
       title: event.title || "",
@@ -440,14 +442,15 @@ const EventsManager = ({
         (event.priceType as string) === "deposit_required"
           ? "fixed"
           : event.priceType || "varies",
-      bookingMode: event.bookingMode || getDefaultBookingMode(event.eventType),
+      bookingMode,
       price: typeof event.price === "number" ? String(event.price) : "",
       depositRequired:
-        Boolean(event.depositRequired) ||
-        (event.priceType as string) === "deposit_required" ||
-        (typeof event.depositAmount === "number" && event.depositAmount > 0),
+        bookingMode !== "info_only" &&
+        (Boolean(event.depositRequired) ||
+          (event.priceType as string) === "deposit_required" ||
+          (typeof event.depositAmount === "number" && event.depositAmount > 0)),
       depositAmount:
-        typeof event.depositAmount === "number"
+        bookingMode !== "info_only" && typeof event.depositAmount === "number"
           ? String(event.depositAmount)
           : "",
       capacity:
@@ -488,6 +491,7 @@ const EventsManager = ({
     const bookingRequiresDeposit =
       form.bookingMode === "deposit_required" ||
       form.bookingMode === "flash_reservation";
+    const bookingAllowsDeposit = bookingRequiresDeposit;
 
     try {
       setIsSaving(true);
@@ -526,13 +530,16 @@ const EventsManager = ({
             : parseOptionalNumber(form.price),
         depositRequired:
           bookingRequiresDeposit ||
-          (form.depositRequired && Number(form.depositAmount || 0) > 0),
+          (bookingAllowsDeposit &&
+            form.depositRequired &&
+            Number(form.depositAmount || 0) > 0),
         depositAmount:
-          (bookingRequiresDeposit || form.depositRequired) &&
+          (bookingRequiresDeposit ||
+            (bookingAllowsDeposit && form.depositRequired)) &&
           Number(form.depositAmount || 0) > 0
             ? parseOptionalNumber(form.depositAmount)
             : null,
-        capacity: parsedCapacity,
+        capacity: parsedCapacity || null,
         spotsClaimed: editingEvent?.spotsClaimed || 0,
         tags: form.tags,
         status: form.status,
@@ -884,9 +891,7 @@ const EventCard = ({
             />
             <EventMeta
               icon={<Users size={15} />}
-              text={`${registrations.length || event.spotsClaimed || 0}/${
-                event.capacity || 0
-              } spots claimed`}
+              text={getEventCapacityLabel(event, registrations.length)}
             />
           </div>
 
@@ -1121,6 +1126,7 @@ const EventEditorModal = ({
 
       <div className="request-modal-scrollbar grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="border-b border-white/10 p-5 lg:border-b-0 lg:border-r">
+          <div className="lg:sticky lg:top-5">
           <label className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.035] text-center transition hover:border-white/35">
             {thumbnailPreview || editingEvent?.thumbnailUrl ? (
               <img
@@ -1157,6 +1163,7 @@ const EventEditorModal = ({
               Remove selected image
             </button>
           )}
+          </div>
         </div>
 
         <div
@@ -1224,24 +1231,31 @@ const EventEditorModal = ({
           </div>
 
           <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <Field label="Attendance mode">
+            <Field label="Access mode">
               <select
                 value={form.bookingMode}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextBookingMode = event.target.value as EventBookingMode;
+
                   setForm((current) => ({
                     ...current,
-                    bookingMode: event.target.value as EventBookingMode,
+                    bookingMode: nextBookingMode,
                     priceType:
-                      event.target.value === "paid_ticket"
+                      nextBookingMode === "paid_ticket"
                         ? "fixed"
                         : current.priceType,
                     depositRequired:
-                      event.target.value === "deposit_required" ||
-                      event.target.value === "flash_reservation"
+                      nextBookingMode === "deposit_required" ||
+                      nextBookingMode === "flash_reservation"
                         ? true
-                        : current.depositRequired,
-                  }))
-                }
+                        : false,
+                    depositAmount:
+                      nextBookingMode === "deposit_required" ||
+                      nextBookingMode === "flash_reservation"
+                        ? current.depositAmount
+                        : "",
+                  }));
+                }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
                 {eventAttendanceModes.map((mode) => (
@@ -1440,17 +1454,36 @@ const EventEditorModal = ({
 
           <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
             <p className="text-sm font-semibold text-sky-100">
-              Paid tickets create SATX Ink event passes.
+              {form.bookingMode === "info_only"
+                ? "Info-only events do not collect money on SATX Ink."
+                : form.bookingMode === "rsvp"
+                ? "Free RSVP creates SATX Ink event passes."
+                : "Paid tickets create SATX Ink event passes."}
             </p>
             <p className="mt-1 text-sm leading-6 text-sky-100/70">
-              Clients pay through Stripe, receive a QR pass in their dashboard,
-              and can be checked in by the host. Deposit and flash-specific
-              reservations are still staged for a later workflow.
+              {form.bookingMode === "info_only"
+                ? "Use price only as public display context, such as Free, Varies, or Starting at. Deposits are hidden because checkout happens outside the platform for info-only events."
+                : form.bookingMode === "rsvp"
+                ? "Visitors can claim a free pass, and you get attendee capacity tracking plus check-in tools."
+                : "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host. Deposit and flash-specific reservations are still staged for a later workflow."}
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]">
-            <Field label="Price type">
+          <div
+            className={`grid gap-4 ${
+              form.bookingMode === "deposit_required" ||
+              form.bookingMode === "flash_reservation"
+                ? "md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]"
+                : "md:grid-cols-[1.15fr_0.85fr_0.85fr]"
+            }`}
+          >
+            <Field
+              label={
+                form.bookingMode === "info_only"
+                  ? "Displayed price"
+                  : "Price type"
+              }
+            >
               <select
                 value={form.priceType}
                 onChange={(event) =>
@@ -1474,76 +1507,92 @@ const EventEditorModal = ({
               </select>
             </Field>
 
-            <Field label="Price">
-              <input
-                type="number"
-                min="0"
-                disabled={
-                  form.priceType === "free" || form.priceType === "varies"
+            {(form.priceType === "fixed" ||
+              form.priceType === "starting_at") && (
+              <Field
+                label={
+                  form.bookingMode === "paid_ticket"
+                    ? "Ticket price"
+                    : form.bookingMode === "info_only"
+                    ? "Display amount"
+                    : "Price"
                 }
-                value={form.price}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    price: event.target.value,
-                  }))
-                }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
-                placeholder={
-                  form.priceType === "starting_at"
-                    ? "Starting price"
-                    : form.priceType === "fixed"
-                    ? "Fixed price"
-                    : "N/A"
-                }
-              />
-            </Field>
+              >
+                <input
+                  type="number"
+                  min="0"
+                  value={form.price}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      price: event.target.value,
+                    }))
+                  }
+                  className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+                  placeholder={
+                    form.priceType === "starting_at"
+                      ? "Starting price"
+                      : "Fixed price"
+                  }
+                />
+              </Field>
+            )}
 
-            <Field label="Deposit">
-              <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
-                <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
+            {(form.bookingMode === "deposit_required" ||
+              form.bookingMode === "flash_reservation") && (
+              <>
+                <Field label="Deposit">
+                  <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
+                    <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
+                      <input
+                        type="checkbox"
+                        checked={form.depositRequired}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            depositRequired: event.target.checked,
+                            depositAmount: event.target.checked
+                              ? current.depositAmount
+                              : "",
+                          }))
+                        }
+                        className="h-4 w-4 accent-[var(--color-primary)]"
+                      />
+                      Required
+                    </label>
+                  </div>
+                </Field>
+
+                <Field label="Deposit amount">
                   <input
-                    type="checkbox"
-                    checked={form.depositRequired}
+                    type="number"
+                    min="0"
+                    disabled={!form.depositRequired}
+                    value={form.depositAmount}
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        depositRequired: event.target.checked,
-                        depositAmount: event.target.checked
-                          ? current.depositAmount
-                          : "",
+                        depositAmount: event.target.value,
+                        depositRequired: Number(event.target.value || 0) > 0,
                       }))
                     }
-                    className="h-4 w-4 accent-[var(--color-primary)]"
+                    className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
+                    placeholder={form.depositRequired ? "20" : "Off"}
                   />
-                  Required
-                </label>
-              </div>
-            </Field>
+                </Field>
+              </>
+            )}
 
-            <Field label="Deposit amount">
-              <input
-                type="number"
-                min="0"
-                disabled={!form.depositRequired}
-                value={form.depositAmount}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    depositAmount: event.target.value,
-                    depositRequired: Number(event.target.value || 0) > 0,
-                  }))
-                }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
-                placeholder={form.depositRequired ? "20" : "Off"}
-              />
-            </Field>
-
-            <Field label="Capacity">
+            <Field
+              label={
+                form.bookingMode === "info_only"
+                  ? "Venue capacity"
+                  : "Capacity"
+              }
+            >
               <input
                 type="number"
                 min="1"
-                required
                 value={form.capacity}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -1552,10 +1601,18 @@ const EventEditorModal = ({
                   }))
                 }
                 className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-                placeholder="100"
+                placeholder={
+                  form.bookingMode === "info_only" ? "Optional" : "100"
+                }
               />
             </Field>
           </div>
+          {form.bookingMode === "info_only" && (
+            <p className="text-xs leading-5 text-white/35">
+              Capacity is optional for info-only events and is shown as venue
+              context only. SATX Ink will not reserve spots or collect payment.
+            </p>
+          )}
 
           {(formErrors.price ||
             formErrors.depositAmount ||
@@ -1579,7 +1636,6 @@ const EventEditorModal = ({
             <>
           <EventReviewSummary
             form={form}
-            thumbnailPreview={thumbnailPreview || editingEvent?.thumbnailUrl || ""}
             ownerType={ownerType}
           />
 
@@ -1822,11 +1878,9 @@ const ValidationCallout = ({ message }: { message: string }) => (
 
 const EventReviewSummary = ({
   form,
-  thumbnailPreview,
   ownerType,
 }: {
   form: EventFormState;
-  thumbnailPreview: string;
   ownerType: "artist" | "shop";
 }) => {
   const dateLabel = form.startDate
@@ -1835,60 +1889,57 @@ const EventReviewSummary = ({
   const priceLabel =
     form.bookingMode === "paid_ticket"
       ? `Ticket ${formatCurrency(form.price)}`
+      : form.bookingMode === "info_only"
+      ? getInfoOnlyPriceLabel(form)
       : form.depositRequired
       ? `Deposit ${formatCurrency(form.depositAmount)}`
       : priceTypeLabels[form.priceType];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-        <div className="flex items-start gap-3">
-          <span className="rounded-lg bg-[var(--color-primary)]/15 p-2 text-[var(--color-primary)]">
-            <Sparkles size={18} />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-white">Event preview</p>
-            <p className="mt-1 text-sm leading-6 text-white/50">
-              This is the version visitors will understand at a glance before
-              they decide to RSVP, reserve, or show up.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10 bg-black/20">
-          <ReviewRow label="Host type" value={ownerType === "shop" ? "Shop event" : "Artist event"} />
-          <ReviewRow label="Title" value={form.title || "Untitled event"} />
-          <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
-          <ReviewRow label="Attendance" value={bookingModeLabels[form.bookingMode]} />
-          <ReviewRow label="Starts" value={dateLabel} />
-          <ReviewRow
-            label="Location"
-            value={
-              form.locationType === "online"
-                ? "Online"
-                : form.locationType === "tbd"
-                ? "Location TBD"
-                : form.shopName || form.address || "Location not set"
-            }
-          />
-          <ReviewRow label="Access" value={priceLabel} />
-          <ReviewRow label="Capacity" value={form.capacity || "Not set"} />
+    <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="flex items-start gap-3">
+        <span className="rounded-lg bg-[var(--color-primary)]/15 p-2 text-[var(--color-primary)]">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-white">Event preview</p>
+          <p className="mt-1 text-sm leading-6 text-white/50">
+            This is the version visitors will understand at a glance before
+            they decide to RSVP, reserve, or show up.
+          </p>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.035]">
-        {thumbnailPreview ? (
-          <img
-            src={thumbnailPreview}
-            alt="Event thumbnail preview"
-            className="h-full min-h-[220px] w-full object-cover"
-          />
-        ) : (
-          <div className="flex min-h-[220px] flex-col items-center justify-center p-5 text-center text-white/40">
-            <CalendarDays size={34} />
-            <p className="mt-3 text-sm font-semibold">No thumbnail yet</p>
-          </div>
-        )}
+      <div className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10 bg-black/20">
+        <ReviewRow
+          label="Host type"
+          value={ownerType === "shop" ? "Shop event" : "Artist event"}
+        />
+        <ReviewRow label="Title" value={form.title || "Untitled event"} />
+        <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
+        <ReviewRow
+          label="Access mode"
+          value={bookingModeLabels[form.bookingMode]}
+        />
+        <ReviewRow label="Starts" value={dateLabel} />
+        <ReviewRow
+          label="Location"
+          value={
+            form.locationType === "online"
+              ? "Online"
+              : form.locationType === "tbd"
+              ? "Location TBD"
+              : form.shopName || form.address || "Location not set"
+          }
+        />
+        <ReviewRow label="Price display" value={priceLabel} />
+        <ReviewRow
+          label={form.bookingMode === "info_only" ? "Venue capacity" : "Capacity"}
+          value={
+            form.capacity ||
+            (form.bookingMode === "info_only" ? "Not shown" : "Not set")
+          }
+        />
       </div>
     </div>
   );
@@ -2024,8 +2075,19 @@ const getEventFormErrors = (
       "Paid event deposits must be greater than the platform fee.";
   }
 
-  if (!parsedCapacity || parsedCapacity <= 0) {
+  if (
+    form.bookingMode !== "info_only" &&
+    (!parsedCapacity || parsedCapacity <= 0)
+  ) {
     errors.capacity = "Add a valid event capacity.";
+  }
+
+  if (
+    form.bookingMode === "info_only" &&
+    parsedCapacity !== null &&
+    parsedCapacity <= 0
+  ) {
+    errors.capacity = "Use a positive venue capacity or leave it blank.";
   }
 
   if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
@@ -2050,6 +2112,16 @@ const formatCurrency = (value: string) => {
   const parsed = parseOptionalNumber(value);
   if (!parsed) return "$0";
   return `$${parsed.toLocaleString()}`;
+};
+
+const getInfoOnlyPriceLabel = (form: EventFormState) => {
+  if (form.priceType === "free") return "Free";
+  if (form.priceType === "varies") return "Pricing varies";
+  if (form.priceType === "starting_at") {
+    return `Starting at ${formatCurrency(form.price)}`;
+  }
+  if (form.priceType === "fixed") return formatCurrency(form.price);
+  return priceTypeLabels[form.priceType];
 };
 
 const getEventManagerCallableErrorMessage = (error: unknown, fallback: string) => {
@@ -2109,7 +2181,7 @@ const eventModeRequiresPayment = (bookingMode: EventBookingMode) =>
 
 const getBookingModeHelp = (bookingMode: EventBookingMode) => {
   if (bookingMode === "info_only") {
-    return "Best for announcements, pop-ups, and convention appearances where visitors just need details.";
+    return "Best for announcements, pop-ups, and externally managed events. SATX Ink will not collect deposits, sell tickets, or reserve spots.";
   }
 
   if (bookingMode === "rsvp") {
@@ -2165,11 +2237,25 @@ const getLocationLabel = (event: ArtistEvent) => {
   return event.shopName || event.address || "Location TBD";
 };
 
+const getEventCapacityLabel = (
+  event: ArtistEvent,
+  registrationCount?: number
+) => {
+  if (event.bookingMode === "info_only") {
+    return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  return `${registrationCount || event.spotsClaimed || 0}/${
+    event.capacity || 0
+  } spots claimed`;
+};
+
 const getPriceLabel = (event: ArtistEvent) => {
   const hasDeposit =
-    Boolean(event.depositRequired) ||
-    (event.priceType as string) === "deposit_required" ||
-    (typeof event.depositAmount === "number" && event.depositAmount > 0);
+    event.bookingMode !== "info_only" &&
+    (Boolean(event.depositRequired) ||
+      (event.priceType as string) === "deposit_required" ||
+      (typeof event.depositAmount === "number" && event.depositAmount > 0));
 
   const depositLabel =
     hasDeposit && event.depositAmount
