@@ -202,7 +202,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
             <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
               {offer.fullUrl || offer.thumbUrl ? (
                 <img
-                  src={offer.fullUrl || offer.thumbUrl}
+                  src={offer.fullUrl || offer.thumbUrl || undefined}
                   alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
                   className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                 />

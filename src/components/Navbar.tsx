@@ -7,23 +7,61 @@ import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import {
+  ArrowRight,
   CalendarDays,
   Image,
   LogOut,
+  LogIn,
   Home,
+  Search,
   Users,
   Info,
   Menu,
   ChevronDown,
+  UserPlus,
   X,
 } from "lucide-react";
+
+const mobileNavItems = [
+  {
+    label: "Artists",
+    description: "Browse verified San Antonio tattooers.",
+    to: "/artists",
+    icon: Users,
+  },
+  {
+    label: "Flash",
+    description: "Find ready-to-request designs and sheets.",
+    to: "/flash",
+    icon: Image,
+  },
+  {
+    label: "Events",
+    description: "See flash days, pop-ups, and local tattoo events.",
+    to: "/events",
+    icon: CalendarDays,
+  },
+  {
+    label: "About",
+    description: "Learn how SATX Ink connects clients and artists.",
+    to: "/about",
+    icon: Info,
+  },
+];
+
+type NavbarUserDoc = {
+  avatarUrl?: string;
+  displayName?: string;
+  name?: string;
+  role?: "artist" | "client";
+};
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
-  const [userDoc, setUserDoc] = useState<any>(null);
+  const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -52,8 +90,8 @@ export const Navbar = () => {
       const userRef = doc(db, "users", uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        const data = userSnap.data();
-        setUserRole(data.role);
+        const data = userSnap.data() as NavbarUserDoc;
+        setUserRole(data.role ?? null);
         setUserDoc(data);
       } else if (retries > 0) {
         setTimeout(() => tryFetchUserData(uid, retries - 1), 1000);
@@ -97,6 +135,27 @@ export const Navbar = () => {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [isAccountMenuOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
 
   return (
     <nav
@@ -223,111 +282,198 @@ export const Navbar = () => {
 
       {/* Slide-In Mobile Menu */}
       <div
-        className={`fixed inset-0 z-90 bg-black/50 backdrop-blur-sm transition-opacity duration-300 flex justify-end ${
+        className={`fixed inset-0 z-90 flex h-dvh justify-end overflow-hidden bg-black/70 backdrop-blur-md transition-opacity duration-300 md:hidden ${
           isOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
         }`}
+        onClick={() => setIsOpen(false)}
+        aria-hidden={!isOpen}
       >
         <div
-          className={`w-[80%] max-w-xs h-full relative transition-transform duration-300 ease-in-out
-      ${isOpen ? "translate-x-0" : "translate-x-full"}
-      bg-[#121212]/70 backdrop-blur-md  p-6 shadow-xl
-    `}
+          className={`relative flex h-dvh w-[min(92vw,430px)] flex-col overflow-hidden border-l border-white/10 bg-[#101010]/95 shadow-2xl shadow-black/60 backdrop-blur-xl transition-transform duration-300 ease-out
+          ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
         >
-          {/* Close Button */}
-          <button
-            className="absolute top-3 right-3 text-white text-xl"
-            onClick={() => setIsOpen(false)}
-          >
-            <X size={22} aria-hidden="true" />
-            <span className="sr-only">Close menu</span>
-          </button>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(circle_at_top_right,rgba(182,56,45,0.22),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.07),transparent)]" />
 
-          {/* Profile Summary */}
-          {user && (
-            <div className="mb-6 flex items-center gap-3">
-              <img
-                src={userDoc?.avatarUrl || "/fallback-avatar.jpg"}
-                alt="Avatar"
-                className="w-10 h-10 rounded-full border border-gray-500"
-              />
-              <div>
-                <p className="text-white text-sm">{user.displayName}</p>
-                <p className="text-gray-400 text-xs capitalize">{userRole}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Menu Items */}
-          <nav className="flex flex-col gap-4 text-white text-base">
-            {user && (
-              <Link
-                to="/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 hover:text-orange-400"
-              >
-                <Home size={18} /> Dashboard
-              </Link>
-            )}
-            <Link
-              to="/artists"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 hover:text-orange-400"
-            >
-              <Users size={18} /> Artists
+          <div className="relative flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <Link to="/" onClick={() => setIsOpen(false)}>
+              <img className="w-20" src={logo} alt="SATX Ink Logo" />
             </Link>
-
-            <Link
-              to="/events"
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
               onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 hover:text-orange-400"
+              aria-label="Close menu"
             >
-              <CalendarDays size={18} /> Events
-            </Link>
+              <X size={20} aria-hidden="true" />
+            </button>
+          </div>
 
-            <Link
-              to="/flash"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 hover:text-orange-400"
-            >
-              <Image size={18} /> Flash
-            </Link>
-
-            <Link
-              to="/about"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-2 hover:text-orange-400"
-            >
-              <Info size={18} /> About
-            </Link>
-
+          <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
             {user ? (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex items-center gap-2 mt-4 text-left hover:text-red-400"
-              >
-                <LogOut size={18} /> Log out
-              </button>
+              <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={
+                      userDoc?.avatarUrl ||
+                      user.photoURL ||
+                      "/fallback-avatar.jpg"
+                    }
+                    alt={userDoc?.name || user.displayName || "User avatar"}
+                    className="h-12 w-12 rounded-full border border-white/20 object-cover"
+                  />
+                  <div className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-white">
+                      {userDoc?.name || user.displayName || "Signed in"}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      {userRole || "Account"}
+                    </span>
+                  </div>
+                </div>
+                <Link
+                  to="/dashboard"
+                  onClick={() => setIsOpen(false)}
+                  className="mt-4 flex h-10 items-center justify-between rounded-md bg-white px-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+                >
+                  Open dashboard
+                  <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              </section>
             ) : (
-              <>
+              <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                  Start here
+                </span>
+                <h2 className="mt-2 mb-0! text-xl! font-semibold! text-white">
+                  Find artists, flash, and tattoo events in SATX.
+                </h2>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Link
+                    to="/signup/client"
+                    onClick={() => setIsOpen(false)}
+                    className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-xs font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+                  >
+                    <UserPlus size={15} aria-hidden="true" />
+                    Client signup
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    className="flex h-10! items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3! py-0! text-xs! font-semibold text-white transition hover:bg-white/10"
+                  >
+                    <LogIn size={15} aria-hidden="true" />
+                    Login
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <section className="mt-5">
+              <span className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                Explore
+              </span>
+              <div className="mt-3 grid gap-2">
+                {mobileNavItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setIsOpen(false)}
+                      className="group flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.025] p-3 transition hover:border-white/20 hover:bg-white/[0.06]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[var(--color-primary)] transition group-hover:bg-[var(--color-primary)] group-hover:text-white">
+                        <Icon size={18} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-white">
+                          {item.label}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-neutral-500">
+                          {item.description}
+                        </span>
+                      </span>
+                      <ArrowRight
+                        size={16}
+                        className="text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-white"
+                        aria-hidden="true"
+                      />
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="mt-5 grid grid-cols-2 gap-2">
+              <Link
+                to="/artists"
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg border border-white/10 bg-white/[0.025] p-3 transition hover:bg-white/[0.06]"
+              >
+                <Search
+                  size={16}
+                  className="text-[var(--color-primary)]"
+                  aria-hidden="true"
+                />
+                <span className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                  Browse
+                </span>
+                <span className="mt-1 block text-sm font-semibold text-white">
+                  Local artists
+                </span>
+              </Link>
+              <Link
+                to="/signup/artist"
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg border border-white/10 bg-white/[0.025] p-3 transition hover:bg-white/[0.06]"
+              >
+                <UserPlus
+                  size={16}
+                  className="text-[var(--color-primary)]"
+                  aria-hidden="true"
+                />
+                <span className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                  Artists
+                </span>
+                <span className="mt-1 block text-sm font-semibold text-white">
+                  Join SATX Ink
+                </span>
+              </Link>
+            </section>
+          </div>
+
+          <div className="relative border-t border-white/10 bg-black/20 px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs leading-5 text-neutral-500">
+                Built for San Antonio tattoo discovery.
+              </span>
+              {user ? (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex h-9! shrink-0 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3! py-0! text-xs! font-semibold text-white transition hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <LogOut size={15} aria-hidden="true" />
+                  Log out
+                </button>
+              ) : (
                 <Link
                   to="/signup"
                   onClick={() => setIsOpen(false)}
-                  className="hover:text-orange-400"
+                  className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white transition hover:bg-white/10"
                 >
                   Signup
+                  <ArrowRight size={14} aria-hidden="true" />
                 </Link>
-                <button
-                  onClick={handleLogin}
-                  className="text-left hover:text-orange-400"
-                >
-                  Login
-                </button>
-              </>
-            )}
-          </nav>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </nav>

@@ -37,6 +37,7 @@ import { db } from "../firebase/firebaseConfig";
 import MakeOfferModal from "./MakeOfferModal";
 import type { Offer } from "../types/Offer";
 import { toast } from "react-hot-toast";
+import { applyOfferImageFallbacks } from "../utils/offerImageFallbacks";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -112,15 +113,19 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
       orderBy("createdAt", "desc")
     );
 
+    let isActive = true;
     const unsubscribe = onSnapshot(
       offersQuery,
-      (snapshot) => {
+      async (snapshot) => {
         const data = snapshot.docs.map((offerDoc) => ({
           id: offerDoc.id,
           ...offerDoc.data(),
         })) as DashboardOffer[];
 
-        setOffers(data);
+        const offersWithImages = await applyOfferImageFallbacks(data);
+        if (!isActive) return;
+
+        setOffers(offersWithImages);
         setLoading(false);
       },
       (error) => {
@@ -129,7 +134,10 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, [uid]);
 
   const activeOffers = useMemo(
@@ -1010,7 +1018,7 @@ const OfferDetailsDialog = ({
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
-                          src={offer.fullUrl || offer.thumbUrl}
+                          src={offer.fullUrl || offer.thumbUrl || undefined}
                           alt={offer.sourceType === "flash" ? offer.flashTitle || "Flash offer" : "Offer sample"}
                           className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                         />
@@ -1285,8 +1293,11 @@ const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => 
   description: offer.message || "",
   bodyPlacement: "",
   size: "",
-  fullUrl: offer.fullUrl,
-  thumbUrl: offer.thumbUrl,
+  fullUrl: offer.fullUrl || undefined,
+  thumbUrl: offer.thumbUrl || undefined,
+  offerFullUrl: offer.fullUrl || null,
+  offerThumbUrl: offer.thumbUrl || null,
+  offerImageFilename: offer.imageFilename || null,
   sourceType: offer.sourceType,
   flashId: offer.flashId || undefined,
   flashTitle: offer.flashTitle || undefined,

@@ -53,6 +53,9 @@ type BookingRequest = {
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
   thumbUrl?: string;
+  offerFullUrl?: string | null;
+  offerThumbUrl?: string | null;
+  offerImageFilename?: string | null;
   budget?: string | number;
   sourceType?: string;
   flashId?: string;
@@ -138,6 +141,8 @@ const MakeOfferModal = ({
     ? flashListedPrice
     : Number(offerPrice || 0);
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
+  const retainedOfferSampleUrl =
+    selectedRequest?.offerThumbUrl || selectedRequest?.offerFullUrl || "";
   const completedDateOptions = useMemo(
     () => dateOptions.filter((option) => option.date && option.time),
     [dateOptions]
@@ -279,6 +284,14 @@ const MakeOfferModal = ({
       let filename: string | null = null;
       let fullUrl: string | null = null;
       let thumbUrl: string | null = null;
+      const fallbackFullUrl =
+        selectedRequest.sourceType === "flash"
+          ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
+          : selectedRequest.offerFullUrl || null;
+      const fallbackThumbUrl =
+        selectedRequest.sourceType === "flash"
+          ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
+          : selectedRequest.offerThumbUrl || null;
 
       if (offerImage) {
         filename = `${uuidv4()}-${offerImage.name}`;
@@ -319,17 +332,9 @@ const MakeOfferModal = ({
         price: submissionOfferPrice,
         message: offerMessage,
         dateOptions: completedDateOptions,
-        imageFilename: filename || null,
-        fullUrl:
-          fullUrl ||
-          (selectedRequest.sourceType === "flash"
-            ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
-            : null),
-        thumbUrl:
-          thumbUrl ||
-          (selectedRequest.sourceType === "flash"
-            ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
-            : null),
+        imageFilename: filename || selectedRequest.offerImageFilename || null,
+        fullUrl: fullUrl || fallbackFullUrl,
+        thumbUrl: thumbUrl || fallbackThumbUrl,
         sourceType: selectedRequest.sourceType || "custom",
         flashId:
           selectedRequest.sourceType === "flash"
@@ -430,59 +435,60 @@ const MakeOfferModal = ({
 
         <form
           onSubmit={handleOfferSubmit}
-          className="overflow-y-auto request-modal-scrollbar"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          {isPreviewingOffer ? (
-            <OfferPreview
-              artist={artist}
-              request={selectedRequest}
-              requestImageUrl={requestImageUrl}
-              sampleImageUrl={
-                previewUrl ||
-                (isFlashRequest
-                  ? selectedRequest.fullUrl || selectedRequest.thumbUrl || ""
-                  : "")
-              }
-              isFlashRequest={isFlashRequest}
-              isMultiSessionProject={!isFlashRequest && isMultiSessionProject}
-              offerPrice={effectiveOfferPrice}
-              depositAmount={Number(depositAmount || 0)}
-              remainingArtistBalance={remainingArtistBalance}
-              paymentPreview={paymentPreview}
-              allowExternalRemainingPayment={
-                canAllowExternalRemainingPayment &&
-                allowExternalRemainingPayment
-              }
-              sessionCount={estimatedSessionCount}
-              sessionEstimate={sessionEstimate}
-              dateOptions={completedDateOptions}
-              message={offerMessage}
-            />
-          ) : (
-          <>
-          <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
-            <aside className="border-b border-white/10 bg-black/25 p-5 lg:border-b-0 lg:border-r lg:p-6">
-              {isFlashRequest ? (
-                <FlashOfferSummaryCard
-                  request={selectedRequest}
-                  previewUrl={requestImageUrl}
-                />
-              ) : (
-                <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
-                  {requestImageUrl ? (
-                    <img
-                      src={requestImageUrl}
-                      alt="Client request reference"
-                      className="h-64 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                      <ImageIcon size={28} />
-                      <span className="text-sm">No request image</span>
-                    </div>
-                  )}
-                </div>
-              )}
+          <div className="min-h-0 flex-1 overflow-y-auto request-modal-scrollbar">
+            {isPreviewingOffer ? (
+              <OfferPreview
+                artist={artist}
+                request={selectedRequest}
+                requestImageUrl={requestImageUrl}
+                sampleImageUrl={
+                  previewUrl ||
+                  (isFlashRequest
+                    ? selectedRequest.fullUrl || selectedRequest.thumbUrl || ""
+                    : retainedOfferSampleUrl)
+                }
+                isFlashRequest={isFlashRequest}
+                isMultiSessionProject={!isFlashRequest && isMultiSessionProject}
+                offerPrice={effectiveOfferPrice}
+                depositAmount={Number(depositAmount || 0)}
+                remainingArtistBalance={remainingArtistBalance}
+                paymentPreview={paymentPreview}
+                allowExternalRemainingPayment={
+                  canAllowExternalRemainingPayment &&
+                  allowExternalRemainingPayment
+                }
+                sessionCount={estimatedSessionCount}
+                sessionEstimate={sessionEstimate}
+                dateOptions={completedDateOptions}
+                message={offerMessage}
+              />
+            ) : (
+              <>
+                <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
+                  <aside className="border-b border-white/10 bg-black/25 p-5 lg:sticky lg:top-0 lg:self-start lg:border-b-0 lg:border-r lg:p-6">
+                    {isFlashRequest ? (
+                      <FlashOfferSummaryCard
+                        request={selectedRequest}
+                        previewUrl={requestImageUrl}
+                      />
+                    ) : (
+                      <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+                        {requestImageUrl ? (
+                          <img
+                            src={requestImageUrl}
+                            alt="Client request reference"
+                            className="h-64 w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                            <ImageIcon size={28} />
+                            <span className="text-sm">No request image</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
               <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center gap-3">
@@ -516,9 +522,9 @@ const MakeOfferModal = ({
                   {selectedRequest.description || "No description provided."}
                 </p>
               </div>
-            </aside>
+                  </aside>
 
-            <div className="space-y-5 p-5 sm:p-6">
+                  <div className="space-y-5 p-5 sm:p-6">
               <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
@@ -915,10 +921,14 @@ const MakeOfferModal = ({
                       }}
                       className="sr-only"
                     />
-                    {previewUrl ? (
+                    {previewUrl || retainedOfferSampleUrl ? (
                       <img
-                        src={previewUrl}
-                        alt="Offer sample preview"
+                        src={previewUrl || retainedOfferSampleUrl}
+                        alt={
+                          previewUrl
+                            ? "Offer sample preview"
+                            : "Retained offer sample"
+                        }
                         className="absolute inset-0 h-full w-full object-cover opacity-80"
                       />
                     ) : (
@@ -932,21 +942,24 @@ const MakeOfferModal = ({
                         </span>
                       </>
                     )}
-                    {previewUrl && (
+                    {(previewUrl || retainedOfferSampleUrl) && (
                       <span className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                        Click to replace image
+                        {previewUrl
+                          ? "Click to replace image"
+                          : "Keeping previous sample. Click to replace."}
                       </span>
                     )}
                   </label>
                 </div>
                 )}
               </section>
-            </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          </>
-          )}
 
-          <div className="flex flex-col-reverse gap-3 border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
             <p className="text-sm text-neutral-500">
               {isPreviewingOffer
                 ? "Review the offer summary before sending."
@@ -954,7 +967,11 @@ const MakeOfferModal = ({
                     completedDateOptions.length === 1 ? "" : "s"
                   } ready`}
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div
+              className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
+                isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
+              }`}
+            >
               <button
                 type="button"
                 onClick={
@@ -962,7 +979,7 @@ const MakeOfferModal = ({
                     ? () => setIsPreviewingOffer(false)
                     : handleClose
                 }
-                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.03] px-2.5! py-3! text-xs! font-semibold text-white transition hover:bg-white/10 sm:px-5! sm:text-sm!"
               >
                 {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
@@ -970,7 +987,7 @@ const MakeOfferModal = ({
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                  className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! py-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2 sm:px-5! sm:text-sm!"
                 >
                   Preview offer
                   <ReceiptText size={16} className="text-amber-200" />
@@ -979,7 +996,7 @@ const MakeOfferModal = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2.5! py-3! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2 sm:px-5! sm:text-sm!"
               >
                 {isSubmitting ? "Sending..." : "Send offer"}
                 <Send size={16} />
@@ -1208,7 +1225,7 @@ const OfferPreview = ({
           </div>
         </section>
 
-        <aside className="space-y-5">
+        <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
           <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
@@ -1246,7 +1263,7 @@ const OfferPreview = ({
               </span>
               <div>
                 <h4 className="text-lg! font-semibold! text-white">
-                  Client message
+                  Message to client
                 </h4>
                 <p className="text-sm text-neutral-400">
                   This message is included with the offer.

@@ -16,6 +16,7 @@ import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
 import type { Offer } from "../types/Offer";
+import { applyOfferImageFallbacks } from "../utils/offerImageFallbacks";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -55,7 +56,9 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         return;
       }
 
-      const offerData = offerSnap.data() as Offer;
+      const [offerData] = await applyOfferImageFallbacks([
+        { id: offerId, ...offerSnap.data() } as Offer,
+      ]);
 
       await updateDoc(offerRef, {
         status: action,
@@ -183,14 +186,18 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
       where("status", "==", "pending")
     );
 
+    let isActive = true;
     const unsubscribe = onSnapshot(
       offersQuery,
-      (snap) => {
+      async (snap) => {
         const data = snap.docs.map((offerDoc) => ({
           id: offerDoc.id,
           ...offerDoc.data(),
         })) as DashboardOffer[];
-        setOffers(data);
+        const offersWithImages = await applyOfferImageFallbacks(data);
+        if (!isActive) return;
+
+        setOffers(offersWithImages);
         setLoading(false);
       },
       (error) => {
@@ -199,7 +206,10 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, [clientId]);
 
   const sortedOffers = useMemo(
