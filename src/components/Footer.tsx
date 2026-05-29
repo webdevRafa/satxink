@@ -4,6 +4,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import {
   ArrowUpRight,
   CalendarDays,
+  ChevronDown,
   CheckCircle2,
   Mail,
   Search,
@@ -32,6 +33,23 @@ const trustSignals = [
   { label: "Verified local artists", icon: CheckCircle2 },
   { label: "Ready-to-request flash", icon: Sparkles },
   { label: "SATX event discovery", icon: CalendarDays },
+];
+
+const audienceOptions = [
+  { value: "client", label: "Client" },
+  { value: "artist", label: "Artist" },
+  { value: "shop", label: "Shop" },
+  { value: "event_host", label: "Event host" },
+  { value: "other", label: "Other" },
+];
+
+const topicOptions = [
+  { value: "general", label: "General question" },
+  { value: "artist_onboarding", label: "Artist onboarding" },
+  { value: "shop_claim", label: "Shop claim" },
+  { value: "events", label: "Events" },
+  { value: "support", label: "Support" },
+  { value: "partnership", label: "Partnership" },
 ];
 
 type ContactFormState = {
@@ -135,10 +153,10 @@ export const Footer = () => {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,260px)_minmax(0,260px)] sm:justify-start">
               <Link
                 to="/artists"
-                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white text-black px-4 py-4 font-semibold transition hover:bg-white/90"
+                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
               >
                 <span className="flex items-center gap-2">
                   <Search size={17} aria-hidden="true" />
@@ -153,7 +171,7 @@ export const Footer = () => {
               <button
                 type="button"
                 onClick={() => setIsContactOpen(true)}
-                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-4 py-4 font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.07]"
+                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-4 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.07]"
               >
                 <span className="flex items-center gap-2">
                   <Mail size={17} aria-hidden="true" />
@@ -186,8 +204,8 @@ export const Footer = () => {
 
         <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-4 border-t border-white/10 pt-5 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            &copy; {new Date().getFullYear()} SATX Ink. Built for San Antonio
-            tattoo culture.
+            {new Date().getFullYear()} SATX Ink. Built for San Antonio tattoo
+            culture.
           </p>
           <div className="flex flex-wrap gap-5">
             <Link to="/terms" className="transition hover:text-white">
@@ -251,35 +269,18 @@ export const Footer = () => {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <ContactField label="I am a">
-                  <select
+                  <ContactSelect
                     value={contactForm.audience}
-                    onChange={(event) =>
-                      updateContactField("audience", event.target.value)
-                    }
-                    className={contactInputClass}
-                  >
-                    <option value="client">Client</option>
-                    <option value="artist">Artist</option>
-                    <option value="shop">Shop</option>
-                    <option value="event_host">Event host</option>
-                    <option value="other">Other</option>
-                  </select>
+                    options={audienceOptions}
+                    onChange={(value) => updateContactField("audience", value)}
+                  />
                 </ContactField>
                 <ContactField label="Topic">
-                  <select
+                  <ContactSelect
                     value={contactForm.topic}
-                    onChange={(event) =>
-                      updateContactField("topic", event.target.value)
-                    }
-                    className={contactInputClass}
-                  >
-                    <option value="general">General question</option>
-                    <option value="artist_onboarding">Artist onboarding</option>
-                    <option value="shop_claim">Shop claim</option>
-                    <option value="events">Events</option>
-                    <option value="support">Support</option>
-                    <option value="partnership">Partnership</option>
-                  </select>
+                    options={topicOptions}
+                    onChange={(value) => updateContactField("topic", value)}
+                  />
                 </ContactField>
               </div>
 
@@ -295,14 +296,11 @@ export const Footer = () => {
                 />
               </ContactField>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs leading-5 text-neutral-500">
-                  Messages are sent to the SATX Ink admin inbox.
-                </p>
+              <div className="flex justify-end border-t border-white/10 pt-4">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                 >
                   {isSubmitting ? "Sending..." : "Send message"}
                   <Send size={16} aria-hidden="true" />
@@ -348,11 +346,88 @@ const ContactField = ({
   label: string;
   children: ReactNode;
 }) => (
-  <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+  <div className="grid gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
     <span>{label}</span>
     {children}
-  </label>
+  </div>
 );
+
+const ContactSelect = ({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOption =
+    options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <div
+      className="relative normal-case tracking-normal"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        className={`${contactInputClass} flex h-11 items-center justify-between gap-3 text-left`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span>{selectedOption.label}</span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-neutral-400 transition duration-200 ${
+            isOpen ? "rotate-180 text-white" : ""
+          }`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-md border border-white/10 bg-[#181818] py-1 shadow-2xl shadow-black/50"
+        >
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-semibold transition ${
+                  isSelected
+                    ? "bg-white/[0.08] text-white"
+                    : "text-neutral-300 hover:bg-white/[0.05] hover:text-white"
+                }`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+              >
+                <span>{option.label}</span>
+                {isSelected && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const contactInputClass =
   "w-full rounded-md border border-white/10 bg-black/35 px-3 py-2.5 text-sm normal-case tracking-normal text-white outline-none transition placeholder:text-neutral-600 focus:border-white/30";
