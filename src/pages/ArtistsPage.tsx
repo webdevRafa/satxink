@@ -764,10 +764,10 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles left"
               onClick={() => scrollStyleRail(-1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
             >
               <ChevronLeft
-                className="h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
                 strokeWidth={3}
                 aria-hidden="true"
               />
@@ -802,10 +802,10 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles right"
               onClick={() => scrollStyleRail(1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
             >
               <ChevronRight
-                className="h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
                 strokeWidth={3}
                 aria-hidden="true"
               />
