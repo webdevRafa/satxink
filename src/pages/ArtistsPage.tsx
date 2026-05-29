@@ -883,7 +883,7 @@ const ArtistPreviewCard = ({
 );
 
 const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
-  const { targetRef, offset } = useScrollParallax(64);
+  const { targetRef, offset } = useScrollParallax(80);
   const displayName = getArtistDisplayName(artist);
   const visibleSpecialties = artist.specialties?.slice(0, 5) || [];
 
@@ -900,7 +900,7 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
             aria-hidden="true"
             loading="lazy"
             decoding="async"
-            className="absolute inset-x-0 -top-10 h-[calc(100%+5rem)] w-full scale-110 object-cover opacity-30 blur-[1px] saturate-[0.82] transition duration-700 group-hover:opacity-[0.38]"
+            className="absolute inset-x-0 -top-12 h-[calc(100%+6rem)] w-full scale-110 object-cover opacity-30 blur-[1px] saturate-[0.82] transition duration-700 group-hover:opacity-[0.38]"
             style={{
               transform: `translate3d(0, ${offset}px, 0) scale(1.12)`,
               willChange: "transform",
