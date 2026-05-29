@@ -532,7 +532,6 @@ export const EventsPage = () => {
                 />
                 Local Event Drops
               </div>
-              <div className="absolute inset-x-6 bottom-20 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
               <div className="absolute bottom-9 left-6 right-6 grid grid-cols-3 gap-3">
                 {eventDropCards.map((card) => {
                   const restingY = card.offsetY;

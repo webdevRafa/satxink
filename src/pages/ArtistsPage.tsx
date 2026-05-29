@@ -716,8 +716,6 @@ export const ArtistsPage = () => {
             style={heroArtworkStyle}
             aria-hidden="true"
           >
-            <div className="absolute inset-x-5 bottom-20 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-            <div className="absolute bottom-10 left-8 right-8 h-16 border-x border-t border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent" />
             <img
               className="absolute bottom-16 left-1/2 w-[360px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
               src={sa}
