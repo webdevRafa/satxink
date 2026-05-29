@@ -68,7 +68,7 @@ const ArtistShopDashboardSwitch = () => {
 
   return (
     <div>
-      <div className="fixed bottom-5 right-5 z-[80] rounded-lg border border-white/10 bg-[#111111]/95 p-1 shadow-2xl backdrop-blur">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[70] rounded-lg border border-white/10 bg-[#111111]/95 p-1 shadow-2xl backdrop-blur sm:right-5">
         {(["artist", "shop"] as const).map((item) => (
           <button
             key={item}

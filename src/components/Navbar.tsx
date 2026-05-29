@@ -159,7 +159,7 @@ export const Navbar = () => {
 
   return (
     <nav
-      className={`fixed top-0 left-0 w-full z-50 px-4 py-4 transition-colors duration-400 ${
+      className={`fixed top-0 left-0 w-full z-[90] px-4 py-4 transition-colors duration-400 ${
         isScrolled
           ? "bg-[var(--color-bg-footer)]  shadow-sm"
           : "bg-transparent border-transparent"
@@ -282,7 +282,7 @@ export const Navbar = () => {
 
       {/* Slide-In Mobile Menu */}
       <div
-        className={`fixed inset-0 z-90 flex h-dvh justify-end overflow-hidden bg-black/70 backdrop-blur-md transition-opacity duration-300 md:hidden ${
+        className={`fixed inset-0 z-[110] flex h-dvh justify-end overflow-hidden bg-black/70 backdrop-blur-md transition-opacity duration-300 md:hidden ${
           isOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -298,7 +298,7 @@ export const Navbar = () => {
           aria-modal="true"
           aria-label="Mobile navigation"
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(circle_at_top_right,rgba(182,56,45,0.22),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.07),transparent)]" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),transparent)]" />
 
           <div className="relative flex items-center justify-between border-b border-white/10 px-5 py-4">
             <Link to="/" onClick={() => setIsOpen(false)}>

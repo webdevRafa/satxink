@@ -1123,74 +1123,6 @@ const syncBookingPaymentStatus = onCall(
   }
 );
 
-const createShopClaimProofAccess = onCall(
-  { cors: true, region: "us-central1" },
-  async (req) => {
-    const uid = req.auth?.uid;
-    if (!uid) {
-      throw new HttpsError("unauthenticated", "User must be authenticated.");
-    }
-
-    const adminSnap = await db.collection("users").doc(uid).get();
-    if (adminSnap.data()?.role !== "admin") {
-      throw new HttpsError(
-        "permission-denied",
-        "Only admins can view shop claim proof documents."
-      );
-    }
-
-    const claimId = String(req.data?.claimId || "");
-    const proofPath = String(req.data?.path || "");
-    if (!claimId || !proofPath || !proofPath.startsWith("shopClaims/")) {
-      throw new HttpsError("invalid-argument", "A valid proof path is required.");
-    }
-
-    const claimRef = db.collection("shopClaims").doc(claimId);
-    const claimSnap = await claimRef.get();
-    if (!claimSnap.exists) {
-      throw new HttpsError("not-found", "Shop claim not found.");
-    }
-
-    const claim = claimSnap.data() || {};
-    const proofDocuments = Array.isArray(claim.proofDocuments)
-      ? claim.proofDocuments
-      : [];
-    const proofBelongsToClaim = proofDocuments.some(
-      (proof: { path?: unknown }) => proof?.path === proofPath
-    );
-
-    if (!proofBelongsToClaim) {
-      throw new HttpsError(
-        "permission-denied",
-        "This proof document is not attached to the selected claim."
-      );
-    }
-
-    const expiresAt = Date.now() + 5 * 60 * 1000;
-    const [url] = await bucket.file(proofPath).getSignedUrl({
-      action: "read",
-      expires: expiresAt,
-    });
-
-    await claimRef.collection("accessLogs").add({
-      path: proofPath,
-      viewedBy: uid,
-      viewedAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromMillis(expiresAt),
-    });
-
-    await claimRef.set(
-      {
-        lastProofViewedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastProofViewedBy: uid,
-      },
-      { merge: true }
-    );
-
-    return { url, expiresAt };
-  }
-);
-
 const createEventRsvp = onCall(
   { cors: true, region: "us-central1" },
   async (req) => {
@@ -2276,7 +2208,6 @@ module.exports = {
   createStripeDashboardLoginLink,
   createCheckoutSession,
   syncBookingPaymentStatus,
-  createShopClaimProofAccess,
   createEventRsvp,
   createEventCheckoutSession,
   syncEventTicketPaymentStatus,

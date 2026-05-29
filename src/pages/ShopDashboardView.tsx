@@ -11,15 +11,15 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
 import {
   Building2,
   CalendarDays,
+  ChevronDown,
   CheckCircle2,
   Copy,
-  FileUp,
   LinkIcon,
   CreditCard,
+  LayoutDashboard,
   Pencil,
   Search,
   Store,
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
-import { auth, db, storage } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { StripeConnectStatus } from "../types/StripeCheckout";
@@ -62,7 +62,9 @@ type ShopClaim = {
   userId: string;
   shopId: string;
   shopName?: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "verified" | "approved" | "rejected";
+  verificationMethod?: "in_person";
+  verificationStatus?: "pending_visit" | "verified_in_person" | "rejected";
   notes?: string;
   adminNotes?: string;
   createdAt?: unknown;
@@ -85,7 +87,7 @@ type ShopArtist = {
   };
 };
 
-type ShopView = "artists" | "events" | "payments";
+type ShopView = "artists" | "events" | "profile" | "payments";
 type ClaimMode = "existing" | "new";
 
 const ShopDashboardView = () => {
@@ -273,84 +275,26 @@ const ShopDashboardView = () => {
     : "";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0d0d0d] to-[#101010] pt-24 text-white">
-      <main className="mx-auto w-full max-w-7xl px-5 pb-16">
-        <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5 shadow-2xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                Shop dashboard
-              </p>
-              <h1 className="mt-2 text-3xl! font-semibold text-white">
-                {activeShop?.name || "Your shop"}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
-                Manage your SATX Ink shop presence, invite artists, keep
-                affiliations clean, and publish shop-hosted events.
-              </p>
-            </div>
-            {ownedShops.length > 1 && (
-              <label className="min-w-[260px] space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                  Managing
-                </span>
-                <select
-                  value={activeShop?.id || ""}
-                  onChange={(event) => setSelectedShopId(event.target.value)}
-                  className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none"
-                >
-                  {ownedShops.map((shop) => (
-                    <option key={shop.id} value={shop.id}>
-                      {shop.name || shop.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] pt-20 text-white">
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <ShopDashboardNavigation
+          activeView={activeView}
+          artistCount={artists.length}
+          inviteUrl={inviteUrl}
+          shopName={activeShop?.name || "your shop"}
+          onChange={setActiveView}
+        />
 
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
-            <MetricCard icon={<Users size={18} />} label="Artists" value={artists.length} />
-            <MetricCard icon={<CalendarDays size={18} />} label="Events" value="Manage" />
-            <MetricCard
-              icon={<CheckCircle2 size={18} />}
-              label="Ownership"
-              value="Verified"
-            />
-          </div>
-        </section>
+        <main className="min-w-0 flex-1 px-4 pb-24 pt-4 md:px-6 md:pb-16 md:pt-6 lg:pr-8">
+          <ShopDashboardHeader
+            activeShop={activeShop}
+            ownedShops={ownedShops}
+            selectedShopId={activeShop?.id || ""}
+            onShopChange={setSelectedShopId}
+            artistCount={artists.length}
+          />
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="space-y-3">
-            <DashboardTab
-              active={activeView === "artists"}
-              icon={<Users size={17} />}
-              label="Artists"
-              count={artists.length}
-              onClick={() => setActiveView("artists")}
-            />
-            <DashboardTab
-              active={activeView === "events"}
-              icon={<CalendarDays size={17} />}
-              label="Events"
-              onClick={() => setActiveView("events")}
-            />
-            <DashboardTab
-              active={activeView === "profile"}
-              icon={<Pencil size={17} />}
-              label="Profile"
-              onClick={() => setActiveView("profile")}
-            />
-            <DashboardTab
-              active={activeView === "payments"}
-              icon={<CreditCard size={17} />}
-              label="Payments"
-              onClick={() => setActiveView("payments")}
-            />
-            <InviteCard inviteUrl={inviteUrl} shopName={activeShop?.name || "your shop"} />
-          </aside>
-
-          <section className="min-w-0">
+          <section className="mt-5 min-w-0 md:mt-6">
             {activeView === "profile" && activeShop && (
               <ShopProfilePanel shop={activeShop} />
             )}
@@ -361,6 +305,7 @@ const ShopDashboardView = () => {
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
                 shop={activeShop}
+                inviteUrl={inviteUrl}
               />
             )}
             {activeView === "events" && activeShop && (
@@ -378,11 +323,198 @@ const ShopDashboardView = () => {
               <StripeConnectPanel artist={currentUser} />
             )}
           </section>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
+
+const shopDashboardTabs: Array<{
+  key: ShopView;
+  label: string;
+  icon: React.ReactNode;
+}> = [
+  { key: "artists", label: "Artists", icon: <Users size={17} /> },
+  { key: "events", label: "Events", icon: <CalendarDays size={17} /> },
+  { key: "profile", label: "Profile", icon: <Pencil size={17} /> },
+  { key: "payments", label: "Payments", icon: <CreditCard size={17} /> },
+];
+
+const ShopDashboardNavigation = ({
+  activeView,
+  artistCount,
+  inviteUrl,
+  shopName,
+  onChange,
+}: {
+  activeView: ShopView;
+  artistCount: number;
+  inviteUrl: string;
+  shopName: string;
+  onChange: (view: ShopView) => void;
+}) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const activeTab =
+    shopDashboardTabs.find((tab) => tab.key === activeView) ||
+    shopDashboardTabs[0];
+
+  const handleChange = (view: ShopView) => {
+    onChange(view);
+    setMobileMenuOpen(false);
+  };
+
+  return (
+    <>
+      <div className="sticky top-20 z-40 mx-4 mb-4 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#111111]/95 px-3! py-3! text-left shadow-2xl shadow-black/30 backdrop-blur-xl transition hover:border-white/20"
+          aria-expanded={mobileMenuOpen}
+          aria-label="Open shop dashboard menu"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/[0.05] text-[var(--color-primary)]">
+              <LayoutDashboard size={17} aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                Shop dashboard
+              </span>
+              <span className="block truncate text-sm font-semibold text-white">
+                {activeTab.label}
+              </span>
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {activeView === "artists" && artistCount > 0 && (
+              <CountBadge count={artistCount} active />
+            )}
+            <ChevronDown
+              size={17}
+              className={`text-neutral-400 transition-transform ${
+                mobileMenuOpen ? "rotate-180" : ""
+              }`}
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+
+        {mobileMenuOpen && (
+          <div className="absolute inset-x-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-lg border border-white/10 bg-[#111111] p-2 shadow-2xl shadow-black/50">
+            <div className="grid gap-1">
+              {shopDashboardTabs.map((tab) => (
+                <DashboardTab
+                  key={tab.key}
+                  active={activeView === tab.key}
+                  icon={tab.icon}
+                  label={tab.label}
+                  count={tab.key === "artists" ? artistCount : undefined}
+                  onClick={() => handleChange(tab.key)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <aside className="hidden w-64 shrink-0 border-r border-white/5 bg-black/20 p-4 md:block md:sticky md:top-20 md:h-[calc(100vh-5rem)] md:self-start">
+        <nav className="space-y-2">
+          {shopDashboardTabs.map((tab) => (
+            <DashboardTab
+              key={tab.key}
+              active={activeView === tab.key}
+              icon={tab.icon}
+              label={tab.label}
+              count={tab.key === "artists" ? artistCount : undefined}
+              onClick={() => onChange(tab.key)}
+            />
+          ))}
+        </nav>
+        <div className="mt-5">
+          <InviteCard inviteUrl={inviteUrl} shopName={shopName} />
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const ShopDashboardHeader = ({
+  activeShop,
+  ownedShops,
+  selectedShopId,
+  onShopChange,
+  artistCount,
+}: {
+  activeShop?: ShopRecord;
+  ownedShops: ShopRecord[];
+  selectedShopId: string;
+  onShopChange: (shopId: string) => void;
+  artistCount: number;
+}) => (
+  <section className="rounded-lg border border-white/10 bg-white/[0.035] p-4 shadow-2xl md:p-5">
+    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-start gap-4">
+        <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-md bg-white/[0.05] text-[var(--color-primary)] sm:flex">
+          <Store size={21} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+            Shop dashboard
+          </p>
+          <h1 className="mt-1 truncate text-2xl! font-semibold text-white md:text-3xl!">
+            {activeShop?.name || "Your shop"}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+            Manage your SATX Ink shop presence, invite artists, keep
+            affiliations clean, and publish shop-hosted events.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,260px)_minmax(0,420px)] lg:min-w-[640px] lg:grid-cols-[260px_1fr]">
+        {ownedShops.length > 1 ? (
+          <label className="space-y-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+              Managing
+            </span>
+            <select
+              value={selectedShopId}
+              onChange={(event) => onShopChange(event.target.value)}
+              className="h-10 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-white/25"
+            >
+              {ownedShops.map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name || shop.id}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="hidden sm:block" />
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <MetricCard
+            icon={<Users size={15} />}
+            label="Artists"
+            value={artistCount}
+          />
+          <MetricCard
+            icon={<CalendarDays size={15} />}
+            label="Events"
+            value="Manage"
+          />
+          <MetricCard
+            icon={<CheckCircle2 size={15} />}
+            label="Ownership"
+            value="Verified"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+);
 
 const ShopClaimExperience = ({
   user,
@@ -403,7 +535,6 @@ const ShopClaimExperience = ({
   const [newShopAddress, setNewShopAddress] = useState("");
   const [newShopMapLink, setNewShopMapLink] = useState("");
   const [notes, setNotes] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const latestClaim = claims
     .slice()
@@ -421,34 +552,9 @@ const ShopClaimExperience = ({
       toast.error("Add the shop name you want to register.");
       return;
     }
-    if (!files.length) {
-      toast.error("Upload at least one document showing ownership or management authority.");
-      return;
-    }
 
     try {
       setSubmitting(true);
-      const uploadedDocuments = await Promise.all(
-        files.map(async (file) => {
-          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-          const claimShopKey =
-            claimMode === "existing"
-              ? selectedShop?.id || "unknown-shop"
-              : `new-${requestedShopName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-          const path = `shopClaims/${user.id}/${claimShopKey}/${Date.now()}-${safeName}`;
-          const storageRef = ref(storage, path);
-          await uploadBytes(storageRef, file, {
-            contentType: file.type || "application/octet-stream",
-          });
-          return {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            path,
-          };
-        })
-      );
-
       await addDoc(collection(db, "shopClaims"), {
         userId: user.id,
         claimantName: user.displayName || user.name || "",
@@ -464,21 +570,22 @@ const ShopClaimExperience = ({
                 name: requestedShopName,
                 address: newShopAddress.trim(),
                 mapLink: newShopMapLink.trim(),
-              }
+            }
             : null,
         status: "pending",
+        verificationMethod: "in_person",
+        verificationStatus: "pending_visit",
+        inPersonVerificationRequired: true,
         notes: notes.trim(),
-        proofDocuments: uploadedDocuments,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       await updateDoc(doc(db, "users", user.id), {
-        shopClaimStatus: "pending",
+        shopClaimStatus: "pending_visit",
         updatedAt: serverTimestamp(),
       });
 
-      setFiles([]);
       setNotes("");
       setSelectedShopId("");
       setNewShopName("");
@@ -504,12 +611,11 @@ const ShopClaimExperience = ({
             Claim a shop
           </p>
           <h1 className="mt-2 text-3xl! font-semibold text-white">
-            Verify shop ownership
+            Request shop verification
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-400">
-            Submit documentation that proves you own or manage the shop. Once
-            approved, you can invite artists, manage affiliations, and publish
-            shop events from SATX Ink.
+            Submit a claim for the shop you own or manage. SATX Ink will verify
+            the claim in person at the shop before dashboard access is granted.
           </p>
 
           {latestClaim && (
@@ -606,42 +712,17 @@ const ShopClaimExperience = ({
               )}
             </label>
 
-            <label className="block space-y-2">
-              <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                Documents
-              </span>
-              <div className="rounded-lg border border-dashed border-white/15 bg-black/25 p-5">
-                <FileUp className="text-neutral-500" size={24} />
-                <p className="mt-3 text-sm font-semibold text-white">
-                  Upload ownership proof
-                </p>
-                <p className="mt-1 text-sm leading-6 text-neutral-400">
-                  Business license, lease, utility bill, tax document, or
-                  signed authorization from the shop owner.
-                </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(event) =>
-                    setFiles(Array.from(event.target.files || []))
-                  }
-                  className="mt-4 w-full text-sm text-neutral-400 file:mr-4 file:rounded-md file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
-                />
-                {files.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {files.map((file) => (
-                      <p
-                        key={`${file.name}-${file.size}`}
-                        className="truncate rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-300"
-                      >
-                        {file.name}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </label>
+            <div className="rounded-lg border border-white/10 bg-black/25 p-5">
+              <CheckCircle2 className="text-[var(--color-primary)]" size={24} />
+              <p className="mt-3 text-sm font-semibold text-white">
+                In-person verification
+              </p>
+              <p className="mt-1 text-sm leading-6 text-neutral-400">
+                No documents are required here. After you submit, SATX Ink will
+                visit the shop, confirm ownership or management authority in
+                person, and then unlock the shop dashboard.
+              </p>
+            </div>
 
             <label className="block space-y-2">
               <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
@@ -651,10 +732,36 @@ const ShopClaimExperience = ({
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={4}
-                placeholder="Tell us your role at the shop and what the uploaded documents show."
+                placeholder="Tell us your role at the shop, the best time to visit, and who we should ask for when we arrive."
                 className="w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
               />
             </label>
+
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                What happens next
+              </p>
+              <div className="mt-3 grid gap-3 text-sm text-neutral-300">
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    1
+                  </span>
+                  <span>Your claim is added to the SATX Ink admin queue.</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    2
+                  </span>
+                  <span>We verify the shop in person at the location.</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    3
+                  </span>
+                  <span>Admin marks the shop verified and access opens.</span>
+                </div>
+              </div>
+            </div>
 
             <button
               type="button"
@@ -776,13 +883,20 @@ const ArtistsPanel = ({
   searchTerm,
   onSearchChange,
   shop,
+  inviteUrl,
 }: {
   artists: ShopArtist[];
   totalArtists: number;
   searchTerm: string;
   onSearchChange: (value: string) => void;
   shop: ShopRecord;
+  inviteUrl: string;
 }) => {
+  const handleCopyInvite = async () => {
+    await navigator.clipboard.writeText(inviteUrl);
+    toast.success("Invite link copied.");
+  };
+
   const handleRemoveArtist = async (artist: ShopArtist) => {
     if (!window.confirm(`Remove ${getArtistName(artist)} from ${shop.name || "this shop"}?`)) {
       return;
@@ -803,7 +917,7 @@ const ArtistsPanel = ({
 
   return (
     <div className="rounded-lg border border-white/10 bg-[#111111] shadow-xl">
-      <div className="flex flex-col gap-4 border-b border-white/10 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-white/10 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
             Artist roster
@@ -812,18 +926,28 @@ const ArtistsPanel = ({
             {totalArtists} affiliated artist{totalArtists === 1 ? "" : "s"}
           </h2>
         </div>
-        <label className="relative w-full lg:max-w-sm">
-          <Search
-            size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-          />
-          <input
-            value={searchTerm}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search artist, email, or style"
-            className="h-11 w-full rounded-md border border-white/10 bg-[#0b0b0b] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/25"
-          />
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row xl:min-w-[520px]">
+          <label className="relative w-full sm:flex-1">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+            />
+            <input
+              value={searchTerm}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search artist, email, or style"
+              className="h-10 w-full rounded-md border border-white/10 bg-[#0b0b0b] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/25"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleCopyInvite}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+          >
+            <Copy size={14} />
+            Copy invite
+          </button>
+        </div>
       </div>
 
       {artists.length === 0 ? (
@@ -929,7 +1053,7 @@ const DashboardTab = ({
   <button
     type="button"
     onClick={onClick}
-    className={`flex w-full items-center gap-3 rounded-md px-4! py-3! text-sm! font-semibold transition ${
+    className={`flex w-full items-center gap-3 rounded-md px-3! py-3! text-sm! font-semibold transition ${
       active
         ? "bg-white/[0.08] text-white"
         : "text-neutral-400 hover:bg-white/[0.04] hover:text-white"
@@ -938,11 +1062,19 @@ const DashboardTab = ({
     {icon}
     <span className="flex-1 text-left">{label}</span>
     {typeof count === "number" && (
-      <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-xs text-neutral-300">
-        {count}
-      </span>
+      <CountBadge count={count} active={active} />
     )}
   </button>
+);
+
+const CountBadge = ({ count, active }: { count: number; active: boolean }) => (
+  <span
+    className={`min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-semibold ${
+      active ? "bg-white/15 text-white" : "bg-white/[0.08] text-neutral-300"
+    }`}
+  >
+    {count}
+  </span>
 );
 
 const MetricCard = ({
@@ -954,12 +1086,16 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-black/25 p-4">
-    <div className="flex items-center gap-2 text-neutral-500">
+  <div className="min-w-0 rounded-lg border border-white/10 bg-black/25 p-3">
+    <div className="flex min-w-0 items-center gap-1.5 text-neutral-500">
       {icon}
-      <p className="text-xs uppercase tracking-[0.16em]">{label}</p>
+      <p className="truncate text-[10px] uppercase tracking-[0.14em] md:text-xs">
+        {label}
+      </p>
     </div>
-    <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-2 truncate text-base font-semibold text-white md:text-lg">
+      {value}
+    </p>
   </div>
 );
 
@@ -979,12 +1115,12 @@ const getRecordTime = (value: unknown) => {
 };
 
 const formatClaimStatus = (status: ShopClaim["status"]) =>
-  status.replace("_", " ");
+  status === "approved" ? "verified" : status.replace("_", " ");
 
 const getClaimBadgeClass = (status: ShopClaim["status"]) => {
   const base =
     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize";
-  if (status === "approved") {
+  if (status === "approved" || status === "verified") {
     return `${base} border-emerald-300/25 bg-emerald-300/10 text-emerald-100`;
   }
   if (status === "rejected") {
