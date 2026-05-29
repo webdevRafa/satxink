@@ -738,7 +738,7 @@ export const ArtistsPage = () => {
       </section>
 
       <div
-        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 ${
+        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-20 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
