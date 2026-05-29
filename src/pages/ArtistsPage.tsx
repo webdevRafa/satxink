@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// @ts-ignore
+// @ts-expect-error aos does not ship the type shape used by this app.
 import AOS from "aos";
 import "aos/dist/aos.css";
 
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { MapPin, Palette, Search, Sparkles, Users } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
 import gun from "../assets/white-gun.svg";
@@ -16,6 +17,10 @@ import type { GalleryItem } from "../types/GalleryItem";
 type ArtistPreview = {
   url: string;
   alt?: string;
+};
+
+type TimestampLike = {
+  toMillis: () => number;
 };
 
 const PAGE_SIZE = 6;
@@ -45,9 +50,15 @@ const isVisibleArtist = (artist: Artist) =>
     artist.isVerified === "true" ||
     typeof artist.isVerified === "undefined");
 
+const hasToMillis = (value: unknown): value is TimestampLike =>
+  typeof value === "object" &&
+  value !== null &&
+  "toMillis" in value &&
+  typeof (value as TimestampLike).toMillis === "function";
+
 const getGalleryItemTime = (item: GalleryItem) => {
-  const createdAt = item.createdAt as any;
-  if (createdAt?.toMillis) return createdAt.toMillis();
+  const { createdAt } = item;
+  if (hasToMillis(createdAt)) return createdAt.toMillis();
   if (createdAt instanceof Date) return createdAt.getTime();
   return 0;
 };
@@ -172,6 +183,32 @@ export const ArtistsPage = () => {
     visibleArtists.some((artist) => !(artist.id in galleryPreviewByArtist));
   const shouldHoldInitialSkeleton =
     isInitialLoading || (showInitialSkeleton && previewLookupsPending);
+  const activeStyleLabel = specialtyFilter || "All styles";
+  const filteredArtistLabel =
+    loading && artists.length === 0
+      ? "Loading artists"
+      : `${filteredArtists.length} ${
+          filteredArtists.length === 1 ? "artist" : "artists"
+        }`;
+  const totalArtistValue =
+    loading && artists.length === 0 ? "..." : String(artists.length);
+  const heroMetrics = [
+    {
+      label: "Verified artists",
+      value: totalArtistValue,
+      icon: Users,
+    },
+    {
+      label: "Style paths",
+      value: String(SPECIALTIES.length),
+      icon: Palette,
+    },
+    {
+      label: "Current view",
+      value: activeStyleLabel,
+      icon: Search,
+    },
+  ];
 
   useEffect(() => {
     if (shouldHoldInitialSkeleton) {
@@ -287,105 +324,223 @@ export const ArtistsPage = () => {
   );
 
   return (
-    <main className="px-4 py-12 max-w-[1300px] mx-auto relative min-h-[calc(100vh-4rem)]">
-      <div data-aos="fade-in">
+    <main className="relative min-h-[calc(100vh-4rem)] bg-[var(--color-bg-base)] pb-12">
+      <section
+        data-aos="fade-in"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-32"
+      >
         <div
-          className="flex gap-0 flex-col items-center mt-30
-        justify-center"
-        >
-          <img
-            className="relative z-40 w-48 opacity-20 blur-[1px]"
-            src={sa}
-            alt=""
-          />
-          <div className="flex gap-0 flex-row">
-            <h1 className="text-3xl!  text-neutral-200! translate-y-[-12px] font-bold z-40 mb-0">
-              FIND YOUR ARTIST
-            </h1>
-            <img className="h-8 translate-y-[-14px]" src={gun} alt="" />
+          className="pointer-events-none absolute inset-0 opacity-[0.18]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "54px 54px",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black via-black/70 to-transparent"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-80"
+          aria-hidden="true"
+        />
+        <img
+          className="pointer-events-none absolute left-1/2 top-20 w-[min(92vw,780px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-14"
+          src={sa}
+          alt=""
+          aria-hidden="true"
+        />
+
+        <div className="relative mx-auto grid min-h-[410px] max-w-[1300px] gap-10 pb-10 pt-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end lg:pb-12">
+          <div className="max-w-3xl pb-3">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <MapPin
+                className="h-4 w-4 text-[var(--color-primary-hover)]"
+                aria-hidden="true"
+              />
+              San Antonio Artist Directory
+            </div>
+
+            <div className="mt-6">
+              <div className="flex flex-wrap items-end gap-3">
+                <h1 className="mb-0! text-5xl! font-bold leading-none text-white! sm:text-6xl! lg:text-7xl!">
+                  Find Your Artist
+                </h1>
+                <span className="mb-1 inline-flex h-12 w-20 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-14 sm:w-24">
+                  <img
+                    className="h-8 w-14 object-contain sm:h-9 sm:w-16"
+                    src={gun}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </span>
+              </div>
+
+              <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+                Browse verified San Antonio tattooers by style, portfolio
+                preview, and the kind of work you want to wear next.
+              </p>
+            </div>
+
+            <div className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+              {heroMetrics.map((metric) => {
+                const Icon = metric.icon;
+
+                return (
+                  <div
+                    key={metric.label}
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  >
+                    <dt className="flex items-center gap-2 text-xs font-medium text-neutral-400">
+                      <Icon
+                        className="h-4 w-4 text-[var(--color-primary-hover)]"
+                        aria-hidden="true"
+                      />
+                      {metric.label}
+                    </dt>
+                    <dd className="mt-1 truncate text-lg font-semibold text-white">
+                      {metric.value}
+                    </dd>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            className="relative hidden h-[320px] lg:block"
+            aria-hidden="true"
+          >
+            <div className="absolute inset-x-5 bottom-24 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+            <div className="absolute bottom-14 left-8 right-8 h-20 border-x border-t border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent" />
+            <img
+              className="absolute bottom-20 left-1/2 w-[410px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
+              src={sa}
+              alt=""
+            />
+            <div className="absolute right-2 top-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+              <Sparkles
+                className="h-4 w-4 text-[var(--color-primary-hover)]"
+                aria-hidden="true"
+              />
+              Curated Local Work
+            </div>
+            <img
+              className="absolute bottom-4 right-3 h-24 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
+              src={gun}
+              alt=""
+            />
           </div>
         </div>
-        <p className="text-neutral-500! mb-0 text-center translate-y-[-15px]">
-          Discover talented artists from San Antonio, browse by style, and view
-          their work.
-        </p>
-      </div>
+      </section>
 
       <div
-        className={`sticky top-18 z-30 transition-transform duration-300 backdrop-blur bg-[var(--color-bg-base)] border-b border-white/5 ${
+        className={`sticky top-18 z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
-        <div className="flex flex-wrap gap-2 px-4 py-3 max-w-6xl mx-auto">
-          {SPECIALTIES.map((tag) => (
-            <button
-              key={tag}
-              className={`px-1! md:px-3! py-1!  md:py-2! rounded-full border text-xs! font-medium hover:scale-110 ease-in-out duration-300 transition-all ${
-                specialtyFilter === tag
-                  ? "bg-neutral-300 text-black border-white"
-                  : "text-white border-gray-500 hover:border-white"
-              }`}
-              onClick={() =>
-                setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
-              }
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </div>
+        <div className="mx-auto max-w-[1300px] px-4 py-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-neutral-300">
+              <Palette
+                className="h-4 w-4 text-[var(--color-primary-hover)]"
+                aria-hidden="true"
+              />
+              Style filters
+            </div>
+            <div className="inline-flex items-center gap-2 text-xs text-neutral-400">
+              <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-neutral-200">
+                {activeStyleLabel}
+              </span>
+              <span>{filteredArtistLabel}</span>
+            </div>
+          </div>
 
-      <div className="relative mt-5 min-h-[520px]">
-        {!isInitialLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {visibleArtists.map((artist, index) => {
-              const isLast = index === visibleArtists.length - 1;
-              const galleryPreview =
-                galleryPreviewByArtist[artist.id] || undefined;
+          <div className="flex flex-wrap gap-2">
+            {SPECIALTIES.map((tag) => {
+              const selected = specialtyFilter === tag;
 
               return (
-                <div
-                  data-aos="fade-in"
-                  key={artist.id}
-                  ref={isLast ? lastArtistRef : null}
+                <button
+                  key={tag}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`min-h-9 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
+                    selected
+                      ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                      : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
+                  }`}
+                  onClick={() =>
+                    setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
+                  }
                 >
-                  <Link to={`/artists/${artist.id}`}>
-                    <ArtistCard
-                      name={getArtistDisplayName(artist)}
-                      avatarUrl={artist.avatarUrl}
-                      specialties={artist.specialties}
-                      likedBy={artist.likedBy || []}
-                      previewUrl={galleryPreview?.url}
-                      previewAlt={galleryPreview?.alt}
-                    />
-                  </Link>
-                </div>
+                  {tag}
+                </button>
               );
             })}
           </div>
-        )}
-
-        {showInitialSkeleton && (
-          <div
-            className={`transition-opacity duration-300 ease-out ${
-              isSkeletonExiting
-                ? "pointer-events-none absolute inset-0 opacity-0"
-                : "opacity-100"
-            }`}
-          >
-            <ArtistsPageSkeleton />
-          </div>
-        )}
+        </div>
       </div>
 
-      {loading && !isInitialLoading && (
-        <p className="text-center text-gray-400 mt-6">Loading artists...</p>
-      )}
-      {!hasMore && !loading && visibleArtists.length > 0 && (
-        <p className="text-center text-gray-500 mt-6">
-          No more artists to show.
-        </p>
-      )}
+      <section className="relative mx-auto mt-6 max-w-[1300px] px-4">
+        <div className="relative min-h-[520px]">
+          {!isInitialLoading && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+              {visibleArtists.map((artist, index) => {
+                const isLast = index === visibleArtists.length - 1;
+                const galleryPreview =
+                  galleryPreviewByArtist[artist.id] || undefined;
+
+                return (
+                  <div
+                    data-aos="fade-in"
+                    key={artist.id}
+                    ref={isLast ? lastArtistRef : null}
+                  >
+                    <Link to={`/artists/${artist.id}`}>
+                      <ArtistCard
+                        name={getArtistDisplayName(artist)}
+                        avatarUrl={artist.avatarUrl}
+                        specialties={artist.specialties}
+                        likedBy={artist.likedBy || []}
+                        previewUrl={galleryPreview?.url}
+                        previewAlt={galleryPreview?.alt}
+                      />
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showInitialSkeleton && (
+            <div
+              className={`transition-opacity duration-300 ease-out ${
+                isSkeletonExiting
+                  ? "pointer-events-none absolute inset-0 opacity-0"
+                  : "opacity-100"
+              }`}
+            >
+              <ArtistsPageSkeleton />
+            </div>
+          )}
+        </div>
+
+        {loading && !isInitialLoading && (
+          <p className="mt-6 text-center text-gray-400">Loading artists...</p>
+        )}
+        {!hasMore && !loading && visibleArtists.length > 0 && (
+          <p className="mt-6 text-center text-gray-500">
+            No more artists to show.
+          </p>
+        )}
+      </section>
     </main>
   );
 };
