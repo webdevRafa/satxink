@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -808,23 +807,16 @@ export const ArtistsPage = () => {
                       galleryPreviewByArtist[item.artist.id] || undefined;
 
                     return (
-                      <Fragment key={item.id}>
-                        <div data-aos="fade-in" className="lg:hidden">
-                          <ArtistPreviewCard
-                            artist={item.artist}
-                            preview={galleryPreview}
-                          />
-                        </div>
-                        <div
-                          data-aos="fade-in"
-                          className="hidden lg:col-span-3 lg:block"
-                        >
-                          <ArtistSpotlightCard
-                            artist={item.artist}
-                            preview={galleryPreview}
-                          />
-                        </div>
-                      </Fragment>
+                      <div
+                        data-aos="fade-in"
+                        key={item.id}
+                        className="sm:col-span-2 md:col-span-3"
+                      >
+                        <ArtistSpotlightCard
+                          artist={item.artist}
+                          preview={galleryPreview}
+                        />
+                      </div>
                     );
                   }
 
@@ -908,7 +900,7 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
     <Link to={`/artists/${artist.id}`} className="group block">
       <article
         ref={targetRef}
-        className="relative isolate min-h-[360px] overflow-hidden rounded-lg border border-white/[0.08] bg-[#111] shadow-[0_24px_90px_rgba(0,0,0,0.45)] transition duration-500 hover:border-white/20"
+        className="relative isolate min-h-[440px] overflow-hidden rounded-lg border border-white/[0.08] bg-[#111] shadow-[0_24px_90px_rgba(0,0,0,0.45)] transition duration-500 hover:border-white/20 sm:min-h-[480px] lg:min-h-[360px]"
       >
         {preview?.url ? (
           <img
@@ -947,15 +939,15 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
           aria-hidden="true"
         />
 
-        <div className="relative z-10 grid min-h-[360px] grid-cols-[minmax(0,1fr)_330px] items-center gap-10 px-12 py-10">
+        <div className="relative z-10 grid min-h-[440px] grid-cols-1 items-center gap-6 px-5 py-7 sm:min-h-[480px] sm:px-8 lg:min-h-[360px] lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-10 lg:px-12 lg:py-10">
           <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
             <img
               src={artist.avatarUrl || "/fallback.jpg"}
               alt={displayName}
-              className="h-20 w-20 rounded-full border border-white/20 object-cover shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+              className="h-16 w-16 rounded-full border border-white/20 object-cover shadow-[0_18px_40px_rgba(0,0,0,0.45)] sm:h-20 sm:w-20"
             />
 
-            <h2 className="mb-0! mt-4 text-4xl! font-bold leading-tight text-white!">
+            <h2 className="mb-0! mt-4 text-3xl! font-bold leading-tight text-white! sm:text-4xl!">
               {displayName}
             </h2>
 
@@ -982,7 +974,7 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
             </span>
           </div>
 
-          <div className="relative h-[260px] overflow-hidden rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_22px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="relative mx-auto h-[210px] w-full max-w-[420px] overflow-hidden rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_22px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)] sm:h-[260px] lg:mx-0">
             {preview?.url ? (
               <img
                 src={preview.url}
