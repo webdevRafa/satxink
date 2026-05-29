@@ -153,17 +153,17 @@ export const Footer = () => {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,260px)_minmax(0,260px)] sm:justify-start">
+            <div className="grid gap-3 sm:grid-cols-[210px_210px] sm:justify-start">
               <Link
                 to="/artists"
-                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+                className="group flex h-10 items-center justify-between rounded-lg border border-white/10 bg-white px-3 py-0 text-xs font-semibold text-[#0b0b0b]! transition hover:bg-white/85 sm:h-9"
               >
                 <span className="flex items-center gap-2">
-                  <Search size={17} aria-hidden="true" />
+                  <Search size={15} aria-hidden="true" />
                   Browse artists
                 </span>
                 <ArrowUpRight
-                  size={17}
+                  size={15}
                   className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                   aria-hidden="true"
                 />
@@ -171,14 +171,14 @@ export const Footer = () => {
               <button
                 type="button"
                 onClick={() => setIsContactOpen(true)}
-                className="group flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-4 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.07]"
+                className="group flex h-10! items-center justify-between rounded-lg border border-white/10 bg-white/[0.035] px-3! py-0! text-xs! font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white sm:h-9!"
               >
                 <span className="flex items-center gap-2">
-                  <Mail size={17} aria-hidden="true" />
+                  <Mail size={15} aria-hidden="true" />
                   Contact SATX Ink
                 </span>
                 <ArrowUpRight
-                  size={17}
+                  size={15}
                   className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                   aria-hidden="true"
                 />
