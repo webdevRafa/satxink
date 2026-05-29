@@ -618,7 +618,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-20 sm:pt-24 lg:pt-20"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-20"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -649,7 +649,7 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[320px] max-w-[1300px] gap-8 pb-7 pt-0 lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
           <div className="max-w-3xl pb-2" style={heroFadeStyle}>
             <div>
               <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
