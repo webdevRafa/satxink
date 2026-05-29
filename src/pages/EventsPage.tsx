@@ -98,6 +98,41 @@ const dateFilters: { label: string; value: DateFilter }[] = [
 
 const EVENT_CARD_WIDTH = "min(88vw, 590px)";
 const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
+const eventDropCards = [
+  {
+    label: "Flash",
+    offsetY: 0,
+    enterY: 28,
+    delay: 80,
+    duration: 760,
+    barWidth: "2rem",
+    lineOneWidth: "78%",
+    lineTwoWidth: "52%",
+    startScale: 0.94,
+  },
+  {
+    label: "Pop-up",
+    offsetY: 14,
+    enterY: 38,
+    delay: 190,
+    duration: 880,
+    barWidth: "2.35rem",
+    lineOneWidth: "84%",
+    lineTwoWidth: "60%",
+    startScale: 0.92,
+  },
+  {
+    label: "Guest",
+    offsetY: 0,
+    enterY: 24,
+    delay: 310,
+    duration: 720,
+    barWidth: "2.15rem",
+    lineOneWidth: "76%",
+    lineTwoWidth: "48%",
+    startScale: 0.95,
+  },
+];
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
@@ -134,6 +169,8 @@ function useViewportEntry<T extends Element>() {
 export const EventsPage = () => {
   const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
+  const { targetRef: eventDropRef, entryCount: eventDropEntryCount } =
+    useViewportEntry<HTMLDivElement>();
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -430,6 +467,7 @@ export const EventsPage = () => {
     }),
     [filteredEventsByHost]
   );
+  const eventDropsVisible = eventDropEntryCount > 0;
 
   return (
     <>
@@ -482,7 +520,11 @@ export const EventsPage = () => {
               </dl>
             </div>
 
-            <div className="relative hidden h-[270px] lg:block" aria-hidden="true">
+            <div
+              ref={eventDropRef}
+              className="relative hidden h-[270px] lg:block"
+              aria-hidden="true"
+            >
               <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
                 <Ticket
                   className="h-4 w-4 text-[var(--color-primary-hover)]"
@@ -492,20 +534,42 @@ export const EventsPage = () => {
               </div>
               <div className="absolute inset-x-6 bottom-20 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
               <div className="absolute bottom-9 left-6 right-6 grid grid-cols-3 gap-3">
-                {["Flash", "Guest", "Shop"].map((label, index) => (
-                  <div
-                    key={label}
-                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)]"
-                    style={{ transform: `translateY(${index % 2 ? 14 : 0}px)` }}
-                  >
-                    <div className="mb-4 h-1.5 w-8 rounded-full bg-[var(--color-primary)]/80" />
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                      {label}
+                {eventDropCards.map((card) => {
+                  const restingY = card.offsetY;
+                  const startingY = card.offsetY + card.enterY;
+
+                  return (
+                    <div
+                      key={card.label}
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)] motion-reduce:transition-none"
+                      style={{
+                        opacity: eventDropsVisible ? 1 : 0,
+                        transform: `translate3d(0, ${
+                          eventDropsVisible ? restingY : startingY
+                        }px, 0) scale(${
+                          eventDropsVisible ? 1 : card.startScale
+                        })`,
+                        transition: `opacity ${card.duration}ms ease-out ${card.delay}ms, transform ${card.duration}ms cubic-bezier(0.16, 1, 0.3, 1) ${card.delay}ms`,
+                      }}
+                    >
+                      <div
+                        className="mb-4 h-1.5 rounded-full bg-[var(--color-primary)]/80"
+                        style={{ width: card.barWidth }}
+                      />
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        {card.label}
+                      </div>
+                      <div
+                        className="mt-2 h-2 rounded-full bg-white/[0.12]"
+                        style={{ width: card.lineOneWidth }}
+                      />
+                      <div
+                        className="mt-2 h-2 rounded-full bg-white/[0.07]"
+                        style={{ width: card.lineTwoWidth }}
+                      />
                     </div>
-                    <div className="mt-2 h-2 rounded-full bg-white/[0.12]" />
-                    <div className="mt-2 h-2 w-2/3 rounded-full bg-white/[0.07]" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
