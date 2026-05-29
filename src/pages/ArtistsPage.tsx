@@ -34,6 +34,7 @@ import {
   artistHasTattooStyle,
   getCanonicalTattooStyles,
   resolveTattooStyle,
+  type TattooStyle,
 } from "../types/TattooStyle";
 
 type ArtistPreview = {
@@ -357,6 +358,8 @@ export const ArtistsPage = () => {
   const { targetRef: metricsRef, entryCount: metricEntryCount } =
     useViewportEntry<HTMLDivElement>();
   const styleRailRef = useRef<HTMLDivElement | null>(null);
+  const stylesToolbarRef = useRef<HTMLDivElement | null>(null);
+  const artistGridRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
   const styleFromUrl = resolveTattooStyle(searchParams.get("style") || "");
 
@@ -378,6 +381,34 @@ export const ArtistsPage = () => {
       behavior: "smooth",
     });
   }, []);
+  const scrollArtistGridToTop = useCallback(() => {
+    const grid = artistGridRef.current;
+    if (!grid) return;
+
+    const stickyTop = window.matchMedia("(min-width: 768px)").matches ? 80 : 73;
+    const toolbarHeight = stylesToolbarRef.current?.offsetHeight || 0;
+    const viewportGap = 16;
+    const gridTop = grid.getBoundingClientRect().top + window.scrollY;
+    const targetTop = gridTop - stickyTop - toolbarHeight - viewportGap;
+
+    window.scrollTo({
+      top: Math.max(targetTop, 0),
+      behavior: "smooth",
+    });
+  }, []);
+  const handleSpecialtyFilterClick = useCallback(
+    (tag: TattooStyle) => {
+      setVisibleCount(PAGE_SIZE);
+      setSpecialtyFilter((currentFilter) =>
+        currentFilter === tag ? "" : tag
+      );
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(scrollArtistGridToTop);
+      });
+    },
+    [scrollArtistGridToTop]
+  );
 
   useEffect(() => {
     if (!loading) {
@@ -738,6 +769,7 @@ export const ArtistsPage = () => {
       </section>
 
       <div
+        ref={stylesToolbarRef}
         className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-20 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
@@ -789,9 +821,7 @@ export const ArtistsPage = () => {
                         ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
                         : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
                     }`}
-                    onClick={() =>
-                      setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
-                    }
+                    onClick={() => handleSpecialtyFilterClick(tag)}
                   >
                     {tag}
                   </button>
@@ -818,7 +848,10 @@ export const ArtistsPage = () => {
         <div className="relative min-h-[520px]">
           {!isInitialLoading && (
             <>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+              <div
+                ref={artistGridRef}
+                className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3"
+              >
                 {artistGridItems.map((item) => {
                   if (item.type === "spotlight") {
                     const galleryPreview =
