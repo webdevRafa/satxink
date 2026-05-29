@@ -759,18 +759,18 @@ export const ArtistsPage = () => {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               aria-label="Scroll styles left"
               onClick={() => scrollStyleRail(-1)}
-              className="absolute left-0 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 md:inline-flex"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
             <div
               ref={styleRailRef}
-              className="flex gap-2 overflow-x-auto scroll-smooth px-11 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {TATTOO_STYLES.map((tag) => {
                 const selected = specialtyFilter === tag;
@@ -798,7 +798,7 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles right"
               onClick={() => scrollStyleRail(1)}
-              className="absolute right-0 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 md:inline-flex"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
