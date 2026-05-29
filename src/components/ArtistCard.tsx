@@ -1,5 +1,5 @@
 // src/components/ArtistCard.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCanonicalTattooStyles } from "../types/TattooStyle";
 
 interface SocialLinks {
@@ -27,6 +27,8 @@ const ArtistCard = ({
 }: ArtistCardProps) => {
   const displayName = name || "Artist";
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const previewImageRef = useRef<HTMLImageElement | null>(null);
   const maxVisibleSpecialties = previewUrl ? 2 : 3;
   const displaySpecialties = getCanonicalTattooStyles(specialties);
   const visibleSpecialties = displaySpecialties.slice(0, maxVisibleSpecialties);
@@ -40,6 +42,39 @@ const ArtistCard = ({
 
   useEffect(() => {
     setPreviewLoaded(false);
+    setPreviewFailed(false);
+
+    if (!previewUrl) return;
+
+    const image = previewImageRef.current;
+    if (!image) return;
+
+    if (image.complete) {
+      if (image.naturalWidth > 0) {
+        setPreviewLoaded(true);
+      } else {
+        setPreviewFailed(true);
+      }
+
+      return;
+    }
+
+    const handleLoad = () => {
+      setPreviewFailed(false);
+      setPreviewLoaded(true);
+    };
+    const handleError = () => {
+      setPreviewLoaded(false);
+      setPreviewFailed(true);
+    };
+
+    image.addEventListener("load", handleLoad);
+    image.addEventListener("error", handleError);
+
+    return () => {
+      image.removeEventListener("load", handleLoad);
+      image.removeEventListener("error", handleError);
+    };
   }, [previewUrl]);
 
   return (
@@ -87,17 +122,30 @@ const ArtistCard = ({
           <div className="relative h-full overflow-hidden rounded-md border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.03] to-black/30">
             <div
               className={`absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/20 transition-opacity duration-300 ${
-                previewLoaded ? "opacity-0" : "opacity-100"
+                previewLoaded || previewFailed ? "opacity-0" : "opacity-100"
               }`}
             />
+            {previewFailed && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-black/30 px-2 text-center text-[10px] font-semibold leading-tight text-neutral-500">
+                Preview unavailable
+              </div>
+            )}
             <img
+              ref={previewImageRef}
               src={previewUrl}
               alt={previewAlt || `${displayName} portfolio preview`}
               loading="lazy"
               decoding="async"
-              onLoad={() => setPreviewLoaded(true)}
+              onLoad={() => {
+                setPreviewFailed(false);
+                setPreviewLoaded(true);
+              }}
+              onError={() => {
+                setPreviewLoaded(false);
+                setPreviewFailed(true);
+              }}
               className={`block h-full w-full min-w-full object-cover transition duration-500 ${
-                previewLoaded
+                previewLoaded && !previewFailed
                   ? "opacity-90 group-hover:scale-105 group-hover:opacity-100"
                   : "opacity-0"
               }`}
