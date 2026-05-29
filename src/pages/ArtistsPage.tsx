@@ -684,7 +684,7 @@ export const ArtistsPage = () => {
                 return (
                   <div
                     key={metric.label}
-                    className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3"
+                    className="min-w-0 rounded-lg border border-white/[0.12] bg-[#101010]/65 px-2 py-2.5 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[2px] sm:px-4 sm:py-3"
                   >
                     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
                       <Icon
