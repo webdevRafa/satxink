@@ -15,8 +15,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { auth, db, functions } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import {
   Users,
   Inbox,
@@ -28,7 +27,6 @@ import {
   FileDown,
   Star,
   Store,
-  ExternalLink,
   CheckCircle2,
   XCircle,
   Mail,
@@ -981,18 +979,18 @@ const ShopClaimsTable: React.FC<{
   adminUser: UserRecord | null;
   onSelect: (item: GenericRecord) => void;
 }> = ({ data, usersById, status, adminUser, onSelect }) => {
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">(
+  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">(
     "pending"
   );
   const filteredClaims = useMemo(
     () =>
       filter === "all"
         ? data
-        : data.filter((claim) => getString(claim, "status") === filter),
+        : data.filter((claim) => getNormalizedShopClaimStatus(claim) === filter),
     [data, filter]
   );
 
-  const handleApprove = async (claim: GenericRecord) => {
+  const handleMarkVerified = async (claim: GenericRecord) => {
     const userId = getString(claim, "userId");
     let shopId = getString(claim, "shopId");
     if (!userId) {
@@ -1000,8 +998,14 @@ const ShopClaimsTable: React.FC<{
       return;
     }
 
+    const visitNote = window.prompt(
+      "Optional in-person verification note for this shop:"
+    );
+    if (visitNote === null) return;
+
     const claimant = usersById[userId];
     const nextRole = claimant?.role === "artist" ? "artist" : "shop_owner";
+    let resolvedShopName = getString(claim, "shopName");
 
     try {
       if (!shopId) {
@@ -1018,34 +1022,47 @@ const ShopClaimsTable: React.FC<{
           address: requestedShop.address || "",
           mapLink: requestedShop.mapLink || "",
           ownerUserIds: [userId],
+          isVerified: true,
+          verifiedAt: serverTimestamp(),
+          verifiedBy: adminUser?.id || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
         shopId = shopRef.id;
+        resolvedShopName = requestedShop.name;
       }
 
       await updateDoc(doc(db, "users", userId), {
         role: nextRole,
         shopOwnerShopIds: arrayUnion(shopId),
-        shopClaimStatus: "approved",
+        ownedShopIds: arrayUnion(shopId),
+        shopClaimStatus: "verified",
         updatedAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "shops", shopId), {
         ownerUserIds: arrayUnion(userId),
+        isVerified: true,
+        verifiedAt: serverTimestamp(),
+        verifiedBy: adminUser?.id || null,
         updatedAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "shopClaims", claim.id), {
-        status: "approved",
+        status: "verified",
+        verificationMethod: "in_person",
+        verificationStatus: "verified_in_person",
         shopId,
-        shopName: getString(claim, "shopName"),
+        shopName: resolvedShopName,
+        adminNotes: visitNote || getString(claim, "adminNotes"),
+        verifiedAt: serverTimestamp(),
+        verifiedBy: adminUser?.id || null,
         reviewedAt: serverTimestamp(),
         reviewedBy: adminUser?.id || null,
         updatedAt: serverTimestamp(),
       });
-      toast.success("Shop ownership approved.");
+      toast.success("Shop verified and access granted.");
     } catch (error) {
-      console.error("Failed to approve shop claim:", error);
-      toast.error("Could not approve this claim.");
+      console.error("Failed to verify shop claim:", error);
+      toast.error("Could not verify this claim.");
     }
   };
 
@@ -1054,6 +1071,8 @@ const ShopClaimsTable: React.FC<{
     try {
       await updateDoc(doc(db, "shopClaims", claim.id), {
         status: "rejected",
+        verificationMethod: "in_person",
+        verificationStatus: "rejected",
         adminNotes: reason || "",
         reviewedAt: serverTimestamp(),
         reviewedBy: adminUser?.id || null,
@@ -1079,7 +1098,8 @@ const ShopClaimsTable: React.FC<{
         <div>
           <h1 className="text-2xl! font-semibold text-white">Shop claims</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            Review ownership documentation and grant shop dashboard access.
+            Use this queue for in-person shop verification, then grant dashboard
+            access when the visit is complete.
           </p>
         </div>
         <DataHealth
@@ -1090,14 +1110,14 @@ const ShopClaimsTable: React.FC<{
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(["pending", "approved", "rejected", "all"] as const).map((item) => (
+        {(["pending", "verified", "rejected", "all"] as const).map((item) => (
           <QuickFilterButton
             key={item}
             label={item === "all" ? "All" : formatStatusLabel(item)}
             count={
               item === "all"
                 ? data.length
-                : data.filter((claim) => getString(claim, "status") === item).length
+                : data.filter((claim) => getNormalizedShopClaimStatus(claim) === item).length
             }
             active={filter === item}
             onClick={() => setFilter(item)}
@@ -1109,16 +1129,18 @@ const ShopClaimsTable: React.FC<{
         <div className="grid grid-cols-[1.1fr_.95fr_.85fr_.9fr] gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 text-xs uppercase tracking-[0.14em] text-neutral-500">
           <span>Claimant</span>
           <span>Shop</span>
-          <span>Proof</span>
+          <span>Verification</span>
           <span className="text-right">Actions</span>
         </div>
         <div className="divide-y divide-white/10">
           {filteredClaims.map((claim) => {
             const claimant = usersById[getString(claim, "userId")];
-            const statusValue = getString(claim, "status") || "pending";
-            const proofDocuments = Array.isArray(claim.proofDocuments)
-              ? (claim.proofDocuments as Array<{ path?: string; name?: string }>)
-              : [];
+            const statusValue = getNormalizedShopClaimStatus(claim);
+            const verificationStatus =
+              getString(claim, "verificationStatus") ||
+              (statusValue === "verified" ? "verified_in_person" : "pending_visit");
+            const adminNotes = getString(claim, "adminNotes");
+            const claimantNotes = getString(claim, "notes");
 
             return (
               <div
@@ -1142,22 +1164,16 @@ const ShopClaimsTable: React.FC<{
                     {getString(claim, "shopName") || getString(claim, "shopId")}
                   </p>
                   <p className="truncate text-neutral-500">
-                    {getString(claim, "shopId")}
+                    {getString(claim, "shopId") || "New shop request"}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {proofDocuments.length ? (
-                    proofDocuments.slice(0, 2).map((proof, index) => (
-                      <ProofDocumentButton
-                        key={`${proof.path || proof.name}-${index}`}
-                        claimId={claim.id}
-                        proof={proof}
-                        index={index}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-neutral-500">No files</span>
-                  )}
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-white">
+                    {formatShopVerificationStatus(verificationStatus)}
+                  </p>
+                  <p className="truncate text-neutral-500">
+                    {adminNotes || claimantNotes || "In-person visit required"}
+                  </p>
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <span className={getAdminStatusBadgeClass(statusValue)}>
@@ -1167,11 +1183,11 @@ const ShopClaimsTable: React.FC<{
                     <>
                       <button
                         type="button"
-                        onClick={() => handleApprove(claim)}
+                        onClick={() => handleMarkVerified(claim)}
                         className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 hover:bg-emerald-300/15"
                       >
                         <CheckCircle2 size={14} />
-                        Approve
+                        Mark verified
                       </button>
                       <button
                         type="button"
@@ -1197,7 +1213,7 @@ const ShopClaimsTable: React.FC<{
 const getAdminStatusBadgeClass = (status: string) => {
   const base =
     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize";
-  if (status === "approved") {
+  if (status === "approved" || status === "verified") {
     return `${base} border-emerald-300/25 bg-emerald-300/10 text-emerald-100`;
   }
   if (status === "rejected") {
@@ -1206,51 +1222,17 @@ const getAdminStatusBadgeClass = (status: string) => {
   return `${base} border-amber-300/25 bg-amber-300/10 text-amber-100`;
 };
 
-const ProofDocumentButton = ({
-  claimId,
-  proof,
-  index,
-}: {
-  claimId: string;
-  proof: { path?: string; name?: string };
-  index: number;
-}) => {
-  const [loading, setLoading] = useState(false);
+const getNormalizedShopClaimStatus = (claim: GenericRecord) => {
+  const status = getString(claim, "status");
+  if (status === "approved" || status === "verified") return "verified";
+  if (status === "rejected") return "rejected";
+  return "pending";
+};
 
-  const handleOpen = async () => {
-    if (!proof.path) {
-      toast.error("This proof document is missing its storage path.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const getProofAccess = httpsCallable<
-        { claimId: string; path: string },
-        { url: string; expiresAt: number }
-      >(functions, "createShopClaimProofAccess");
-      const result = await getProofAccess({ claimId, path: proof.path });
-      window.open(result.data.url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("Failed to open proof document:", error);
-      toast.error("Could not open proof document.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleOpen}
-      disabled={loading}
-      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2! py-1! text-xs! font-semibold text-neutral-200 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60"
-      title="Generate a short-lived admin access link"
-    >
-      <ExternalLink size={12} />
-      {loading ? "Opening..." : proof.name || `Proof ${index + 1}`}
-    </button>
-  );
+const formatShopVerificationStatus = (status: string) => {
+  if (status === "verified_in_person") return "Verified in person";
+  if (status === "rejected") return "Rejected";
+  return "Needs in-person visit";
 };
 
 /**
@@ -3263,7 +3245,9 @@ const AdminDashboardView: React.FC = () => {
     offers: offers.length,
     bookings: bookings.length,
     sessions: sessionRows.length,
-    shopClaims: shopClaims.filter((claim) => getString(claim, "status") === "pending").length,
+    shopClaims: shopClaims.filter(
+      (claim) => getNormalizedShopClaimStatus(claim) === "pending"
+    ).length,
     contactMessages: contactMessages.filter(
       (message) => (getString(message, "status") || "new") === "new"
     ).length,

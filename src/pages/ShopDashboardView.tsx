@@ -11,13 +11,11 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
 import {
   Building2,
   CalendarDays,
   CheckCircle2,
   Copy,
-  FileUp,
   LinkIcon,
   CreditCard,
   Pencil,
@@ -28,7 +26,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
-import { auth, db, storage } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { StripeConnectStatus } from "../types/StripeCheckout";
@@ -62,7 +60,9 @@ type ShopClaim = {
   userId: string;
   shopId: string;
   shopName?: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "verified" | "approved" | "rejected";
+  verificationMethod?: "in_person";
+  verificationStatus?: "pending_visit" | "verified_in_person" | "rejected";
   notes?: string;
   adminNotes?: string;
   createdAt?: unknown;
@@ -403,7 +403,6 @@ const ShopClaimExperience = ({
   const [newShopAddress, setNewShopAddress] = useState("");
   const [newShopMapLink, setNewShopMapLink] = useState("");
   const [notes, setNotes] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const latestClaim = claims
     .slice()
@@ -421,34 +420,9 @@ const ShopClaimExperience = ({
       toast.error("Add the shop name you want to register.");
       return;
     }
-    if (!files.length) {
-      toast.error("Upload at least one document showing ownership or management authority.");
-      return;
-    }
 
     try {
       setSubmitting(true);
-      const uploadedDocuments = await Promise.all(
-        files.map(async (file) => {
-          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-          const claimShopKey =
-            claimMode === "existing"
-              ? selectedShop?.id || "unknown-shop"
-              : `new-${requestedShopName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-          const path = `shopClaims/${user.id}/${claimShopKey}/${Date.now()}-${safeName}`;
-          const storageRef = ref(storage, path);
-          await uploadBytes(storageRef, file, {
-            contentType: file.type || "application/octet-stream",
-          });
-          return {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            path,
-          };
-        })
-      );
-
       await addDoc(collection(db, "shopClaims"), {
         userId: user.id,
         claimantName: user.displayName || user.name || "",
@@ -464,21 +438,22 @@ const ShopClaimExperience = ({
                 name: requestedShopName,
                 address: newShopAddress.trim(),
                 mapLink: newShopMapLink.trim(),
-              }
+            }
             : null,
         status: "pending",
+        verificationMethod: "in_person",
+        verificationStatus: "pending_visit",
+        inPersonVerificationRequired: true,
         notes: notes.trim(),
-        proofDocuments: uploadedDocuments,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       await updateDoc(doc(db, "users", user.id), {
-        shopClaimStatus: "pending",
+        shopClaimStatus: "pending_visit",
         updatedAt: serverTimestamp(),
       });
 
-      setFiles([]);
       setNotes("");
       setSelectedShopId("");
       setNewShopName("");
@@ -504,12 +479,11 @@ const ShopClaimExperience = ({
             Claim a shop
           </p>
           <h1 className="mt-2 text-3xl! font-semibold text-white">
-            Verify shop ownership
+            Request shop verification
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-400">
-            Submit documentation that proves you own or manage the shop. Once
-            approved, you can invite artists, manage affiliations, and publish
-            shop events from SATX Ink.
+            Submit a claim for the shop you own or manage. SATX Ink will verify
+            the claim in person at the shop before dashboard access is granted.
           </p>
 
           {latestClaim && (
@@ -606,42 +580,17 @@ const ShopClaimExperience = ({
               )}
             </label>
 
-            <label className="block space-y-2">
-              <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                Documents
-              </span>
-              <div className="rounded-lg border border-dashed border-white/15 bg-black/25 p-5">
-                <FileUp className="text-neutral-500" size={24} />
-                <p className="mt-3 text-sm font-semibold text-white">
-                  Upload ownership proof
-                </p>
-                <p className="mt-1 text-sm leading-6 text-neutral-400">
-                  Business license, lease, utility bill, tax document, or
-                  signed authorization from the shop owner.
-                </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(event) =>
-                    setFiles(Array.from(event.target.files || []))
-                  }
-                  className="mt-4 w-full text-sm text-neutral-400 file:mr-4 file:rounded-md file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
-                />
-                {files.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {files.map((file) => (
-                      <p
-                        key={`${file.name}-${file.size}`}
-                        className="truncate rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-300"
-                      >
-                        {file.name}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </label>
+            <div className="rounded-lg border border-white/10 bg-black/25 p-5">
+              <CheckCircle2 className="text-[var(--color-primary)]" size={24} />
+              <p className="mt-3 text-sm font-semibold text-white">
+                In-person verification
+              </p>
+              <p className="mt-1 text-sm leading-6 text-neutral-400">
+                No documents are required here. After you submit, SATX Ink will
+                visit the shop, confirm ownership or management authority in
+                person, and then unlock the shop dashboard.
+              </p>
+            </div>
 
             <label className="block space-y-2">
               <span className="text-xs uppercase tracking-[0.16em] text-neutral-500">
@@ -651,10 +600,36 @@ const ShopClaimExperience = ({
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={4}
-                placeholder="Tell us your role at the shop and what the uploaded documents show."
+                placeholder="Tell us your role at the shop, the best time to visit, and who we should ask for when we arrive."
                 className="w-full rounded-md border border-white/10 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
               />
             </label>
+
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+                What happens next
+              </p>
+              <div className="mt-3 grid gap-3 text-sm text-neutral-300">
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    1
+                  </span>
+                  <span>Your claim is added to the SATX Ink admin queue.</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    2
+                  </span>
+                  <span>We verify the shop in person at the location.</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white">
+                    3
+                  </span>
+                  <span>Admin marks the shop verified and access opens.</span>
+                </div>
+              </div>
+            </div>
 
             <button
               type="button"
@@ -979,12 +954,12 @@ const getRecordTime = (value: unknown) => {
 };
 
 const formatClaimStatus = (status: ShopClaim["status"]) =>
-  status.replace("_", " ");
+  status === "approved" ? "verified" : status.replace("_", " ");
 
 const getClaimBadgeClass = (status: ShopClaim["status"]) => {
   const base =
     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize";
-  if (status === "approved") {
+  if (status === "approved" || status === "verified") {
     return `${base} border-emerald-300/25 bg-emerald-300/10 text-emerald-100`;
   }
   if (status === "rejected") {
