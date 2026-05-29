@@ -17,9 +17,11 @@ import {
   Store,
   Tag,
   Ticket,
+  type LucideIcon,
   Users,
   X,
 } from "lucide-react";
+import CountUp from "react-countup";
 import {
   collection,
   documentId,
@@ -97,7 +99,41 @@ const dateFilters: { label: string; value: DateFilter }[] = [
 const EVENT_CARD_WIDTH = "min(88vw, 590px)";
 const EVENT_RAIL_END_PADDING = `max(0px, calc(100% - ${EVENT_CARD_WIDTH}))`;
 
+function useViewportEntry<T extends Element>() {
+  const targetRef = useRef<T | null>(null);
+  const isInViewRef = useRef(false);
+  const [entryCount, setEntryCount] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isInViewRef.current) {
+          isInViewRef.current = true;
+          setEntryCount((count) => count + 1);
+        } else if (!entry.isIntersecting) {
+          isInViewRef.current = false;
+        }
+      },
+      {
+        rootMargin: "0px 0px -12% 0px",
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { targetRef, entryCount };
+}
+
 export const EventsPage = () => {
+  const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
+    useViewportEntry<HTMLDListElement>();
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -316,6 +352,34 @@ export const EventsPage = () => {
     [events]
   );
 
+  const thisWeekEventCount = useMemo(
+    () =>
+      events.filter((event) => eventMatchesDateFilter(event, "this_week"))
+        .length,
+    [events]
+  );
+
+  const heroStats = useMemo(
+    () => [
+      {
+        label: "Artist events",
+        value: hostCounts.artist,
+        icon: Users,
+      },
+      {
+        label: "Shop events",
+        value: hostCounts.shop,
+        icon: Store,
+      },
+      {
+        label: "This week",
+        value: thisWeekEventCount,
+        icon: CalendarDays,
+      },
+    ],
+    [hostCounts.artist, hostCounts.shop, thisWeekEventCount]
+  );
+
   const filteredEventsByHost = useMemo<Record<EventHostFilter, PublicEvent[]>>(
     () => {
       const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -369,118 +433,167 @@ export const EventsPage = () => {
 
   return (
     <>
-      <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-20 text-white">
-      <section className="mx-auto max-w-6xl">
-        <div className="rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-4 shadow-xl md:p-5">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
-                Events in San Antonio, TX
-              </p>
-              <h1 className="mt-2 max-w-3xl text-2xl! font-bold leading-tight text-white md:text-3xl!">
-                Find tattoo events from verified artists and local shops.
+      <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
+        <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-20 sm:pt-24 lg:pt-20">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.18]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+              backgroundSize: "54px 54px",
+            }}
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black via-black/70 to-transparent"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-80"
+            aria-hidden="true"
+          />
+          <div className="relative mx-auto grid min-h-[320px] max-w-[1300px] gap-8 pb-7 pt-0 lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+            <div className="max-w-3xl pb-2">
+              <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
+                Find Tattoo Events
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
+              <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
                 Browse flash days, pop-ups, guest spots, conventions, and shop
                 events without losing your place in the calendar.
               </p>
-            </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
-              <HeroStat label="Artist events" value={hostCounts.artist} />
-              <HeroStat label="Shop events" value={hostCounts.shop} />
-              <HeroStat
-                label="This week"
-                value={
-                  events.filter((event) =>
-                    eventMatchesDateFilter(event, "this_week")
-                  ).length
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
-          <HostToggle
-            value={hostFilter}
-            counts={hostCounts}
-            onChange={setHostFilter}
-          />
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-            <label className="relative block">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
-              />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by event, artist, shop, location, or tag"
-                className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35"
-              />
-            </label>
-
-            <label className="relative block">
-              <Filter
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
-              />
-              <select
-                value={eventTypeFilter}
-                onChange={(event) =>
-                  setEventTypeFilter(event.target.value as "all" | EventType)
-                }
-                className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
+              <dl
+                ref={heroStatsRef}
+                className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
               >
-                {eventTypeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {type === "all" ? "All event types" : eventTypeLabels[type]}
-                  </option>
+                {heroStats.map((stat) => (
+                  <HeroStat
+                    key={stat.label}
+                    icon={stat.icon}
+                    label={stat.label}
+                    value={stat.value}
+                    entryCount={heroStatsEntryCount}
+                  />
                 ))}
-              </select>
-            </label>
-          </div>
+              </dl>
+            </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {dateFilters.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setDateFilter(filter.value)}
-                className={`rounded-full border px-4! py-2! text-xs! font-semibold transition ${
-                  dateFilter === filter.value
-                    ? "border-white bg-white text-black"
-                    : "border-white/10 bg-white/[0.035] text-white/60 hover:border-white/25 hover:text-white"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
+            <div className="relative hidden h-[270px] lg:block" aria-hidden="true">
+              <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+                <Ticket
+                  className="h-4 w-4 text-[var(--color-primary-hover)]"
+                  aria-hidden="true"
+                />
+                Local Event Drops
+              </div>
+              <div className="absolute inset-x-6 bottom-20 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+              <div className="absolute bottom-9 left-6 right-6 grid grid-cols-3 gap-3">
+                {["Flash", "Guest", "Shop"].map((label, index) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)]"
+                    style={{ transform: `translateY(${index % 2 ? 14 : 0}px)` }}
+                  >
+                    <div className="mb-4 h-1.5 w-8 rounded-full bg-[var(--color-primary)]/80" />
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                      {label}
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white/[0.12]" />
+                    <div className="mt-2 h-2 w-2/3 rounded-full bg-white/[0.07]" />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
-        <EventHostStage activeHost={hostFilter}>
-          {(["artist", "shop"] as const).map((host) => (
-            <div key={host} className="min-w-0">
-              {renderEventContent({
-                loading,
-                filteredEvents: filteredEventsByHost[host],
-                todayEvents: eventDateGroupsByHost[host].todayEvents,
-                weekEvents: eventDateGroupsByHost[host].weekEvents,
-                laterEvents: eventDateGroupsByHost[host].laterEvents,
-                dateFilter,
-                registrationsByEventId,
-                reservingEventId,
-                purchasingEventId,
-                onFreeRsvp: handleFreeRsvp,
-                onPaidTicket: handlePaidTicket,
-              })}
+        <section className="mx-auto max-w-[1300px] px-4 pt-6">
+          <section className="rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+            <HostToggle
+              value={hostFilter}
+              counts={hostCounts}
+              onChange={setHostFilter}
+            />
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="relative block">
+                <Search
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
+                />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search by event, artist, shop, location, or tag"
+                  className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35"
+                />
+              </label>
+
+              <label className="relative block">
+                <Filter
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
+                />
+                <select
+                  value={eventTypeFilter}
+                  onChange={(event) =>
+                    setEventTypeFilter(event.target.value as "all" | EventType)
+                  }
+                  className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
+                >
+                  {eventTypeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type === "all"
+                        ? "All event types"
+                        : eventTypeLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          ))}
-        </EventHostStage>
-      </section>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {dateFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setDateFilter(filter.value)}
+                  className={`rounded-full border px-4! py-2! text-xs! font-semibold transition ${
+                    dateFilter === filter.value
+                      ? "border-white bg-white text-black"
+                      : "border-white/10 bg-white/[0.035] text-white/60 hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <EventHostStage activeHost={hostFilter}>
+            {(["artist", "shop"] as const).map((host) => (
+              <div key={host} className="min-w-0">
+                {renderEventContent({
+                  loading,
+                  filteredEvents: filteredEventsByHost[host],
+                  todayEvents: eventDateGroupsByHost[host].todayEvents,
+                  weekEvents: eventDateGroupsByHost[host].weekEvents,
+                  laterEvents: eventDateGroupsByHost[host].laterEvents,
+                  dateFilter,
+                  registrationsByEventId,
+                  reservingEventId,
+                  purchasingEventId,
+                  onFreeRsvp: handleFreeRsvp,
+                  onPaidTicket: handlePaidTicket,
+                })}
+              </div>
+            ))}
+          </EventHostStage>
+        </section>
       </main>
 
       <TicketCheckoutPreviewModal
@@ -1272,10 +1385,37 @@ const PublicEventCard = ({
   );
 };
 
-const HeroStat = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-    <p className="text-sm text-white/45">{label}</p>
-    <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+const HeroStat = ({
+  icon: Icon,
+  label,
+  value,
+  entryCount,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  entryCount: number;
+}) => (
+  <div className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3">
+    <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
+      <Icon
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
+        aria-hidden="true"
+      />
+      {label}
+    </dt>
+    <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
+      {entryCount > 0 ? (
+        <CountUp
+          key={`${label}-${entryCount}-${value}`}
+          end={value}
+          duration={1.4}
+          separator=","
+        />
+      ) : (
+        value
+      )}
+    </dd>
   </div>
 );
 
