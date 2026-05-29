@@ -935,10 +935,6 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
           aria-hidden="true"
         />
         <div
-          className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] bg-[length:52px_52px] opacity-35"
-          aria-hidden="true"
-        />
-        <div
           className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
           aria-hidden="true"
         />
