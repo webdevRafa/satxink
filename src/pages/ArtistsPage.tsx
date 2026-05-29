@@ -14,7 +14,6 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import {
   ArrowRight,
   Image as ImageIcon,
-  MapPin,
   Palette,
   Search,
   Sparkles,
@@ -619,7 +618,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-32"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-20 sm:pt-24 lg:pt-20"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -631,11 +630,11 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black via-black/70 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black via-black/70 to-transparent"
           aria-hidden="true"
         />
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
           aria-hidden="true"
         />
         <div
@@ -643,31 +642,23 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute left-1/2 top-20 w-[min(92vw,780px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-14"
+          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,700px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-4"
           style={{ opacity: 0.055 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[410px] max-w-[1300px] gap-10 pb-10 pt-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end lg:pb-12">
-          <div className="max-w-3xl pb-3" style={heroFadeStyle}>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              <MapPin
-                className="h-4 w-4 text-[var(--color-primary-hover)]"
-                aria-hidden="true"
-              />
-              San Antonio Artist Directory
-            </div>
-
-            <div className="mt-6">
-              <div className="flex flex-wrap items-end gap-3">
-                <h1 className="mb-0! text-5xl! font-bold leading-none text-white! sm:text-6xl! lg:text-7xl!">
+        <div className="relative mx-auto grid min-h-[320px] max-w-[1300px] gap-8 pb-7 pt-0 lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+          <div className="max-w-3xl pb-2" style={heroFadeStyle}>
+            <div>
+              <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
+                <h1 className="mb-0! whitespace-nowrap text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
                   Find Your Artist
                 </h1>
-                <span className="mb-1 inline-flex h-12 w-20 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-14 sm:w-24 lg:hidden">
+                <span className="inline-flex h-10 w-14 shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-12 sm:w-20 lg:hidden">
                   <img
-                    className="h-8 w-14 object-contain sm:h-9 sm:w-16"
+                    className="h-6 w-10 object-contain sm:h-8 sm:w-14"
                     src={gun}
                     alt=""
                     aria-hidden="true"
@@ -675,7 +666,7 @@ export const ArtistsPage = () => {
                 </span>
               </div>
 
-              <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+              <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
                 Browse verified San Antonio tattooers by style, portfolio
                 preview, and the kind of work you want to wear next.
               </p>
@@ -683,7 +674,7 @@ export const ArtistsPage = () => {
 
             <div
               ref={metricsRef}
-              className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3"
+              className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
             >
               {heroMetrics.map((metric) => {
                 const Icon = metric.icon;
@@ -721,18 +712,18 @@ export const ArtistsPage = () => {
           </div>
 
           <div
-            className="relative hidden h-[320px] lg:block"
+            className="relative hidden h-[270px] lg:block"
             style={heroArtworkStyle}
             aria-hidden="true"
           >
-            <div className="absolute inset-x-5 bottom-24 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-            <div className="absolute bottom-14 left-8 right-8 h-20 border-x border-t border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent" />
+            <div className="absolute inset-x-5 bottom-20 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+            <div className="absolute bottom-10 left-8 right-8 h-16 border-x border-t border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent" />
             <img
-              className="absolute bottom-20 left-1/2 w-[410px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
+              className="absolute bottom-16 left-1/2 w-[360px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
               src={sa}
               alt=""
             />
-            <div className="absolute right-2 top-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+            <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
               <Sparkles
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
                 aria-hidden="true"
@@ -740,7 +731,7 @@ export const ArtistsPage = () => {
               Curated Local Work
             </div>
             <img
-              className="absolute bottom-4 right-3 h-24 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
+              className="absolute bottom-3 right-3 h-20 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
               src={gun}
               alt=""
             />
