@@ -71,6 +71,9 @@ const chunkArray = <T,>(items: T[], size: number) =>
     items.slice(index * size, index * size + size)
   );
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
 function useStickyReveal(threshold = 10) {
   const [visible, setVisible] = useState(true);
   const lastY = useRef(window.scrollY);
@@ -103,8 +106,75 @@ function useStickyReveal(threshold = 10) {
   return visible;
 }
 
+function useScrollScaledOpacity() {
+  const targetRef = useRef<HTMLElement | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const shouldTrackRef = useRef(true);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const updateProgress = () => {
+      const rect = target.getBoundingClientRect();
+      const targetTop = rect.top + window.scrollY;
+      const fadeDistance = Math.max(target.offsetHeight * 0.78, 340);
+      const scrollDistance = window.scrollY - targetTop;
+      const nextProgress = clamp(scrollDistance / fadeDistance, 0, 1);
+
+      setProgress((current) =>
+        Math.abs(current - nextProgress) > 0.005 ? nextProgress : current
+      );
+    };
+
+    const scheduleProgressUpdate = () => {
+      if (!shouldTrackRef.current || frameRef.current !== null) return;
+
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null;
+        updateProgress();
+      });
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        shouldTrackRef.current =
+          entry.isIntersecting || entry.boundingClientRect.top < 0;
+        scheduleProgressUpdate();
+      },
+      {
+        rootMargin: "0px 0px 35% 0px",
+        threshold: [0, 0.15, 0.35, 0.6, 0.85, 1],
+      }
+    );
+
+    observer.observe(target);
+    updateProgress();
+
+    window.addEventListener("scroll", scheduleProgressUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleProgressUpdate);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", scheduleProgressUpdate);
+      window.removeEventListener("resize", scheduleProgressUpdate);
+
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, []);
+
+  return { targetRef, progress };
+}
+
 export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
+  const { targetRef: heroRef, progress: heroFadeProgress } =
+    useScrollScaledOpacity();
   const [searchParams] = useSearchParams();
   const styleFromUrl = searchParams.get("style") || "";
 
@@ -192,6 +262,23 @@ export const ArtistsPage = () => {
         }`;
   const totalArtistValue =
     loading && artists.length === 0 ? "..." : String(artists.length);
+  const heroOpacity = 1 - heroFadeProgress;
+  const heroFadeStyle = {
+    opacity: heroOpacity,
+    transform: `translate3d(0, -${heroFadeProgress * 18}px, 0) scale(${
+      1 - heroFadeProgress * 0.025
+    })`,
+    transformOrigin: "center top",
+    willChange: "opacity, transform",
+  };
+  const heroArtworkStyle = {
+    opacity: heroOpacity,
+    transform: `translate3d(0, ${heroFadeProgress * 22}px, 0) scale(${
+      1 + heroFadeProgress * 0.035
+    })`,
+    transformOrigin: "center bottom",
+    willChange: "opacity, transform",
+  };
   const heroMetrics = [
     {
       label: "Verified artists",
@@ -326,6 +413,7 @@ export const ArtistsPage = () => {
   return (
     <main className="relative min-h-[calc(100vh-4rem)] bg-[var(--color-bg-base)] pb-12">
       <section
+        ref={heroRef}
         data-aos="fade-in"
         className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-32"
       >
@@ -352,13 +440,14 @@ export const ArtistsPage = () => {
         />
         <img
           className="pointer-events-none absolute left-1/2 top-20 w-[min(92vw,780px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-14"
+          style={{ opacity: 0.055 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
         <div className="relative mx-auto grid min-h-[410px] max-w-[1300px] gap-10 pb-10 pt-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end lg:pb-12">
-          <div className="max-w-3xl pb-3">
+          <div className="max-w-3xl pb-3" style={heroFadeStyle}>
             <div className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
               <MapPin
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
@@ -415,6 +504,7 @@ export const ArtistsPage = () => {
 
           <div
             className="relative hidden h-[320px] lg:block"
+            style={heroArtworkStyle}
             aria-hidden="true"
           >
             <div className="absolute inset-x-5 bottom-24 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
