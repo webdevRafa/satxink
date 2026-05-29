@@ -618,7 +618,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-20"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -649,7 +649,7 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
           <div className="max-w-3xl pb-2" style={heroFadeStyle}>
             <div>
               <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
@@ -712,16 +712,16 @@ export const ArtistsPage = () => {
           </div>
 
           <div
-            className="relative hidden h-[270px] lg:block"
+            className="relative hidden h-[240px] lg:block"
             style={heroArtworkStyle}
             aria-hidden="true"
           >
             <img
-              className="absolute bottom-16 left-1/2 w-[360px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
+              className="absolute bottom-12 left-1/2 w-[330px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
               src={sa}
               alt=""
             />
-            <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+            <div className="absolute right-2 top-4 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
               <Sparkles
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
                 aria-hidden="true"
@@ -729,7 +729,7 @@ export const ArtistsPage = () => {
               Curated Local Work
             </div>
             <img
-              className="absolute bottom-3 right-3 h-20 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
+              className="absolute bottom-2 right-3 h-[4.5rem] rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
               src={gun}
               alt=""
             />

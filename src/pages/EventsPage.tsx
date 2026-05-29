@@ -472,7 +472,7 @@ export const EventsPage = () => {
   return (
     <>
       <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
-        <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-20">
+        <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16">
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.18]"
             style={{
@@ -494,7 +494,7 @@ export const EventsPage = () => {
             className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-80"
             aria-hidden="true"
           />
-          <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+          <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
             <div className="max-w-3xl pb-2">
               <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
                 Find Tattoo Events
@@ -522,17 +522,17 @@ export const EventsPage = () => {
 
             <div
               ref={eventDropRef}
-              className="relative hidden h-[270px] lg:block"
+              className="relative hidden h-[240px] lg:block"
               aria-hidden="true"
             >
-              <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+              <div className="absolute right-2 top-4 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
                 <Ticket
                   className="h-4 w-4 text-[var(--color-primary-hover)]"
                   aria-hidden="true"
                 />
                 Local Event Drops
               </div>
-              <div className="absolute bottom-9 left-6 right-6 grid grid-cols-3 gap-3">
+              <div className="absolute bottom-5 left-6 right-6 grid grid-cols-3 gap-3">
                 {eventDropCards.map((card) => {
                   const restingY = card.offsetY;
                   const startingY = card.offsetY + card.enterY;

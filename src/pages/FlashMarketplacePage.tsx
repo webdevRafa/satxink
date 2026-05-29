@@ -298,7 +298,7 @@ const FlashMarketplacePage = () => {
 
   return (
     <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
-      <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-20">
+      <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
           style={{
@@ -321,7 +321,7 @@ const FlashMarketplacePage = () => {
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[340px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-8">
+        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
           <div className="max-w-3xl pb-2">
             <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
               Flash Marketplace
@@ -348,30 +348,30 @@ const FlashMarketplacePage = () => {
             </dl>
           </div>
 
-          <div className="relative hidden h-[270px] lg:block" aria-hidden="true">
-            <div className="absolute right-2 top-8 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+          <div className="relative hidden h-[240px] lg:block" aria-hidden="true">
+            <div className="absolute right-0 top-2 z-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
               <Tag
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
                 aria-hidden="true"
               />
               Ready-to-Claim Flash
             </div>
-            <div className="absolute bottom-7 left-4 right-2 h-[210px]">
+            <div className="absolute bottom-0 left-5 right-2 h-[190px]">
               {[
                 {
-                  left: "0.5rem",
+                  left: "0.25rem",
                   bottom: "0.4rem",
                   rotate: "-7deg",
                   opacity: 0.64,
                 },
                 {
-                  left: "6.8rem",
-                  bottom: "2.05rem",
+                  left: "6.4rem",
+                  bottom: "1.55rem",
                   rotate: "4deg",
                   opacity: 0.82,
                 },
                 {
-                  left: "13.1rem",
+                  left: "12.55rem",
                   bottom: "0.95rem",
                   rotate: "-2deg",
                   opacity: 0.72,
@@ -379,7 +379,7 @@ const FlashMarketplacePage = () => {
               ].map((card, index) => (
                 <div
                   key={index}
-                  className="absolute h-40 w-28 rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_20px_55px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  className="absolute h-36 w-24 rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_20px_55px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]"
                   style={{
                     left: card.left,
                     bottom: card.bottom,
@@ -387,11 +387,11 @@ const FlashMarketplacePage = () => {
                     transform: `rotate(${card.rotate})`,
                   }}
                 >
-                  <div className="absolute left-4 top-4 h-10 w-10 rounded-full border border-white/[0.13]" />
-                  <div className="absolute right-4 top-8 h-8 w-8 rounded-full border border-white/[0.1]" />
-                  <div className="absolute left-6 top-16 h-12 w-12 rotate-45 rounded-lg border border-white/[0.09]" />
-                  <div className="absolute bottom-5 left-4 h-1.5 w-14 rounded-full bg-[var(--color-primary)]/80" />
-                  <div className="absolute bottom-9 left-4 h-1.5 w-20 rounded-full bg-white/[0.12]" />
+                  <div className="absolute left-3.5 top-3.5 h-9 w-9 rounded-full border border-white/[0.13]" />
+                  <div className="absolute right-3.5 top-7 h-7 w-7 rounded-full border border-white/[0.1]" />
+                  <div className="absolute left-5 top-14 h-11 w-11 rotate-45 rounded-lg border border-white/[0.09]" />
+                  <div className="absolute bottom-4 left-3.5 h-1.5 w-12 rounded-full bg-[var(--color-primary)]/80" />
+                  <div className="absolute bottom-8 left-3.5 h-1.5 w-[4.25rem] rounded-full bg-white/[0.12]" />
                 </div>
               ))}
             </div>
