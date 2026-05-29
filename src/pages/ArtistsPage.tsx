@@ -135,8 +135,9 @@ const getSpotlightInterval = (seed: string) =>
 const getArtistGridItems = (artists: Artist[]): ArtistGridItem[] => {
   const items: ArtistGridItem[] = [];
   let cycle = 0;
+  const sequenceSeed = artists[0]?.id || "artists";
   let standardCardsUntilSpotlight = getSpotlightInterval(
-    `${artists[0]?.id || "artists"}-${artists.length}-initial`
+    `${sequenceSeed}-initial`
   );
   let standardCardsInSegment = 0;
 
@@ -151,7 +152,7 @@ const getArtistGridItems = (artists: Artist[]): ArtistGridItem[] => {
       cycle += 1;
       standardCardsInSegment = 0;
       standardCardsUntilSpotlight = getSpotlightInterval(
-        `${artist.id}-${artists.length}-${cycle}`
+        `${sequenceSeed}-${artist.id}-${cycle}`
       );
       return;
     }
