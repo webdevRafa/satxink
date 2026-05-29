@@ -13,6 +13,8 @@ import "aos/dist/aos.css";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
   Palette,
   Search,
@@ -27,6 +29,12 @@ import sa from "../assets/san-antonio.svg";
 import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
 import type { GalleryItem } from "../types/GalleryItem";
+import {
+  TATTOO_STYLES,
+  artistHasTattooStyle,
+  getCanonicalTattooStyles,
+  resolveTattooStyle,
+} from "../types/TattooStyle";
 
 type ArtistPreview = {
   url: string;
@@ -49,22 +57,6 @@ type ArtistGridItem =
     };
 
 const PAGE_SIZE = 6;
-const SPECIALTIES = [
-  "Blackwork",
-  "Linework",
-  "Dotwork",
-  "Color",
-  "Realism",
-  "Neo-Traditional",
-  "Micro",
-  "Geometric",
-  "Anime",
-  "Traditional",
-  "Japanese",
-  "Ornamental",
-  "Fine Line",
-  "Color Realism",
-];
 
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || artist.email || "Artist";
@@ -364,8 +356,9 @@ export const ArtistsPage = () => {
     useScrollScaledOpacity();
   const { targetRef: metricsRef, entryCount: metricEntryCount } =
     useViewportEntry<HTMLDivElement>();
+  const styleRailRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
-  const styleFromUrl = searchParams.get("style") || "";
+  const styleFromUrl = resolveTattooStyle(searchParams.get("style") || "");
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
@@ -376,6 +369,15 @@ export const ArtistsPage = () => {
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState(styleFromUrl);
+  const scrollStyleRail = useCallback((direction: -1 | 1) => {
+    const rail = styleRailRef.current;
+    if (!rail) return;
+
+    rail.scrollBy({
+      left: direction * Math.max(240, rail.clientWidth * 0.68),
+      behavior: "smooth",
+    });
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -426,9 +428,7 @@ export const ArtistsPage = () => {
     () =>
       specialtyFilter
         ? artists.filter((artist) =>
-            artist.specialties?.some((tag) =>
-              tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-            )
+            artistHasTattooStyle(artist.specialties, specialtyFilter)
           )
         : artists,
     [artists, specialtyFilter]
@@ -489,8 +489,8 @@ export const ArtistsPage = () => {
     },
     {
       label: "Style paths",
-      value: String(SPECIALTIES.length),
-      countValue: SPECIALTIES.length,
+      value: String(TATTOO_STYLES.length),
+      countValue: TATTOO_STYLES.length,
       icon: Palette,
     },
     {
@@ -759,28 +759,49 @@ export const ArtistsPage = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {SPECIALTIES.map((tag) => {
-              const selected = specialtyFilter === tag;
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Scroll styles left"
+              onClick={() => scrollStyleRail(-1)}
+              className="absolute left-0 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <div
+              ref={styleRailRef}
+              className="flex gap-2 overflow-x-auto scroll-smooth px-11 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {TATTOO_STYLES.map((tag) => {
+                const selected = specialtyFilter === tag;
 
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  aria-pressed={selected}
-                  className={`min-h-9 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
-                    selected
-                      ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                      : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
-                  }`}
-                  onClick={() =>
-                    setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
-                  }
-                >
-                  {tag}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`min-h-9 shrink-0 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
+                      selected
+                        ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                    onClick={() =>
+                      setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
+                    }
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-label="Scroll styles right"
+              onClick={() => scrollStyleRail(1)}
+              className="absolute right-0 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg border border-white/[0.12] bg-[#101010]/90 text-neutral-200 shadow-xl shadow-black/30 backdrop-blur transition hover:border-white/30 hover:text-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
       </div>
@@ -883,7 +904,10 @@ const ArtistPreviewCard = ({
 const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
   const { targetRef, offset } = useScrollParallax(80);
   const displayName = getArtistDisplayName(artist);
-  const visibleSpecialties = artist.specialties?.slice(0, 5) || [];
+  const visibleSpecialties = getCanonicalTattooStyles(artist.specialties).slice(
+    0,
+    5
+  );
 
   return (
     <Link to={`/artists/${artist.id}`} className="group block">

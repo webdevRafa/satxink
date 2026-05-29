@@ -1,11 +1,6 @@
-const styles = [
-  "Black & Grey",
-  "Color",
-  "Realism",
-  "Traditional",
-  "Japanese",
-  "Fine Line",
-];
+import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
+
+const styles = FEATURED_TATTOO_STYLES;
 
 export const BrowseByStyle = () => {
   return (

@@ -1,5 +1,6 @@
 // src/components/ArtistCard.tsx
 import { useEffect, useState } from "react";
+import { getCanonicalTattooStyles } from "../types/TattooStyle";
 
 interface SocialLinks {
   facebook?: string;
@@ -27,9 +28,10 @@ const ArtistCard = ({
   const displayName = name || "Artist";
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const maxVisibleSpecialties = previewUrl ? 2 : 3;
-  const visibleSpecialties = specialties?.slice(0, maxVisibleSpecialties) || [];
+  const displaySpecialties = getCanonicalTattooStyles(specialties);
+  const visibleSpecialties = displaySpecialties.slice(0, maxVisibleSpecialties);
   const hiddenSpecialtyCount = Math.max(
-    (specialties?.length || 0) - maxVisibleSpecialties,
+    displaySpecialties.length - maxVisibleSpecialties,
     0
   );
   const layoutClass = previewUrl

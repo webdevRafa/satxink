@@ -22,6 +22,7 @@ import {
 
 import { db } from "../firebase/firebaseConfig";
 import logo from "../assets/satx-short-sep.svg";
+import { TATTOO_STYLES } from "../types/TattooStyle";
 
 type InterestGroup = {
   id: string;
@@ -30,24 +31,7 @@ type InterestGroup = {
   tags: string[];
 };
 
-const styleOptions = [
-  "Traditional",
-  "Neo-Traditional",
-  "Realism",
-  "Blackwork",
-  "Fine Line",
-  "Anime",
-  "Japanese",
-  "Chicano",
-  "Script",
-  "Geometric",
-  "Color",
-  "Minimalist",
-  "Portrait",
-  "Dotwork",
-  "Ornamental",
-  "Surrealism",
-];
+const styleOptions = TATTOO_STYLES;
 
 const interestGroups: InterestGroup[] = [
   {
