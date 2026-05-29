@@ -166,7 +166,40 @@ function useViewportEntry<T extends Element>() {
   return { targetRef, entryCount };
 }
 
+function useStickyReveal(threshold = 10) {
+  const [visible, setVisible] = useState(true);
+  const lastY = useRef(window.scrollY);
+  const lastDirection = useRef<"up" | "down">("up");
+
+  useEffect(() => {
+    const update = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastY.current;
+      const goingDown = delta > threshold;
+      const goingUp = delta < -threshold;
+
+      if (goingDown && lastDirection.current !== "down") {
+        setVisible(false);
+        lastDirection.current = "down";
+      } else if (goingUp && lastDirection.current !== "up") {
+        setVisible(true);
+        lastDirection.current = "up";
+      }
+
+      lastY.current = currentY;
+    };
+
+    const handleScroll = () => requestAnimationFrame(update);
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [threshold]);
+
+  return visible;
+}
+
 export const EventsPage = () => {
+  const isFiltersVisible = useStickyReveal(5);
   const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
   const { targetRef: eventDropRef, entryCount: eventDropEntryCount } =
@@ -574,69 +607,79 @@ export const EventsPage = () => {
           </div>
         </section>
 
-        <section className="mx-auto max-w-[1300px] px-4 pt-6">
-          <section className="rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
-            <HostToggle
-              value={hostFilter}
-              counts={hostCounts}
-              onChange={setHostFilter}
-            />
+        <section
+          className={`sticky top-[73px] z-30 border-y border-white/[0.08] bg-[#0b0b0b]/92 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-transform duration-300 md:top-20 ${
+            !isFiltersVisible ? "-translate-y-full" : "translate-y-0"
+          }`}
+        >
+          <div className="mx-auto max-w-[1300px] px-4 py-2.5 md:py-3">
+            <div className="rounded-lg border border-white/[0.08] bg-white/[0.035] p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-3">
+              <HostToggle
+                value={hostFilter}
+                counts={hostCounts}
+                onChange={setHostFilter}
+              />
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <label className="relative block">
-                <Search
-                  size={18}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
-                />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search by event, artist, shop, location, or tag"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35"
-                />
-              </label>
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_210px]">
+                <label className="relative block">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/35"
+                  />
+                  <input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search by event, artist, shop, location, or tag"
+                    className="h-10 w-full rounded-lg border border-white/10 bg-black/25 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35"
+                  />
+                </label>
 
-              <label className="relative block">
-                <Filter
-                  size={18}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
-                />
-                <select
-                  value={eventTypeFilter}
-                  onChange={(event) =>
-                    setEventTypeFilter(event.target.value as "all" | EventType)
-                  }
-                  className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
-                >
-                  {eventTypeOptions.map((type) => (
-                    <option key={type} value={type}>
-                      {type === "all"
-                        ? "All event types"
-                        : eventTypeLabels[type]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <label className="relative block">
+                  <Filter
+                    size={16}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/35"
+                  />
+                  <select
+                    value={eventTypeFilter}
+                    onChange={(event) =>
+                      setEventTypeFilter(
+                        event.target.value as "all" | EventType
+                      )
+                    }
+                    className="h-10 w-full appearance-none rounded-lg border border-white/10 bg-[#151515] pl-10 pr-3 text-sm font-semibold text-white outline-none transition focus:border-white/30"
+                  >
+                    {eventTypeOptions.map((type) => (
+                      <option key={type} value={type}>
+                        {type === "all"
+                          ? "All event types"
+                          : eventTypeLabels[type]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {dateFilters.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setDateFilter(filter.value)}
+                    className={`shrink-0 rounded-lg border px-3! py-1.5! text-xs! font-semibold transition ${
+                      dateFilter === filter.value
+                        ? "border-white bg-white text-black"
+                        : "border-white/10 bg-white/[0.035] text-white/60 hover:border-white/25 hover:text-white"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
             </div>
+          </div>
+        </section>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {dateFilters.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setDateFilter(filter.value)}
-                  className={`rounded-full border px-4! py-2! text-xs! font-semibold transition ${
-                    dateFilter === filter.value
-                      ? "border-white bg-white text-black"
-                      : "border-white/10 bg-white/[0.035] text-white/60 hover:border-white/25 hover:text-white"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
+        <section className="mx-auto max-w-[1300px] px-4">
           <EventHostStage activeHost={hostFilter}>
             {(["artist", "shop"] as const).map((host) => (
               <div key={host} className="min-w-0">
@@ -812,21 +855,21 @@ const HostToggle = ({
   counts: Record<EventHostFilter, number>;
   onChange: (value: EventHostFilter) => void;
 }) => (
-  <div className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-    <div className="inline-grid w-full grid-cols-2 rounded-lg border border-white/10 bg-black/25 p-1 sm:w-[340px]">
+  <div className="mb-2 flex flex-col gap-2 border-b border-white/10 pb-2 md:mb-3 md:flex-row md:items-center md:justify-between">
+    <div className="inline-grid w-full grid-cols-2 rounded-lg border border-white/10 bg-black/25 p-1 sm:w-[320px]">
       {(["artist", "shop"] as const).map((item) => (
         <button
           key={item}
           type="button"
           onClick={() => onChange(item)}
-          className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-3! text-sm! font-semibold capitalize transition ${
+          className={`inline-flex h-9 items-center justify-center gap-2 rounded-md px-2.5! py-0! text-xs! font-semibold transition ${
             value === item
               ? "bg-white text-black shadow-lg"
               : "text-white/55 hover:bg-white/[0.06] hover:text-white"
           }`}
         >
           {item === "artist" ? <Users size={15} /> : <Store size={15} />}
-          {item === "artist" ? "Artists" : "Shops"}
+          {item === "artist" ? "By Artists" : "By Shops"}
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] ${
               value === item
@@ -839,7 +882,7 @@ const HostToggle = ({
         </button>
       ))}
     </div>
-    <p className="text-sm text-white/45">
+    <p className="hidden text-xs text-white/45 md:block">
       {value === "artist"
         ? "Browsing events published by individual artists."
         : "Browsing events hosted directly by shops."}
