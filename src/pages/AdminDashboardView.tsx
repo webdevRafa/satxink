@@ -31,6 +31,7 @@ import {
   ExternalLink,
   CheckCircle2,
   XCircle,
+  Mail,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import toast from "react-hot-toast";
@@ -60,7 +61,8 @@ type AdminView =
   | "offers"
   | "bookings"
   | "sessions"
-  | "shopClaims";
+  | "shopClaims"
+  | "contactMessages";
 type StripeFilter = "all" | "connected" | "not_connected";
 type FeaturedFilter = "all" | "featured" | "not_featured";
 type ArtistAttentionFilter = "all" | "needs_stripe" | "missing_name";
@@ -87,6 +89,7 @@ type SessionStatusFilter =
   | "awaiting_next_session"
   | "other";
 type SessionAttentionFilter = "all" | "overdue" | "missing_date";
+type ContactMessageStatusFilter = "all" | "new" | "reviewed" | "closed";
 
 // Define minimal shape interfaces for our Firestore documents. These
 // interfaces are intentionally permissive – any additional fields
@@ -511,6 +514,7 @@ const getInitialCollectionStatus = (): Record<AdminView, CollectionStatus> => ({
   bookings: { loading: false, error: "", updatedAt: null },
   sessions: { loading: false, error: "", updatedAt: null },
   shopClaims: { loading: false, error: "", updatedAt: null },
+  contactMessages: { loading: false, error: "", updatedAt: null },
 });
 
 const markAllCollectionsLoading = (): Record<AdminView, CollectionStatus> => ({
@@ -520,6 +524,7 @@ const markAllCollectionsLoading = (): Record<AdminView, CollectionStatus> => ({
   bookings: { loading: true, error: "", updatedAt: null },
   sessions: { loading: true, error: "", updatedAt: null },
   shopClaims: { loading: true, error: "", updatedAt: null },
+  contactMessages: { loading: true, error: "", updatedAt: null },
 });
 
 const getCollectionSuccessState = (): CollectionStatus => ({
@@ -1277,6 +1282,7 @@ const AdminSidebarNavigation: React.FC<SidebarProps> = ({
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
     { key: "sessions", label: "Sessions", icon: Clock },
     { key: "shopClaims", label: "Shop Claims", icon: Store },
+    { key: "contactMessages", label: "Contact", icon: Mail },
   ];
   return (
     <aside className="hidden md:block w-64 p-4 bg-black/20 border-r border-white/5 sticky top-20 self-start h-[calc(100vh-5rem)]">
@@ -1681,6 +1687,231 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
             );
           })}
           <EmptyTableState total={data.length} visible={filteredArtists.length} />
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const ContactMessagesTable: React.FC<
+  TableProps<GenericRecord> & { adminUser: UserRecord | null }
+> = ({ data, onSelect, status, adminUser }) => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<ContactMessageStatusFilter>("all");
+  const [savingId, setSavingId] = useState("");
+
+  const filteredMessages = useMemo(
+    () =>
+      data.filter((message) => {
+        const messageStatus = getString(message, "status") || "new";
+        const matchesStatus =
+          statusFilter === "all" || messageStatus === statusFilter;
+        return (
+          matchesStatus &&
+          matchesSearch(search, [
+            message.id,
+            getString(message, "name"),
+            getString(message, "email"),
+            getString(message, "audience"),
+            getString(message, "topic"),
+            getString(message, "message"),
+          ])
+        );
+      }),
+    [data, search, statusFilter]
+  );
+
+  const newCount = data.filter(
+    (message) => (getString(message, "status") || "new") === "new"
+  ).length;
+  const hasActiveTools = search || statusFilter !== "all";
+
+  const updateMessageStatus = async (
+    message: GenericRecord,
+    nextStatus: "reviewed" | "closed"
+  ) => {
+    setSavingId(message.id);
+    try {
+      await updateDoc(doc(db, "contactMessages", message.id), {
+        status: nextStatus,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: adminUser?.id || null,
+        reviewedByEmail: adminUser?.email || null,
+      });
+      toast.success(
+        nextStatus === "closed" ? "Message closed" : "Message marked reviewed"
+      );
+    } catch (error) {
+      console.error("Failed to update contact message", error);
+      toast.error("Could not update message");
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Contact inbox</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Public footer submissions from clients, artists, shops, and event
+            hosts.
+          </p>
+        </div>
+        <DataHealth
+          status={status}
+          total={data.length}
+          visible={filteredMessages.length}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="New"
+          count={newCount}
+          active={statusFilter === "new"}
+          onClick={() =>
+            setStatusFilter(statusFilter === "new" ? "all" : "new")
+          }
+        />
+      </div>
+
+      <ToolPanel>
+        <ToolField label="Search">
+          <ToolInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Name, email, topic, or message"
+          />
+        </ToolField>
+        <ToolField label="Status">
+          <ToolSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { label: "All messages", value: "all" },
+              { label: "New", value: "new" },
+              { label: "Reviewed", value: "reviewed" },
+              { label: "Closed", value: "closed" },
+            ]}
+          />
+        </ToolField>
+        <ClearToolsButton
+          disabled={!hasActiveTools}
+          onClick={() => {
+            setSearch("");
+            setStatusFilter("all");
+          }}
+        />
+      </ToolPanel>
+
+      <div className="w-full overflow-x-auto rounded-lg border border-white/10">
+        <div className="min-w-[1040px] divide-y divide-white/10">
+          <div className={`${tableHeaderClass} grid-cols-[minmax(220px,1fr)_minmax(150px,.65fr)_minmax(280px,1.35fr)_minmax(130px,.55fr)_minmax(130px,.55fr)_210px]`}>
+            <span>Sender</span>
+            <span>Topic</span>
+            <span>Message</span>
+            <span>Status</span>
+            <span>Received</span>
+            <span className="text-right">Actions</span>
+          </div>
+
+          {filteredMessages.map((message) => {
+            const messageStatus = getString(message, "status") || "new";
+            const isSaving = savingId === message.id;
+            const email = getString(message, "email");
+
+            return (
+              <div
+                key={message.id}
+                onClick={() => onSelect(message)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(message);
+                  }
+                }}
+                className={`${tableRowClass} grid-cols-[minmax(220px,1fr)_minmax(150px,.65fr)_minmax(280px,1.35fr)_minmax(130px,.55fr)_minmax(130px,.55fr)_210px]`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-white">
+                    {getString(message, "name") || "Unknown sender"}
+                  </span>
+                  <span className="block truncate text-neutral-500">
+                    {email || "-"}
+                  </span>
+                </span>
+                <span className={`${inlineCellClass} capitalize`}>
+                  {formatStatusLabel(getString(message, "topic"))}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-neutral-300">
+                    {getString(message, "message") || "-"}
+                  </span>
+                  <span className="block truncate text-xs capitalize text-neutral-500">
+                    {formatStatusLabel(getString(message, "audience"))}
+                  </span>
+                </span>
+                <span className={inlineCellClass}>
+                  <span
+                    className={getAdminStatusBadgeClass(
+                      messageStatus === "new" ? "pending" : messageStatus
+                    )}
+                  >
+                    {formatStatusLabel(messageStatus)}
+                  </span>
+                </span>
+                <span className={inlineCellClass}>
+                  {formatDate(message.createdAt)}
+                </span>
+                <span className="flex items-center justify-end gap-2">
+                  {email && (
+                    <a
+                      href={`mailto:${email}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-200 hover:bg-white/10"
+                    >
+                      <Mail size={14} />
+                      Reply
+                    </a>
+                  )}
+                  {messageStatus === "new" && (
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        updateMessageStatus(message, "reviewed");
+                      }}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 hover:bg-emerald-300/15 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <CheckCircle2 size={14} />
+                      Review
+                    </button>
+                  )}
+                  {messageStatus !== "closed" && (
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        updateMessageStatus(message, "closed");
+                      }}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-200 hover:bg-white/10 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <XCircle size={14} />
+                      Close
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+          <EmptyTableState total={data.length} visible={filteredMessages.length} />
         </div>
       </div>
     </section>
@@ -2819,6 +3050,7 @@ const AdminDashboardView: React.FC = () => {
   const [bookings, setBookings] = useState<GenericRecord[]>([]);
   const [sessions, setSessions] = useState<GenericRecord[]>([]);
   const [shopClaims, setShopClaims] = useState<GenericRecord[]>([]);
+  const [contactMessages, setContactMessages] = useState<GenericRecord[]>([]);
   const [collectionStatuses, setCollectionStatuses] = useState(
     getInitialCollectionStatus
   );
@@ -2995,6 +3227,23 @@ const AdminDashboardView: React.FC = () => {
       },
       (error) => updateStatus("shopClaims", getCollectionErrorState(error))
     );
+    const contactMessagesQuery = query(
+      collection(db, "contactMessages"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubContactMessages = onSnapshot(
+      contactMessagesQuery,
+      (snap) => {
+        const results: GenericRecord[] = [];
+        snap.forEach((docSnap) => {
+          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+        });
+        setContactMessages(results);
+        updateStatus("contactMessages", getCollectionSuccessState());
+      },
+      (error) =>
+        updateStatus("contactMessages", getCollectionErrorState(error))
+    );
     return () => {
       unsubUsers();
       unsubArtists();
@@ -3003,6 +3252,7 @@ const AdminDashboardView: React.FC = () => {
       unsubBookings();
       unsubSessions();
       unsubShopClaims();
+      unsubContactMessages();
     };
   }, [currentUser]);
 
@@ -3014,6 +3264,9 @@ const AdminDashboardView: React.FC = () => {
     bookings: bookings.length,
     sessions: sessionRows.length,
     shopClaims: shopClaims.filter((claim) => getString(claim, "status") === "pending").length,
+    contactMessages: contactMessages.filter(
+      (message) => (getString(message, "status") || "new") === "new"
+    ).length,
   };
 
   if (loadingAuth) {
@@ -3085,6 +3338,14 @@ const AdminDashboardView: React.FC = () => {
             data={shopClaims}
             usersById={usersById}
             status={collectionStatuses.shopClaims}
+            adminUser={currentUser}
+            onSelect={(item) => setSelectedItem(item)}
+          />
+        )}
+        {activeView === "contactMessages" && (
+          <ContactMessagesTable
+            data={contactMessages}
+            status={collectionStatuses.contactMessages}
             adminUser={currentUser}
             onSelect={(item) => setSelectedItem(item)}
           />
