@@ -226,6 +226,67 @@
   pointer-events: none;
 }
 
+@keyframes spotlight-border-slide-left {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateX(-16%) scaleX(0.34);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateX(74%) scaleX(1);
+  }
+}
+
+@keyframes spotlight-border-slide-right {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateX(16%) scaleX(0.34);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateX(-74%) scaleX(1);
+  }
+}
+
+.spotlight-border-glint {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  height: 2px;
+  width: 50%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(204, 63, 50, 0.32),
+    rgba(255, 255, 255, 0.82),
+    rgba(204, 63, 50, 0.32),
+    transparent
+  );
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.spotlight-border-glint--left {
+  left: 0;
+  animation: spotlight-border-slide-left 5.4s ease-in-out infinite;
+}
+
+.spotlight-border-glint--right {
+  right: 0;
+  animation: spotlight-border-slide-right 5.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-border-glint {
+    animation: none;
+    opacity: 0.55;
+    transform: none;
+  }
+}
+
 :root {
     --color-bg-base: #121212;
     --color-bg-card: #1c1c1c;
