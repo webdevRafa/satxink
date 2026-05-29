@@ -139,8 +139,10 @@ export const Navbar = () => {
   useEffect(() => {
     if (!isOpen) return;
 
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsOpen(false);
@@ -149,7 +151,8 @@ export const Navbar = () => {
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
       document.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen]);
@@ -279,7 +282,7 @@ export const Navbar = () => {
 
       {/* Slide-In Mobile Menu */}
       <div
-        className={`fixed inset-0 z-90 flex justify-end bg-black/70 backdrop-blur-md transition-opacity duration-300 md:hidden ${
+        className={`fixed inset-0 z-90 flex h-dvh justify-end overflow-hidden bg-black/70 backdrop-blur-md transition-opacity duration-300 md:hidden ${
           isOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -288,7 +291,7 @@ export const Navbar = () => {
         aria-hidden={!isOpen}
       >
         <div
-          className={`relative flex h-full w-[min(92vw,430px)] flex-col overflow-hidden border-l border-white/10 bg-[#101010]/95 shadow-2xl shadow-black/60 backdrop-blur-xl transition-transform duration-300 ease-out
+          className={`relative flex h-dvh w-[min(92vw,430px)] flex-col overflow-hidden border-l border-white/10 bg-[#101010]/95 shadow-2xl shadow-black/60 backdrop-blur-xl transition-transform duration-300 ease-out
           ${isOpen ? "translate-x-0" : "translate-x-full"}`}
           onClick={(event) => event.stopPropagation()}
           role="dialog"
@@ -311,7 +314,7 @@ export const Navbar = () => {
             </button>
           </div>
 
-          <div className="relative flex-1 overflow-y-auto px-5 py-5">
+          <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
             {user ? (
               <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center gap-3">
