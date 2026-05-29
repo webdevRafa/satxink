@@ -6,6 +6,7 @@ import "aos/dist/aos.css";
 
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { MapPin, Palette, Search, Sparkles, Users } from "lucide-react";
+import CountUp from "react-countup";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
 import gun from "../assets/white-gun.svg";
@@ -171,10 +172,44 @@ function useScrollScaledOpacity() {
   return { targetRef, progress };
 }
 
+function useViewportEntry<T extends Element>() {
+  const targetRef = useRef<T | null>(null);
+  const isInViewRef = useRef(false);
+  const [entryCount, setEntryCount] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isInViewRef.current) {
+          isInViewRef.current = true;
+          setEntryCount((count) => count + 1);
+        } else if (!entry.isIntersecting) {
+          isInViewRef.current = false;
+        }
+      },
+      {
+        rootMargin: "0px 0px -12% 0px",
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { targetRef, entryCount };
+}
+
 export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
   const { targetRef: heroRef, progress: heroFadeProgress } =
     useScrollScaledOpacity();
+  const { targetRef: metricsRef, entryCount: metricEntryCount } =
+    useViewportEntry<HTMLDivElement>();
   const [searchParams] = useSearchParams();
   const styleFromUrl = searchParams.get("style") || "";
 
@@ -262,6 +297,7 @@ export const ArtistsPage = () => {
         }`;
   const totalArtistValue =
     loading && artists.length === 0 ? "..." : String(artists.length);
+  const totalArtistCount = loading && artists.length === 0 ? 0 : artists.length;
   const heroOpacity = 1 - heroFadeProgress;
   const heroFadeStyle = {
     opacity: heroOpacity,
@@ -283,11 +319,13 @@ export const ArtistsPage = () => {
     {
       label: "Verified artists",
       value: totalArtistValue,
+      countValue: totalArtistCount,
       icon: Users,
     },
     {
       label: "Style paths",
       value: String(SPECIALTIES.length),
+      countValue: SPECIALTIES.length,
       icon: Palette,
     },
     {
@@ -461,7 +499,7 @@ export const ArtistsPage = () => {
                 <h1 className="mb-0! text-5xl! font-bold leading-none text-white! sm:text-6xl! lg:text-7xl!">
                   Find Your Artist
                 </h1>
-                <span className="mb-1 inline-flex h-12 w-20 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-14 sm:w-24">
+                <span className="mb-1 inline-flex h-12 w-20 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-14 sm:w-24 lg:hidden">
                   <img
                     className="h-8 w-14 object-contain sm:h-9 sm:w-16"
                     src={gun}
@@ -477,24 +515,38 @@ export const ArtistsPage = () => {
               </p>
             </div>
 
-            <div className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <div
+              ref={metricsRef}
+              className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3"
+            >
               {heroMetrics.map((metric) => {
                 const Icon = metric.icon;
+                const shouldAnimateCount =
+                  typeof metric.countValue === "number" && metricEntryCount > 0;
 
                 return (
                   <div
                     key={metric.label}
-                    className="rounded-lg border border-white/[0.08] bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                    className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3"
                   >
-                    <dt className="flex items-center gap-2 text-xs font-medium text-neutral-400">
+                    <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
                       <Icon
-                        className="h-4 w-4 text-[var(--color-primary-hover)]"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
                         aria-hidden="true"
                       />
                       {metric.label}
                     </dt>
-                    <dd className="mt-1 truncate text-lg font-semibold text-white">
-                      {metric.value}
+                    <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
+                      {shouldAnimateCount ? (
+                        <CountUp
+                          key={`${metric.label}-${metricEntryCount}-${metric.countValue}`}
+                          end={metric.countValue}
+                          duration={1.4}
+                          separator=","
+                        />
+                      ) : (
+                        metric.value
+                      )}
                     </dd>
                   </div>
                 );
