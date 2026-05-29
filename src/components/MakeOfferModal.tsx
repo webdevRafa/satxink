@@ -53,6 +53,9 @@ type BookingRequest = {
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
   thumbUrl?: string;
+  offerFullUrl?: string | null;
+  offerThumbUrl?: string | null;
+  offerImageFilename?: string | null;
   budget?: string | number;
   sourceType?: string;
   flashId?: string;
@@ -138,6 +141,8 @@ const MakeOfferModal = ({
     ? flashListedPrice
     : Number(offerPrice || 0);
   const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
+  const retainedOfferSampleUrl =
+    selectedRequest?.offerThumbUrl || selectedRequest?.offerFullUrl || "";
   const completedDateOptions = useMemo(
     () => dateOptions.filter((option) => option.date && option.time),
     [dateOptions]
@@ -279,6 +284,14 @@ const MakeOfferModal = ({
       let filename: string | null = null;
       let fullUrl: string | null = null;
       let thumbUrl: string | null = null;
+      const fallbackFullUrl =
+        selectedRequest.sourceType === "flash"
+          ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
+          : selectedRequest.offerFullUrl || null;
+      const fallbackThumbUrl =
+        selectedRequest.sourceType === "flash"
+          ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
+          : selectedRequest.offerThumbUrl || null;
 
       if (offerImage) {
         filename = `${uuidv4()}-${offerImage.name}`;
@@ -319,17 +332,9 @@ const MakeOfferModal = ({
         price: submissionOfferPrice,
         message: offerMessage,
         dateOptions: completedDateOptions,
-        imageFilename: filename || null,
-        fullUrl:
-          fullUrl ||
-          (selectedRequest.sourceType === "flash"
-            ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
-            : null),
-        thumbUrl:
-          thumbUrl ||
-          (selectedRequest.sourceType === "flash"
-            ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
-            : null),
+        imageFilename: filename || selectedRequest.offerImageFilename || null,
+        fullUrl: fullUrl || fallbackFullUrl,
+        thumbUrl: thumbUrl || fallbackThumbUrl,
         sourceType: selectedRequest.sourceType || "custom",
         flashId:
           selectedRequest.sourceType === "flash"
@@ -442,7 +447,7 @@ const MakeOfferModal = ({
                   previewUrl ||
                   (isFlashRequest
                     ? selectedRequest.fullUrl || selectedRequest.thumbUrl || ""
-                    : "")
+                    : retainedOfferSampleUrl)
                 }
                 isFlashRequest={isFlashRequest}
                 isMultiSessionProject={!isFlashRequest && isMultiSessionProject}
@@ -916,10 +921,14 @@ const MakeOfferModal = ({
                       }}
                       className="sr-only"
                     />
-                    {previewUrl ? (
+                    {previewUrl || retainedOfferSampleUrl ? (
                       <img
-                        src={previewUrl}
-                        alt="Offer sample preview"
+                        src={previewUrl || retainedOfferSampleUrl}
+                        alt={
+                          previewUrl
+                            ? "Offer sample preview"
+                            : "Retained offer sample"
+                        }
                         className="absolute inset-0 h-full w-full object-cover opacity-80"
                       />
                     ) : (
@@ -933,9 +942,11 @@ const MakeOfferModal = ({
                         </span>
                       </>
                     )}
-                    {previewUrl && (
+                    {(previewUrl || retainedOfferSampleUrl) && (
                       <span className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                        Click to replace image
+                        {previewUrl
+                          ? "Click to replace image"
+                          : "Keeping previous sample. Click to replace."}
                       </span>
                     )}
                   </label>
