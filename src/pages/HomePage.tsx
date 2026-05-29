@@ -24,6 +24,7 @@ import heroImage from "../assets/images/satx-inked.webp";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
@@ -51,16 +52,7 @@ type HomeEvent = ArtistEvent & {
   artist?: PublicArtist;
 };
 
-const featuredStyles = [
-  "Blackwork",
-  "Realism",
-  "Dotwork",
-  "Linework",
-  "Color",
-  "Neo-Traditional",
-  "Traditional",
-  "Fine Line",
-];
+const featuredStyles = FEATURED_TATTOO_STYLES;
 
 const eventTypeLabels: Record<EventType, string> = {
   flash_day: "Flash Day",

@@ -55,25 +55,9 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import type { Booking } from "../types/Booking";
 import type { ArtistEvent } from "../types/Event";
 import type { EventRegistration } from "../types/EventRegistration";
+import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
 
-const STYLE_OPTIONS = [
-  "Traditional",
-  "Neo-Traditional",
-  "Realism",
-  "Blackwork",
-  "Fine Line",
-  "Anime",
-  "Japanese",
-  "Chicano",
-  "Script",
-  "Geometric",
-  "Color",
-  "Minimalist",
-  "Portrait",
-  "Dotwork",
-  "Ornamental",
-  "Surrealism",
-];
+const STYLE_OPTIONS = TATTOO_STYLES;
 
 const INTEREST_GROUPS = [
   {
@@ -210,7 +194,7 @@ const createProfileFormState = (
   avatarUrl: client?.avatarUrl || "",
   bio: client?.bio || "",
   location: client?.location || "",
-  preferredStyles: Array.isArray(client?.preferredStyles) ? client.preferredStyles : [],
+  preferredStyles: getCanonicalTattooStyles(client?.preferredStyles),
   interestCategories: Array.isArray(client?.interestCategories)
     ? client.interestCategories
     : [],
@@ -328,7 +312,7 @@ const ClientDashboardView = () => {
           avatarUrl: data.avatarUrl || user.photoURL || "/default-avatar.png",
           bio: data.bio || "",
           location: data.location || "",
-          preferredStyles: Array.isArray(data.preferredStyles) ? data.preferredStyles : [],
+          preferredStyles: getCanonicalTattooStyles(data.preferredStyles),
           interestCategories: Array.isArray(data.interestCategories)
             ? data.interestCategories
             : [],

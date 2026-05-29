@@ -13,6 +13,7 @@ import {
 import type { DocumentData } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import ArtistCard from "../components/ArtistCard";
+import { TATTOO_STYLES, artistHasTattooStyle } from "../types/TattooStyle";
 
 interface Artist {
   id: string;
@@ -23,22 +24,7 @@ interface Artist {
 }
 
 const PAGE_SIZE = 6;
-const SPECIALTIES = [
-  "Blackwork",
-  "Linework",
-  "Dotwork",
-  "Color",
-  "Realism",
-  "Neo-Traditional",
-  "Micro",
-  "Geometric",
-  "Anime",
-  "Traditional",
-  "Japanese",
-  "Ornamental",
-  "Fine Line",
-  "Color Realism",
-];
+const SPECIALTIES = TATTOO_STYLES;
 
 export const TheArtistPage = () => {
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -125,9 +111,7 @@ export const TheArtistPage = () => {
 
   const filteredArtists = specialtyFilter
     ? artists.filter((a) =>
-        a.specialties?.some((tag) =>
-          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-        )
+        artistHasTattooStyle(a.specialties, specialtyFilter)
       )
     : artists;
 

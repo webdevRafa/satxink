@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Image as ImageIcon,
   ImageOff,
+  Layers,
   Search,
   SlidersHorizontal,
   Tag,
+  type LucideIcon,
 } from "lucide-react";
+import CountUp from "react-countup";
 import {
   collection,
   documentId,
@@ -51,7 +55,41 @@ type MarketFlashSheet = FlashSheet & {
 const DEFAULT_FLASH_ITEMS_PER_PAGE = 18;
 const FLASH_ITEMS_PER_PAGE_OPTIONS = [18, 36, 54];
 
+function useViewportEntry<T extends Element>() {
+  const targetRef = useRef<T | null>(null);
+  const isInViewRef = useRef(false);
+  const [entryCount, setEntryCount] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isInViewRef.current) {
+          isInViewRef.current = true;
+          setEntryCount((count) => count + 1);
+        } else if (!entry.isIntersecting) {
+          isInViewRef.current = false;
+        }
+      },
+      {
+        rootMargin: "0px 0px -12% 0px",
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { targetRef, entryCount };
+}
+
 const FlashMarketplacePage = () => {
+  const { targetRef: marketStatsRef, entryCount: marketStatsEntryCount } =
+    useViewportEntry<HTMLDListElement>();
   const [activeTab, setActiveTab] = useState<MarketplaceTab>("flashes");
   const [flashes, setFlashes] = useState<MarketFlash[]>([]);
   const [sheets, setSheets] = useState<MarketFlashSheet[]>([]);
@@ -232,6 +270,21 @@ const FlashMarketplacePage = () => {
     flashPage * flashItemsPerPage,
     flashPage * flashItemsPerPage + flashItemsPerPage
   );
+  const marketStats = useMemo(
+    () => [
+      {
+        label: "Flash items",
+        value: flashes.length,
+        icon: ImageIcon,
+      },
+      {
+        label: "Flash sheets",
+        value: sheets.length,
+        icon: Layers,
+      },
+    ],
+    [flashes.length, sheets.length]
+  );
 
   useEffect(() => {
     setFlashPage(0);
@@ -244,32 +297,110 @@ const FlashMarketplacePage = () => {
   }, [flashPage, flashPageCount]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#101010] via-[#0c0c0c] to-[#151515] px-4 pb-20 pt-24 text-white">
-      <section className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025))] p-5 shadow-xl md:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
-            Flash marketplace
-          </p>
-          <div className="mt-3 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h1 className="max-w-3xl text-3xl! font-bold leading-tight text-white md:text-4xl!">
-                Browse flash designs and sheets from SATX artists.
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60">
-                Search by subject, style, tag, or artist. Compare individual
-                flash pieces by price, or open full sheets when you want to
-                explore a collection.
-              </p>
-            </div>
+    <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
+      <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.18]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "54px 54px",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black via-black/70 to-transparent"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-80"
+          aria-hidden="true"
+        />
 
-            <div className="grid grid-cols-2 gap-3 sm:min-w-[280px]">
-              <MarketStat label="Flash items" value={flashes.length} />
-              <MarketStat label="Flash sheets" value={sheets.length} />
+        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
+          <div className="max-w-3xl pb-2">
+            <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
+              Flash Marketplace
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+              Browse flash designs and sheets from SATX artists. Search by
+              subject, style, tag, or artist when you want to explore a
+              collection.
+            </p>
+
+            <dl
+              ref={marketStatsRef}
+              className="mt-5 grid max-w-md grid-cols-2 gap-2 sm:mt-6 sm:gap-3"
+            >
+              {marketStats.map((stat) => (
+                <MarketStat
+                  key={stat.label}
+                  icon={stat.icon}
+                  label={stat.label}
+                  value={stat.value}
+                  entryCount={marketStatsEntryCount}
+                />
+              ))}
+            </dl>
+          </div>
+
+          <div className="relative hidden h-[240px] lg:block" aria-hidden="true">
+            <div className="absolute right-0 top-2 z-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+              <Tag
+                className="h-4 w-4 text-[var(--color-primary-hover)]"
+                aria-hidden="true"
+              />
+              Ready-to-Claim Flash
+            </div>
+            <div className="absolute bottom-0 left-5 right-2 h-[190px]">
+              {[
+                {
+                  left: "0.25rem",
+                  bottom: "0.4rem",
+                  rotate: "-7deg",
+                  opacity: 0.64,
+                },
+                {
+                  left: "6.4rem",
+                  bottom: "1.55rem",
+                  rotate: "4deg",
+                  opacity: 0.82,
+                },
+                {
+                  left: "12.55rem",
+                  bottom: "0.95rem",
+                  rotate: "-2deg",
+                  opacity: 0.72,
+                },
+              ].map((card, index) => (
+                <div
+                  key={index}
+                  className="absolute h-36 w-24 rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_20px_55px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  style={{
+                    left: card.left,
+                    bottom: card.bottom,
+                    opacity: card.opacity,
+                    transform: `rotate(${card.rotate})`,
+                  }}
+                >
+                  <div className="absolute left-3.5 top-3.5 h-9 w-9 rounded-full border border-white/[0.13]" />
+                  <div className="absolute right-3.5 top-7 h-7 w-7 rounded-full border border-white/[0.1]" />
+                  <div className="absolute left-5 top-14 h-11 w-11 rotate-45 rounded-lg border border-white/[0.09]" />
+                  <div className="absolute bottom-4 left-3.5 h-1.5 w-12 rounded-full bg-[var(--color-primary)]/80" />
+                  <div className="absolute bottom-8 left-3.5 h-1.5 w-[4.25rem] rounded-full bg-white/[0.12]" />
+                </div>
+              ))}
             </div>
           </div>
         </div>
+      </section>
 
-        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
+      <section className="mx-auto max-w-[1300px] px-4 pt-6">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_360px]">
             <label className="relative block">
               <Search
@@ -447,10 +578,37 @@ const FlashMarketplacePage = () => {
   );
 };
 
-const MarketStat = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-xl border border-white/10 bg-black/25 p-4">
-    <p className="text-sm text-white/45">{label}</p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+const MarketStat = ({
+  icon: Icon,
+  label,
+  value,
+  entryCount,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  entryCount: number;
+}) => (
+  <div className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3">
+    <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
+      <Icon
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
+        aria-hidden="true"
+      />
+      {label}
+    </dt>
+    <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
+      {entryCount > 0 ? (
+        <CountUp
+          key={`${label}-${entryCount}-${value}`}
+          end={value}
+          duration={1.4}
+          separator=","
+        />
+      ) : (
+        value
+      )}
+    </dd>
   </div>
 );
 

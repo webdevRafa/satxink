@@ -64,23 +64,13 @@ import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { Booking } from "../types/Booking";
 import type { Artist } from "../types/Artist";
+import {
+  TATTOO_STYLES,
+  getCanonicalTattooStyles,
+  getTattooStyleLabel,
+} from "../types/TattooStyle";
 
-const SPECIALTY_OPTIONS = [
-  "Blackwork",
-  "Linework",
-  "Dotwork",
-  "Color",
-  "Realism",
-  "Neo-Traditional",
-  "Micro",
-  "Geometric",
-  "Anime",
-  "Traditional",
-  "Japanese",
-  "Ornamental",
-  "Fine Line",
-  "Color Realism",
-];
+const SPECIALTY_OPTIONS = TATTOO_STYLES;
 
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
@@ -240,7 +230,7 @@ const createProfileFormState = (
   email: artist?.email || "",
   avatarUrl: artist?.avatarUrl || "",
   bio: artist?.bio || "",
-  specialties: Array.isArray(artist?.specialties) ? artist.specialties : [],
+  specialties: getCanonicalTattooStyles(artist?.specialties),
   socialLinks: {
     instagram: artist?.socialLinks?.instagram || "",
     facebook: artist?.socialLinks?.facebook || "",
@@ -451,7 +441,7 @@ const ArtistDashboardView = () => {
   };
 
   const addCustomSpecialty = () => {
-    const specialty = customSpecialty.trim();
+    const specialty = getTattooStyleLabel(customSpecialty);
     if (!specialty) return;
 
     updateProfileForm((current) => ({

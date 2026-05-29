@@ -23,6 +23,7 @@ import {
 import { GoogleSignupButton } from "../components/GoogleSignupButton";
 import logo from "../assets/satx-short-sep.svg";
 import { auth, db } from "../firebase/firebaseConfig";
+import { TATTOO_STYLES } from "../types/TattooStyle";
 import {
   collection,
   getDocs,
@@ -40,22 +41,7 @@ type Shop = {
   mapLink: string;
 };
 
-const SPECIALTIES = [
-  "Blackwork",
-  "Linework",
-  "Dotwork",
-  "Color",
-  "Realism",
-  "Neo-Traditional",
-  "Micro",
-  "Geometric",
-  "Anime",
-  "Traditional",
-  "Japanese",
-  "Ornamental",
-  "Fine Line",
-  "Color Realism",
-];
+const SPECIALTIES = TATTOO_STYLES;
 
 const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
 

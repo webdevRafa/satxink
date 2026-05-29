@@ -13,8 +13,9 @@ import "aos/dist/aos.css";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
-  MapPin,
   Palette,
   Search,
   Sparkles,
@@ -28,6 +29,13 @@ import sa from "../assets/san-antonio.svg";
 import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
 import type { GalleryItem } from "../types/GalleryItem";
+import {
+  TATTOO_STYLES,
+  artistHasTattooStyle,
+  getCanonicalTattooStyles,
+  resolveTattooStyle,
+  type TattooStyle,
+} from "../types/TattooStyle";
 
 type ArtistPreview = {
   url: string;
@@ -50,22 +58,6 @@ type ArtistGridItem =
     };
 
 const PAGE_SIZE = 6;
-const SPECIALTIES = [
-  "Blackwork",
-  "Linework",
-  "Dotwork",
-  "Color",
-  "Realism",
-  "Neo-Traditional",
-  "Micro",
-  "Geometric",
-  "Anime",
-  "Traditional",
-  "Japanese",
-  "Ornamental",
-  "Fine Line",
-  "Color Realism",
-];
 
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || artist.email || "Artist";
@@ -365,8 +357,11 @@ export const ArtistsPage = () => {
     useScrollScaledOpacity();
   const { targetRef: metricsRef, entryCount: metricEntryCount } =
     useViewportEntry<HTMLDivElement>();
+  const styleRailRef = useRef<HTMLDivElement | null>(null);
+  const stylesToolbarRef = useRef<HTMLDivElement | null>(null);
+  const artistGridRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
-  const styleFromUrl = searchParams.get("style") || "";
+  const styleFromUrl = resolveTattooStyle(searchParams.get("style") || "");
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
@@ -377,6 +372,43 @@ export const ArtistsPage = () => {
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState(styleFromUrl);
+  const scrollStyleRail = useCallback((direction: -1 | 1) => {
+    const rail = styleRailRef.current;
+    if (!rail) return;
+
+    rail.scrollBy({
+      left: direction * Math.max(240, rail.clientWidth * 0.68),
+      behavior: "smooth",
+    });
+  }, []);
+  const scrollArtistGridToTop = useCallback(() => {
+    const grid = artistGridRef.current;
+    if (!grid) return;
+
+    const stickyTop = window.matchMedia("(min-width: 768px)").matches ? 80 : 73;
+    const toolbarHeight = stylesToolbarRef.current?.offsetHeight || 0;
+    const viewportGap = 16;
+    const gridTop = grid.getBoundingClientRect().top + window.scrollY;
+    const targetTop = gridTop - stickyTop - toolbarHeight - viewportGap;
+
+    window.scrollTo({
+      top: Math.max(targetTop, 0),
+      behavior: "smooth",
+    });
+  }, []);
+  const handleSpecialtyFilterClick = useCallback(
+    (tag: TattooStyle) => {
+      setVisibleCount(PAGE_SIZE);
+      setSpecialtyFilter((currentFilter) =>
+        currentFilter === tag ? "" : tag
+      );
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(scrollArtistGridToTop);
+      });
+    },
+    [scrollArtistGridToTop]
+  );
 
   useEffect(() => {
     if (!loading) {
@@ -427,9 +459,7 @@ export const ArtistsPage = () => {
     () =>
       specialtyFilter
         ? artists.filter((artist) =>
-            artist.specialties?.some((tag) =>
-              tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-            )
+            artistHasTattooStyle(artist.specialties, specialtyFilter)
           )
         : artists,
     [artists, specialtyFilter]
@@ -490,8 +520,8 @@ export const ArtistsPage = () => {
     },
     {
       label: "Style paths",
-      value: String(SPECIALTIES.length),
-      countValue: SPECIALTIES.length,
+      value: String(TATTOO_STYLES.length),
+      countValue: TATTOO_STYLES.length,
       icon: Palette,
     },
     {
@@ -619,7 +649,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-32"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -631,11 +661,11 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black via-black/70 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black via-black/70 to-transparent"
           aria-hidden="true"
         />
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[var(--color-bg-base)] via-[#090909]/75 to-transparent"
           aria-hidden="true"
         />
         <div
@@ -643,31 +673,23 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute left-1/2 top-20 w-[min(92vw,780px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-14"
+          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,700px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-4"
           style={{ opacity: 0.055 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[410px] max-w-[1300px] gap-10 pb-10 pt-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-end lg:pb-12">
-          <div className="max-w-3xl pb-3" style={heroFadeStyle}>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              <MapPin
-                className="h-4 w-4 text-[var(--color-primary-hover)]"
-                aria-hidden="true"
-              />
-              San Antonio Artist Directory
-            </div>
-
-            <div className="mt-6">
-              <div className="flex flex-wrap items-end gap-3">
-                <h1 className="mb-0! text-5xl! font-bold leading-none text-white! sm:text-6xl! lg:text-7xl!">
+        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
+          <div className="max-w-3xl pb-2" style={heroFadeStyle}>
+            <div>
+              <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
+                <h1 className="mb-0! whitespace-nowrap text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
                   Find Your Artist
                 </h1>
-                <span className="mb-1 inline-flex h-12 w-20 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-14 sm:w-24 lg:hidden">
+                <span className="inline-flex h-10 w-14 shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-12 sm:w-20 lg:hidden">
                   <img
-                    className="h-8 w-14 object-contain sm:h-9 sm:w-16"
+                    className="h-6 w-10 object-contain sm:h-8 sm:w-14"
                     src={gun}
                     alt=""
                     aria-hidden="true"
@@ -675,7 +697,7 @@ export const ArtistsPage = () => {
                 </span>
               </div>
 
-              <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+              <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
                 Browse verified San Antonio tattooers by style, portfolio
                 preview, and the kind of work you want to wear next.
               </p>
@@ -683,7 +705,7 @@ export const ArtistsPage = () => {
 
             <div
               ref={metricsRef}
-              className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3"
+              className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
             >
               {heroMetrics.map((metric) => {
                 const Icon = metric.icon;
@@ -693,7 +715,7 @@ export const ArtistsPage = () => {
                 return (
                   <div
                     key={metric.label}
-                    className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3"
+                    className="min-w-0 rounded-lg border border-white/[0.12] bg-[#101010]/65 px-2 py-2.5 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[2px] sm:px-4 sm:py-3"
                   >
                     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
                       <Icon
@@ -721,18 +743,16 @@ export const ArtistsPage = () => {
           </div>
 
           <div
-            className="relative hidden h-[320px] lg:block"
+            className="relative hidden h-[240px] lg:block"
             style={heroArtworkStyle}
             aria-hidden="true"
           >
-            <div className="absolute inset-x-5 bottom-24 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-            <div className="absolute bottom-14 left-8 right-8 h-20 border-x border-t border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent" />
             <img
-              className="absolute bottom-20 left-1/2 w-[410px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
+              className="absolute bottom-12 left-1/2 w-[292px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
               src={sa}
               alt=""
             />
-            <div className="absolute right-2 top-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
+            <div className="absolute right-2 top-4 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
               <Sparkles
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
                 aria-hidden="true"
@@ -740,7 +760,7 @@ export const ArtistsPage = () => {
               Curated Local Work
             </div>
             <img
-              className="absolute bottom-4 right-3 h-24 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
+              className="absolute bottom-3 right-6 h-16 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
               src={gun}
               alt=""
             />
@@ -749,7 +769,8 @@ export const ArtistsPage = () => {
       </section>
 
       <div
-        className={`sticky top-18 z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 ${
+        ref={stylesToolbarRef}
+        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-20 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
@@ -770,28 +791,55 @@ export const ArtistsPage = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {SPECIALTIES.map((tag) => {
-              const selected = specialtyFilter === tag;
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Scroll styles left"
+              onClick={() => scrollStyleRail(-1)}
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+            >
+              <ChevronLeft
+                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                strokeWidth={3}
+                aria-hidden="true"
+              />
+            </button>
+            <div
+              ref={styleRailRef}
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {TATTOO_STYLES.map((tag) => {
+                const selected = specialtyFilter === tag;
 
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  aria-pressed={selected}
-                  className={`min-h-9 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
-                    selected
-                      ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                      : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
-                  }`}
-                  onClick={() =>
-                    setSpecialtyFilter(specialtyFilter === tag ? "" : tag)
-                  }
-                >
-                  {tag}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`min-h-9 shrink-0 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
+                      selected
+                        ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                    onClick={() => handleSpecialtyFilterClick(tag)}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-label="Scroll styles right"
+              onClick={() => scrollStyleRail(1)}
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+            >
+              <ChevronRight
+                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                strokeWidth={3}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         </div>
       </div>
@@ -800,7 +848,10 @@ export const ArtistsPage = () => {
         <div className="relative min-h-[520px]">
           {!isInitialLoading && (
             <>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+              <div
+                ref={artistGridRef}
+                className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3"
+              >
                 {artistGridItems.map((item) => {
                   if (item.type === "spotlight") {
                     const galleryPreview =
@@ -892,9 +943,12 @@ const ArtistPreviewCard = ({
 );
 
 const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
-  const { targetRef, offset } = useScrollParallax(64);
+  const { targetRef, offset } = useScrollParallax(80);
   const displayName = getArtistDisplayName(artist);
-  const visibleSpecialties = artist.specialties?.slice(0, 5) || [];
+  const visibleSpecialties = getCanonicalTattooStyles(artist.specialties).slice(
+    0,
+    5
+  );
 
   return (
     <Link to={`/artists/${artist.id}`} className="group block">
@@ -909,7 +963,7 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
             aria-hidden="true"
             loading="lazy"
             decoding="async"
-            className="absolute inset-x-0 -top-10 h-[calc(100%+5rem)] w-full scale-110 object-cover opacity-30 blur-[1px] saturate-[0.82] transition duration-700 group-hover:opacity-[0.38]"
+            className="absolute inset-x-0 -top-12 h-[calc(100%+6rem)] w-full scale-110 object-cover opacity-30 blur-[1px] saturate-[0.82] transition duration-700 group-hover:opacity-[0.38]"
             style={{
               transform: `translate3d(0, ${offset}px, 0) scale(1.12)`,
               willChange: "transform",

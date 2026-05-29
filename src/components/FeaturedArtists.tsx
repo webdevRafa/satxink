@@ -17,7 +17,7 @@ const artists = [
   },
   {
     name: "Sarah Martin",
-    style: "Fine Line\nColor",
+    style: "Fine Line\nColor Realism",
     image: artist,
   },
 ];
