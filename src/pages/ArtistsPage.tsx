@@ -717,7 +717,7 @@ export const ArtistsPage = () => {
             aria-hidden="true"
           >
             <img
-              className="absolute bottom-12 left-1/2 w-[330px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
+              className="absolute bottom-12 left-1/2 w-[292px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
               src={sa}
               alt=""
             />
@@ -729,7 +729,7 @@ export const ArtistsPage = () => {
               Curated Local Work
             </div>
             <img
-              className="absolute bottom-2 right-3 h-[4.5rem] rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
+              className="absolute bottom-3 right-6 h-16 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
               src={gun}
               alt=""
             />
