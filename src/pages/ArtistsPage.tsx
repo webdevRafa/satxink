@@ -1,11 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 // @ts-expect-error aos does not ship the type shape used by this app.
 import AOS from "aos";
 import "aos/dist/aos.css";
 
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { MapPin, Palette, Search, Sparkles, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Image as ImageIcon,
+  MapPin,
+  Palette,
+  Search,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import CountUp from "react-countup";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
@@ -23,6 +37,17 @@ type ArtistPreview = {
 type TimestampLike = {
   toMillis: () => number;
 };
+
+type ArtistGridItem =
+  | {
+      type: "artist";
+      artist: Artist;
+    }
+  | {
+      type: "spotlight";
+      id: string;
+      artist: Artist;
+    };
 
 const PAGE_SIZE = 6;
 const SPECIALTIES = [
@@ -74,6 +99,69 @@ const chunkArray = <T,>(items: T[], size: number) =>
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const shuffleArray = <T,>(items: T[]) => {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[index],
+    ];
+  }
+
+  return shuffled;
+};
+
+const getHashNumber = (value: string) => {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+};
+
+const getStableRandomUnit = (value: string) =>
+  (getHashNumber(value) % 10000) / 10000;
+
+const getSpotlightInterval = (seed: string) =>
+  getStableRandomUnit(seed) < 0.5 ? 9 : 12;
+
+const getArtistGridItems = (artists: Artist[]): ArtistGridItem[] => {
+  const items: ArtistGridItem[] = [];
+  let cycle = 0;
+  const sequenceSeed = artists[0]?.id || "artists";
+  let standardCardsUntilSpotlight = getSpotlightInterval(
+    `${sequenceSeed}-initial`
+  );
+  let standardCardsInSegment = 0;
+
+  artists.forEach((artist) => {
+    if (standardCardsInSegment >= standardCardsUntilSpotlight) {
+      items.push({
+        type: "spotlight",
+        id: `spotlight-${cycle}-${artist.id}`,
+        artist,
+      });
+
+      cycle += 1;
+      standardCardsInSegment = 0;
+      standardCardsUntilSpotlight = getSpotlightInterval(
+        `${sequenceSeed}-${artist.id}-${cycle}`
+      );
+      return;
+    }
+
+    items.push({ type: "artist", artist });
+    standardCardsInSegment += 1;
+  });
+
+  return items;
+};
 
 function useStickyReveal(threshold = 10) {
   const [visible, setVisible] = useState(true);
@@ -204,6 +292,73 @@ function useViewportEntry<T extends Element>() {
   return { targetRef, entryCount };
 }
 
+function useScrollParallax(strength = 48) {
+  const targetRef = useRef<HTMLElement | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const shouldTrackRef = useRef(false);
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const updateOffset = () => {
+      const rect = target.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || 1;
+      const progress = clamp(
+        (viewportHeight - rect.top) / (viewportHeight + rect.height),
+        0,
+        1
+      );
+      const nextOffset = (progress - 0.5) * strength;
+
+      setOffset((current) =>
+        Math.abs(current - nextOffset) > 0.25 ? nextOffset : current
+      );
+    };
+
+    const scheduleOffsetUpdate = () => {
+      if (!shouldTrackRef.current || frameRef.current !== null) return;
+
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null;
+        updateOffset();
+      });
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        shouldTrackRef.current = entry.isIntersecting;
+        scheduleOffsetUpdate();
+      },
+      {
+        rootMargin: "35% 0px 35% 0px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(target);
+    updateOffset();
+
+    window.addEventListener("scroll", scheduleOffsetUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleOffsetUpdate);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", scheduleOffsetUpdate);
+      window.removeEventListener("resize", scheduleOffsetUpdate);
+
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, [strength]);
+
+  return { targetRef, offset };
+}
+
 export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
   const { targetRef: heroRef, progress: heroFadeProgress } =
@@ -240,15 +395,12 @@ export const ArtistsPage = () => {
           where("role", "==", "artist")
         );
         const snapshot = await getDocs(artistsQuery);
-        const docs = snapshot.docs
-          .map((doc) => ({
+        const docs = shuffleArray(
+          snapshot.docs.map((doc) => ({
             id: doc.id,
             ...(doc.data() as Omit<Artist, "id">),
           }))
-          .filter(isVisibleArtist)
-          .sort((a, b) =>
-            getArtistDisplayName(a).localeCompare(getArtistDisplayName(b))
-          );
+        ).filter(isVisibleArtist);
 
         setArtists(docs);
         setVisibleCount(PAGE_SIZE);
@@ -271,17 +423,31 @@ export const ArtistsPage = () => {
     setSpecialtyFilter(styleFromUrl);
   }, [styleFromUrl]);
 
-  const filteredArtists = specialtyFilter
-    ? artists.filter((artist) =>
-        artist.specialties?.some((tag) =>
-          tag.toLowerCase().includes(specialtyFilter.toLowerCase())
-        )
-      )
-    : artists;
+  const filteredArtists = useMemo(
+    () =>
+      specialtyFilter
+        ? artists.filter((artist) =>
+            artist.specialties?.some((tag) =>
+              tag.toLowerCase().includes(specialtyFilter.toLowerCase())
+            )
+          )
+        : artists,
+    [artists, specialtyFilter]
+  );
 
-  const visibleArtists = filteredArtists.slice(0, visibleCount);
+  const visibleArtists = useMemo(
+    () => filteredArtists.slice(0, visibleCount),
+    [filteredArtists, visibleCount]
+  );
+  const artistGridItems = useMemo(
+    () => getArtistGridItems(visibleArtists),
+    [visibleArtists]
+  );
   const hasMore = visibleCount < filteredArtists.length;
-  const visibleArtistIdKey = visibleArtists.map((artist) => artist.id).join("|");
+  const visibleArtistIdKey = useMemo(
+    () => visibleArtists.map((artist) => artist.id).join("|"),
+    [visibleArtists]
+  );
   const isInitialLoading = loading && artists.length === 0;
   const previewLookupsPending =
     visibleArtists.length > 0 &&
@@ -633,32 +799,49 @@ export const ArtistsPage = () => {
       <section className="relative mx-auto mt-6 max-w-[1300px] px-4">
         <div className="relative min-h-[520px]">
           {!isInitialLoading && (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
-              {visibleArtists.map((artist, index) => {
-                const isLast = index === visibleArtists.length - 1;
-                const galleryPreview =
-                  galleryPreviewByArtist[artist.id] || undefined;
+            <>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+                {artistGridItems.map((item) => {
+                  if (item.type === "spotlight") {
+                    const galleryPreview =
+                      galleryPreviewByArtist[item.artist.id] || undefined;
 
-                return (
-                  <div
-                    data-aos="fade-in"
-                    key={artist.id}
-                    ref={isLast ? lastArtistRef : null}
-                  >
-                    <Link to={`/artists/${artist.id}`}>
-                      <ArtistCard
-                        name={getArtistDisplayName(artist)}
-                        avatarUrl={artist.avatarUrl}
-                        specialties={artist.specialties}
-                        likedBy={artist.likedBy || []}
-                        previewUrl={galleryPreview?.url}
-                        previewAlt={galleryPreview?.alt}
+                    return (
+                      <div
+                        data-aos="fade-in"
+                        key={item.id}
+                        className="sm:col-span-2 md:col-span-3"
+                      >
+                        <ArtistSpotlightCard
+                          artist={item.artist}
+                          preview={galleryPreview}
+                        />
+                      </div>
+                    );
+                  }
+
+                  const { artist } = item;
+                  const galleryPreview =
+                    galleryPreviewByArtist[artist.id] || undefined;
+
+                  return (
+                    <div data-aos="fade-in" key={artist.id}>
+                      <ArtistPreviewCard
+                        artist={artist}
+                        preview={galleryPreview}
                       />
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {visibleArtists.length > 0 && (
+                <div
+                  ref={lastArtistRef}
+                  className="h-px"
+                  aria-hidden="true"
+                />
+              )}
+            </>
           )}
 
           {showInitialSkeleton && (
@@ -684,6 +867,137 @@ export const ArtistsPage = () => {
         )}
       </section>
     </main>
+  );
+};
+
+type ArtistSpotlightCardProps = {
+  artist: Artist;
+  preview?: ArtistPreview;
+};
+
+const ArtistPreviewCard = ({
+  artist,
+  preview,
+}: ArtistSpotlightCardProps) => (
+  <Link to={`/artists/${artist.id}`}>
+    <ArtistCard
+      name={getArtistDisplayName(artist)}
+      avatarUrl={artist.avatarUrl}
+      specialties={artist.specialties}
+      likedBy={artist.likedBy || []}
+      previewUrl={preview?.url}
+      previewAlt={preview?.alt}
+    />
+  </Link>
+);
+
+const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
+  const { targetRef, offset } = useScrollParallax(64);
+  const displayName = getArtistDisplayName(artist);
+  const visibleSpecialties = artist.specialties?.slice(0, 5) || [];
+
+  return (
+    <Link to={`/artists/${artist.id}`} className="group block">
+      <article
+        ref={targetRef}
+        className="relative isolate min-h-[440px] overflow-hidden rounded-lg border border-white/[0.08] bg-[#111] shadow-[0_24px_90px_rgba(0,0,0,0.45)] transition duration-500 hover:border-white/20 sm:min-h-[480px] lg:min-h-[360px]"
+      >
+        {preview?.url ? (
+          <img
+            src={preview.url}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-x-0 -top-10 h-[calc(100%+5rem)] w-full scale-110 object-cover opacity-30 blur-[1px] saturate-[0.82] transition duration-700 group-hover:opacity-[0.38]"
+            style={{
+              transform: `translate3d(0, ${offset}px, 0) scale(1.12)`,
+              willChange: "transform",
+            }}
+          />
+        ) : (
+          <div
+            className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(182,56,45,0.26),transparent_35%),linear-gradient(135deg,#151515,#080808)]"
+            aria-hidden="true"
+          />
+        )}
+
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-black/86 via-black/70 to-black/86"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+          aria-hidden="true"
+        />
+        <span
+          className="spotlight-border-glint spotlight-border-glint--left"
+          aria-hidden="true"
+        />
+        <span
+          className="spotlight-border-glint spotlight-border-glint--right"
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 grid min-h-[440px] grid-cols-1 items-center gap-6 px-5 py-7 sm:min-h-[480px] sm:px-8 lg:min-h-[360px] lg:grid-cols-[minmax(0,1fr)_330px] lg:gap-10 lg:px-12 lg:py-10">
+          <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+            <img
+              src={artist.avatarUrl || "/fallback.jpg"}
+              alt={displayName}
+              className="h-16 w-16 rounded-full border border-white/20 object-cover shadow-[0_18px_40px_rgba(0,0,0,0.45)] sm:h-20 sm:w-20"
+            />
+
+            <h2 className="mb-0! mt-4 text-3xl! font-bold leading-tight text-white! sm:text-4xl!">
+              {displayName}
+            </h2>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {visibleSpecialties.length > 0 ? (
+                visibleSpecialties.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-neutral-100"
+                  >
+                    {tag}
+                  </span>
+                ))
+              ) : (
+                <span className="rounded-lg border border-white/[0.1] bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-neutral-300">
+                  Style details coming soon
+                </span>
+              )}
+            </div>
+
+            <span className="mt-6 inline-flex items-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.07] px-4 py-2 text-sm font-semibold text-white transition duration-300 group-hover:border-[var(--color-primary-hover)]/70 group-hover:bg-[var(--color-primary)]/20">
+              View artist profile
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
+
+          <div className="relative mx-auto h-[210px] w-full max-w-[420px] overflow-hidden rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_22px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)] sm:h-[260px] lg:mx-0">
+            {preview?.url ? (
+              <img
+                src={preview.url}
+                alt={preview.alt || `${displayName} portfolio preview`}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
+                <ImageIcon
+                  className="h-9 w-9 text-[var(--color-primary-hover)]/80"
+                  aria-hidden="true"
+                />
+                <span className="max-w-44 text-sm font-medium">
+                  Portfolio feature image pending
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </article>
+    </Link>
   );
 };
 
