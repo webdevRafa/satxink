@@ -1,4 +1,4 @@
-import { CalendarCheck, Heart, Inbox, ReceiptText, Ticket, UserRound } from "lucide-react";
+import { CalendarCheck, Heart, Inbox, ReceiptText, UserRound } from "lucide-react";
 
 interface Props {
   activeView:
@@ -7,8 +7,7 @@ interface Props {
     | "requests"
     | "offers"
     | "bookings"
-    | "sessions"
-    | "eventPasses";
+    | "sessions";
   onViewChange: (view: Props["activeView"]) => void;
   counts?: Partial<Record<Props["activeView"], number>>;
 }
@@ -25,7 +24,6 @@ const ClientSidebarNavigation: React.FC<Props> = ({
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
     { key: "sessions", label: "Sessions", icon: CalendarCheck },
-    { key: "eventPasses", label: "Event Passes", icon: Ticket },
   ];
 
   return (

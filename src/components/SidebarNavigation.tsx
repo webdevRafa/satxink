@@ -16,7 +16,6 @@ type ViewTab =
   | "calendar"
   | "flashes"
   | "gallery"
-  | "events"
   | "payments";
 
 interface SidebarProps {
@@ -42,7 +41,6 @@ const SidebarNavigation: FC<SidebarProps> = ({
     { key: "projects", label: "Projects" },
     { key: "flashes", label: "Flashes" },
     { key: "gallery", label: "Gallery" },
-    { key: "events", label: "Events" },
     { key: "payments", label: "Payments" },
     { key: "calendar", label: "Calendar Sync" },
     { key: "profile", label: "Profile" },

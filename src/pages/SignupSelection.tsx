@@ -15,7 +15,7 @@ const roleCards = [
     body: "Find artists, save flash, and build a taste profile that helps SATX Ink show you better matches.",
     eyebrow: "Browse and book",
     icon: UserRound,
-    highlights: ["Local events", "Community art"],
+    highlights: ["Local flash", "Community art"],
   },
   {
     role: "artist" as const,

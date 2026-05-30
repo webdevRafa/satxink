@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   addDoc,
@@ -19,7 +19,6 @@ import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
-  CalendarDays,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -32,14 +31,11 @@ import {
   MapPin,
   MessageCircle,
   Send,
-  Tag,
-  Users,
   X,
 } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 import RequestTattooModal from "../components/RequestTattooModal";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -92,17 +88,7 @@ type Shop = {
   mapLink?: string;
 };
 type SlideDirection = "next" | "prev";
-type ArtistWorkTab = "portfolio" | "flashSheets" | "events";
-
-const eventTypeLabels: Record<EventType, string> = {
-  flash_day: "Flash Day",
-  guest_spot: "Guest Spot",
-  convention: "Convention",
-  pop_up: "Pop-up",
-  walk_in_day: "Walk-in Day",
-  shop_event: "Open House / Shop Event",
-  other: "Event",
-};
+type ArtistWorkTab = "portfolio" | "flashSheets";
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -114,8 +100,6 @@ export const ArtistProfilePage = () => {
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
   const [flashSheetsLoading, setFlashSheetsLoading] = useState(true);
-  const [artistEvents, setArtistEvents] = useState<ArtistEvent[]>([]);
-  const [artistEventsLoading, setArtistEventsLoading] = useState(true);
   const [focusedSheet, setFocusedSheet] = useState<FlashSheet | null>(null);
   const [sheetFlashes, setSheetFlashes] = useState<Flash[]>([]);
   const [sheetFlashesLoading, setSheetFlashesLoading] = useState(false);
@@ -252,43 +236,6 @@ export const ArtistProfilePage = () => {
     };
 
     fetchFlashSheets();
-  }, [id, artist]);
-
-  useEffect(() => {
-    const fetchArtistEvents = async () => {
-      if (!id) return;
-
-      setArtistEventsLoading(true);
-      try {
-        const eventsQuery = query(
-          collection(db, "events"),
-          where("artistId", "==", id)
-        );
-        const snapshot = await getDocs(eventsQuery);
-        const events = snapshot.docs
-          .map((eventDoc) => ({
-            id: eventDoc.id,
-            ...eventDoc.data(),
-          } as ArtistEvent))
-          .filter(
-            (event) =>
-              event.status === "published" &&
-              event.visibility === "public" &&
-              isPublicEventBookable(event, artist) &&
-              !isPastEvent(event)
-          )
-          .sort(sortArtistEvents);
-
-        setArtistEvents(events);
-      } catch (err) {
-        console.error("Failed to fetch artist events:", err);
-        setArtistEvents([]);
-      } finally {
-        setArtistEventsLoading(false);
-      }
-    };
-
-    fetchArtistEvents();
   }, [id, artist]);
 
   useEffect(() => {
@@ -591,20 +538,6 @@ export const ArtistProfilePage = () => {
               >
                 Flash Sheets
               </button>
-              <span className="h-6 w-px bg-white/15" />
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "events"}
-                onClick={() => setActiveTab("events")}
-                className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                  activeTab === "events"
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/75"
-                }`}
-              >
-                Events
-              </button>
             </div>
           </div>
           {activeTab === "portfolio" && !galleryLoading && galleryItems.length > 0 && (
@@ -622,15 +555,6 @@ export const ArtistProfilePage = () => {
                 {flashSheets.length === 1 ? "" : "s"}
               </span>
             )}
-          {activeTab === "events" &&
-            !artistEventsLoading &&
-            artistEvents.length > 0 && (
-              <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                <CalendarDays size={15} />
-                {artistEvents.length} upcoming event
-                {artistEvents.length === 1 ? "" : "s"}
-              </span>
-            )}
         </div>
 
         {activeTab === "portfolio" ? (
@@ -638,11 +562,6 @@ export const ArtistProfilePage = () => {
             galleryItems={galleryItems}
             galleryLoading={galleryLoading}
             onOpenItem={openPortfolioItem}
-          />
-        ) : activeTab === "events" ? (
-          <ArtistEventsPanel
-            events={artistEvents}
-            eventsLoading={artistEventsLoading}
           />
         ) : (
           <FlashSheetsPanel
@@ -958,217 +877,6 @@ const FlashSheetsPanel = ({
     </div>
   );
 };
-
-const ArtistEventsPanel = ({
-  events,
-  eventsLoading,
-}: {
-  events: ArtistEvent[];
-  eventsLoading: boolean;
-}) => {
-  if (eventsLoading) return <EventsPanelSkeleton />;
-
-  if (events.length === 0) {
-    return (
-      <EmptyEventsWorkState
-        title="No upcoming events yet"
-        message="This artist has not published any public upcoming events."
-      />
-    );
-  }
-
-  const featuredEvent = events[0];
-  const remainingEvents = events.slice(1);
-
-  return (
-    <div className="space-y-4">
-      <ArtistEventFeatureCard event={featuredEvent} />
-
-      {remainingEvents.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {remainingEvents.map((event) => (
-            <ArtistEventCard key={event.id} event={event} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const ArtistEventFeatureCard = ({ event }: { event: ArtistEvent }) => (
-  <article className="group overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.03] to-transparent shadow-[0_22px_70px_rgba(0,0,0,0.26)] transition hover:border-white/20">
-    <div className="grid min-h-[280px] lg:grid-cols-[320px_minmax(0,1fr)]">
-      <ArtistEventImage event={event} />
-      <div className="flex min-w-0 flex-col p-5 md:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">
-            Next event
-          </span>
-          <span className="rounded-full border border-[var(--color-primary)]/25 bg-[var(--color-primary)]/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-red-100">
-            {eventTypeLabels[event.eventType] || "Event"}
-          </span>
-        </div>
-
-        <h3 className="mt-4 text-2xl! font-semibold! leading-tight text-white md:text-3xl!">
-          {event.title}
-        </h3>
-
-        {event.description && (
-          <p className="mt-3 line-clamp-3 max-w-2xl text-sm leading-relaxed text-white/50">
-            {event.description}
-          </p>
-        )}
-
-        <ArtistEventMetaGrid event={event} />
-        <ArtistEventTags event={event} />
-      </div>
-    </div>
-  </article>
-);
-
-const ArtistEventCard = ({ event }: { event: ArtistEvent }) => (
-  <article className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/20">
-    <div className="grid min-h-[220px] sm:grid-cols-[160px_minmax(0,1fr)]">
-      <ArtistEventImage event={event} compact />
-      <div className="flex min-w-0 flex-col p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
-          {eventTypeLabels[event.eventType] || "Event"}
-        </p>
-        <h3 className="mt-1 line-clamp-2 text-lg! font-semibold text-white">
-          {event.title}
-        </h3>
-
-        <div className="mt-4 space-y-2 text-sm text-white/60">
-          <EventMeta icon={<CalendarDays size={15} />} text={formatEventDate(event)} />
-          <EventMeta href={event.mapLink} icon={<MapPin size={15} />} text={getLocationLabel(event)} />
-          <EventMeta icon={<DollarSign size={15} />} text={getPriceLabel(event)} />
-          <EventMeta
-            icon={<Users size={15} />}
-            text={`${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`}
-          />
-        </div>
-
-        {event.description && (
-          <p className="mt-4 line-clamp-2 text-sm text-white/45">
-            {event.description}
-          </p>
-        )}
-      </div>
-    </div>
-  </article>
-);
-
-const ArtistEventImage = ({
-  event,
-  compact = false,
-}: {
-  event: ArtistEvent;
-  compact?: boolean;
-}) => (
-  <div
-    className={`relative overflow-hidden bg-black/30 ${
-      compact ? "min-h-[180px]" : "min-h-[240px]"
-    }`}
-  >
-    {event.thumbnailUrl ? (
-      <img
-        src={event.thumbnailUrl}
-        alt={event.title}
-        className="h-full w-full object-cover opacity-90 transition duration-700 group-hover:scale-105 group-hover:opacity-100"
-        loading="lazy"
-      />
-    ) : (
-      <div className="flex h-full w-full items-end bg-gradient-to-br from-white/[0.09] via-white/[0.025] to-black p-5">
-        <CalendarDays className="text-white/25" size={compact ? 30 : 38} />
-      </div>
-    )}
-
-    <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/55 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/75 backdrop-blur">
-      {eventTypeLabels[event.eventType] || "Event"}
-    </span>
-  </div>
-);
-
-const ArtistEventMetaGrid = ({ event }: { event: ArtistEvent }) => (
-  <div className="mt-5 grid gap-2 text-sm text-white/60 md:grid-cols-2">
-    <EventMeta icon={<CalendarDays size={16} />} text={formatEventDate(event)} />
-    <EventMeta href={event.mapLink} icon={<MapPin size={16} />} text={getLocationLabel(event)} />
-    <EventMeta icon={<DollarSign size={16} />} text={getPriceLabel(event)} />
-    <EventMeta
-      icon={<Users size={16} />}
-      text={`${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`}
-    />
-  </div>
-);
-
-const ArtistEventTags = ({ event }: { event: ArtistEvent }) => {
-  if (!event.tags?.length) return null;
-
-  return (
-    <div className="mt-5 flex flex-wrap gap-2">
-      {event.tags.slice(0, 5).map((tag) => (
-        <span
-          key={tag}
-          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-white/50"
-        >
-          <Tag size={12} />
-          {tag}
-        </span>
-      ))}
-    </div>
-  );
-};
-
-const EventMeta = ({
-  href,
-  icon,
-  text,
-}: {
-  href?: string;
-  icon: ReactNode;
-  text: string;
-}) => (
-  <div className="flex min-w-0 items-center gap-2">
-    <span className="shrink-0 text-white/35">{icon}</span>
-    {href ? (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="truncate transition hover:text-white hover:underline"
-      >
-        {text}
-      </a>
-    ) : (
-      <span className="truncate">{text}</span>
-    )}
-  </div>
-);
-
-const EventsPanelSkeleton = () => (
-  <div className="grid gap-4 lg:grid-cols-2">
-    {[0, 1, 2, 3].map((item) => (
-      <div
-        key={item}
-        className="h-[240px] animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
-      />
-    ))}
-  </div>
-);
-
-const EmptyEventsWorkState = ({
-  title,
-  message,
-}: {
-  title: string;
-  message: string;
-}) => (
-  <div className="flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] px-6 text-center">
-    <CalendarDays className="mb-4 text-white/35" size={34} />
-    <h3 className="text-lg! font-semibold! text-white my-0!">{title}</h3>
-    <p className="mt-2 max-w-md text-sm text-white/50">{message}</p>
-  </div>
-);
 
 const EmptyWorkState = ({
   title,
@@ -2107,58 +1815,6 @@ const FlashRequestModal = ({
   );
 };
 
-const getEventTime = (event: ArtistEvent) => {
-  if (!event.startDate) return Number.MAX_SAFE_INTEGER;
-  return new Date(`${event.startDate}T${event.startTime || "00:00"}`).getTime();
-};
-
-const getEventCreatedTime = (event: ArtistEvent) => {
-  const createdAt = event.createdAt;
-
-  if (!createdAt) return Number.MAX_SAFE_INTEGER;
-  if (createdAt instanceof Date) return createdAt.getTime();
-
-  const maybeTimestamp = createdAt as {
-    seconds?: number;
-    toDate?: () => Date;
-  };
-
-  if (typeof maybeTimestamp.toDate === "function") {
-    return maybeTimestamp.toDate().getTime();
-  }
-
-  if (typeof maybeTimestamp.seconds === "number") {
-    return maybeTimestamp.seconds * 1000;
-  }
-
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const sortArtistEvents = (a: ArtistEvent, b: ArtistEvent) =>
-  getEventTime(a) - getEventTime(b) ||
-  getEventCreatedTime(a) - getEventCreatedTime(b) ||
-  a.title.localeCompare(b.title);
-
-const isPastEvent = (event: ArtistEvent) => {
-  const endDate = event.endDate || event.startDate;
-  const endTime = event.endTime || "23:59";
-  return new Date(`${endDate}T${endTime}`).getTime() < startOfToday().getTime();
-};
-
-const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
-  bookingMode === "deposit_required" ||
-  bookingMode === "flash_reservation" ||
-  bookingMode === "paid_ticket";
-
-const isPublicEventBookable = (
-  event: ArtistEvent,
-  artist?: StripeReadyArtist | null
-) => {
-  if (event.bookingMode === "paid_ticket") return true;
-  if (!eventModeRequiresPayment(event.bookingMode)) return true;
-  return isStripeConnectReady(artist);
-};
-
 const isMarketplaceReady = (
   item: Flash | FlashSheet,
   artist?: StripeReadyArtist | null
@@ -2166,89 +1822,6 @@ const isMarketplaceReady = (
   if (item.marketplaceVisible === false) return false;
   if (item.artistStripeConnectReady === true) return true;
   return isStripeConnectReady(artist);
-};
-
-const formatEventDate = (event: ArtistEvent) => {
-  if (!event.startDate) return "Date TBD";
-
-  const start = new Date(`${event.startDate}T${event.startTime || "00:00"}`);
-
-  const dateLabel = start.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const startTime = event.startTime ? formatTime(event.startTime) : "";
-  const endTime = event.endTime ? formatTime(event.endTime) : "";
-
-  if (event.endDate && event.endDate !== event.startDate) {
-    const end = new Date(`${event.endDate}T${event.endTime || "23:59"}`);
-    const endLabel = end.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-
-    return `${dateLabel}${startTime ? ` at ${startTime}` : ""} - ${endLabel}${
-      endTime ? ` at ${endTime}` : ""
-    }`;
-  }
-
-  if (startTime && endTime) return `${dateLabel}, ${startTime} - ${endTime}`;
-  if (startTime) return `${dateLabel} at ${startTime}`;
-
-  return dateLabel;
-};
-
-const formatTime = (time: string) => {
-  const [hours, minutes] = time.split(":");
-  const date = new Date();
-  date.setHours(Number(hours), Number(minutes || 0));
-  return date.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
-const getLocationLabel = (event: ArtistEvent) => {
-  if (event.locationType === "online") return "Online";
-  if (event.locationType === "tbd") return "Location TBD";
-  return event.shopName || event.address || "Location TBD";
-};
-
-const getPriceLabel = (event: ArtistEvent) => {
-  const hasDeposit =
-    Boolean(event.depositRequired) ||
-    (typeof event.depositAmount === "number" && event.depositAmount > 0);
-
-  const depositLabel =
-    hasDeposit && event.depositAmount
-      ? `$${event.depositAmount} deposit`
-      : hasDeposit
-      ? "Deposit required"
-      : "";
-
-  let priceLabel = "Price TBD";
-
-  if (event.priceType === "free") priceLabel = "Free";
-  else if (event.priceType === "varies") priceLabel = "Pricing varies";
-  else if (event.priceType === "starting_at") {
-    priceLabel = event.price
-      ? `Starting at $${event.price}`
-      : "Starting price TBD";
-  } else {
-    priceLabel = event.price ? `$${event.price}` : "Price TBD";
-  }
-
-  return depositLabel ? `${priceLabel} • ${depositLabel}` : priceLabel;
-};
-
-const startOfToday = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
 };
 
 const TagMarqueeModal = ({

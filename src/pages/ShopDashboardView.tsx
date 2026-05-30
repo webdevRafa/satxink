@@ -13,7 +13,6 @@ import {
 } from "firebase/firestore";
 import {
   Building2,
-  CalendarDays,
   ChevronDown,
   CheckCircle2,
   Copy,
@@ -29,7 +28,6 @@ import {
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
 import { auth, db } from "../firebase/firebaseConfig";
-import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { StripeConnectStatus } from "../types/StripeCheckout";
 
@@ -87,7 +85,7 @@ type ShopArtist = {
   };
 };
 
-type ShopView = "artists" | "events" | "profile" | "payments";
+type ShopView = "artists" | "profile" | "payments";
 type ClaimMode = "existing" | "new";
 
 const ShopDashboardView = () => {
@@ -308,17 +306,6 @@ const ShopDashboardView = () => {
                 inviteUrl={inviteUrl}
               />
             )}
-            {activeView === "events" && activeShop && (
-              <EventsManager
-                uid={currentUser.id}
-                artist={currentUser}
-                ownerType="shop"
-                shopOverride={activeShop}
-                onOpenPayments={() => setActiveView("payments")}
-                managerTitle="Shop events"
-                managerDescription="Create information-only shop events with optional external RSVP, ticket, convention, or venue links."
-              />
-            )}
             {activeView === "payments" && (
               <StripeConnectPanel artist={currentUser} />
             )}
@@ -335,7 +322,6 @@ const shopDashboardTabs: Array<{
   icon: React.ReactNode;
 }> = [
   { key: "artists", label: "Artists", icon: <Users size={17} /> },
-  { key: "events", label: "Events", icon: <CalendarDays size={17} /> },
   { key: "profile", label: "Profile", icon: <Pencil size={17} /> },
   { key: "payments", label: "Payments", icon: <CreditCard size={17} /> },
 ];
@@ -467,7 +453,7 @@ const ShopDashboardHeader = ({
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
             Manage your SATX Ink shop presence, invite artists, keep
-            affiliations clean, and publish shop-hosted events.
+            affiliations clean, and keep your public shop profile current.
           </p>
         </div>
       </div>
@@ -494,16 +480,11 @@ const ShopDashboardHeader = ({
           <div className="hidden sm:block" />
         )}
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <MetricCard
             icon={<Users size={15} />}
             label="Artists"
             value={artistCount}
-          />
-          <MetricCard
-            icon={<CalendarDays size={15} />}
-            label="Events"
-            value="Manage"
           />
           <MetricCard
             icon={<CheckCircle2 size={15} />}
@@ -828,8 +809,8 @@ const ShopProfilePanel = ({ shop }: { shop: ShopRecord }) => {
           Public shop details
         </h2>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-          Keep the name, address, and map link current for artist profiles,
-          bookings, and shop events.
+          Keep the name, address, and map link current for artist profiles and
+          bookings.
         </p>
       </div>
       <div className="mt-5 grid gap-4">

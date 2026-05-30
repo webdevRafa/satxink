@@ -8,7 +8,6 @@ import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import {
   ArrowRight,
-  CalendarDays,
   Image,
   LogOut,
   LogIn,
@@ -34,12 +33,6 @@ const mobileNavItems = [
     description: "Find ready-to-request designs and sheets.",
     to: "/flash",
     icon: Image,
-  },
-  {
-    label: "Events",
-    description: "See flash days, pop-ups, and local tattoo events.",
-    to: "/events",
-    icon: CalendarDays,
   },
   {
     label: "About",
@@ -178,10 +171,6 @@ export const Navbar = () => {
             className="text-neutral-300 hover:text-orange-400"
           >
             Artists
-          </Link>
-
-          <Link to="/events" className="text-neutral-300 hover:text-orange-400">
-            Events
           </Link>
 
           <Link to="/flash" className="text-neutral-300 hover:text-orange-400">
@@ -351,7 +340,7 @@ export const Navbar = () => {
                   Start here
                 </span>
                 <h2 className="mt-2 mb-0! text-xl! font-semibold! text-white">
-                  Find artists, flash, and tattoo events in SATX.
+                  Find artists and flash in SATX.
                 </h2>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <Link
