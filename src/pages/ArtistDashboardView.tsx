@@ -60,7 +60,6 @@ import MakeOfferModal from "../components/MakeOfferModal";
 import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
-import EventsManager from "../components/EventsManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import type { Booking } from "../types/Booking";
 import type { Artist } from "../types/Artist";
@@ -90,7 +89,6 @@ type ArtistDashboardTab =
   | "calendar"
   | "flashes"
   | "gallery"
-  | "events"
   | "payments";
 
 type ArtistProfileFormState = {
@@ -196,7 +194,6 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "calendar",
     "flashes",
     "gallery",
-    "events",
     "payments",
   ].includes(tab || "")
     ? (tab as ArtistDashboardTab)
@@ -217,7 +214,6 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "calendar",
     "flashes",
     "gallery",
-    "events",
     "payments",
   ].includes(tab || "");
 
@@ -1856,13 +1852,6 @@ const ArtistDashboardView = () => {
           />
         )}
         {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
-        {activeTab === "events" && uid && (
-          <EventsManager
-            uid={uid}
-            artist={artist}
-            onOpenPayments={() => setActiveTab("payments")}
-          />
-        )}
         {activeTab === "payments" && <StripeConnectPanel artist={artist} />}
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel

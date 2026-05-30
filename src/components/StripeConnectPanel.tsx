@@ -106,7 +106,6 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
 
   useEffect(() => {
     refreshStatus({ quiet: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -209,8 +208,8 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
           body="When a client accepts an offer, Checkout is created on your connected Stripe account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $35, and the client covers that fee plus estimated Stripe processing."
         />
         <InfoCard
-          title="Before publishing paid events"
-          body="Finish onboarding first. Free or info-only events can still be published without Stripe, but paid deposits require card payments to be enabled."
+          title="Before taking paid requests"
+          body="Finish onboarding first. Client deposits and full payments require card payments to be enabled on your connected Stripe account."
         />
       </div>
     </section>

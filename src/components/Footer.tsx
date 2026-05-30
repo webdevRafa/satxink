@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import {
   ArrowUpRight,
-  CalendarDays,
   ChevronDown,
   CheckCircle2,
   Mail,
@@ -19,35 +18,28 @@ import { db } from "../firebase/firebaseConfig";
 const footerLinks = [
   { label: "Artists", to: "/artists" },
   { label: "Flash", to: "/flash" },
-  { label: "Events", to: "/events" },
   { label: "About", to: "/about" },
 ];
 
 const artistLinks = [
   { label: "Join as artist", to: "/signup/artist" },
-  { label: "Claim shop", to: "/shop-dashboard" },
-  { label: "Artist login", to: "/login-page" },
 ];
 
 const trustSignals = [
   { label: "Verified local artists", icon: CheckCircle2 },
   { label: "Ready-to-request flash", icon: Sparkles },
-  { label: "SATX event discovery", icon: CalendarDays },
+  { label: "Cleaner tattoo booking", icon: Search },
 ];
 
 const audienceOptions = [
   { value: "client", label: "Client" },
   { value: "artist", label: "Artist" },
-  { value: "shop", label: "Shop" },
-  { value: "event_host", label: "Event host" },
   { value: "other", label: "Other" },
 ];
 
 const topicOptions = [
   { value: "general", label: "General question" },
   { value: "artist_onboarding", label: "Artist onboarding" },
-  { value: "shop_claim", label: "Shop claim" },
-  { value: "events", label: "Events" },
   { value: "support", label: "Support" },
   { value: "partnership", label: "Partnership" },
 ];
@@ -127,8 +119,8 @@ export const Footer = () => {
                 <img className="h-auto w-28" src={logo} alt="SATX Ink" />
                 <p className="mt-5 max-w-lg text-base leading-7 text-neutral-300">
                   San Antonio tattoo discovery for clients, artists, flash,
-                  events, and bookings that need to feel clean from first look
-                  to final deposit.
+                  and bookings that need to feel clean from first look to
+                  final deposit.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 sm:min-w-[330px]">
@@ -194,9 +186,8 @@ export const Footer = () => {
                 Local focus
               </p>
               <p className="mt-3 leading-6 text-neutral-300">
-                Built around SATX shops, artists, public flash drops, and tattoo
-                events so clients can move from discovery to booking with less
-                guesswork.
+                Built around SATX artists and public flash drops so clients can
+                move from discovery to booking with less guesswork.
               </p>
             </div>
           </section>

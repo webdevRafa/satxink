@@ -2,11 +2,9 @@ import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  CalendarDays,
   ChevronRight,
   ImageOff,
   Layers,
-  MapPin,
   Search,
   Sparkles,
   Tag,
@@ -23,7 +21,6 @@ import { db } from "../firebase/firebaseConfig";
 import heroImage from "../assets/images/satx-inked.webp";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
 import {
   isStripeConnectReady,
@@ -48,30 +45,14 @@ type HomeFlashSheet = FlashSheet & {
   artist?: PublicArtist;
 };
 
-type HomeEvent = ArtistEvent & {
-  artist?: PublicArtist;
-};
-
 const featuredStyles = FEATURED_TATTOO_STYLES;
-
-const eventTypeLabels: Record<EventType, string> = {
-  flash_day: "Flash Day",
-  guest_spot: "Guest Spot",
-  convention: "Convention",
-  pop_up: "Pop-up",
-  walk_in_day: "Walk-in Day",
-  shop_event: "Shop Event",
-  other: "Event",
-};
 
 const HOME_FLASH_FETCH_LIMIT = 40;
 const HOME_SHEET_FETCH_LIMIT = 24;
-const HOME_EVENT_FETCH_LIMIT = 12;
 
 export const HomePage: FC = () => {
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
-  const [events, setEvents] = useState<HomeEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,29 +62,14 @@ export const HomePage: FC = () => {
       try {
         setLoading(true);
 
-        const [flashSnapshot, sheetSnapshot, eventSnapshot] =
-          await Promise.all([
-            getDocs(
-              query(
-                collection(db, "flashes"),
-                limit(HOME_FLASH_FETCH_LIMIT)
-              )
-            ),
-            getDocs(
-              query(
-                collection(db, "flashSheets"),
-                limit(HOME_SHEET_FETCH_LIMIT)
-              )
-            ),
-            getDocs(
-              query(
-                collection(db, "events"),
-                where("status", "==", "published"),
-                where("visibility", "==", "public"),
-                limit(HOME_EVENT_FETCH_LIMIT)
-              )
-            ),
-          ]);
+        const [flashSnapshot, sheetSnapshot] = await Promise.all([
+          getDocs(
+            query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
+          ),
+          getDocs(
+            query(collection(db, "flashSheets"), limit(HOME_SHEET_FETCH_LIMIT))
+          ),
+        ]);
 
         const rawFlashes = flashSnapshot.docs
           .map((flashDoc) => ({
@@ -131,19 +97,9 @@ export const HomePage: FC = () => {
             return Boolean(typedSheet.artistId && typedSheet.imageUrl);
           });
 
-        const rawEvents = eventSnapshot.docs
-          .map((eventDoc) => ({
-            id: eventDoc.id,
-            ...eventDoc.data(),
-          }))
-          .filter((event): event is ArtistEvent => {
-            const typedEvent = event as ArtistEvent;
-            return Boolean(typedEvent.artistId && typedEvent.startDate);
-          });
-
         const artistIds = Array.from(
           new Set(
-            [...rawFlashes, ...rawSheets, ...rawEvents]
+            [...rawFlashes, ...rawSheets]
               .map((item) => item.artistId)
               .filter(Boolean)
           )
@@ -171,25 +127,13 @@ export const HomePage: FC = () => {
             .filter(isMarketplaceReady)
         ).slice(0, 5);
 
-        const readyEvents = rawEvents
-          .map((event) => ({
-            ...event,
-            artist: artistsById[event.artistId],
-          }))
-          .filter((event) => Boolean(event.artist))
-          .filter(isPublicEventBookable)
-          .filter((event) => !isPastEvent(event))
-          .sort((a, b) => getEventTime(a) - getEventTime(b));
-
         setFlashes(readyFlashes);
         setSheets(readySheets);
-        setEvents(shuffleItems(readyEvents.slice(0, 8)).slice(0, 3));
       } catch (err) {
         console.error("Failed to fetch homepage preview data:", err);
         if (isMounted) {
           setFlashes([]);
           setSheets([]);
-          setEvents([]);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -207,9 +151,9 @@ export const HomePage: FC = () => {
     () => [
       { label: "Styles to explore", value: `${featuredStyles.length}+` },
       { label: "Flash previews", value: loading ? "..." : flashes.length },
-      { label: "Upcoming events", value: loading ? "..." : events.length },
+      { label: "Flash sheets", value: loading ? "..." : sheets.length },
     ],
-    [events.length, flashes.length, loading]
+    [flashes.length, loading, sheets.length]
   );
 
   return (
@@ -261,8 +205,8 @@ export const HomePage: FC = () => {
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
               Browse verified artists, discover ready-to-request flash, compare
-              styles, and find public tattoo events from local SATX shops and
-              artists.
+              styles, and move from discovery to a tattoo request with less
+              guesswork.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -381,35 +325,6 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="px-5 py-18 md:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <SectionHeader
-              kicker="Events"
-              title="Flash days, guest spots, and pop-ups worth catching."
-              body="SATX Ink also highlights public tattoo events so clients can find time-sensitive opportunities without digging through social feeds."
-            />
-            <Link
-              to="/events"
-              className="inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-            >
-              View all events
-              <CalendarDays size={16} />
-            </Link>
-          </div>
-
-          {events.length > 0 ? (
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              {events.map((event) => (
-                <EventTeaserCard key={event.id} event={event} />
-              ))}
-            </div>
-          ) : (
-            <EmptyPreview label="No upcoming public events are ready yet." />
-          )}
-        </div>
-      </section>
-
       <section className="border-t border-white/5 bg-[#171717] px-5 py-20 text-center md:px-8">
         <div className="mx-auto max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
@@ -419,8 +334,8 @@ export const HomePage: FC = () => {
             Less digging, clearer next steps.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-            Compare artists, open flash sheets, watch for local events, and move
-            toward a request when the work and artist feel right.
+            Compare artists, open flash sheets, and move toward a request when
+            the work and artist feel right.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
@@ -429,13 +344,6 @@ export const HomePage: FC = () => {
             >
               Find artists
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
-            </Link>
-            <Link
-              to="/events"
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/75 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-            >
-              See events
-              <CalendarDays size={16} />
             </Link>
           </div>
         </div>
@@ -647,50 +555,6 @@ const ArtistAvatar = ({
   );
 };
 
-const EventTeaserCard = ({ event }: { event: HomeEvent }) => (
-  <Link
-    to="/events"
-    className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl transition hover:border-white/25"
-  >
-    <div className="relative aspect-[16/10] bg-black/30">
-      {event.thumbnailUrl ? (
-        <img
-          src={event.thumbnailUrl}
-          alt={event.title}
-          className="h-full w-full object-cover opacity-90 transition duration-500 group-hover:scale-[1.04] group-hover:opacity-100"
-          loading="lazy"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <CalendarDays size={38} className="text-white/25" />
-        </div>
-      )}
-      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/65 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/75 backdrop-blur">
-        {eventTypeLabels[event.eventType] || "Event"}
-      </span>
-    </div>
-    <div className="p-4">
-      <h3 className="line-clamp-2 text-xl! font-semibold text-white">
-        {event.title}
-      </h3>
-      <div className="mt-4 space-y-2 text-sm text-white/55">
-        <MetaRow icon={<CalendarDays size={15} />} text={formatEventDate(event)} />
-        <MetaRow icon={<MapPin size={15} />} text={getLocationLabel(event)} />
-      </div>
-      <p className="mt-4 truncate text-sm text-white/40">
-        by {getArtistName(event.artist)}
-      </p>
-    </div>
-  </Link>
-);
-
-const MetaRow = ({ icon, text }: { icon: ReactNode; text: string }) => (
-  <div className="flex items-center gap-2">
-    <span className="text-white/30">{icon}</span>
-    <span className="truncate">{text}</span>
-  </div>
-);
-
 const TagList = ({ tags }: { tags?: string[] }) => {
   const visibleTags = tags?.slice(0, 2) || [];
 
@@ -770,65 +634,6 @@ const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
   if (item.marketplaceVisible === false) return false;
   if (item.artistStripeConnectReady === true) return true;
   return isStripeConnectReady(item.artist);
-};
-
-const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
-  bookingMode === "deposit_required" ||
-  bookingMode === "flash_reservation" ||
-  bookingMode === "paid_ticket";
-
-const isPublicEventBookable = (event: HomeEvent) => {
-  if (event.bookingMode === "paid_ticket") return true;
-  if (!eventModeRequiresPayment(event.bookingMode)) return true;
-  return isStripeConnectReady(event.artist);
-};
-
-const isPastEvent = (event: ArtistEvent) => {
-  const endDate = event.endDate || event.startDate;
-  if (!endDate) return false;
-  return new Date(`${endDate}T${event.endTime || "23:59"}`).getTime() <
-    startOfToday().getTime();
-};
-
-const startOfToday = () => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
-const getEventTime = (event: ArtistEvent) => {
-  if (!event.startDate) return Number.MAX_SAFE_INTEGER;
-  return new Date(`${event.startDate}T${event.startTime || "00:00"}`).getTime();
-};
-
-const formatEventDate = (event: ArtistEvent) => {
-  if (!event.startDate) return "Date TBD";
-  const date = new Date(`${event.startDate}T${event.startTime || "00:00"}`);
-  const dateLabel = date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return event.startTime
-    ? `${dateLabel} at ${formatTime(event.startTime)}`
-    : dateLabel;
-};
-
-const formatTime = (time: string) => {
-  const [hours, minutes] = time.split(":");
-  const date = new Date();
-  date.setHours(Number(hours), Number(minutes || 0));
-  return date.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
-const getLocationLabel = (event: ArtistEvent) => {
-  if (event.locationType === "online") return "Online";
-  if (event.locationType === "tbd") return "Location TBD";
-  return event.shopName || event.address || "Location TBD";
 };
 
 const getArtistName = (artist?: PublicArtist) =>

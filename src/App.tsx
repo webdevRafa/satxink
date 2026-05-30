@@ -35,12 +35,9 @@ import PaymentPage from "./pages/payment/PaymentPage";
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
 import Dashboard from "./pages/Dashboard";
 import FlashSheetDetailPage from "./pages/FlashSheetDetailPage";
-import EventsPage from "./pages/EventsPage";
-import EventCheckInPage from "./pages/EventCheckInPage";
 import FlashMarketplacePage from "./pages/FlashMarketplacePage";
 import PublicFlashSheetPage from "./pages/PublicFlashSheetPage";
 import AdminDashboardView from "./pages/AdminDashboardView";
-import ShopDashboardView from "./pages/ShopDashboardView";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -80,11 +77,6 @@ function App() {
         <Route path="/artist-dashboard" element={<ArtistDashboard />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
         <Route path="/artists" element={<ArtistsPage />} />
-        <Route path="/events" element={<EventsPage />} />
-        <Route
-          path="/events/check-in/:registrationId/:qrToken"
-          element={<EventCheckInPage />}
-        />
         <Route path="/flash" element={<FlashMarketplacePage />} />
         <Route
           path="/flash/sheets/:sheetId"
@@ -98,7 +90,6 @@ function App() {
         <Route path="/payment/:bookingId" element={<PaymentPage />} />
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/admin" element={<AdminDashboardView />} />
-        <Route path="/shop-dashboard" element={<ShopDashboardView />} />
 
         <Route
           path="/client-profile-setup"
