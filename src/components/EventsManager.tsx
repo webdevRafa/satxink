@@ -536,7 +536,12 @@ const EventsManager = ({
       return;
     }
 
-    const parsedCapacity = parseOptionalNumber(form.capacity);
+    const parsedCapacity = isShopFlashReservation(
+      form.clientActionType,
+      ownerType
+    )
+      ? null
+      : parseOptionalNumber(form.capacity);
     const bookingMode = getBookingModeForClientAction(form.clientActionType);
 
     try {
@@ -1112,6 +1117,12 @@ const EventEditorModal = ({
   const canSave = !getFirstEventFormError(formErrors);
   const isFinalStep = currentStepIndex === eventEditorSteps.length - 1;
   const eventOwnerLabel = ownerType === "shop" ? "shop" : "artist";
+  const usesArtistManagedFlashInventory = isShopFlashReservation(
+    form.clientActionType,
+    ownerType
+  );
+  const showDisplayAmount =
+    form.priceType === "fixed" || form.priceType === "starting_at";
 
   const goToStep = (nextStep: EventEditorStepKey) => {
     const nextIndex = eventEditorSteps.findIndex(
@@ -1265,21 +1276,27 @@ const EventEditorModal = ({
                 value={form.eventType}
                 onChange={(event) => {
                   const eventType = event.target.value as EventType;
-                  setForm((current) => ({
-                    ...current,
-                    eventType,
-                    clientActionType:
+                  setForm((current) => {
+                    const nextClientAction =
                       current.clientActionType ===
                       getDefaultClientAction(current.eventType, ownerType)
                         ? getDefaultClientAction(eventType, ownerType)
-                        : current.clientActionType,
-                    bookingMode: getBookingModeForClientAction(
-                      current.clientActionType ===
-                        getDefaultClientAction(current.eventType, ownerType)
-                        ? getDefaultClientAction(eventType, ownerType)
-                        : current.clientActionType
-                    ),
-                  }));
+                        : current.clientActionType;
+
+                    return {
+                      ...current,
+                      eventType,
+                      clientActionType: nextClientAction,
+                      bookingMode:
+                        getBookingModeForClientAction(nextClientAction),
+                      capacity: isShopFlashReservation(
+                        nextClientAction,
+                        ownerType
+                      )
+                        ? ""
+                        : current.capacity,
+                    };
+                  });
                 }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
@@ -1304,6 +1321,12 @@ const EventEditorModal = ({
                     ...current,
                     clientActionType: nextClientAction,
                     bookingMode: getBookingModeForClientAction(nextClientAction),
+                    capacity: isShopFlashReservation(
+                      nextClientAction,
+                      ownerType
+                    )
+                      ? ""
+                      : current.capacity,
                     priceType:
                       nextClientAction === "paid_event_pass"
                         ? "fixed"
@@ -1556,17 +1579,27 @@ const EventEditorModal = ({
 
           <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
             <p className="text-sm font-semibold text-sky-100">
-              {getClientActionPricingTitle(form.clientActionType)}
+              {getClientActionPricingTitle(form.clientActionType, ownerType)}
             </p>
             <p className="mt-1 text-sm leading-6 text-sky-100/70">
-              {getClientActionPricingHelp(form.clientActionType)}
+              {getClientActionPricingHelp(form.clientActionType, ownerType)}
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_0.85fr]">
+          <div
+            className={`grid gap-4 ${
+              usesArtistManagedFlashInventory
+                ? showDisplayAmount
+                  ? "md:grid-cols-[1.15fr_0.85fr]"
+                  : "md:grid-cols-[1.15fr]"
+                : "md:grid-cols-[1.15fr_0.85fr_0.85fr]"
+            }`}
+          >
             <Field
               label={
-                form.clientActionType !== "free_rsvp" &&
+                usesArtistManagedFlashInventory
+                  ? "Flash pricing display"
+                  : form.clientActionType !== "free_rsvp" &&
                 form.clientActionType !== "paid_event_pass"
                   ? "Displayed price"
                   : "Price type"
@@ -1595,8 +1628,7 @@ const EventEditorModal = ({
               </select>
             </Field>
 
-            {(form.priceType === "fixed" ||
-              form.priceType === "starting_at") && (
+            {showDisplayAmount && (
               <Field
                 label={
                   form.clientActionType === "paid_event_pass"
@@ -1626,37 +1658,46 @@ const EventEditorModal = ({
               </Field>
             )}
 
-            <Field
-              label={
-                form.clientActionType === "details_only" ||
-                form.clientActionType === "external_link"
-                  ? "Venue capacity"
-                  : form.clientActionType === "waitlist"
-                  ? "Queue size"
-                  : "Capacity"
-              }
-            >
-              <input
-                type="number"
-                min="1"
-                value={form.capacity}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    capacity: event.target.value,
-                  }))
-                }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-                placeholder={
+            {!usesArtistManagedFlashInventory && (
+              <Field
+                label={
                   form.clientActionType === "details_only" ||
                   form.clientActionType === "external_link"
-                    ? "Optional"
-                    : "100"
+                    ? "Venue capacity"
+                    : form.clientActionType === "waitlist"
+                    ? "Queue size"
+                    : "Capacity"
                 }
-              />
-            </Field>
+              >
+                <input
+                  type="number"
+                  min="1"
+                  value={form.capacity}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      capacity: event.target.value,
+                    }))
+                  }
+                  className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+                  placeholder={
+                    form.clientActionType === "details_only" ||
+                    form.clientActionType === "external_link"
+                      ? "Optional"
+                      : "100"
+                  }
+                />
+              </Field>
+            )}
           </div>
-          {(form.clientActionType === "details_only" ||
+          {usesArtistManagedFlashInventory ? (
+            <p className="text-xs leading-5 text-white/35">
+              Flash availability is managed by the participating artists. Each
+              artist decides which SATX flash sheets or flash pieces are
+              available for this shop event, so the shop does not set a
+              capacity here.
+            </p>
+          ) : (form.clientActionType === "details_only" ||
             form.clientActionType === "external_link") && (
             <p className="text-xs leading-5 text-white/35">
               Capacity is optional for awareness-only events and is shown as
@@ -2027,6 +2068,10 @@ const EventReviewSummary = ({
   form: EventFormState;
   ownerType: "artist" | "shop";
 }) => {
+  const usesArtistManagedFlashInventory = isShopFlashReservation(
+    form.clientActionType,
+    ownerType
+  );
   const dateLabel = form.startDate
     ? `${form.startDate}${form.startTime ? ` at ${formatTime(form.startTime)}` : ""}`
     : "Date not set";
@@ -2077,7 +2122,9 @@ const EventReviewSummary = ({
         <ReviewRow label="Price display" value={priceLabel} />
         <ReviewRow
           label={
-            form.clientActionType === "details_only" ||
+            usesArtistManagedFlashInventory
+              ? "Flash availability"
+              : form.clientActionType === "details_only" ||
             form.clientActionType === "external_link"
               ? "Venue capacity"
               : form.clientActionType === "waitlist"
@@ -2085,7 +2132,9 @@ const EventReviewSummary = ({
               : "Capacity"
           }
           value={
-            form.capacity ||
+            usesArtistManagedFlashInventory
+              ? "Managed by participating artists"
+              : form.capacity ||
             (form.clientActionType === "details_only" ||
             form.clientActionType === "external_link"
               ? "Not shown"
@@ -2179,7 +2228,13 @@ const getEventFormErrors = (
   ownerType: "artist" | "shop"
 ): EventFormErrors => {
   const errors: EventFormErrors = {};
-  const parsedCapacity = parseOptionalNumber(form.capacity);
+  const usesArtistManagedFlashInventory = isShopFlashReservation(
+    form.clientActionType,
+    ownerType
+  );
+  const parsedCapacity = usesArtistManagedFlashInventory
+    ? null
+    : parseOptionalNumber(form.capacity);
   const parsedPrice = parseOptionalNumber(form.price);
   const capacityRequired =
     form.clientActionType === "free_rsvp" ||
@@ -2340,6 +2395,11 @@ const getBookingModeForClientAction = (
 const clientActionRequiresStripe = (clientActionType: EventClientActionType) =>
   clientActionType === "paid_event_pass";
 
+const isShopFlashReservation = (
+  clientActionType: EventClientActionType,
+  ownerType?: "artist" | "shop"
+) => ownerType === "shop" && clientActionType === "flash_reservation";
+
 const getClientActionHelp = (
   clientActionType: EventClientActionType,
   ownerType: "artist" | "shop"
@@ -2374,7 +2434,8 @@ const getClientActionHelp = (
 };
 
 const getClientActionPricingTitle = (
-  clientActionType: EventClientActionType
+  clientActionType: EventClientActionType,
+  ownerType: "artist" | "shop"
 ) => {
   if (clientActionType === "paid_event_pass") {
     return "Paid event passes keep admission payments on SATX Ink.";
@@ -2383,6 +2444,9 @@ const getClientActionPricingTitle = (
     return "Free RSVP creates attendance passes, not tattoo appointments.";
   }
   if (clientActionType === "flash_reservation") {
+    if (ownerType === "shop") {
+      return "Shop flash days use artist-managed flash availability.";
+    }
     return "Flash events should drive clients toward SATX flash booking.";
   }
   if (clientActionType === "appointment_request") {
@@ -2398,7 +2462,8 @@ const getClientActionPricingTitle = (
 };
 
 const getClientActionPricingHelp = (
-  clientActionType: EventClientActionType
+  clientActionType: EventClientActionType,
+  ownerType: "artist" | "shop"
 ) => {
   if (clientActionType === "paid_event_pass") {
     return "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host.";
@@ -2407,6 +2472,9 @@ const getClientActionPricingHelp = (
     return "Use RSVP for headcount and reminders. The public event copy clarifies that tattoo spots still need to be requested or reserved through SATX.";
   }
   if (clientActionType === "flash_reservation") {
+    if (ownerType === "shop") {
+      return "Use this as a shop-level price cue only. Each participating artist should control which SATX flash sheets or pieces are reservable for this event.";
+    }
     return "Use displayed price as public context. The event CTA prioritizes SATX flash/profile flows so clients do not treat the event as an offline booking workaround.";
   }
   if (clientActionType === "appointment_request") {
@@ -2523,6 +2591,10 @@ const getEventCapacityLabel = (
   registrationCount?: number
 ) => {
   const clientActionType = getEventClientActionType(event);
+
+  if (isShopFlashReservation(clientActionType, event.ownerType)) {
+    return "Artist-managed flash availability";
+  }
 
   if (
     clientActionType === "details_only" ||

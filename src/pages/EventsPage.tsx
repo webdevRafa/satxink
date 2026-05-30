@@ -2086,6 +2086,11 @@ const getClientActionSummary = (clientActionType: EventClientActionType) => {
   return "Event details and SATX profile links";
 };
 
+const isShopFlashReservation = (
+  clientActionType: EventClientActionType,
+  ownerType?: "artist" | "shop"
+) => ownerType === "shop" && clientActionType === "flash_reservation";
+
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
   bookingMode === "flash_reservation" ||
@@ -2224,6 +2229,10 @@ const getLocationLabel = (event: ArtistEvent) => {
 
 const getEventCapacityLabel = (event: ArtistEvent) => {
   const clientActionType = getEventClientActionType(event);
+
+  if (isShopFlashReservation(clientActionType, event.ownerType)) {
+    return "Artist-managed flash availability";
+  }
 
   if (
     clientActionType === "details_only" ||
