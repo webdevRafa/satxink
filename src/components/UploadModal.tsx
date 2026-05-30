@@ -4,6 +4,7 @@ import { ref, uploadBytes } from "firebase/storage";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
 import {
+  Check,
   DollarSign,
   Image as ImageIcon,
   Layers,
@@ -27,7 +28,22 @@ type Props = {
   allowSheetLink?: boolean;
 };
 
-const CREATE_NEW_SHEET_VALUE = "__create_new_sheet__";
+type SheetRelationshipMode = "standalone" | "existing";
+
+const mergeTags = (currentTags: string[], incomingTags: string[]) => {
+  const existing = new Set(currentTags.map((tag) => tag.toLowerCase()));
+  const merged = [...currentTags];
+
+  incomingTags.forEach((tag) => {
+    const normalized = tag.trim().replace(/^#/, "").toLowerCase();
+    if (normalized && !existing.has(normalized)) {
+      merged.push(normalized);
+      existing.add(normalized);
+    }
+  });
+
+  return merged;
+};
 
 const UploadModal: React.FC<Props> = ({
   uid,
@@ -44,33 +60,28 @@ const UploadModal: React.FC<Props> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
   const [priceInput, setPriceInput] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
+  const [sheetRelationshipMode, setSheetRelationshipMode] =
+    useState<SheetRelationshipMode>("standalone");
   const [selectedSheetId, setSelectedSheetId] = useState("");
-  const [newSheetTitle, setNewSheetTitle] = useState("");
-  const [newSheetTags, setNewSheetTags] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const isFlashUpload = collectionType === "flashes";
-  const isCreatingNewSheet = selectedSheetId === CREATE_NEW_SHEET_VALUE;
-  const sheetRelationshipOptions: SelectOption[] = [
-    { value: "", label: "Standalone flash" },
-    ...availableSheets.map((sheet) => ({
+  const sheetRelationshipOptions: SelectOption[] = availableSheets.map(
+    (sheet) => ({
       value: sheet.id,
       label: sheet.title || "Untitled sheet",
-    })),
-    {
-      value: CREATE_NEW_SHEET_VALUE,
-      label:
-        availableSheets.length > 0 ? "Create new sheet" : "Create first sheet",
-    },
-  ];
+    })
+  );
+  const isLinkingExistingSheet = sheetRelationshipMode === "existing";
   const selectedSheet = availableSheets.find(
-    (sheet) => sheet.id === selectedSheetId && !isCreatingNewSheet
+    (sheet) => sheet.id === selectedSheetId && isLinkingExistingSheet
   );
   const selectedSheetPreviewUrl =
     selectedSheet?.thumbUrl || selectedSheet?.imageUrl;
   const canPublish =
-    Boolean(croppedFile) && (!isCreatingNewSheet || Boolean(newSheetTitle.trim()));
+    Boolean(croppedFile) && (!isLinkingExistingSheet || Boolean(selectedSheetId));
 
   useEffect(() => {
     if (!croppedFile) {
@@ -92,10 +103,10 @@ const UploadModal: React.FC<Props> = ({
     setPreviewUrl(null);
     setCaptionOrTitle("");
     setPriceInput("");
-    setTagsInput("");
+    setTags([]);
+    setTagDraft("");
+    setSheetRelationshipMode("standalone");
     setSelectedSheetId("");
-    setNewSheetTitle("");
-    setNewSheetTags("");
     setIsUploading(false);
     onClose();
   };
@@ -112,6 +123,52 @@ const UploadModal: React.FC<Props> = ({
     reader.readAsDataURL(selected);
   };
 
+  const addTags = (rawValue: string) => {
+    const nextTags = parseTags(rawValue);
+    if (nextTags.length === 0) return;
+
+    setTags((currentTags) => mergeTags(currentTags, nextTags));
+  };
+
+  const handleTagDraftChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    if (!/[\s,]/.test(value)) {
+      setTagDraft(value);
+      return;
+    }
+
+    const parts = value.split(/[\s,]+/);
+    const endsWithSeparator = /[\s,]$/.test(value);
+    const completedParts = endsWithSeparator ? parts : parts.slice(0, -1);
+
+    addTags(completedParts.join(" "));
+    setTagDraft(endsWithSeparator ? "" : parts[parts.length - 1] || "");
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === "Enter" || e.key === "Tab") && tagDraft.trim()) {
+      e.preventDefault();
+      addTags(tagDraft);
+      setTagDraft("");
+      return;
+    }
+
+    if (e.key === "Backspace" && !tagDraft && tags.length > 0) {
+      setTags((currentTags) => currentTags.slice(0, -1));
+    }
+  };
+
+  const handleTagBlur = () => {
+    if (!tagDraft.trim()) return;
+    addTags(tagDraft);
+    setTagDraft("");
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags((currentTags) => currentTags.filter((tag) => tag !== tagToRemove));
+  };
+
   const handleFinalUpload = async () => {
     if (!canPublish || !croppedFile || isUploading) return;
     if (isFlashUpload && !artistStripeConnectReady) {
@@ -126,47 +183,17 @@ const UploadModal: React.FC<Props> = ({
       const ext = croppedFile.name.split(".").pop() || "jpg";
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
-      const tags = parseTags(tagsInput);
+      const uploadTags = mergeTags(tags, parseTags(tagDraft));
       const price = isFlashUpload && priceInput ? parseFloat(priceInput) : null;
-      let linkedSheetId =
-        isFlashUpload && selectedSheetId !== CREATE_NEW_SHEET_VALUE
-          ? selectedSheetId
-          : "";
-
-      let newSheetUpload:
-        | {
-            storagePath: string;
-            file: File;
-          }
-        | null = null;
-
-      if (isFlashUpload && isCreatingNewSheet) {
-        const sheetBaseName = `sheet-${timestamp}`;
-        const sheetTags = parseTags(newSheetTags || tagsInput);
-        const sheetRef = await addDoc(collection(db, "flashSheets"), {
-          artistId: uid,
-          title: newSheetTitle.trim(),
-          tags: sheetTags,
-          artistStripeConnectReady,
-          marketplaceVisible: artistStripeConnectReady,
-          fileName: sheetBaseName,
-          status: "processing",
-          createdAt: serverTimestamp(),
-        });
-
-        linkedSheetId = sheetRef.id;
-        newSheetUpload = {
-          storagePath: `users/${uid}/flashSheets/${sheetBaseName}.${ext}`,
-          file: croppedFile,
-        };
-      }
+      const linkedSheetId =
+        isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
 
       await addDoc(collection(db, collectionType), {
         artistId: uid,
         caption: captionOrTitle || null,
         title: isFlashUpload ? captionOrTitle || "Untitled Flash" : null,
         price,
-        tags,
+        tags: uploadTags,
         artistStripeConnectReady: isFlashUpload
           ? artistStripeConnectReady
           : null,
@@ -180,23 +207,10 @@ const UploadModal: React.FC<Props> = ({
         createdAt: serverTimestamp(),
       });
 
-      const uploadTasks = [
-        uploadBytes(
-          ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
-          croppedFile
-        ),
-      ];
-
-      if (newSheetUpload) {
-        uploadTasks.push(
-          uploadBytes(
-            ref(storage, newSheetUpload.storagePath),
-            newSheetUpload.file
-          )
-        );
-      }
-
-      await Promise.all(uploadTasks);
+      await uploadBytes(
+        ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
+        croppedFile
+      );
 
       onUploadComplete();
       resetAndClose();
@@ -321,19 +335,44 @@ const UploadModal: React.FC<Props> = ({
               </label>
             )}
 
-            <label className="block">
+            <div>
               <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
                 <Tag size={16} />
                 Tags
               </span>
-              <input
-                type="text"
-                placeholder="dragon, color, anime"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-              />
-            </label>
+              <div className="mt-2 flex min-h-[52px] w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3! py-2! transition focus-within:border-red-400/70">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="flash-upload-tag-pill inline-flex items-center gap-1.5 rounded-full border border-red-200/20 bg-red-500/10 px-2.5! py-1.5! text-xs font-semibold text-red-100"
+                  >
+                    #{tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="rounded-full p-0.5! text-red-100/70 transition hover:bg-white/10 hover:text-white"
+                      aria-label={`Remove ${tag} tag`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  placeholder={
+                    tags.length > 0 ? "Add another" : "dragon, color, anime"
+                  }
+                  value={tagDraft}
+                  onChange={handleTagDraftChange}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={handleTagBlur}
+                  className="min-w-[9rem] flex-1 bg-transparent px-1! py-1.5! text-sm text-white outline-none placeholder:text-zinc-600"
+                />
+              </div>
+              <p className="mt-1.5 text-xs leading-5 text-zinc-500">
+                Press space or comma to create a tag.
+              </p>
+            </div>
 
             {isFlashUpload && allowSheetLink && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -349,15 +388,61 @@ const UploadModal: React.FC<Props> = ({
                       Keep it standalone or attach it to a sheet so it also
                       appears when clients browse that collection.
                     </p>
-                    <CustomSelect
-                      value={selectedSheetId}
-                      onChange={setSelectedSheetId}
-                      options={sheetRelationshipOptions}
-                      placeholder="Standalone flash"
-                      className="mt-3"
-                      buttonClassName="rounded-xl border-white/10 bg-black/40 py-3 focus:border-red-400/70"
-                      optionsClassName="z-[70]"
-                    />
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSheetRelationshipMode("standalone");
+                          setSelectedSheetId("");
+                        }}
+                        className={`flex items-center justify-between rounded-xl border px-3! py-3! text-left transition ${
+                          !isLinkingExistingSheet
+                            ? "border-red-300/45 bg-red-500/10 text-white"
+                            : "border-white/10 bg-black/25 text-zinc-300 hover:border-white/20 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <span className="text-sm font-semibold">
+                          Standalone flash
+                        </span>
+                        {!isLinkingExistingSheet && (
+                          <Check size={15} className="text-red-100" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSheetRelationshipMode("existing")}
+                        disabled={availableSheets.length === 0}
+                        className={`flex items-center justify-between rounded-xl border px-3! py-3! text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isLinkingExistingSheet
+                            ? "border-red-300/45 bg-red-500/10 text-white"
+                            : "border-white/10 bg-black/25 text-zinc-300 hover:border-white/20 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <span className="text-sm font-semibold">
+                          Existing sheet
+                        </span>
+                        {isLinkingExistingSheet && (
+                          <Check size={15} className="text-red-100" />
+                        )}
+                      </button>
+                    </div>
+                    {isLinkingExistingSheet && (
+                      <CustomSelect
+                        value={selectedSheetId}
+                        onChange={setSelectedSheetId}
+                        options={sheetRelationshipOptions}
+                        placeholder="Choose existing sheet"
+                        className="mt-3"
+                        buttonClassName="rounded-xl border-white/10 bg-black/40 py-3 focus:border-red-400/70"
+                        optionsClassName="z-[70]"
+                      />
+                    )}
+                    {availableSheets.length === 0 && (
+                      <p className="mt-2 text-xs leading-5 text-zinc-500">
+                        Upload a flash sheet first when you want to link items to
+                        a collection.
+                      </p>
+                    )}
                     {selectedSheet && (
                       <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-2">
                         {selectedSheetPreviewUrl ? (
@@ -374,44 +459,6 @@ const UploadModal: React.FC<Props> = ({
                         <span className="truncate text-sm text-zinc-300">
                           Linked to {selectedSheet.title || "Untitled sheet"}
                         </span>
-                      </div>
-                    )}
-                    {isCreatingNewSheet && (
-                      <div className="mt-3 rounded-xl border border-red-300/20 bg-red-500/[0.06] p-3">
-                        <p className="text-xs font-semibold text-red-100">
-                          Start a new sheet collection
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-zinc-400">
-                          This design becomes the first item and temporary cover
-                          for the new sheet so you can keep adding matching
-                          flash.
-                        </p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <label className="block">
-                            <span className="text-xs font-semibold text-zinc-300">
-                              Sheet name
-                            </span>
-                            <input
-                              type="text"
-                              value={newSheetTitle}
-                              onChange={(e) => setNewSheetTitle(e.target.value)}
-                              placeholder="Friday the 13th"
-                              className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/35 px-3! py-2.5! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-xs font-semibold text-zinc-300">
-                              Sheet tags
-                            </span>
-                            <input
-                              type="text"
-                              value={newSheetTags}
-                              onChange={(e) => setNewSheetTags(e.target.value)}
-                              placeholder="traditional, mini"
-                              className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/35 px-3! py-2.5! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                            />
-                          </label>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -432,7 +479,7 @@ const UploadModal: React.FC<Props> = ({
               type="button"
               onClick={handleFinalUpload}
               disabled={!canPublish || isUploading}
-              className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
             >
               {isUploading ? "Uploading..." : "Publish"}
             </button>
