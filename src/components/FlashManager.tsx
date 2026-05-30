@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -78,9 +77,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [priceInput, setPriceInput] = useState("");
   const [flashTagsInput, setFlashTagsInput] = useState("");
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
-  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(
-    null
-  );
   const [isSavingFlash, setIsSavingFlash] = useState(false);
 
   const linkedFlashCount = useMemo(
@@ -149,18 +145,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     if (uid) fetchFlashData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid]);
-
-  useEffect(() => {
-    if (!pendingBlob) {
-      setPendingPreviewUrl(null);
-      return undefined;
-    }
-
-    const previewUrl = URL.createObjectURL(pendingBlob);
-    setPendingPreviewUrl(previewUrl);
-
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [pendingBlob]);
 
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!stripeReady) {
@@ -451,10 +435,9 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         />
       )}
 
-      {showSheetTitleModal &&
-        createPortal(
-          <div className="request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:px-4 md:py-8">
-          <div className="mx-auto flex min-h-dvh w-full items-start justify-center md:items-center">
+      {showSheetTitleModal && (
+        <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:px-4 md:py-8">
+          <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
             <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
             <button
               type="button"
@@ -554,9 +537,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             </div>
             </div>
           </div>
-        </div>,
-          document.body
-        )}
+        </div>
+      )}
 
       {sheetImage && sheetDocId && (
         <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
@@ -630,7 +612,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           titleInput={titleInput}
           priceInput={priceInput}
           tagsInput={flashTagsInput}
-          previewUrl={pendingPreviewUrl}
           isSaving={isSavingFlash}
           onTitleChange={setTitleInput}
           onPriceChange={setPriceInput}
@@ -638,7 +619,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           onClose={() => {
             setShowFlashDetailsModal(false);
             setFlashTagsInput("");
-            setPendingBlob(null);
           }}
           onSave={handleFlashSubmit}
         />
@@ -822,7 +802,6 @@ const FlashDetailsModal = ({
   titleInput,
   priceInput,
   tagsInput,
-  previewUrl,
   isSaving,
   onTitleChange,
   onPriceChange,
@@ -833,17 +812,15 @@ const FlashDetailsModal = ({
   titleInput: string;
   priceInput: string;
   tagsInput: string;
-  previewUrl: string | null;
   isSaving: boolean;
   onTitleChange: (value: string) => void;
   onPriceChange: (value: string) => void;
   onTagsChange: (value: string) => void;
   onClose: () => void;
   onSave: () => void;
-}) =>
-  createPortal(
-    <div className="request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
-    <div className="mx-auto flex min-h-dvh w-full items-start justify-center sm:items-center">
+}) => (
+  <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
+    <div className="mx-auto flex min-h-full w-full items-start justify-center sm:items-center">
       <div className="relative w-full max-w-lg rounded-[1.25rem] border border-white/10 bg-[#111111] p-5 text-white shadow-2xl md:p-6">
       <button
         type="button"
@@ -860,27 +837,7 @@ const FlashDetailsModal = ({
       <h2 className="mt-3 text-2xl! font-bold text-white">
         Add the marketplace details
       </h2>
-      {previewUrl && (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={previewUrl}
-              alt="Cropped flash preview"
-              className="h-20 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">
-                Cropped preview
-              </p>
-              <p className="mt-1 text-xs leading-5 text-zinc-400">
-                This is the square flash item clients will see in the
-                marketplace.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="mt-5 space-y-4">
+      <div className="mt-6 space-y-4">
         <input
           type="text"
           value={titleInput}
@@ -923,9 +880,8 @@ const FlashDetailsModal = ({
       </div>
       </div>
     </div>
-  </div>,
-    document.body
-  );
+  </div>
+);
 
 const StripeRequiredNotice = ({
   onOpenPayments,
