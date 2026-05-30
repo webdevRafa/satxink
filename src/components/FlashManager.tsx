@@ -470,11 +470,11 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         </div>
 
         {loading && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="h-80 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]"
+                className="h-56 animate-pulse rounded-xl border border-white/10 bg-white/[0.03] sm:h-80 sm:rounded-2xl"
               />
             ))}
           </div>
@@ -502,7 +502,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         )}
 
         {!loading && flashSheets.length > 0 && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
             {flashSheets.map((sheet) => {
               const itemCount = flashes.filter(
                 (flash) => flash.sheetId === sheet.id
@@ -515,7 +515,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   key={sheet.id}
                   type="button"
                   onClick={() => navigate(`/flash-sheet/${sheet.id}`)}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919]"
+                  className="group overflow-hidden rounded-xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919] sm:rounded-2xl"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-black">
                     {sheetPreviewUrl ? (
@@ -533,34 +533,34 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         </span>
                       </div>
                     )}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
-                        <Scissors size={14} />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2.5 sm:p-4">
+                      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2! py-1! text-[10px] font-semibold text-white backdrop-blur sm:gap-2 sm:px-3! sm:py-1.5! sm:text-xs">
+                        <Scissors size={12} className="shrink-0 sm:size-3.5" />
                         {itemCount} itemized
                       </span>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="min-w-0 truncate text-lg! font-bold text-white">
+                  <div className="p-3 sm:p-4">
+                    <div className="flex items-start justify-between gap-2 sm:gap-3">
+                      <h3 className="min-w-0 truncate text-sm! font-bold text-white sm:text-lg!">
                         {sheet.title || "Untitled sheet"}
                       </h3>
-                      <span className="mt-1 rounded-full border border-white/10 bg-white/5 p-2 text-zinc-300 transition group-hover:bg-white group-hover:text-black">
-                        <ArrowRight size={15} />
+                      <span className="mt-0.5 rounded-full border border-white/10 bg-white/5 p-1.5 text-zinc-300 transition group-hover:bg-white group-hover:text-black sm:mt-1 sm:p-2">
+                        <ArrowRight size={13} className="sm:size-[15px]" />
                       </span>
                     </div>
-                    <div className="mt-3 flex min-h-7 flex-wrap gap-2">
+                    <div className="mt-2 flex min-h-6 flex-wrap gap-1.5 sm:mt-3 sm:min-h-7 sm:gap-2">
                       {tags.length > 0 ? (
                         tags.map((tag) => (
                           <span
                             key={tag}
-                            className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-300"
+                            className="max-w-full truncate rounded-full border border-white/10 bg-white/5 px-2! py-0.5! text-[10px] text-zinc-300 sm:px-2.5! sm:py-1! sm:text-xs"
                           >
                             {tag}
                           </span>
                         ))
                       ) : (
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-500">
+                        <span className="max-w-full truncate rounded-full border border-white/10 bg-white/5 px-2! py-0.5! text-[10px] text-zinc-500 sm:px-2.5! sm:py-1! sm:text-xs">
                           No tags yet
                         </span>
                       )}
