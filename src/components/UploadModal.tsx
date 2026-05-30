@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { parseTags } from "../utils/tags";
 import type { FlashSheet } from "../types/FlashSheet";
+import CustomSelect from "./ui/CustomSelect";
+import type { SelectOption } from "../utils/timeOptions";
 
 type Props = {
   uid: string;
@@ -24,6 +26,8 @@ type Props = {
   availableSheets?: FlashSheet[];
   allowSheetLink?: boolean;
 };
+
+const CREATE_NEW_SHEET_VALUE = "__create_new_sheet__";
 
 const UploadModal: React.FC<Props> = ({
   uid,
@@ -42,12 +46,31 @@ const UploadModal: React.FC<Props> = ({
   const [priceInput, setPriceInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [selectedSheetId, setSelectedSheetId] = useState("");
+  const [newSheetTitle, setNewSheetTitle] = useState("");
+  const [newSheetTags, setNewSheetTags] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const isFlashUpload = collectionType === "flashes";
+  const isCreatingNewSheet = selectedSheetId === CREATE_NEW_SHEET_VALUE;
+  const sheetRelationshipOptions: SelectOption[] = [
+    { value: "", label: "Standalone flash" },
+    ...availableSheets.map((sheet) => ({
+      value: sheet.id,
+      label: sheet.title || "Untitled sheet",
+    })),
+    {
+      value: CREATE_NEW_SHEET_VALUE,
+      label:
+        availableSheets.length > 0 ? "Create new sheet" : "Create first sheet",
+    },
+  ];
   const selectedSheet = availableSheets.find(
-    (sheet) => sheet.id === selectedSheetId
+    (sheet) => sheet.id === selectedSheetId && !isCreatingNewSheet
   );
+  const selectedSheetPreviewUrl =
+    selectedSheet?.thumbUrl || selectedSheet?.imageUrl;
+  const canPublish =
+    Boolean(croppedFile) && (!isCreatingNewSheet || Boolean(newSheetTitle.trim()));
 
   useEffect(() => {
     if (!croppedFile) {
@@ -71,6 +94,8 @@ const UploadModal: React.FC<Props> = ({
     setPriceInput("");
     setTagsInput("");
     setSelectedSheetId("");
+    setNewSheetTitle("");
+    setNewSheetTags("");
     setIsUploading(false);
     onClose();
   };
@@ -88,7 +113,7 @@ const UploadModal: React.FC<Props> = ({
   };
 
   const handleFinalUpload = async () => {
-    if (!croppedFile || isUploading) return;
+    if (!canPublish || !croppedFile || isUploading) return;
     if (isFlashUpload && !artistStripeConnectReady) {
       console.error("Stripe Connect is required before uploading flash.");
       return;
@@ -103,7 +128,38 @@ const UploadModal: React.FC<Props> = ({
       const uniqueName = `${baseName}.${ext}`;
       const tags = parseTags(tagsInput);
       const price = isFlashUpload && priceInput ? parseFloat(priceInput) : null;
-      const isLinkedToSheet = isFlashUpload && Boolean(selectedSheetId);
+      let linkedSheetId =
+        isFlashUpload && selectedSheetId !== CREATE_NEW_SHEET_VALUE
+          ? selectedSheetId
+          : "";
+
+      let newSheetUpload:
+        | {
+            storagePath: string;
+            file: File;
+          }
+        | null = null;
+
+      if (isFlashUpload && isCreatingNewSheet) {
+        const sheetBaseName = `sheet-${timestamp}`;
+        const sheetTags = parseTags(newSheetTags || tagsInput);
+        const sheetRef = await addDoc(collection(db, "flashSheets"), {
+          artistId: uid,
+          title: newSheetTitle.trim(),
+          tags: sheetTags,
+          artistStripeConnectReady,
+          marketplaceVisible: artistStripeConnectReady,
+          fileName: sheetBaseName,
+          status: "processing",
+          createdAt: serverTimestamp(),
+        });
+
+        linkedSheetId = sheetRef.id;
+        newSheetUpload = {
+          storagePath: `users/${uid}/flashSheets/${sheetBaseName}.${ext}`,
+          file: croppedFile,
+        };
+      }
 
       await addDoc(collection(db, collectionType), {
         artistId: uid,
@@ -118,17 +174,29 @@ const UploadModal: React.FC<Props> = ({
         fileName: baseName,
         timestamp,
         isAvailable: isFlashUpload ? true : null,
-        isFromSheet: isFlashUpload ? isLinkedToSheet : null,
-        sheetId: isFlashUpload ? selectedSheetId || null : null,
+        isFromSheet: isFlashUpload ? Boolean(linkedSheetId) : null,
+        sheetId: isFlashUpload ? linkedSheetId || null : null,
         status: "processing",
         createdAt: serverTimestamp(),
       });
 
-      const storageRef = ref(
-        storage,
-        `users/${uid}/${collectionType}/${uniqueName}`
-      );
-      await uploadBytes(storageRef, croppedFile);
+      const uploadTasks = [
+        uploadBytes(
+          ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
+          croppedFile
+        ),
+      ];
+
+      if (newSheetUpload) {
+        uploadTasks.push(
+          uploadBytes(
+            ref(storage, newSheetUpload.storagePath),
+            newSheetUpload.file
+          )
+        );
+      }
+
+      await Promise.all(uploadTasks);
 
       onUploadComplete();
       resetAndClose();
@@ -139,8 +207,9 @@ const UploadModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.95fr_1.05fr]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-6 md:py-8">
+      <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
+        <div className="relative grid w-full max-w-5xl overflow-visible rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.95fr_1.05fr]">
         <button
           type="button"
           onClick={resetAndClose}
@@ -150,7 +219,7 @@ const UploadModal: React.FC<Props> = ({
           <X size={18} />
         </button>
 
-        <div className="border-b border-white/10 bg-black/30 p-5 md:border-b-0 md:border-r md:p-6">
+        <div className="border-b border-white/10 bg-black/30 p-4 md:border-b-0 md:border-r md:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
             {isFlashUpload ? "Flash upload" : "Gallery upload"}
           </p>
@@ -163,11 +232,11 @@ const UploadModal: React.FC<Props> = ({
               : "Crop the image, add a caption and tags, then publish it to your portfolio."}
           </p>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35 md:mt-6">
             {previewUrl ? (
               <img
                 src={previewUrl}
-                alt="Upload preview"
+                alt="Platform flash preview"
                 className="aspect-square w-full object-cover"
               />
             ) : (
@@ -193,6 +262,18 @@ const UploadModal: React.FC<Props> = ({
             )}
           </div>
 
+          {previewUrl && isFlashUpload && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+              <p className="text-xs font-semibold text-white">
+                Platform preview
+              </p>
+              <p className="mt-1 text-xs leading-4 text-zinc-500">
+                This 1:1 crop matches the square frame used by flash items
+                cropped from sheets.
+              </p>
+            </div>
+          )}
+
           {previewUrl && (
             <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-200 transition hover:bg-white/10">
               <ImageIcon size={17} />
@@ -207,7 +288,7 @@ const UploadModal: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="p-5 md:p-6">
+        <div className="p-4 md:p-6">
           <div className="space-y-4">
             <label className="block">
               <span className="text-sm font-semibold text-zinc-300">
@@ -268,28 +349,69 @@ const UploadModal: React.FC<Props> = ({
                       Keep it standalone or attach it to a sheet so it also
                       appears when clients browse that collection.
                     </p>
-                    <select
+                    <CustomSelect
                       value={selectedSheetId}
-                      onChange={(e) => setSelectedSheetId(e.target.value)}
-                      className="mt-3 w-full rounded-xl border border-white/10 bg-black/40 px-3! py-3! text-sm text-white outline-none focus:border-red-400/70"
-                    >
-                      <option value="">Standalone flash</option>
-                      {availableSheets.map((sheet) => (
-                        <option key={sheet.id} value={sheet.id}>
-                          {sheet.title || "Untitled sheet"}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setSelectedSheetId}
+                      options={sheetRelationshipOptions}
+                      placeholder="Standalone flash"
+                      className="mt-3"
+                      buttonClassName="rounded-xl border-white/10 bg-black/40 py-3 focus:border-red-400/70"
+                      optionsClassName="z-[70]"
+                    />
                     {selectedSheet && (
                       <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-2">
-                        <img
-                          src={selectedSheet.thumbUrl || selectedSheet.imageUrl}
-                          alt={selectedSheet.title || "Selected sheet"}
-                          className="h-12 w-12 rounded-lg object-cover"
-                        />
+                        {selectedSheetPreviewUrl ? (
+                          <img
+                            src={selectedSheetPreviewUrl}
+                            alt={selectedSheet.title || "Selected sheet"}
+                            className="h-12 w-12 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-400">
+                            <Layers size={18} />
+                          </span>
+                        )}
                         <span className="truncate text-sm text-zinc-300">
                           Linked to {selectedSheet.title || "Untitled sheet"}
                         </span>
+                      </div>
+                    )}
+                    {isCreatingNewSheet && (
+                      <div className="mt-3 rounded-xl border border-red-300/20 bg-red-500/[0.06] p-3">
+                        <p className="text-xs font-semibold text-red-100">
+                          Start a new sheet collection
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-400">
+                          This design becomes the first item and temporary cover
+                          for the new sheet so you can keep adding matching
+                          flash.
+                        </p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="text-xs font-semibold text-zinc-300">
+                              Sheet name
+                            </span>
+                            <input
+                              type="text"
+                              value={newSheetTitle}
+                              onChange={(e) => setNewSheetTitle(e.target.value)}
+                              placeholder="Friday the 13th"
+                              className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/35 px-3! py-2.5! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-semibold text-zinc-300">
+                              Sheet tags
+                            </span>
+                            <input
+                              type="text"
+                              value={newSheetTags}
+                              onChange={(e) => setNewSheetTags(e.target.value)}
+                              placeholder="traditional, mini"
+                              className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/35 px-3! py-2.5! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                            />
+                          </label>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -309,12 +431,13 @@ const UploadModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleFinalUpload}
-              disabled={!croppedFile || isUploading}
+              disabled={!canPublish || isUploading}
               className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {isUploading ? "Uploading..." : "Publish"}
             </button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -322,6 +445,14 @@ const UploadModal: React.FC<Props> = ({
         <ImageCropperModal
           imageSrc={cropSrc}
           aspect={isFlashUpload ? 1 : 4 / 5}
+          cropShape="rect"
+          outputSize={isFlashUpload ? 1080 : undefined}
+          title={isFlashUpload ? "Frame your flash" : "Position your photo"}
+          description={
+            isFlashUpload
+              ? "Center the design inside the square marketplace crop used across SATX Ink."
+              : "Drag to frame the image, then zoom until it feels right."
+          }
           onCancel={() => {
             setCropSrc(null);
           }}

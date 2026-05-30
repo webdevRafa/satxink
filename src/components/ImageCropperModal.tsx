@@ -6,13 +6,18 @@ import { Check, Minus, Plus, X } from "lucide-react";
 type Props = {
   imageSrc: string;
   aspect?: number; // Default 1:1
+  cropShape?: "round" | "rect";
+  outputSize?: number;
+  title?: string;
+  description?: string;
   onCancel: () => void;
   onSave: (croppedFile: File) => void;
 };
 
 const getCroppedImg = async (
   imageSrc: string,
-  cropAreaPixels: Area
+  cropAreaPixels: Area,
+  outputSize?: number
 ): Promise<File> => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
@@ -20,8 +25,13 @@ const getCroppedImg = async (
 
   if (!ctx) throw new Error("Canvas context not available");
 
-  canvas.width = cropAreaPixels.width;
-  canvas.height = cropAreaPixels.height;
+  const targetWidth = outputSize || cropAreaPixels.width;
+  const targetHeight = outputSize
+    ? Math.round(outputSize * (cropAreaPixels.height / cropAreaPixels.width))
+    : cropAreaPixels.height;
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
 
   ctx.drawImage(
     image,
@@ -31,8 +41,8 @@ const getCroppedImg = async (
     cropAreaPixels.height,
     0,
     0,
-    canvas.width,
-    canvas.height
+    targetWidth,
+    targetHeight
   );
 
   return new Promise((resolve, reject) => {
@@ -56,6 +66,10 @@ const createImage = (url: string): Promise<HTMLImageElement> => {
 const ImageCropperModal: React.FC<Props> = ({
   imageSrc,
   aspect = 1,
+  cropShape,
+  outputSize,
+  title = "Position your photo",
+  description = "Drag to frame the image, then zoom until it feels right.",
   onCancel,
   onSave,
 }) => {
@@ -65,18 +79,22 @@ const ImageCropperModal: React.FC<Props> = ({
 
   const handleSave = async () => {
     if (!croppedAreaPixels) return;
-    const croppedFile = await getCroppedImg(imageSrc, croppedAreaPixels);
+    const croppedFile = await getCroppedImg(
+      imageSrc,
+      croppedAreaPixels,
+      outputSize
+    );
     onSave(croppedFile);
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 backdrop-blur-md">
-      <div className="w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-[#121212] text-white shadow-2xl">
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/80 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-8">
+      <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-[#121212] text-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h2 className="mb-1! text-xl!">Position your photo</h2>
+            <h2 className="mb-1! text-xl!">{title}</h2>
             <p className="text-sm text-neutral-400">
-              Drag to frame the image, then zoom until it feels right.
+              {description}
             </p>
           </div>
           <button
@@ -89,13 +107,13 @@ const ImageCropperModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="relative h-[52vh] min-h-[360px] bg-black">
+        <div className="relative h-[52vh] min-h-[280px] bg-black sm:min-h-[360px]">
           <Cropper
             image={imageSrc}
             crop={crop}
             zoom={zoom}
             aspect={aspect}
-            cropShape={aspect === 1 ? "round" : "rect"}
+            cropShape={cropShape || (aspect === 1 ? "round" : "rect")}
             showGrid={false}
             onCropChange={setCrop}
             onZoomChange={setZoom}

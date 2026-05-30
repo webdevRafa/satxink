@@ -679,6 +679,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 (flash) => flash.sheetId === sheet.id
               ).length;
               const tags = Array.isArray(sheet.tags) ? sheet.tags.slice(0, 3) : [];
+              const sheetPreviewUrl = sheet.thumbUrl || sheet.imageUrl;
 
               return (
                 <button
@@ -688,12 +689,21 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919]"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-black">
-                    <img
-                      src={sheet.thumbUrl || sheet.imageUrl}
-                      alt={sheet.title || "Flash sheet"}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                      loading="lazy"
-                    />
+                    {sheetPreviewUrl ? (
+                      <img
+                        src={sheetPreviewUrl}
+                        alt={sheet.title || "Flash sheet"}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-500">
+                        <Grid2X2 size={24} />
+                        <span className="text-xs font-semibold">
+                          Processing cover
+                        </span>
+                      </div>
+                    )}
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
                       <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
                         <Scissors size={14} />
