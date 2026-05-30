@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import logo from "../assets/satx-short-sep.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -11,12 +11,10 @@ import {
   Image,
   LogOut,
   LogIn,
-  Home,
   Search,
   Users,
   Info,
   Menu,
-  ChevronDown,
   UserPlus,
   X,
 } from "lucide-react";
@@ -56,17 +54,13 @@ export const Navbar = () => {
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
   const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
-  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = () => {
     setIsOpen(false);
-    setIsAccountMenuOpen(false);
     signOutUser(navigate);
   };
   const handleLogin = () => {
     setIsOpen(false);
-    setIsAccountMenuOpen(false);
     signInWithGoogle(navigate);
   };
   useEffect(() => {
@@ -103,31 +97,6 @@ export const Navbar = () => {
 
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (!isAccountMenuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        accountMenuRef.current &&
-        !accountMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsAccountMenuOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsAccountMenuOpen(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isAccountMenuOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -182,66 +151,21 @@ export const Navbar = () => {
           </Link>
 
           {user ? (
-            <div className="relative" ref={accountMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsAccountMenuOpen((isOpen) => !isOpen)}
-                aria-expanded={isAccountMenuOpen}
-                aria-haspopup="menu"
-                className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1 pr-2 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-              >
-                <img
-                  src={
-                    userDoc?.avatarUrl ||
-                    user.photoURL ||
-                    "/fallback-avatar.jpg"
-                  }
-                  alt={userDoc?.name || user.displayName || "User avatar"}
-                  className="w-8 h-8 rounded-full border border-white/30 object-cover"
-                />
-                <ChevronDown
-                  size={16}
-                  className={`transition-transform ${
-                    isAccountMenuOpen ? "rotate-180" : ""
-                  }`}
-                  aria-hidden="true"
-                />
-              </button>
-
-              {isAccountMenuOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 mt-3 w-64 overflow-hidden rounded-lg border border-white/10 bg-[#121212]/95 text-white shadow-2xl shadow-black/40 backdrop-blur-md"
-                >
-                  <div className="border-b border-white/10 px-4 py-3">
-                    <p className="truncate text-sm font-medium">
-                      {userDoc?.name || user.displayName || "Signed in"}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-neutral-400 capitalize">
-                      {userRole || user.email || "Account"}
-                    </p>
-                  </div>
-                  <Link
-                    to="/dashboard"
-                    role="menuitem"
-                    onClick={() => setIsAccountMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-3 text-sm text-neutral-200 transition hover:bg-white/5 hover:text-orange-300"
-                  >
-                    <Home size={17} aria-hidden="true" />
-                    Dashboard
-                  </Link>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-neutral-200 transition hover:bg-red-500/10 hover:text-red-300"
-                  >
-                    <LogOut size={17} aria-hidden="true" />
-                    Log out
-                  </button>
-                </div>
-              )}
-            </div>
+            <Link
+              to="/dashboard"
+              aria-label="Open dashboard"
+              className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
+            >
+              <img
+                src={
+                  userDoc?.avatarUrl ||
+                  user.photoURL ||
+                  "/fallback-avatar.jpg"
+                }
+                alt={userDoc?.name || user.displayName || "User avatar"}
+                className="w-8 h-8 rounded-full border border-white/30 object-cover"
+              />
+            </Link>
           ) : (
             <>
               <Link
