@@ -14,8 +14,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
 
 import { db, storage } from "../firebase/firebaseConfig";
@@ -30,7 +28,6 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import { getCroppedImg } from "../utils/cropImage";
 import { parseTags } from "../utils/tags";
 import {
   isStripeConnectReady,
@@ -61,23 +58,12 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const [sheetDocId, setSheetDocId] = useState<string | null>(null);
   const [sheetImage, setSheetImage] = useState<string | null>(null);
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
   const [sheetTagsInput, setSheetTagsInput] = useState("");
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
-
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [currentCrop, setCurrentCrop] = useState<Area | null>(null);
-  const [showFlashDetailsModal, setShowFlashDetailsModal] = useState(false);
-  const [titleInput, setTitleInput] = useState("");
-  const [priceInput, setPriceInput] = useState("");
-  const [flashTagsInput, setFlashTagsInput] = useState("");
-  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
-  const [isSavingFlash, setIsSavingFlash] = useState(false);
 
   const linkedFlashCount = useMemo(
     () => flashes.filter((flash) => flash.isFromSheet || flash.sheetId).length,
@@ -222,95 +208,18 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         createdAt: serverTimestamp(),
       });
 
-      setSheetDocId(docRef.id);
       setSheetTitleInput("");
       setSheetTagsInput("");
       setPendingSheetFile(null);
+      setSheetImage(null);
       setShowSheetTitleModal(false);
-      setMode("sheet");
-      toast.success("Flash sheet uploaded.");
-      fetchFlashData();
+      toast.success("Flash sheet uploaded. Opening editor.");
+      void fetchFlashData();
+      navigate(`/flash-sheet/${docRef.id}`);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Upload failed. Please try again."));
     } finally {
       setIsUploadingSheet(false);
-    }
-  };
-
-  const handleCropComplete = (_: Area, croppedAreaPixels: Area) => {
-    setCurrentCrop(croppedAreaPixels);
-  };
-
-  const handleSaveCropRequest = async () => {
-    if (!sheetImage || !currentCrop) {
-      toast("Choose an area to crop.");
-      return;
-    }
-
-    try {
-      const blob = await getCroppedImg(sheetImage, currentCrop);
-      setPendingBlob(blob);
-      setShowFlashDetailsModal(true);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to generate crop."));
-    }
-  };
-
-  const handleFlashSubmit = async () => {
-    if (!pendingBlob || !uid) return;
-    if (!stripeReady) {
-      toast.error("Connect Stripe before adding flash to the marketplace.");
-      return;
-    }
-
-    try {
-      setIsSavingFlash(true);
-
-      const timestamp = Date.now();
-      const baseName = `flash_${timestamp}`;
-      const storageBasePath = `users/${uid}/flashes/${baseName}`;
-      const originalRef = ref(storage, `${storageBasePath}.jpg`);
-
-      await uploadBytes(originalRef, pendingBlob);
-      await wait(1200);
-
-      const fullRef = ref(storage, `${storageBasePath}_full.jpg`);
-      const thumbRef = ref(storage, `${storageBasePath}_thumb.webp`);
-      const webp90Ref = ref(storage, `${storageBasePath}_webp90.webp`);
-
-      const [fullUrl, thumbUrl, webp90Url] = await Promise.all([
-        waitForFile(fullRef),
-        waitForFile(thumbRef),
-        waitForFile(webp90Ref),
-      ]);
-
-      await addDoc(collection(db, "flashes"), {
-        artistId: uid,
-        title: titleInput.trim() || "Untitled Flash",
-        price: priceInput ? parseFloat(priceInput) : null,
-        tags: parseTags(flashTagsInput),
-        artistStripeConnectReady: true,
-        marketplaceVisible: true,
-        fullUrl,
-        thumbUrl,
-        webp90Url,
-        isFromSheet: true,
-        sheetId: sheetDocId,
-        createdAt: serverTimestamp(),
-      });
-
-      setTitleInput("");
-      setPriceInput("");
-      setFlashTagsInput("");
-      setCurrentCrop(null);
-      setPendingBlob(null);
-      setShowFlashDetailsModal(false);
-      toast.success("Flash saved.");
-      fetchFlashData();
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to save flash."));
-    } finally {
-      setIsSavingFlash(false);
     }
   };
 
@@ -506,11 +415,11 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      Crop after upload
+                      Continue in sheet editor
                     </p>
                     <p className="mt-1 text-xs leading-5 text-zinc-500">
-                      Once the sheet is saved, you can crop designs here or open
-                      the dedicated sheet editor any time.
+                      Once the sheet is saved, the full editor opens so you can
+                      crop designs and review itemized flash beneath it.
                     </p>
                   </div>
                 </div>
@@ -531,97 +440,13 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
                   disabled={isUploadingSheet || !sheetTitleInput.trim()}
                 >
-                  {isUploadingSheet ? "Uploading..." : "Save sheet"}
+                  {isUploadingSheet ? "Saving..." : "Save & continue"}
                 </button>
               </div>
             </div>
             </div>
           </div>
         </div>
-      )}
-
-      {sheetImage && sheetDocId && (
-        <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
-          <div className="flex flex-col gap-4 border-b border-white/10 p-5 md:flex-row md:items-center md:justify-between md:p-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-                Freshly uploaded
-              </p>
-              <h3 className="mt-2 text-2xl! font-bold text-white">
-                Crop items from this sheet
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Drag the crop box over a design, zoom if needed, then save it as
-                an individual flash item.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSheetImage(null)}
-              className="rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
-            >
-              Done
-            </button>
-          </div>
-          <div className="grid gap-5 p-5 lg:grid-cols-[1fr_280px] md:p-6">
-            <div className="relative h-[540px] overflow-hidden rounded-2xl border border-white/10 bg-black">
-              <Cropper
-                image={sheetImage}
-                crop={crop}
-                zoom={zoom}
-                maxZoom={8}
-                aspect={1}
-                objectFit="cover"
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={handleCropComplete}
-              />
-            </div>
-            <aside className="rounded-2xl border border-white/10 bg-black/25 p-4">
-              <p className="text-sm font-semibold text-white">Crop controls</p>
-              <label className="mt-5 block">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                  Zoom
-                </span>
-                <input
-                  aria-label="Zoom"
-                  type="range"
-                  min={1}
-                  max={8}
-                  step={0.1}
-                  value={zoom}
-                  onChange={(e) => setZoom(parseFloat(e.target.value))}
-                  className="mt-3 w-full accent-red-400"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={handleSaveCropRequest}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
-              >
-                <Scissors size={16} />
-                Create flash
-              </button>
-            </aside>
-          </div>
-        </section>
-      )}
-
-      {showFlashDetailsModal && (
-        <FlashDetailsModal
-          titleInput={titleInput}
-          priceInput={priceInput}
-          tagsInput={flashTagsInput}
-          isSaving={isSavingFlash}
-          onTitleChange={setTitleInput}
-          onPriceChange={setPriceInput}
-          onTagsChange={setFlashTagsInput}
-          onClose={() => {
-            setShowFlashDetailsModal(false);
-            setFlashTagsInput("");
-          }}
-          onSave={handleFlashSubmit}
-        />
       )}
 
       <section>
@@ -795,91 +620,6 @@ const StatCard = ({ label, value }: { label: string; value: number }) => (
     <p className="mt-0.5 text-sm! font-bold leading-none text-white md:text-base!">
       {value}
     </p>
-  </div>
-);
-
-const FlashDetailsModal = ({
-  titleInput,
-  priceInput,
-  tagsInput,
-  isSaving,
-  onTitleChange,
-  onPriceChange,
-  onTagsChange,
-  onClose,
-  onSave,
-}: {
-  titleInput: string;
-  priceInput: string;
-  tagsInput: string;
-  isSaving: boolean;
-  onTitleChange: (value: string) => void;
-  onPriceChange: (value: string) => void;
-  onTagsChange: (value: string) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) => (
-  <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
-    <div className="mx-auto flex min-h-full w-full items-start justify-center sm:items-center">
-      <div className="relative w-full max-w-lg rounded-[1.25rem] border border-white/10 bg-[#111111] p-5 text-white shadow-2xl md:p-6">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
-        aria-label="Close flash details modal"
-        disabled={isSaving}
-      >
-        <X size={18} />
-      </button>
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-        New flash item
-      </p>
-      <h2 className="mt-3 text-2xl! font-bold text-white">
-        Add the marketplace details
-      </h2>
-      <div className="mt-6 space-y-4">
-        <input
-          type="text"
-          value={titleInput}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="Title"
-          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-        />
-        <input
-          type="number"
-          value={priceInput}
-          onChange={(e) => onPriceChange(e.target.value)}
-          placeholder="Price (optional)"
-          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-        />
-        <input
-          type="text"
-          value={tagsInput}
-          onChange={(e) => onTagsChange(e.target.value)}
-          placeholder="Tags (comma or space separated)"
-          className="w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-        />
-      </div>
-      <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
-          disabled={isSaving}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving..." : "Publish flash"}
-        </button>
-      </div>
-      </div>
-    </div>
   </div>
 );
 
