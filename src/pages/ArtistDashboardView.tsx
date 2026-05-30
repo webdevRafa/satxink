@@ -1715,10 +1715,7 @@ const ArtistDashboardView = () => {
           <section className="mt-6 w-full max-w-7xl space-y-6">
             <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                  Artist bookings
-                </p>
-                <h1 className="mt-2 text-3xl! font-semibold text-white capitalize">
+                <h1 className="text-3xl! font-semibold text-white capitalize">
                   {activeTab === "sessions"
                     ? "Active sessions"
                     : activeTab === "projects"
@@ -2099,9 +2096,6 @@ const ArtistDashboardProfileHeader = ({
 
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)] sm:text-[11px]">
-              Artist profile
-            </p>
             <h1 className="my-0! min-w-0 truncate text-xl! font-semibold leading-tight text-white sm:text-2xl!">
               {artistDisplayName}
             </h1>

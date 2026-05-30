@@ -350,10 +350,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-            Artist inbox
-          </p>
-          <h1 className="mt-2 text-3xl! font-semibold text-white">
+          <h1 className="text-3xl! font-semibold text-white">
             Sent offers
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-neutral-400">
