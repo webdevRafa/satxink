@@ -72,6 +72,29 @@ const parseOptionalPrice = (value: string) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
+const useMediaQuery = (queryString: string) => {
+  const getMatches = () =>
+    typeof window !== "undefined"
+      ? window.matchMedia(queryString).matches
+      : false;
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQueryList = window.matchMedia(queryString);
+    const handleChange = () => setMatches(mediaQueryList.matches);
+
+    handleChange();
+    mediaQueryList.addEventListener("change", handleChange);
+
+    return () => mediaQueryList.removeEventListener("change", handleChange);
+  }, [queryString]);
+
+  return matches;
+};
+
 const FlashSheetDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -519,7 +542,21 @@ const CropFlashModal = ({
   onPublish: () => void;
 }) => {
   const [mobileStep, setMobileStep] = useState<"crop" | "details">("crop");
+  const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
+  const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
+  const cropperStyle = isDesktopCropper
+    ? undefined
+    : {
+        containerStyle: { backgroundColor: "#000" },
+        mediaStyle: {
+          height: "auto",
+          maxHeight: "100%",
+          maxWidth: "100%",
+          width: "auto",
+        },
+      };
+
   const handleContinueToDetails = () => {
     if (!validCropArea) {
       toast("Choose a crop area first.");
@@ -543,14 +580,15 @@ const CropFlashModal = ({
           {sheet.title || "Untitled sheet"}
         </h2>
       </div>
-      <div className="relative min-h-0 flex-1 bg-black lg:min-h-[420px]">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-black lg:min-h-[420px]">
         <Cropper
           image={sheet.imageUrl}
           crop={crop}
           zoom={zoom}
           maxZoom={8}
           aspect={1}
-          objectFit="cover"
+          objectFit={cropperObjectFit}
+          style={cropperStyle}
           onCropChange={onCropChange}
           onZoomChange={onZoomChange}
           onCropComplete={onCropComplete}
