@@ -35,6 +35,20 @@ export type EventClientActionType =
   | "waitlist"
   | "external_link";
 
+export type FlashReservationSize = "small" | "medium" | "large";
+
+export type FlashReservationPaymentType = "deposit" | "full_price";
+
+export type FlashEventDurationRules = Record<FlashReservationSize, number> & {
+  buffer: number;
+};
+
+export type FlashEventSlot = {
+  id: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type ArtistEvent = {
   id: string;
   artistId: string;
@@ -70,6 +84,12 @@ export type ArtistEvent = {
   spotsClaimed?: number;
   participantArtistIds?: string[];
   satxActionNote?: string;
+
+  includedFlashSheetIds?: string[];
+  flashReservationPaymentType?: FlashReservationPaymentType;
+  flashDepositAmount?: number | null;
+  flashDurationRules?: FlashEventDurationRules;
+  flashReservationSlots?: FlashEventSlot[];
 
   thumbnailUrl?: string;
   thumbnailPath?: string;

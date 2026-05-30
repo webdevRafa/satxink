@@ -27,6 +27,14 @@ export type EventRegistration = {
   eventType?: string;
   bookingMode?: string;
   clientActionType?: string;
+  flashReservationFlashId?: string;
+  flashReservationFlashTitle?: string;
+  flashReservationFlashImageUrl?: string;
+  flashReservationSheetId?: string;
+  flashReservationSize?: string;
+  flashReservationSlotId?: string;
+  flashReservationSlotStartTime?: string;
+  flashReservationSlotEndTime?: string;
   clientId: string;
   clientName?: string;
   clientAvatarUrl?: string;

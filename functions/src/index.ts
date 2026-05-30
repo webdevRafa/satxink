@@ -75,6 +75,44 @@ const userCanManageEvent = (
   return Boolean(shopId && ownedShopIds.includes(shopId));
 };
 
+const parseFlashReservationCheckoutInput = (
+  value: unknown
+): FlashReservationCheckoutInput => {
+  const input =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const size = String(input.size || "");
+
+  if (size !== "small" && size !== "medium" && size !== "large") {
+    throw new HttpsError("invalid-argument", "Choose a valid flash size.");
+  }
+
+  const reservation = {
+    flashId: String(input.flashId || "").trim(),
+    flashTitle: String(input.flashTitle || "").trim(),
+    flashImageUrl: String(input.flashImageUrl || "").trim(),
+    flashSheetId: String(input.flashSheetId || "").trim(),
+    size: size as FlashReservationSize,
+    slotId: String(input.slotId || "").trim(),
+    slotStartTime: String(input.slotStartTime || "").trim(),
+    slotEndTime: String(input.slotEndTime || "").trim(),
+  };
+
+  if (
+    !reservation.flashId ||
+    !reservation.flashSheetId ||
+    !reservation.slotId
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Choose a flash design and appointment slot."
+    );
+  }
+
+  return reservation;
+};
+
 const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
   user.role === "artist" ||
   user.role === "shop_owner" ||
@@ -95,6 +133,18 @@ const estimateStripeFeeCents = (clientTotalCents: number) =>
   Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
 
 type CheckoutPaymentMode = "deposit" | "full" | "remaining";
+type FlashReservationSize = "small" | "medium" | "large";
+
+type FlashReservationCheckoutInput = {
+  flashId: string;
+  flashTitle: string;
+  flashImageUrl: string;
+  flashSheetId: string;
+  size: FlashReservationSize;
+  slotId: string;
+  slotStartTime: string;
+  slotEndTime: string;
+};
 
 type CropAreaInput = {
   x?: unknown;
@@ -1265,7 +1315,8 @@ const createEventCheckoutSession = onCall(
     const registrationRef = db.collection("eventRegistrations").doc(`${eventId}_${uid}`);
     const stripe = getStripeClient();
 
-    const { event, qrToken } = await db.runTransaction(async (transaction) => {
+    const { event, qrToken, priceCents, paymentType, flashReservation } =
+      await db.runTransaction(async (transaction) => {
       const [eventSnap, userSnap, existingRegistrationSnap] = await Promise.all([
         transaction.get(eventRef),
         transaction.get(userRef),
@@ -1278,18 +1329,111 @@ const createEventCheckoutSession = onCall(
 
       const eventData = eventSnap.data() || {};
       if (eventData.status !== "published" || eventData.visibility !== "public") {
-        throw new HttpsError("failed-precondition", "This event is not selling paid passes.");
+        throw new HttpsError("failed-precondition", "This event is not accepting reservations.");
       }
 
-      if (eventData.bookingMode !== "paid_ticket") {
-        throw new HttpsError("failed-precondition", "This event is not selling paid passes.");
-      }
+      const isFlashReservation =
+        eventData.ownerType === "artist" &&
+        eventData.eventType === "flash_day" &&
+        (eventData.bookingMode === "flash_reservation" ||
+          eventData.clientActionType === "flash_reservation");
+      const isPaidTicket =
+        eventData.bookingMode === "paid_ticket" &&
+        eventData.clientActionType === "paid_event_pass";
 
-      const priceCents = Math.round(Number(eventData.price || 0) * 100);
-      if (!priceCents || priceCents <= PLATFORM_FEE_MIN_CENTS) {
+      if (eventData.ownerType === "shop") {
         throw new HttpsError(
           "failed-precondition",
-          "Paid event pass prices must be greater than the platform fee."
+          "Shop events are informational only."
+        );
+      }
+
+      if (!isFlashReservation && !isPaidTicket) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This event is not accepting paid reservations."
+        );
+      }
+
+      let reservation: FlashReservationCheckoutInput | null = null;
+      if (isFlashReservation) {
+        reservation = parseFlashReservationCheckoutInput(req.data?.flashReservation);
+        const includedSheetIds = Array.isArray(eventData.includedFlashSheetIds)
+          ? eventData.includedFlashSheetIds.map(String)
+          : [];
+        if (!includedSheetIds.includes(reservation.flashSheetId)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This flash sheet is not part of the event."
+          );
+        }
+
+        const eventSlots = Array.isArray(eventData.flashReservationSlots)
+          ? eventData.flashReservationSlots
+          : [];
+        const matchingSlot = eventSlots.find(
+          (slot: admin.firestore.DocumentData) =>
+            String(slot.id || "") === reservation?.slotId
+        );
+        if (!matchingSlot) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This reservation slot is no longer available."
+          );
+        }
+
+        reservation = {
+          ...reservation,
+          slotStartTime: String(matchingSlot.startTime || reservation.slotStartTime),
+          slotEndTime: String(matchingSlot.endTime || reservation.slotEndTime),
+        };
+
+        const flashSnap = await transaction.get(
+          db.collection("flashes").doc(reservation.flashId)
+        );
+        if (!flashSnap.exists) {
+          throw new HttpsError("not-found", "Flash design not found.");
+        }
+
+        const flash = flashSnap.data() || {};
+        if (
+          String(flash.sheetId || "") !== reservation.flashSheetId ||
+          String(flash.artistId || "") !== String(eventData.artistId || "") ||
+          flash.isAvailable === false ||
+          flash.marketplaceVisible === false
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This flash design is not available for this event."
+          );
+        }
+
+        reservation = {
+          ...reservation,
+          flashTitle:
+            String(flash.title || flash.caption || reservation.flashTitle || "")
+              .trim() || "Flash reservation",
+          flashImageUrl:
+            String(
+              flash.webp90Url ||
+                flash.thumbUrl ||
+                flash.fullUrl ||
+                reservation.flashImageUrl ||
+                ""
+            ).trim(),
+        };
+      }
+
+      const payableAmount = isFlashReservation
+        ? Number(eventData.flashDepositAmount || eventData.depositAmount || eventData.price || 0)
+        : Number(eventData.price || 0);
+      const reservationPriceCents = Math.round(payableAmount * 100);
+      if (!reservationPriceCents || reservationPriceCents <= PLATFORM_FEE_MIN_CENTS) {
+        throw new HttpsError(
+          "failed-precondition",
+          isFlashReservation
+            ? "Flash reservation deposits must be greater than the platform fee."
+            : "Paid event pass prices must be greater than the platform fee."
         );
       }
 
@@ -1299,25 +1443,54 @@ const createEventCheckoutSession = onCall(
         (existingRegistration?.status === "paid" ||
           existingRegistration?.status === "checked_in")
       ) {
-        throw new HttpsError("already-exists", "You already have an event pass for this event.");
+        throw new HttpsError(
+          "already-exists",
+          isFlashReservation
+            ? "You already have a flash reservation for this event."
+            : "You already have an event pass for this event."
+        );
       }
 
       const registrationsSnap = await transaction.get(
         db.collection("eventRegistrations").where("eventId", "==", eventId)
       );
-      const activeRegistrations = registrationsSnap.docs.filter((docSnap) =>
-        docSnap.id !== registrationRef.id &&
-        isClaimedEventRegistrationStatus(docSnap.data().status)
-      );
+      const activeRegistrations = registrationsSnap.docs.filter((docSnap) => {
+        if (docSnap.id === registrationRef.id) return false;
+        return isFlashReservation
+          ? isActiveEventRegistrationStatus(docSnap.data().status)
+          : isClaimedEventRegistrationStatus(docSnap.data().status);
+      });
       const capacity = Number(eventData.capacity || 0);
 
+      if (
+        isFlashReservation &&
+        reservation &&
+        activeRegistrations.some(
+          (docSnap) =>
+            String(docSnap.data().flashReservationSlotId || "") === reservation?.slotId
+        )
+      ) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "That flash reservation slot was just claimed."
+        );
+      }
+
       if (capacity > 0 && activeRegistrations.length >= capacity) {
-        throw new HttpsError("resource-exhausted", "This event is already full.");
+        throw new HttpsError(
+          "resource-exhausted",
+          isFlashReservation
+            ? "This flash day is fully reserved."
+            : "This event is already full."
+        );
       }
 
       const userData = userSnap.data() || {};
       const nextQrToken = existingRegistration?.qrToken || createEventPassToken();
       const now = admin.firestore.FieldValue.serverTimestamp();
+      const paymentType = isFlashReservation
+        ? "event_flash_reservation"
+        : "event_ticket";
 
       transaction.set(
         registrationRef,
@@ -1330,8 +1503,16 @@ const createEventCheckoutSession = onCall(
           eventEndTime: eventData.endTime || "",
           eventThumbnailUrl: eventData.thumbnailUrl || "",
           eventType: eventData.eventType || "",
-          bookingMode: eventData.bookingMode || "paid_ticket",
-          clientActionType: eventData.clientActionType || "paid_event_pass",
+          bookingMode: eventData.bookingMode || (isFlashReservation ? "flash_reservation" : "paid_ticket"),
+          clientActionType: eventData.clientActionType || (isFlashReservation ? "flash_reservation" : "paid_event_pass"),
+          flashReservationFlashId: reservation?.flashId || "",
+          flashReservationFlashTitle: reservation?.flashTitle || "",
+          flashReservationFlashImageUrl: reservation?.flashImageUrl || "",
+          flashReservationSheetId: reservation?.flashSheetId || "",
+          flashReservationSize: reservation?.size || "",
+          flashReservationSlotId: reservation?.slotId || "",
+          flashReservationSlotStartTime: reservation?.slotStartTime || "",
+          flashReservationSlotEndTime: reservation?.slotEndTime || "",
           clientId: uid,
           clientName:
             userData.displayName || userData.name || req.auth?.token?.name || "Client",
@@ -1348,7 +1529,7 @@ const createEventCheckoutSession = onCall(
           paymentStatus: "pending",
           qrToken: nextQrToken,
           qrTokenHash: hashEventPassToken(nextQrToken),
-          ticketPriceCents: priceCents,
+          ticketPriceCents: reservationPriceCents,
           updatedAt: now,
           createdAt: existingRegistrationSnap.exists
             ? existingRegistration?.createdAt || now
@@ -1357,7 +1538,13 @@ const createEventCheckoutSession = onCall(
         { merge: true }
       );
 
-      return { event: eventData, qrToken: nextQrToken };
+      return {
+        event: eventData,
+        qrToken: nextQrToken,
+        priceCents: reservationPriceCents,
+        paymentType,
+        flashReservation: reservation,
+      };
     });
 
     try {
@@ -1381,11 +1568,11 @@ const createEventCheckoutSession = onCall(
       if (!connectStatus.chargesEnabled || !connectStatus.onboardingComplete) {
         throw new HttpsError(
           "failed-precondition",
-          "This event host needs to finish Stripe onboarding before selling paid passes."
+          "This artist needs to finish Stripe onboarding before accepting reservations."
         );
       }
 
-      const artistAmountCents = Math.round(Number(event.price || 0) * 100);
+      const artistAmountCents = priceCents;
       const platformFeeCents = calculatePlatformFeeCents(artistAmountCents);
       const { clientTotalCents, stripeFeeCents } = calculateClientPaymentBreakdown(
         artistAmountCents,
@@ -1393,6 +1580,37 @@ const createEventCheckoutSession = onCall(
       );
       const baseUrl = getBaseUrl(req.data?.origin || req.data?.returnUrl);
       const registrationId = `${eventId}_${uid}`;
+      const productName =
+        paymentType === "event_flash_reservation"
+          ? `${flashReservation?.flashTitle || event.title || "Flash"} reservation`
+          : `${event.title || "SATX Ink event"} pass`;
+      const productDescription =
+        paymentType === "event_flash_reservation"
+          ? `${event.title || "Flash day"} - ${
+              flashReservation?.slotStartTime || ""
+            }-${flashReservation?.slotEndTime || ""}`
+          : event.shopName || event.address || "Event pass";
+      const productImage =
+        flashReservation?.flashImageUrl || event.thumbnailUrl || "";
+      const eventPaymentMetadata = {
+        eventPaymentType: paymentType,
+        eventId,
+        registrationId,
+        clientId: uid,
+        hostUserId,
+        artistAmountCents: String(artistAmountCents),
+        platformFeeCents: String(platformFeeCents),
+        estimatedStripeFeeCents: String(stripeFeeCents),
+        clientTotalCents: String(clientTotalCents),
+        stripeConnectedAccountId: connectedAccountId,
+        flashReservationFlashId: flashReservation?.flashId || "",
+        flashReservationFlashTitle: flashReservation?.flashTitle || "",
+        flashReservationSheetId: flashReservation?.flashSheetId || "",
+        flashReservationSize: flashReservation?.size || "",
+        flashReservationSlotId: flashReservation?.slotId || "",
+        flashReservationSlotStartTime: flashReservation?.slotStartTime || "",
+        flashReservationSlotEndTime: flashReservation?.slotEndTime || "",
+      };
 
       const session = await stripe.checkout.sessions.create(
         {
@@ -1404,9 +1622,9 @@ const createEventCheckoutSession = onCall(
                 currency: "usd",
                 unit_amount: clientTotalCents,
                 product_data: {
-                  name: `${event.title || "SATX Ink event"} pass`,
-                  description: event.shopName || event.address || "Event pass",
-                  images: event.thumbnailUrl ? [event.thumbnailUrl] : undefined,
+                  name: productName,
+                  description: productDescription,
+                  images: productImage ? [productImage] : undefined,
                 },
               },
               quantity: 1,
@@ -1414,30 +1632,10 @@ const createEventCheckoutSession = onCall(
           ],
           payment_intent_data: {
             application_fee_amount: platformFeeCents,
-            metadata: {
-              eventPaymentType: "event_ticket",
-              eventId,
-              registrationId,
-              clientId: uid,
-              hostUserId,
-              artistAmountCents: String(artistAmountCents),
-              platformFeeCents: String(platformFeeCents),
-              estimatedStripeFeeCents: String(stripeFeeCents),
-              clientTotalCents: String(clientTotalCents),
-              stripeConnectedAccountId: connectedAccountId,
-            },
+            metadata: eventPaymentMetadata,
           },
           metadata: {
-            eventPaymentType: "event_ticket",
-            eventId,
-            registrationId,
-            clientId: uid,
-            hostUserId,
-            artistAmountCents: String(artistAmountCents),
-            platformFeeCents: String(platformFeeCents),
-            estimatedStripeFeeCents: String(stripeFeeCents),
-            clientTotalCents: String(clientTotalCents),
-            stripeConnectedAccountId: connectedAccountId,
+            ...eventPaymentMetadata,
             qrTokenHash: hashEventPassToken(qrToken),
           },
           success_url:
@@ -1661,6 +1859,44 @@ const applyCompletedEventTicketCheckout = async (
         return isClaimedEventRegistrationStatus(docSnap.data().status);
       });
       const capacity = Number(event.capacity || 0);
+      const flashReservationSlotId = String(
+        registration.flashReservationSlotId ||
+          metadata.flashReservationSlotId ||
+          ""
+      );
+
+      if (
+        flashReservationSlotId &&
+        activeRegistrations.some(
+          (docSnap) =>
+            String(docSnap.data().flashReservationSlotId || "") ===
+            flashReservationSlotId
+        )
+      ) {
+        transaction.set(
+          registrationRef,
+          {
+            status: "paid",
+            paymentStatus: "paid",
+            slotReviewRequired: true,
+            stripeCheckoutSessionId: session.id,
+            lastCompletedCheckoutSessionId: session.id,
+            stripePaymentIntentId: paymentIntentId,
+            stripeConnectedAccountId:
+              connectedAccountId ?? metadata.stripeConnectedAccountId ?? null,
+            hostPayoutCents: parseMetadataCents(metadata, "artistAmountCents"),
+            platformFeeCents: parseMetadataCents(metadata, "platformFeeCents"),
+            estimatedStripeFeeCents: parseMetadataCents(
+              metadata,
+              "estimatedStripeFeeCents"
+            ),
+            clientPaymentAmountCents: parseMetadataCents(metadata, "clientTotalCents"),
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        return;
+      }
 
       if (capacity > 0 && activeRegistrations.length >= capacity) {
         transaction.set(
@@ -1854,7 +2090,10 @@ const stripeWebhook = onRequest(
     // Handle specific event types
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.metadata?.eventPaymentType === "event_ticket") {
+      if (
+        session.metadata?.eventPaymentType === "event_ticket" ||
+        session.metadata?.eventPaymentType === "event_flash_reservation"
+      ) {
         try {
           await applyCompletedEventTicketCheckout(
             session,

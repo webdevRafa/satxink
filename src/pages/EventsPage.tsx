@@ -35,9 +35,13 @@ import type {
   ArtistEvent,
   EventBookingMode,
   EventClientActionType,
+  FlashEventSlot,
+  FlashReservationSize,
   EventType,
 } from "../types/Event";
 import type { EventRegistration } from "../types/EventRegistration";
+import type { Flash } from "../types/Flash";
+import type { FlashSheet } from "../types/FlashSheet";
 import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
@@ -63,6 +67,8 @@ type PublicEvent = ArtistEvent & {
   artist?: PublicArtist;
   shop?: PublicShop;
   participantArtists?: PublicArtist[];
+  includedFlashSheets?: FlashSheet[];
+  includedFlashes?: Flash[];
 };
 
 type PublicShop = {
@@ -218,7 +224,7 @@ export const EventsPage = () => {
   >({});
   const [reservingEventId, setReservingEventId] = useState("");
   const [purchasingEventId, setPurchasingEventId] = useState("");
-  const [selectedTicketEvent, setSelectedTicketEvent] = useState<PublicEvent | null>(
+  const [selectedCheckout, setSelectedCheckout] = useState<SelectedEventCheckout | null>(
     null
   );
   const [selectedDetailsEvent, setSelectedDetailsEvent] =
@@ -320,6 +326,11 @@ export const EventsPage = () => {
           )
         );
         const shopsById = await fetchShopsById(shopIds);
+        const flashSheetIds = Array.from(
+          new Set(rawEvents.flatMap((event) => event.includedFlashSheetIds || []))
+        );
+        const flashSheetsById = await fetchFlashSheetsById(flashSheetIds);
+        const flashesBySheetId = await fetchFlashesBySheetId(flashSheetIds);
 
         const publicEvents = rawEvents
           .map((event) => ({
@@ -329,6 +340,12 @@ export const EventsPage = () => {
               .map((artistId) => artistsById[artistId])
               .filter((artist): artist is PublicArtist => Boolean(artist)),
             shop: event.shopId ? shopsById[event.shopId] : undefined,
+            includedFlashSheets: (event.includedFlashSheetIds || [])
+              .map((sheetId) => flashSheetsById[sheetId])
+              .filter((sheet): sheet is FlashSheet => Boolean(sheet)),
+            includedFlashes: (event.includedFlashSheetIds || []).flatMap(
+              (sheetId) => flashesBySheetId[sheetId] || []
+            ),
           }))
           .filter((event) =>
             Boolean(event.artist || event.shop || event.ownerType === "shop")
@@ -379,29 +396,29 @@ export const EventsPage = () => {
     }
   };
 
-  const handlePaidTicket = (event: PublicEvent) => {
+  const handleFlashReservationCheckout = (
+    event: PublicEvent,
+    flashReservation: FlashReservationSelection
+  ) => {
+    if (!currentUserId) {
+      toast.error("Sign in as a client to reserve flash.");
+      return;
+    }
+
+    if (getEventClientActionType(event) !== "flash_reservation") return;
+
+    setSelectedDetailsEvent(null);
+    setSelectedCheckout({ event, flashReservation });
+  };
+
+  const handleConfirmPaidTicket = async (checkout: SelectedEventCheckout) => {
     if (!currentUserId) {
       toast.error("Sign in as a client to buy event passes.");
       return;
     }
 
-    if (event.bookingMode !== "paid_ticket") return;
-
-    setSelectedTicketEvent(event);
-  };
-
-  const handleDetailsPaidTicket = (event: PublicEvent) => {
-    if (currentUserId) setSelectedDetailsEvent(null);
-    handlePaidTicket(event);
-  };
-
-  const handleConfirmPaidTicket = async (event: PublicEvent) => {
-    if (!currentUserId) {
-      toast.error("Sign in as a client to buy event passes.");
-      return;
-    }
-
-    if (event.bookingMode !== "paid_ticket") return;
+    const event = checkout.event;
+    if (getEventClientActionType(event) !== "flash_reservation") return;
 
     setPurchasingEventId(event.id);
     try {
@@ -411,6 +428,7 @@ export const EventsPage = () => {
           origin: string;
           successUrl: string;
           cancelUrl: string;
+          flashReservation?: FlashReservationSelection;
         },
         { url?: string; registrationId: string }
       >(functions, "createEventCheckoutSession");
@@ -420,13 +438,14 @@ export const EventsPage = () => {
         origin,
         successUrl: `${origin}/dashboard?tab=eventPasses&eventCheckout=success`,
         cancelUrl: `${origin}/events?eventCheckout=cancelled`,
+        flashReservation: checkout.flashReservation,
       });
 
       if (!response.data.url) {
         throw new Error("Missing Stripe checkout URL.");
       }
 
-      setSelectedTicketEvent(null);
+      setSelectedCheckout(null);
       window.location.href = response.data.url;
     } catch (error) {
       console.error("Event pass checkout failed:", error);
@@ -739,21 +758,21 @@ export const EventsPage = () => {
           if (!reservingEventId && !purchasingEventId) setSelectedDetailsEvent(null);
         }}
         onFreeRsvp={handleFreeRsvp}
-        onPaidTicket={handleDetailsPaidTicket}
+        onFlashReservationCheckout={handleFlashReservationCheckout}
       />
 
       <TicketCheckoutPreviewModal
-        event={selectedTicketEvent}
+        checkout={selectedCheckout}
         registration={
-          selectedTicketEvent
-            ? registrationsByEventId[selectedTicketEvent.id]
+          selectedCheckout
+            ? registrationsByEventId[selectedCheckout.event.id]
             : undefined
         }
         isPurchasing={Boolean(
-          selectedTicketEvent && purchasingEventId === selectedTicketEvent.id
+          selectedCheckout && purchasingEventId === selectedCheckout.event.id
         )}
         onClose={() => {
-          if (!purchasingEventId) setSelectedTicketEvent(null);
+          if (!purchasingEventId) setSelectedCheckout(null);
         }}
         onConfirm={handleConfirmPaidTicket}
       />
@@ -1065,7 +1084,7 @@ const EventDetailsModal = ({
   isPurchasing,
   onClose,
   onFreeRsvp,
-  onPaidTicket,
+  onFlashReservationCheckout,
 }: {
   event: PublicEvent | null;
   registration?: EventRegistration;
@@ -1073,7 +1092,10 @@ const EventDetailsModal = ({
   isPurchasing: boolean;
   onClose: () => void;
   onFreeRsvp: (event: PublicEvent) => void;
-  onPaidTicket: (event: PublicEvent) => void;
+  onFlashReservationCheckout: (
+    event: PublicEvent,
+    flashReservation: FlashReservationSelection
+  ) => void;
 }) => {
   if (!event) return null;
 
@@ -1090,8 +1112,6 @@ const EventDetailsModal = ({
       registration.status !== "cancelled" &&
       registration.status !== "refunded"
   );
-  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
-  const isPendingPayment = registration?.status === "pending_payment";
 
   const renderPrimaryAction = () => {
     if (clientActionType === "free_rsvp") {
@@ -1116,39 +1136,8 @@ const EventDetailsModal = ({
       );
     }
 
-    if (clientActionType === "paid_event_pass") {
-      return (
-        <button
-          type="button"
-          onClick={() => onPaidTicket(event)}
-          disabled={isPaid || isPurchasing}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg px-5! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed ${
-            isPaid
-              ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-              : "bg-white !text-black hover:bg-white/85 disabled:opacity-60"
-          }`}
-        >
-          {isPurchasing
-            ? "Opening checkout..."
-            : isPaid
-            ? "Event pass purchased"
-            : isPendingPayment
-            ? "Resume checkout"
-            : "Buy event pass"}
-          {!isPaid && <ChevronRight className="h-4 w-4 text-black" />}
-        </button>
-      );
-    }
-
     if (clientActionType === "flash_reservation") {
-      return (
-        <EventProfileAction
-          event={event}
-          artistProfilePath={artistProfilePath}
-          label={isShopHosted ? "Browse participating artists" : "Reserve flash on SATX"}
-          onClose={onClose}
-        />
-      );
+      return null;
     }
 
     if (clientActionType === "appointment_request") {
@@ -1379,6 +1368,17 @@ const EventDetailsModal = ({
                 />
               </div>
 
+              {clientActionType === "flash_reservation" && (
+                <FlashReservationBrowser
+                  event={event}
+                  registration={registration}
+                  isPurchasing={isPurchasing}
+                  onReserve={(selection) =>
+                    onFlashReservationCheckout(event, selection)
+                  }
+                />
+              )}
+
               {event.tags && event.tags.length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                   <div className="flex flex-wrap gap-2">
@@ -1416,6 +1416,234 @@ const EventDetailsModal = ({
   );
 };
 
+type FlashReservationSelection = {
+  flashId: string;
+  flashTitle: string;
+  flashImageUrl: string;
+  flashSheetId: string;
+  size: FlashReservationSize;
+  slotId: string;
+  slotStartTime: string;
+  slotEndTime: string;
+};
+
+type SelectedEventCheckout = {
+  event: PublicEvent;
+  flashReservation?: FlashReservationSelection;
+};
+
+const flashSizeOptions: FlashReservationSize[] = ["small", "medium", "large"];
+
+const FlashReservationBrowser = ({
+  event,
+  registration,
+  isPurchasing,
+  onReserve,
+}: {
+  event: PublicEvent;
+  registration?: EventRegistration;
+  isPurchasing: boolean;
+  onReserve: (selection: FlashReservationSelection) => void;
+}) => {
+  const sheets = event.includedFlashSheets || [];
+  const flashes = event.includedFlashes || [];
+  const [selectedSheetId, setSelectedSheetId] = useState(sheets[0]?.id || "");
+  const [selectedFlashId, setSelectedFlashId] = useState("");
+  const [selectedSize, setSelectedSize] =
+    useState<FlashReservationSize>("small");
+  const [selectedSlotId, setSelectedSlotId] = useState("");
+  const selectedFlash = flashes.find((flash) => flash.id === selectedFlashId);
+  const selectedSlot = (event.flashReservationSlots || []).find(
+    (slot) => slot.id === selectedSlotId
+  );
+  const visibleFlashes = flashes.filter(
+    (flash) => !selectedSheetId || flash.sheetId === selectedSheetId
+  );
+  const requiredMinutes =
+    (event.flashDurationRules?.[selectedSize] || 45) +
+    (event.flashDurationRules?.buffer || 0);
+  const availableSlots = (event.flashReservationSlots || []).filter(
+    (slot) => getSlotDurationMinutes(slot) >= requiredMinutes
+  );
+  const isAlreadyReserved = Boolean(
+    registration &&
+      registration.status !== "cancelled" &&
+      registration.status !== "refunded"
+  );
+
+  const handleReserve = () => {
+    if (!selectedFlash || !selectedSlot) {
+      toast.error("Choose a flash and a time slot.");
+      return;
+    }
+
+    onReserve({
+      flashId: selectedFlash.id,
+      flashTitle: selectedFlash.title || "Untitled flash",
+      flashImageUrl: getFlashPreviewUrl(selectedFlash),
+      flashSheetId: selectedFlash.sheetId || selectedSheetId,
+      size: selectedSize,
+      slotId: selectedSlot.id,
+      slotStartTime: selectedSlot.startTime,
+      slotEndTime: selectedSlot.endTime,
+    });
+  };
+
+  if (!sheets.length || !flashes.length) {
+    return (
+      <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
+        <p className="text-sm font-semibold text-amber-50">
+          Flash inventory pending
+        </p>
+        <p className="mt-1 text-sm leading-6 text-amber-50/65">
+          This artist has not attached itemized flash to this event yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">
+            Reserve event flash
+          </p>
+          <p className="mt-1 text-sm leading-6 text-white/50">
+            Pick a sheet, choose a flash, choose the size, then grab a slot that
+            fits.
+          </p>
+        </div>
+        <span className="text-xs font-semibold text-white/35">
+          ${event.flashDepositAmount || event.depositAmount || event.price || 0} deposit
+        </span>
+      </div>
+
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+        {sheets.map((sheet) => (
+          <button
+            key={sheet.id}
+            type="button"
+            onClick={() => {
+              setSelectedSheetId(sheet.id);
+              setSelectedFlashId("");
+              setSelectedSlotId("");
+            }}
+            className={`shrink-0 rounded-full border px-3! py-1.5! text-xs! font-semibold transition ${
+              selectedSheetId === sheet.id
+                ? "border-white/70 bg-white text-black"
+                : "border-white/10 bg-white/[0.04] text-white/65 hover:border-white/25"
+            }`}
+          >
+            {sheet.title || "Untitled sheet"}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {visibleFlashes.map((flash) => (
+          <button
+            key={flash.id}
+            type="button"
+            onClick={() => {
+              setSelectedFlashId(flash.id);
+              setSelectedSlotId("");
+            }}
+            className={`overflow-hidden rounded-lg border text-left transition ${
+              selectedFlashId === flash.id
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10"
+                : "border-white/10 bg-white/[0.035] hover:border-white/25"
+            }`}
+          >
+            <img
+              src={getFlashPreviewUrl(flash)}
+              alt={flash.title || "Flash tattoo design"}
+              className="aspect-square w-full object-cover"
+            />
+            <div className="p-2">
+              <p className="truncate text-xs font-semibold text-white">
+                {flash.title || "Untitled flash"}
+              </p>
+              <p className="mt-1 text-xs text-white/40">
+                {typeof flash.price === "number" ? `$${flash.price}` : "Price varies"}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/35">
+            Size
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {flashSizeOptions.map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => {
+                  setSelectedSize(size);
+                  setSelectedSlotId("");
+                }}
+                className={`rounded-lg border px-3! py-2! text-xs! font-semibold capitalize transition ${
+                  selectedSize === size
+                    ? "border-white/70 bg-white text-black"
+                    : "border-white/10 bg-white/[0.04] text-white/65 hover:border-white/25"
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/35">
+            Slots that fit {requiredMinutes} min
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {availableSlots.length > 0 ? (
+              availableSlots.map((slot) => (
+                <button
+                  key={slot.id}
+                  type="button"
+                  onClick={() => setSelectedSlotId(slot.id)}
+                  className={`rounded-lg border px-3! py-2! text-xs! font-semibold transition ${
+                    selectedSlotId === slot.id
+                      ? "border-white/70 bg-white text-black"
+                      : "border-white/10 bg-white/[0.04] text-white/65 hover:border-white/25"
+                  }`}
+                >
+                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                </button>
+              ))
+            ) : (
+              <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/45">
+                No slots fit this size
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleReserve}
+        disabled={isAlreadyReserved || isPurchasing}
+        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold !text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isAlreadyReserved
+          ? "Reservation in dashboard"
+          : isPurchasing
+          ? "Opening checkout..."
+          : "Reserve flash deposit"}
+        {!isAlreadyReserved && <ChevronRight className="h-4 w-4 text-black" />}
+      </button>
+    </div>
+  );
+};
+
 const EventProfileAction = ({
   event,
   artistProfilePath,
@@ -1443,33 +1671,41 @@ const EventProfileAction = ({
 };
 
 const TicketCheckoutPreviewModal = ({
-  event,
+  checkout,
   registration,
   isPurchasing,
   onClose,
   onConfirm,
 }: {
-  event: PublicEvent | null;
+  checkout: SelectedEventCheckout | null;
   registration?: EventRegistration;
   isPurchasing: boolean;
   onClose: () => void;
-  onConfirm: (event: PublicEvent) => void;
+  onConfirm: (checkout: SelectedEventCheckout) => void;
 }) => {
-  if (!event) return null;
+  if (!checkout) return null;
 
+  const { event, flashReservation } = checkout;
   const hostName = getEventHostName(event);
   const locationLabel = getLocationLabel(event);
-  const price = Number(event.price || 0);
-  const paymentBreakdown = calculateClientPaymentBreakdown(price);
+  const reservationAmount = Number(
+    event.flashDepositAmount ?? event.depositAmount ?? event.price ?? 0
+  );
+  const paymentBreakdown = calculateClientPaymentBreakdown(reservationAmount);
   const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
   const isPendingPayment = registration?.status === "pending_payment";
   const actionLabel = isPendingPayment ? "Resume checkout" : "Continue to Stripe";
+  const reservationSlotLabel = flashReservation
+    ? `${formatTime(flashReservation.slotStartTime)} - ${formatTime(
+        flashReservation.slotEndTime
+      )}`
+    : "Slot not selected";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm">
       <button
         type="button"
-        aria-label="Close event pass preview"
+        aria-label="Close flash reservation preview"
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
@@ -1478,10 +1714,10 @@ const TicketCheckoutPreviewModal = ({
         <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
-              Event pass checkout
+              Flash reservation checkout
             </p>
             <h2 className="mt-1 text-2xl! font-semibold text-white">
-              Review your event pass
+              Review your flash reservation
             </h2>
           </div>
           <button
@@ -1489,7 +1725,7 @@ const TicketCheckoutPreviewModal = ({
             onClick={onClose}
             disabled={isPurchasing}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Close event pass preview"
+            aria-label="Close flash reservation preview"
           >
             <X size={18} />
           </button>
@@ -1500,7 +1736,13 @@ const TicketCheckoutPreviewModal = ({
             <aside className="border-b border-white/10 bg-black/20 lg:border-b-0 lg:border-r">
               <div className="sticky top-0 space-y-4 p-5 sm:p-6">
                 <div className="overflow-hidden rounded-xl border border-white/10 bg-black/35">
-                  {event.thumbnailUrl ? (
+                  {flashReservation?.flashImageUrl ? (
+                    <img
+                      src={flashReservation.flashImageUrl}
+                      alt={flashReservation.flashTitle}
+                      className="h-64 w-full object-cover"
+                    />
+                  ) : event.thumbnailUrl ? (
                     <img
                       src={event.thumbnailUrl}
                       alt={event.title}
@@ -1515,7 +1757,7 @@ const TicketCheckoutPreviewModal = ({
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Host
+                    Artist
                   </p>
                   <p className="mt-2 text-base font-semibold text-white">{hostName}</p>
                   <p className="mt-1 text-sm text-white/50">{locationLabel}</p>
@@ -1529,7 +1771,7 @@ const TicketCheckoutPreviewModal = ({
                   {eventTypeLabels[event.eventType] || "Event"}
                 </span>
                 <h3 className="mt-4 text-3xl! font-semibold leading-tight text-white">
-                  {event.title}
+                  {flashReservation?.flashTitle || event.title}
                 </h3>
                 {event.description && (
                   <p className="mt-3 text-sm leading-6 text-white/55">
@@ -1551,13 +1793,17 @@ const TicketCheckoutPreviewModal = ({
                 />
                 <TicketPreviewFact
                   icon={<Users size={16} />}
-                  label="Availability"
-                  value={getPaidTicketAvailabilityLabel(event)}
+                  label="Slot"
+                  value={reservationSlotLabel}
                 />
                 <TicketPreviewFact
                   icon={<Ticket size={16} />}
-                  label="Pass type"
-                  value="Paid QR event pass"
+                  label="Flash size"
+                  value={
+                    flashReservation
+                      ? `${flashReservation.size} flash`
+                      : "Not selected"
+                  }
                 />
               </div>
 
@@ -1571,19 +1817,20 @@ const TicketCheckoutPreviewModal = ({
                       Checkout breakdown
                     </h4>
                     <p className="text-sm text-white/45">
-                      Your spot is claimed only after Stripe confirms payment.
+                      Your flash and slot are claimed after Stripe confirms the
+                      deposit.
                     </p>
                   </div>
                 </div>
                 <div className="divide-y divide-white/10">
                   <TicketBreakdownRow
-                    label="Event pass"
+                    label="Flash reservation deposit"
                     note={`Paid to ${hostName}`}
                     value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
                   />
                   <TicketBreakdownRow
                     label="SATX Ink fee"
-                    note="Platform fee for passes and QR check-in"
+                    note="Platform fee for the reservation flow"
                     value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
                   />
                   <TicketBreakdownRow
@@ -1597,7 +1844,8 @@ const TicketCheckoutPreviewModal = ({
                         Estimated total today
                       </p>
                       <p className="mt-1 text-xs text-emerald-50/60">
-                        Includes event pass, SATX Ink fee, and processing.
+                        Includes the reservation deposit, SATX Ink fee, and
+                        processing.
                       </p>
                     </div>
                     <p className="text-xl font-semibold text-emerald-50">
@@ -1612,12 +1860,11 @@ const TicketCheckoutPreviewModal = ({
                   <ShieldCheck className="mt-0.5 shrink-0 text-amber-100" size={18} />
                   <div>
                     <p className="text-sm font-semibold text-amber-50">
-                      QR pass unlocks after successful payment.
+                      Your reservation is locked after successful payment.
                     </p>
                     <p className="mt-1 text-sm leading-6 text-amber-50/65">
-                      Clicking continue creates or resumes checkout. The event capacity
-                      count updates after Stripe confirms the payment, not when checkout
-                      opens.
+                      Final tattoo pricing can still vary by size and placement.
+                      This deposit reserves the selected flash and event slot.
                     </p>
                   </div>
                 </div>
@@ -1629,10 +1876,10 @@ const TicketCheckoutPreviewModal = ({
         <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p className="text-sm text-white/45">
             {isPaid
-              ? "This event pass is already in your dashboard."
+              ? "This flash reservation is already in your dashboard."
               : isPendingPayment
-              ? "You have a pending checkout for this event."
-              : "Review the event pass details before opening Stripe."}
+              ? "You have a pending checkout for this reservation."
+              : "Review the reservation before opening Stripe."}
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
@@ -1645,11 +1892,15 @@ const TicketCheckoutPreviewModal = ({
             </button>
             <button
               type="button"
-              onClick={() => onConfirm(event)}
+              onClick={() => onConfirm(checkout)}
               disabled={isPurchasing || isPaid}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold !text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPurchasing ? "Opening Stripe..." : isPaid ? "Event pass purchased" : actionLabel}
+              {isPurchasing
+                ? "Opening Stripe..."
+                : isPaid
+                ? "Reservation paid"
+                : actionLabel}
               <ChevronRight className="h-4 w-4 text-black" />
             </button>
           </div>
@@ -2018,6 +2269,60 @@ const fetchShopsById = async (shopIds: string[]) => {
   return shopsById;
 };
 
+const fetchFlashSheetsById = async (sheetIds: string[]) => {
+  const sheetsById: Record<string, FlashSheet> = {};
+  const chunks = chunkArray(sheetIds, 30);
+
+  for (const chunk of chunks) {
+    if (!chunk.length) continue;
+
+    const sheetsQuery = query(
+      collection(db, "flashSheets"),
+      where(documentId(), "in", chunk)
+    );
+    const snapshot = await getDocs(sheetsQuery);
+
+    snapshot.docs.forEach((sheetDoc) => {
+      sheetsById[sheetDoc.id] = {
+        id: sheetDoc.id,
+        ...sheetDoc.data(),
+      } as FlashSheet;
+    });
+  }
+
+  return sheetsById;
+};
+
+const fetchFlashesBySheetId = async (sheetIds: string[]) => {
+  const flashesBySheetId: Record<string, Flash[]> = {};
+  const chunks = chunkArray(sheetIds, 30);
+
+  for (const chunk of chunks) {
+    if (!chunk.length) continue;
+
+    const flashesQuery = query(
+      collection(db, "flashes"),
+      where("sheetId", "in", chunk)
+    );
+    const snapshot = await getDocs(flashesQuery);
+
+    snapshot.docs.forEach((flashDoc) => {
+      const flash = { id: flashDoc.id, ...flashDoc.data() } as Flash;
+      if (flash.isAvailable === false) return;
+      if (flash.marketplaceVisible === false) return;
+      const sheetId = flash.sheetId || "";
+      if (!sheetId) return;
+      flashesBySheetId[sheetId] = [...(flashesBySheetId[sheetId] || []), flash];
+    });
+  }
+
+  Object.values(flashesBySheetId).forEach((items) =>
+    items.sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")))
+  );
+
+  return flashesBySheetId;
+};
+
 const chunkArray = <T,>(items: T[], size: number) => {
   const chunks: T[][] = [];
 
@@ -2054,6 +2359,12 @@ const getEventClientActionType = (
     "clientActionType" | "bookingMode" | "eventType" | "ownerType"
   >
 ): EventClientActionType => {
+  if (event.ownerType === "shop") {
+    return event.clientActionType === "external_link"
+      ? "external_link"
+      : "details_only";
+  }
+  if (event.ownerType === "artist") return "flash_reservation";
   if (event.clientActionType) return event.clientActionType;
   if (event.bookingMode === "rsvp") return "free_rsvp";
   if (event.bookingMode === "paid_ticket") return "paid_event_pass";
@@ -2086,11 +2397,6 @@ const getClientActionSummary = (clientActionType: EventClientActionType) => {
   return "Event details and SATX profile links";
 };
 
-const isShopFlashReservation = (
-  clientActionType: EventClientActionType,
-  ownerType?: "artist" | "shop"
-) => ownerType === "shop" && clientActionType === "flash_reservation";
-
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
   bookingMode === "flash_reservation" ||
@@ -2098,18 +2404,11 @@ const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
 
 const isPublicEventBookable = (event: PublicEvent) => {
   const clientActionType = getEventClientActionType(event);
-  if (clientActionType === "paid_event_pass") return true;
-  if (event.bookingMode === "paid_ticket") return true;
-  if (
-    clientActionType === "flash_reservation" ||
-    clientActionType === "appointment_request" ||
-    clientActionType === "waitlist" ||
-    clientActionType === "external_link"
-  ) {
-    return true;
+  if (event.ownerType === "shop") return true;
+  if (clientActionType === "flash_reservation") {
+    return Boolean(event.artist && isStripeConnectReady(event.artist));
   }
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
-  if (event.ownerType === "shop" && !event.artist) return false;
   return isStripeConnectReady(event.artist);
 };
 
@@ -2230,15 +2529,11 @@ const getLocationLabel = (event: ArtistEvent) => {
 const getEventCapacityLabel = (event: ArtistEvent) => {
   const clientActionType = getEventClientActionType(event);
 
-  if (isShopFlashReservation(clientActionType, event.ownerType)) {
-    return "Artist-managed flash availability";
-  }
-
   if (
     clientActionType === "details_only" ||
     clientActionType === "external_link"
   ) {
-    return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+    return event.externalUrl ? "External event link" : "Information only";
   }
 
   if (clientActionType === "free_rsvp") {
@@ -2253,7 +2548,8 @@ const getEventCapacityLabel = (event: ArtistEvent) => {
     clientActionType === "appointment_request" ||
     clientActionType === "flash_reservation"
   ) {
-    return event.capacity ? `${event.capacity} booking slots` : "SATX booking flow";
+    const slotCount = event.flashReservationSlots?.length || event.capacity || 0;
+    return slotCount ? `${slotCount} reservation slots` : "Flash reservations";
   }
 
   return `${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`;
@@ -2270,6 +2566,20 @@ const getPaidTicketAvailabilityLabel = (event: ArtistEvent) => {
 };
 
 const getPriceLabel = (event: ArtistEvent) => {
+  const clientActionType = getEventClientActionType(event);
+
+  if (clientActionType === "flash_reservation") {
+    const deposit = event.flashDepositAmount ?? event.depositAmount ?? event.price;
+    return deposit ? `$${deposit} reservation deposit` : "Deposit required";
+  }
+
+  if (
+    clientActionType === "details_only" ||
+    clientActionType === "external_link"
+  ) {
+    return "Info only";
+  }
+
   const hasDeposit =
     event.bookingMode !== "info_only" &&
     (Boolean(event.depositRequired) ||
@@ -2295,6 +2605,18 @@ const getPriceLabel = (event: ArtistEvent) => {
   }
 
   return depositLabel ? `${priceLabel} • ${depositLabel}` : priceLabel;
+};
+
+const getFlashPreviewUrl = (flash: Flash) =>
+  flash.webp90Url || flash.thumbUrl || flash.fullUrl || "";
+
+const getSlotDurationMinutes = (slot: FlashEventSlot) =>
+  Math.max(parseTimeMinutes(slot.endTime) - parseTimeMinutes(slot.startTime), 0);
+
+const parseTimeMinutes = (time: string) => {
+  const [hours, minutes] = time.split(":").map(Number);
+  if (!Number.isFinite(hours)) return 0;
+  return hours * 60 + (Number.isFinite(minutes) ? minutes : 0);
 };
 
 const getDateFilterTitle = (filter: DateFilter) => {

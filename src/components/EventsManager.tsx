@@ -45,12 +45,16 @@ import type {
   ArtistEvent,
   EventBookingMode,
   EventClientActionType,
+  FlashEventSlot,
+  FlashReservationPaymentType,
   EventLocationType,
   EventPriceType,
   EventStatus,
   EventType,
 } from "../types/Event";
 import type { EventRegistration } from "../types/EventRegistration";
+import type { Flash } from "../types/Flash";
+import type { FlashSheet } from "../types/FlashSheet";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 
 type EventFilter = "all" | EventStatus;
@@ -77,6 +81,16 @@ type EventFormState = {
   depositAmount: string;
   capacity: string;
   participantArtistIds: string[];
+  includedFlashSheetIds: string[];
+  flashReservationPaymentType: FlashReservationPaymentType;
+  flashDepositAmount: string;
+  flashDurationSmall: string;
+  flashDurationMedium: string;
+  flashDurationLarge: string;
+  flashBufferMinutes: string;
+  flashReservationSlots: FlashEventSlot[];
+  slotDraftStart: string;
+  slotDraftEnd: string;
   tags: string[];
   tagDraft: string;
   status: EventStatus;
@@ -106,13 +120,6 @@ type ShopDefaults = {
   mapLink?: string;
 };
 
-type ShopRosterArtist = {
-  id: string;
-  displayName?: string;
-  name?: string;
-  avatarUrl?: string;
-};
-
 const emptyForm: EventFormState = {
   title: "",
   description: "",
@@ -135,6 +142,16 @@ const emptyForm: EventFormState = {
   depositAmount: "",
   capacity: "",
   participantArtistIds: [],
+  includedFlashSheetIds: [],
+  flashReservationPaymentType: "deposit",
+  flashDepositAmount: "50",
+  flashDurationSmall: "45",
+  flashDurationMedium: "75",
+  flashDurationLarge: "120",
+  flashBufferMinutes: "10",
+  flashReservationSlots: [],
+  slotDraftStart: "",
+  slotDraftEnd: "",
   tags: [],
   tagDraft: "",
   status: "draft",
@@ -238,9 +255,16 @@ const eventEditorSteps: Array<{
 ];
 
 const stepErrorKeys: Record<EventEditorStepKey, EventFormErrorKey[]> = {
-  basics: ["title", "externalUrl", "participantArtistIds"],
+  basics: ["title", "externalUrl", "includedFlashSheetIds"],
   schedule: ["startDate", "dateRange", "timeRange", "location"],
-  pricing: ["price", "depositAmount", "capacity", "stripe"],
+  pricing: [
+    "price",
+    "depositAmount",
+    "capacity",
+    "flashDepositAmount",
+    "flashReservationSlots",
+    "stripe",
+  ],
   publish: [],
 };
 
@@ -257,20 +281,20 @@ const EventsManager = ({
   onOpenPayments,
   ownerType = "artist",
   shopOverride,
-  shopRosterArtists = [],
   managerTitle = "Artist events",
-  managerDescription = "Promote events that convert client interest into SATX RSVPs, tattoo requests, flash reservations, or paid event passes.",
+  managerDescription = "Publish flash days that let clients reserve itemized flash and appointment slots through SATX.",
 }: {
   uid: string;
   artist?: ArtistLite | null;
   onOpenPayments?: () => void;
   ownerType?: "artist" | "shop";
   shopOverride?: ShopDefaults | null;
-  shopRosterArtists?: ShopRosterArtist[];
   managerTitle?: string;
   managerDescription?: string;
 }) => {
   const [events, setEvents] = useState<ArtistEvent[]>([]);
+  const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
+  const [flashes, setFlashes] = useState<Flash[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<EventFilter>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -347,6 +371,48 @@ const EventsManager = ({
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, ownerType, shopOverride?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchFlashInventory = async () => {
+      if (!uid || ownerType !== "artist") {
+        setFlashSheets([]);
+        setFlashes([]);
+        return;
+      }
+
+      try {
+        const [sheetSnapshot, flashSnapshot] = await Promise.all([
+          getDocs(
+            query(collection(db, "flashSheets"), where("artistId", "==", uid))
+          ),
+          getDocs(query(collection(db, "flashes"), where("artistId", "==", uid))),
+        ]);
+
+        if (!isMounted) return;
+
+        setFlashSheets(
+          sheetSnapshot.docs.map(
+            (sheetDoc) =>
+              ({ id: sheetDoc.id, ...sheetDoc.data() } as FlashSheet)
+          )
+        );
+        setFlashes(
+          flashSnapshot.docs.map(
+            (flashDoc) => ({ id: flashDoc.id, ...flashDoc.data() } as Flash)
+          )
+        );
+      } catch (err) {
+        console.error("Failed to load flash event inventory:", err);
+      }
+    };
+
+    fetchFlashInventory();
+    return () => {
+      isMounted = false;
+    };
+  }, [uid, ownerType]);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -445,17 +511,17 @@ const EventsManager = ({
   );
 
   const openCreateModal = () => {
-    const defaultClientAction = getDefaultClientAction(
-      emptyForm.eventType,
-      ownerType
-    );
+    const defaultClientAction =
+      ownerType === "shop" ? "details_only" : "flash_reservation";
     setEditingEvent(null);
     setForm({
       ...emptyForm,
+      eventType: ownerType === "shop" ? "shop_event" : "flash_day",
       clientActionType: defaultClientAction,
       bookingMode: getBookingModeForClientAction(defaultClientAction),
       priceType:
-        defaultClientAction === "paid_event_pass" ? "fixed" : emptyForm.priceType,
+        ownerType === "artist" ? "fixed" : emptyForm.priceType,
+      price: ownerType === "artist" ? emptyForm.flashDepositAmount : "",
       depositRequired: false,
       participantArtistIds: [],
       shopName: shopDefaults?.name || artist?.studioName || "",
@@ -468,13 +534,13 @@ const EventsManager = ({
 
   const openEditModal = (event: ArtistEvent) => {
     const bookingMode = event.bookingMode || getDefaultBookingMode(event.eventType);
-    const clientActionType = getEventClientActionType(event);
 
     setEditingEvent(event);
     setForm({
       title: event.title || "",
       description: event.description || "",
-      eventType: event.eventType || "other",
+      eventType:
+        ownerType === "artist" ? "flash_day" : event.eventType || "other",
       startDate: event.startDate || "",
       startTime: event.startTime || "",
       endDate: event.endDate || "",
@@ -487,8 +553,13 @@ const EventsManager = ({
         (event.priceType as string) === "deposit_required"
           ? "fixed"
           : event.priceType || "varies",
-      bookingMode,
-      clientActionType,
+      bookingMode: ownerType === "artist" ? "flash_reservation" : "info_only",
+      clientActionType:
+        ownerType === "artist"
+          ? "flash_reservation"
+          : event.externalUrl
+          ? "external_link"
+          : "details_only",
       externalUrl: event.externalUrl || "",
       externalLabel: event.externalLabel || "",
       price: typeof event.price === "number" ? String(event.price) : "",
@@ -506,6 +577,22 @@ const EventsManager = ({
           ? String(event.capacity)
           : "",
       participantArtistIds: event.participantArtistIds || [],
+      includedFlashSheetIds: event.includedFlashSheetIds || [],
+      flashReservationPaymentType:
+        event.flashReservationPaymentType || "deposit",
+      flashDepositAmount:
+        typeof event.flashDepositAmount === "number"
+          ? String(event.flashDepositAmount)
+          : typeof event.depositAmount === "number"
+          ? String(event.depositAmount)
+          : "50",
+      flashDurationSmall: String(event.flashDurationRules?.small || 45),
+      flashDurationMedium: String(event.flashDurationRules?.medium || 75),
+      flashDurationLarge: String(event.flashDurationRules?.large || 120),
+      flashBufferMinutes: String(event.flashDurationRules?.buffer || 10),
+      flashReservationSlots: event.flashReservationSlots || [],
+      slotDraftStart: "",
+      slotDraftEnd: "",
       tags: event.tags || [],
       tagDraft: "",
       status: event.status || "draft",
@@ -536,13 +623,19 @@ const EventsManager = ({
       return;
     }
 
-    const parsedCapacity = isShopFlashReservation(
-      form.clientActionType,
-      ownerType
-    )
-      ? null
-      : parseOptionalNumber(form.capacity);
-    const bookingMode = getBookingModeForClientAction(form.clientActionType);
+    const isArtistFlashEvent = ownerType === "artist";
+    const clientActionType: EventClientActionType = isArtistFlashEvent
+      ? "flash_reservation"
+      : form.externalUrl.trim()
+      ? "external_link"
+      : "details_only";
+    const bookingMode = isArtistFlashEvent
+      ? "flash_reservation"
+      : "info_only";
+    const parsedCapacity = isArtistFlashEvent
+      ? form.flashReservationSlots.length
+      : null;
+    const parsedDeposit = parseOptionalNumber(form.flashDepositAmount);
 
     try {
       setIsSaving(true);
@@ -557,7 +650,7 @@ const EventsManager = ({
         ownerType,
         title: form.title.trim(),
         description: form.description.trim() || "",
-        eventType: form.eventType,
+        eventType: isArtistFlashEvent ? "flash_day" : form.eventType,
         startDate: form.startDate,
         startTime: form.startTime || "",
         endDate: form.endDate || "",
@@ -573,28 +666,42 @@ const EventsManager = ({
         shopName: form.shopName.trim() || "",
         address: form.address.trim() || "",
         mapLink: form.mapLink.trim() || "",
-        priceType: form.priceType,
+        priceType: isArtistFlashEvent ? "fixed" : "varies",
         bookingMode,
-        clientActionType: form.clientActionType,
-        externalUrl:
-          form.clientActionType === "external_link"
-            ? form.externalUrl.trim()
-            : "",
+        clientActionType,
+        externalUrl: ownerType === "shop" ? form.externalUrl.trim() : "",
         externalLabel:
-          form.clientActionType === "external_link"
+          ownerType === "shop" && form.externalUrl.trim()
             ? form.externalLabel.trim()
             : "",
         price:
-          form.priceType === "free" || form.priceType === "varies"
-            ? null
-            : parseOptionalNumber(form.price),
-        depositRequired: false,
-        depositAmount: null,
+          isArtistFlashEvent
+            ? parsedDeposit
+            : null,
+        depositRequired: isArtistFlashEvent,
+        depositAmount: isArtistFlashEvent ? parsedDeposit : null,
         capacity: parsedCapacity || null,
         spotsClaimed: editingEvent?.spotsClaimed || 0,
-        participantArtistIds:
-          ownerType === "shop" ? form.participantArtistIds : [],
-        satxActionNote: getClientActionDashboardNote(form.clientActionType),
+        participantArtistIds: [],
+        includedFlashSheetIds: isArtistFlashEvent
+          ? form.includedFlashSheetIds
+          : [],
+        flashReservationPaymentType: isArtistFlashEvent
+          ? form.flashReservationPaymentType
+          : null,
+        flashDepositAmount: isArtistFlashEvent ? parsedDeposit : null,
+        flashDurationRules: isArtistFlashEvent
+          ? {
+              small: parseOptionalNumber(form.flashDurationSmall) || 45,
+              medium: parseOptionalNumber(form.flashDurationMedium) || 75,
+              large: parseOptionalNumber(form.flashDurationLarge) || 120,
+              buffer: parseOptionalNumber(form.flashBufferMinutes) || 0,
+            }
+          : null,
+        flashReservationSlots: isArtistFlashEvent
+          ? form.flashReservationSlots
+          : [],
+        satxActionNote: getClientActionDashboardNote(clientActionType),
         tags: form.tags,
         status: form.status,
         visibility: form.visibility,
@@ -819,7 +926,8 @@ const EventsManager = ({
           stripeReady={stripeReady}
           onOpenPayments={onOpenPayments}
           ownerType={ownerType}
-          shopRosterArtists={shopRosterArtists}
+          flashSheets={flashSheets}
+          flashes={flashes}
         />
       )}
 
@@ -1088,7 +1196,8 @@ const EventEditorModal = ({
   stripeReady,
   onOpenPayments,
   ownerType,
-  shopRosterArtists,
+  flashSheets,
+  flashes,
 }: {
   form: EventFormState;
   setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
@@ -1102,7 +1211,8 @@ const EventEditorModal = ({
   stripeReady: boolean;
   onOpenPayments?: () => void;
   ownerType: "artist" | "shop";
-  shopRosterArtists: ShopRosterArtist[];
+  flashSheets: FlashSheet[];
+  flashes: Flash[];
 }) => {
   const [activeStep, setActiveStep] = useState<EventEditorStepKey>("basics");
   const [stepDirection, setStepDirection] = useState<"forward" | "back">(
@@ -1117,12 +1227,7 @@ const EventEditorModal = ({
   const canSave = !getFirstEventFormError(formErrors);
   const isFinalStep = currentStepIndex === eventEditorSteps.length - 1;
   const eventOwnerLabel = ownerType === "shop" ? "shop" : "artist";
-  const usesArtistManagedFlashInventory = isShopFlashReservation(
-    form.clientActionType,
-    ownerType
-  );
-  const showDisplayAmount =
-    form.priceType === "fixed" || form.priceType === "starting_at";
+  const isArtistFlashEvent = ownerType === "artist";
 
   const goToStep = (nextStep: EventEditorStepKey) => {
     const nextIndex = eventEditorSteps.findIndex(
@@ -1275,6 +1380,7 @@ const EventEditorModal = ({
               <select
                 value={form.eventType}
                 onChange={(event) => {
+                  if (isArtistFlashEvent) return;
                   const eventType = event.target.value as EventType;
                   setForm((current) => {
                     const nextClientAction =
@@ -1298,9 +1404,12 @@ const EventEditorModal = ({
                     };
                   });
                 }}
+                disabled={isArtistFlashEvent}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
-                {Object.entries(eventTypeLabels).map(([value, label]) => (
+                {Object.entries(eventTypeLabels)
+                  .filter(([value]) => !isArtistFlashEvent || value === "flash_day")
+                  .map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
@@ -1309,75 +1418,22 @@ const EventEditorModal = ({
             </Field>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <Field label="Client action">
-              <select
-                value={form.clientActionType}
-                onChange={(event) => {
-                  const nextClientAction =
-                    event.target.value as EventClientActionType;
-
-                  setForm((current) => ({
-                    ...current,
-                    clientActionType: nextClientAction,
-                    bookingMode: getBookingModeForClientAction(nextClientAction),
-                    capacity: isShopFlashReservation(
-                      nextClientAction,
-                      ownerType
-                    )
-                      ? ""
-                      : current.capacity,
-                    priceType:
-                      nextClientAction === "paid_event_pass"
-                        ? "fixed"
-                        : current.priceType,
-                    depositRequired: false,
-                    depositAmount: "",
-                    externalLabel:
-                      nextClientAction === "external_link"
-                        ? current.externalLabel || "Open event link"
-                        : current.externalLabel,
-                  }));
-                }}
-                className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
-              >
-                {eventClientActionOptions.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {mode.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
-              <p className="text-sm font-semibold text-white">
-                {clientActionLabels[form.clientActionType]}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-white/50">
-                {getClientActionHelp(form.clientActionType, ownerType)}
-              </p>
-            </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-sm font-semibold text-white">
+              {isArtistFlashEvent
+                ? "Artist events are flash reservation events."
+                : "Shop events are information-only."}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              {isArtistFlashEvent
+                ? "Clients will browse the flash sheets you include, pick a piece, choose a slot that fits the size, and reserve through SATX."
+                : "Shops can publish event details and add an external RSVP, expo, convention, or ticket link. SATX does not collect shop RSVPs or shop event payments."}
+            </p>
           </div>
 
-          {ownerType === "shop" &&
-            (form.clientActionType === "flash_reservation" ||
-              form.clientActionType === "appointment_request" ||
-              form.clientActionType === "waitlist") && (
-              <ShopEventArtistSelector
-                artists={shopRosterArtists}
-                selectedArtistIds={form.participantArtistIds}
-                error={formErrors.participantArtistIds}
-                onChange={(participantArtistIds) =>
-                  setForm((current) => ({
-                    ...current,
-                    participantArtistIds,
-                  }))
-                }
-              />
-            )}
-
-          {form.clientActionType === "external_link" && (
+          {ownerType === "shop" && (
             <div className="grid gap-4 md:grid-cols-[1fr_0.7fr]">
-              <Field label="External URL" error={formErrors.externalUrl}>
+              <Field label="External RSVP or event link" error={formErrors.externalUrl}>
                 <input
                   value={form.externalUrl}
                   onChange={(event) =>
@@ -1390,7 +1446,7 @@ const EventEditorModal = ({
                   placeholder="https://..."
                 />
               </Field>
-              <Field label="Button label">
+              <Field label="Link button label">
                 <input
                   value={form.externalLabel}
                   onChange={(event) =>
@@ -1577,138 +1633,45 @@ const EventEditorModal = ({
             </div>
           )}
 
-          <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
-            <p className="text-sm font-semibold text-sky-100">
-              {getClientActionPricingTitle(form.clientActionType, ownerType)}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-sky-100/70">
-              {getClientActionPricingHelp(form.clientActionType, ownerType)}
-            </p>
-          </div>
-
-          <div
-            className={`grid gap-4 ${
-              usesArtistManagedFlashInventory
-                ? showDisplayAmount
-                  ? "md:grid-cols-[1.15fr_0.85fr]"
-                  : "md:grid-cols-[1.15fr]"
-                : "md:grid-cols-[1.15fr_0.85fr_0.85fr]"
-            }`}
-          >
-            <Field
-              label={
-                usesArtistManagedFlashInventory
-                  ? "Flash pricing display"
-                  : form.clientActionType !== "free_rsvp" &&
-                form.clientActionType !== "paid_event_pass"
-                  ? "Displayed price"
-                  : "Price type"
-              }
-            >
-              <select
-                value={form.priceType}
-                onChange={(event) =>
+          {ownerType === "shop" ? (
+            <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
+              <p className="text-sm font-semibold text-sky-100">
+                Shop events are public announcements.
+              </p>
+              <p className="mt-1 text-sm leading-6 text-sky-100/70">
+                SATX will not collect RSVPs, capacity, deposits, or paid
+                admission for shop events. Add the external RSVP or ticket link
+                in the event story step when the event needs one.
+              </p>
+            </div>
+          ) : (
+            <>
+              <FlashEventSheetSelector
+                sheets={flashSheets}
+                flashes={flashes}
+                selectedSheetIds={form.includedFlashSheetIds}
+                error={formErrors.includedFlashSheetIds}
+                onChange={(includedFlashSheetIds) =>
                   setForm((current) => ({
                     ...current,
-                    priceType: event.target.value as EventPriceType,
-                    price:
-                      event.target.value === "free" ||
-                      event.target.value === "varies"
-                        ? ""
-                        : current.price,
+                    includedFlashSheetIds,
                   }))
                 }
-                className="h-[42px] w-full rounded-md border border-white/10 bg-[#171717] px-3 text-white outline-none transition focus:border-white/30"
-              >
-                {Object.entries(priceTypeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+              />
 
-            {showDisplayAmount && (
-              <Field
-                label={
-                  form.clientActionType === "paid_event_pass"
-                    ? "Pass price"
-                    : form.clientActionType !== "free_rsvp"
-                    ? "Display amount"
-                    : "Price"
-                }
-              >
-                <input
-                  type="number"
-                  min="0"
-                  value={form.price}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      price: event.target.value,
-                    }))
-                  }
-                  className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-                  placeholder={
-                    form.priceType === "starting_at"
-                      ? "Starting price"
-                      : "Fixed price"
-                  }
-                />
-              </Field>
-            )}
-
-            {!usesArtistManagedFlashInventory && (
-              <Field
-                label={
-                  form.clientActionType === "details_only" ||
-                  form.clientActionType === "external_link"
-                    ? "Venue capacity"
-                    : form.clientActionType === "waitlist"
-                    ? "Queue size"
-                    : "Capacity"
-                }
-              >
-                <input
-                  type="number"
-                  min="1"
-                  value={form.capacity}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      capacity: event.target.value,
-                    }))
-                  }
-                  className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-                  placeholder={
-                    form.clientActionType === "details_only" ||
-                    form.clientActionType === "external_link"
-                      ? "Optional"
-                      : "100"
-                  }
-                />
-              </Field>
-            )}
-          </div>
-          {usesArtistManagedFlashInventory ? (
-            <p className="text-xs leading-5 text-white/35">
-              Flash availability is managed by the participating artists. Each
-              artist decides which SATX flash sheets or flash pieces are
-              available for this shop event, so the shop does not set a
-              capacity here.
-            </p>
-          ) : (form.clientActionType === "details_only" ||
-            form.clientActionType === "external_link") && (
-            <p className="text-xs leading-5 text-white/35">
-              Capacity is optional for awareness-only events and is shown as
-              venue context only. For tattoo work, use an appointment,
-              waitlist, or flash-reservation action to keep the lead on SATX.
-            </p>
+              <FlashReservationSettings
+                form={form}
+                formErrors={formErrors}
+                setForm={setForm}
+              />
+            </>
           )}
 
           {(formErrors.price ||
             formErrors.depositAmount ||
             formErrors.capacity ||
+            formErrors.flashDepositAmount ||
+            formErrors.flashReservationSlots ||
             formErrors.stripe) && (
             <ValidationCallout
               message={
@@ -1961,22 +1924,24 @@ const EventStepTabs = ({
   </div>
 );
 
-const ShopEventArtistSelector = ({
-  artists,
-  selectedArtistIds,
+const FlashEventSheetSelector = ({
+  sheets,
+  flashes,
+  selectedSheetIds,
   error,
   onChange,
 }: {
-  artists: ShopRosterArtist[];
-  selectedArtistIds: string[];
+  sheets: FlashSheet[];
+  flashes: Flash[];
+  selectedSheetIds: string[];
   error?: string;
-  onChange: (artistIds: string[]) => void;
+  onChange: (sheetIds: string[]) => void;
 }) => {
-  const toggleArtist = (artistId: string) => {
+  const toggleSheet = (sheetId: string) => {
     onChange(
-      selectedArtistIds.includes(artistId)
-        ? selectedArtistIds.filter((id) => id !== artistId)
-        : [...selectedArtistIds, artistId]
+      selectedSheetIds.includes(sheetId)
+        ? selectedSheetIds.filter((id) => id !== sheetId)
+        : [...selectedSheetIds, sheetId]
     );
   };
 
@@ -1985,60 +1950,64 @@ const ShopEventArtistSelector = ({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-white">
-            Participating artists
+            Included flash sheets
           </p>
           <p className="mt-1 text-sm leading-6 text-white/50">
-            Shop events should point clients back to the artists who can take
-            SATX bookings, flash reservations, or waitlist follow-ups.
+            Pick the sheets clients can browse from this flash day. Each
+            itemized flash connected to those sheets becomes eligible for slot
+            reservation.
           </p>
         </div>
         <span className="text-xs font-semibold text-white/35">
-          {selectedArtistIds.length} selected
+          {selectedSheetIds.length} selected
         </span>
       </div>
 
-      {artists.length === 0 ? (
+      {sheets.length === 0 ? (
         <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100/80">
-          Add artists to this shop roster before publishing shop events that
-          depend on artist participation.
+          Upload at least one flash sheet before publishing a flash day.
         </p>
       ) : (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {artists.map((artist) => {
-            const isSelected = selectedArtistIds.includes(artist.id);
-            const artistName = artist.displayName || artist.name || "Artist";
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {sheets.map((sheet) => {
+            const isSelected = selectedSheetIds.includes(sheet.id);
+            const itemCount = flashes.filter(
+              (flash) => flash.sheetId === sheet.id
+            ).length;
 
             return (
               <button
-                key={artist.id}
+                key={sheet.id}
                 type="button"
-                onClick={() => toggleArtist(artist.id)}
-                className={`flex items-center gap-3 rounded-lg border p-3! text-left transition ${
+                onClick={() => toggleSheet(sheet.id)}
+                className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-2! text-left transition ${
                   isSelected
                     ? "border-[var(--color-primary)]/45 bg-[var(--color-primary)]/12"
                     : "border-white/10 bg-black/20 hover:border-white/25"
                 }`}
               >
                 <img
-                  src={artist.avatarUrl || "/default-avatar.png"}
-                  alt={artistName}
-                  className="h-10 w-10 rounded-full border border-white/10 object-cover"
+                  src={sheet.thumbUrl || sheet.imageUrl}
+                  alt={sheet.title || "Flash sheet"}
+                  className="h-16 w-16 rounded-md border border-white/10 object-cover"
                 />
-                <span className="min-w-0 flex-1">
+                <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-white">
-                    {artistName}
+                    {sheet.title || "Untitled sheet"}
                   </span>
-                  <span className="mt-0.5 block text-xs text-white/40">
-                    SATX artist roster
+                  <span className="mt-1 block text-xs text-white/40">
+                    {itemCount} itemized flash
                   </span>
                 </span>
                 <span
-                  className={`h-4 w-4 rounded-full border ${
+                  className={`flex h-5 w-5 items-center justify-center rounded-full border ${
                     isSelected
-                      ? "border-[var(--color-primary)] bg-[var(--color-primary)]"
+                      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
                       : "border-white/25"
                   }`}
-                />
+                >
+                  {isSelected && <Check size={13} />}
+                </span>
               </button>
             );
           })}
@@ -2050,6 +2019,237 @@ const ShopEventArtistSelector = ({
           <ValidationCallout message={error} />
         </div>
       )}
+    </div>
+  );
+};
+
+const FlashReservationSettings = ({
+  form,
+  formErrors,
+  setForm,
+}: {
+  form: EventFormState;
+  formErrors: EventFormErrors;
+  setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
+}) => {
+  const addSlot = () => {
+    if (!form.slotDraftStart || !form.slotDraftEnd) {
+      toast.error("Add a start and end time for the slot.");
+      return;
+    }
+
+    if (form.slotDraftEnd <= form.slotDraftStart) {
+      toast.error("Slot end time must be later than start time.");
+      return;
+    }
+
+    const nextSlot: FlashEventSlot = {
+      id: `slot_${Date.now()}_${form.slotDraftStart.replace(":", "")}`,
+      startTime: form.slotDraftStart,
+      endTime: form.slotDraftEnd,
+    };
+
+    setForm((current) => ({
+      ...current,
+      flashReservationSlots: [...current.flashReservationSlots, nextSlot].sort(
+        (a, b) => a.startTime.localeCompare(b.startTime)
+      ),
+      slotDraftStart: "",
+      slotDraftEnd: "",
+    }));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
+        <p className="text-sm font-semibold text-sky-100">
+          Flash reservations are paid SATX deposits.
+        </p>
+        <p className="mt-1 text-sm leading-6 text-sky-100/70">
+          Clients select a sheet, choose an itemized flash piece, choose the
+          size they want, then reserve the first available time slot that fits
+          that size. Final tattoo price can still vary by size and placement.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[0.9fr_1fr]">
+        <Field label="Reservation deposit" error={formErrors.flashDepositAmount}>
+          <input
+            type="number"
+            min="0"
+            value={form.flashDepositAmount}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                flashDepositAmount: event.target.value,
+                price: event.target.value,
+              }))
+            }
+            className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+            placeholder="50"
+          />
+        </Field>
+
+        <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+          <p className="text-sm font-semibold text-white">
+            Why deposit instead of full price?
+          </p>
+          <p className="mt-1 text-sm leading-6 text-white/50">
+            Flash size and placement can change the final price. A SATX deposit
+            locks the flash and slot while keeping real-world pricing flexible.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+        <p className="text-sm font-semibold text-white">
+          Size timing rules
+        </p>
+        <p className="mt-1 text-sm leading-6 text-white/50">
+          These durations filter which slots can fit a client selected flash
+          size.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <Field label="Small minutes">
+            <input
+              type="number"
+              min="1"
+              value={form.flashDurationSmall}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  flashDurationSmall: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+          <Field label="Medium minutes">
+            <input
+              type="number"
+              min="1"
+              value={form.flashDurationMedium}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  flashDurationMedium: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+          <Field label="Large minutes">
+            <input
+              type="number"
+              min="1"
+              value={form.flashDurationLarge}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  flashDurationLarge: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+          <Field label="Buffer minutes">
+            <input
+              type="number"
+              min="0"
+              value={form.flashBufferMinutes}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  flashBufferMinutes: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Appointment slots
+            </p>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              Add the exact windows clients can reserve. Slots are first come,
+              first served after checkout succeeds.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-white/35">
+            {form.flashReservationSlots.length} slots
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <Field label="Start">
+            <input
+              type="time"
+              value={form.slotDraftStart}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  slotDraftStart: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+          <Field label="End">
+            <input
+              type="time"
+              value={form.slotDraftEnd}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  slotDraftEnd: event.target.value,
+                }))
+              }
+              className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition focus:border-white/30"
+            />
+          </Field>
+          <button
+            type="button"
+            onClick={addSlot}
+            className="self-end rounded-md bg-white px-4! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+          >
+            Add slot
+          </button>
+        </div>
+
+        {form.flashReservationSlots.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {form.flashReservationSlots.map((slot) => (
+              <button
+                key={slot.id}
+                type="button"
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    flashReservationSlots:
+                      current.flashReservationSlots.filter(
+                        (item) => item.id !== slot.id
+                      ),
+                  }))
+                }
+                className="rounded-full border border-white/10 bg-white/[0.06] px-3! py-1.5! text-xs! font-semibold text-white/75 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
+              >
+                {formatTime(slot.startTime)} - {formatTime(slot.endTime)} x
+              </button>
+            ))}
+          </div>
+        )}
+
+        {formErrors.flashReservationSlots && (
+          <div className="mt-4">
+            <ValidationCallout message={formErrors.flashReservationSlots} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -2068,15 +2268,14 @@ const EventReviewSummary = ({
   form: EventFormState;
   ownerType: "artist" | "shop";
 }) => {
-  const usesArtistManagedFlashInventory = isShopFlashReservation(
-    form.clientActionType,
-    ownerType
-  );
+  const isArtistFlashEvent = ownerType === "artist";
   const dateLabel = form.startDate
     ? `${form.startDate}${form.startTime ? ` at ${formatTime(form.startTime)}` : ""}`
     : "Date not set";
   const priceLabel =
-    form.clientActionType === "paid_event_pass"
+    isArtistFlashEvent
+      ? `Reservation deposit ${formatCurrency(form.flashDepositAmount)}`
+      : form.clientActionType === "paid_event_pass"
       ? `Event pass ${formatCurrency(form.price)}`
       : form.clientActionType !== "free_rsvp"
       ? getDisplayPriceLabel(form)
@@ -2103,10 +2302,13 @@ const EventReviewSummary = ({
           value={ownerType === "shop" ? "Shop event" : "Artist event"}
         />
         <ReviewRow label="Title" value={form.title || "Untitled event"} />
-        <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
+        <ReviewRow
+          label="Type"
+          value={isArtistFlashEvent ? "Flash Day" : eventTypeLabels[form.eventType]}
+        />
         <ReviewRow
           label="Client action"
-          value={clientActionLabels[form.clientActionType]}
+          value={isArtistFlashEvent ? "Flash reservation" : "Information only"}
         />
         <ReviewRow label="Starts" value={dateLabel} />
         <ReviewRow
@@ -2120,37 +2322,24 @@ const EventReviewSummary = ({
           }
         />
         <ReviewRow label="Price display" value={priceLabel} />
-        <ReviewRow
-          label={
-            usesArtistManagedFlashInventory
-              ? "Flash availability"
-              : form.clientActionType === "details_only" ||
-            form.clientActionType === "external_link"
-              ? "Venue capacity"
-              : form.clientActionType === "waitlist"
-              ? "Queue size"
-              : "Capacity"
-          }
-          value={
-            usesArtistManagedFlashInventory
-              ? "Managed by participating artists"
-              : form.capacity ||
-            (form.clientActionType === "details_only" ||
-            form.clientActionType === "external_link"
-              ? "Not shown"
-              : "Not set")
-          }
-        />
-        {form.clientActionType === "external_link" && (
-          <ReviewRow
-            label="External link"
-            value={form.externalUrl || "Not set"}
-          />
+        {isArtistFlashEvent ? (
+          <>
+            <ReviewRow
+              label="Flash sheets"
+              value={`${form.includedFlashSheetIds.length} selected`}
+            />
+            <ReviewRow
+              label="Reservation slots"
+              value={`${form.flashReservationSlots.length} slots`}
+            />
+          </>
+        ) : (
+          <ReviewRow label="SATX capacity" value="Not collected for shop events" />
         )}
-        {ownerType === "shop" && form.participantArtistIds.length > 0 && (
+        {ownerType === "shop" && form.externalUrl.trim() && (
           <ReviewRow
-            label="Artists"
-            value={`${form.participantArtistIds.length} participating`}
+            label="External RSVP link"
+            value={form.externalUrl || "Not set"}
           />
         )}
       </div>
@@ -2228,18 +2417,8 @@ const getEventFormErrors = (
   ownerType: "artist" | "shop"
 ): EventFormErrors => {
   const errors: EventFormErrors = {};
-  const usesArtistManagedFlashInventory = isShopFlashReservation(
-    form.clientActionType,
-    ownerType
-  );
-  const parsedCapacity = usesArtistManagedFlashInventory
-    ? null
-    : parseOptionalNumber(form.capacity);
-  const parsedPrice = parseOptionalNumber(form.price);
-  const capacityRequired =
-    form.clientActionType === "free_rsvp" ||
-    form.clientActionType === "paid_event_pass";
-  const paidAction = form.clientActionType === "paid_event_pass";
+  const isArtistFlashEvent = ownerType === "artist";
+  const parsedDeposit = parseOptionalNumber(form.flashDepositAmount);
 
   if (!form.title.trim()) {
     errors.title = "Add a clear event title.";
@@ -2272,59 +2451,29 @@ const getEventFormErrors = (
     errors.location = "Add a shop, venue name, or address.";
   }
 
-  if (
-    (form.priceType === "fixed" || form.priceType === "starting_at") &&
-    (!parsedPrice || parsedPrice <= 0)
-  ) {
-    errors.price = "Add a valid price for this price type.";
+  if (ownerType === "shop" && form.externalUrl.trim() && !/^https?:\/\//i.test(form.externalUrl.trim())) {
+    errors.externalUrl = "External links must start with http:// or https://.";
   }
 
-  if (
-    paidAction &&
-    (!parsedPrice || parsedPrice <= 5)
-  ) {
-    errors.price =
-      "Paid event pass prices must be greater than the platform fee.";
-  }
+  if (isArtistFlashEvent) {
+    if (form.includedFlashSheetIds.length === 0) {
+      errors.includedFlashSheetIds =
+        "Choose at least one flash sheet for this event.";
+    }
 
-  if (capacityRequired && (!parsedCapacity || parsedCapacity <= 0)) {
-    errors.capacity = "Add a valid event capacity.";
-  }
+    if (!parsedDeposit || parsedDeposit <= 5) {
+      errors.flashDepositAmount =
+        "Flash reservation deposits must be greater than the platform fee.";
+    }
 
-  if (
-    !capacityRequired &&
-    parsedCapacity !== null &&
-    parsedCapacity <= 0
-  ) {
-    errors.capacity = "Use a positive capacity or leave it blank.";
-  }
-
-  if (form.clientActionType === "external_link") {
-    if (!form.externalUrl.trim()) {
-      errors.externalUrl = "Add the external event link.";
-    } else if (!/^https?:\/\//i.test(form.externalUrl.trim())) {
-      errors.externalUrl = "External links must start with http:// or https://.";
+    if (form.flashReservationSlots.length === 0) {
+      errors.flashReservationSlots =
+        "Add at least one appointment slot for clients to reserve.";
     }
   }
 
-  if (
-    form.status === "published" &&
-    ownerType === "shop" &&
-    (form.clientActionType === "flash_reservation" ||
-      form.clientActionType === "appointment_request" ||
-      form.clientActionType === "waitlist") &&
-    form.participantArtistIds.length === 0
-  ) {
-    errors.participantArtistIds =
-      "Pick at least one participating artist so clients can continue through SATX.";
-  }
-
-  if (
-    form.status === "published" &&
-    clientActionRequiresStripe(form.clientActionType) &&
-    !stripeReady
-  ) {
-    errors.stripe = "Connect Stripe before publishing paid event passes.";
+  if (form.status === "published" && isArtistFlashEvent && !stripeReady) {
+    errors.stripe = "Connect Stripe before publishing flash reservations.";
   }
 
   return errors;
@@ -2375,12 +2524,9 @@ const getDefaultClientAction = (
   eventType: EventType,
   ownerType: "artist" | "shop"
 ): EventClientActionType => {
+  if (ownerType === "artist") return "flash_reservation";
+  if (ownerType === "shop") return "details_only";
   if (eventType === "flash_day") return "flash_reservation";
-  if (eventType === "guest_spot") return "appointment_request";
-  if (eventType === "walk_in_day") return "waitlist";
-  if (eventType === "convention") return "appointment_request";
-  if (eventType === "pop_up") return ownerType === "shop" ? "free_rsvp" : "appointment_request";
-  if (eventType === "shop_event") return ownerType === "shop" ? "free_rsvp" : "details_only";
   return "details_only";
 };
 
@@ -2389,105 +2535,18 @@ const getBookingModeForClientAction = (
 ): EventBookingMode => {
   if (clientActionType === "free_rsvp") return "rsvp";
   if (clientActionType === "paid_event_pass") return "paid_ticket";
+  if (clientActionType === "flash_reservation") return "flash_reservation";
   return "info_only";
 };
 
 const clientActionRequiresStripe = (clientActionType: EventClientActionType) =>
-  clientActionType === "paid_event_pass";
+  clientActionType === "paid_event_pass" ||
+  clientActionType === "flash_reservation";
 
 const isShopFlashReservation = (
   clientActionType: EventClientActionType,
   ownerType?: "artist" | "shop"
 ) => ownerType === "shop" && clientActionType === "flash_reservation";
-
-const getClientActionHelp = (
-  clientActionType: EventClientActionType,
-  ownerType: "artist" | "shop"
-) => {
-  if (clientActionType === "details_only") {
-    return "Best for announcements. Use this when the event should inform clients but not replace SATX booking flows.";
-  }
-
-  if (clientActionType === "free_rsvp") {
-    return "Clients can RSVP for reminders and check-in, but the RSVP does not reserve a tattoo spot.";
-  }
-
-  if (clientActionType === "paid_event_pass") {
-    return "For admission-style events such as workshops, private previews, expos, or VIP access. Payment stays on SATX.";
-  }
-
-  if (clientActionType === "flash_reservation") {
-    return ownerType === "shop"
-      ? "For shop flash days. Pick participating artists so clients are pushed toward SATX artist flash and booking flows."
-      : "For artist flash days. Clients are steered toward SATX flash inventory and profile booking instead of offline claims.";
-  }
-
-  if (clientActionType === "appointment_request") {
-    return "Best for guest spots and convention dates. The event should drive clients to request work through SATX.";
-  }
-
-  if (clientActionType === "waitlist") {
-    return "Best for walk-in days. Use it to capture demand and convert clients into SATX requests instead of unmanaged door traffic.";
-  }
-
-  return "Use only when the event must be completed on an external site, such as convention admission or a venue-run event page.";
-};
-
-const getClientActionPricingTitle = (
-  clientActionType: EventClientActionType,
-  ownerType: "artist" | "shop"
-) => {
-  if (clientActionType === "paid_event_pass") {
-    return "Paid event passes keep admission payments on SATX Ink.";
-  }
-  if (clientActionType === "free_rsvp") {
-    return "Free RSVP creates attendance passes, not tattoo appointments.";
-  }
-  if (clientActionType === "flash_reservation") {
-    if (ownerType === "shop") {
-      return "Shop flash days use artist-managed flash availability.";
-    }
-    return "Flash events should drive clients toward SATX flash booking.";
-  }
-  if (clientActionType === "appointment_request") {
-    return "Appointment events should convert into SATX tattoo requests.";
-  }
-  if (clientActionType === "waitlist") {
-    return "Walk-in interest should stay captured inside SATX.";
-  }
-  if (clientActionType === "external_link") {
-    return "External links should be the exception, not the default.";
-  }
-  return "Details-only events do not collect money on SATX Ink.";
-};
-
-const getClientActionPricingHelp = (
-  clientActionType: EventClientActionType,
-  ownerType: "artist" | "shop"
-) => {
-  if (clientActionType === "paid_event_pass") {
-    return "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host.";
-  }
-  if (clientActionType === "free_rsvp") {
-    return "Use RSVP for headcount and reminders. The public event copy clarifies that tattoo spots still need to be requested or reserved through SATX.";
-  }
-  if (clientActionType === "flash_reservation") {
-    if (ownerType === "shop") {
-      return "Use this as a shop-level price cue only. Each participating artist should control which SATX flash sheets or pieces are reservable for this event.";
-    }
-    return "Use displayed price as public context. The event CTA prioritizes SATX flash/profile flows so clients do not treat the event as an offline booking workaround.";
-  }
-  if (clientActionType === "appointment_request") {
-    return "Use displayed price as estimate context. The event CTA points to SATX profile/request flows where custom tattoo booking belongs.";
-  }
-  if (clientActionType === "waitlist") {
-    return "Capacity can represent queue size. The event should capture interest and route clients into SATX follow-up, not unmanaged walk-in booking.";
-  }
-  if (clientActionType === "external_link") {
-    return "Use displayed price as context only. Prefer SATX actions unless a convention, venue, or organizer requires an external link.";
-  }
-  return "Use price only as public display context, such as Free, Varies, or Starting at.";
-};
 
 const getClientActionDashboardNote = (
   clientActionType: EventClientActionType
