@@ -345,9 +345,9 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       )}
 
       {showSheetTitleModal && (
-        <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:px-4 md:py-8">
-          <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
-            <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
+        <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-hidden bg-black backdrop-blur-xl md:overflow-y-auto md:bg-black/80 md:px-4 md:py-8">
+          <div className="mx-auto flex h-full w-full items-stretch justify-center md:min-h-full md:items-center">
+            <div className="relative grid h-full w-full max-w-4xl overflow-y-auto border border-white/10 bg-[#111111] text-white shadow-2xl md:h-auto md:overflow-hidden md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
             <button
               type="button"
               onClick={closeSheetTitleModal}
@@ -380,7 +380,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
               )}
             </div>
 
-            <div className="p-5 md:p-6">
+            <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] md:p-6">
               <label className="block">
                 <span className="text-sm font-semibold text-zinc-300">
                   Sheet title
