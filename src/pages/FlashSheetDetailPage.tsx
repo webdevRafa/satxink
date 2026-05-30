@@ -28,8 +28,22 @@ import {
 import { getDownloadURL, ref } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getCroppedImg } from "../utils/cropImage";
 import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (
+    err &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    return (err as { message: string }).message;
+  }
+
+  return fallback;
+};
 
 const FlashSheetDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -86,8 +100,8 @@ const FlashSheetDetailPage = () => {
         toast.error("Flash sheet not found.");
       }
       await fetchFlashes(id);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to load flash sheet.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to load flash sheet."));
     } finally {
       setIsLoading(false);
     }
@@ -137,8 +151,8 @@ const FlashSheetDetailPage = () => {
       setZoom(1);
       if (id) fetchFlashes(id);
       toast.success("Flash published.");
-    } catch (err: any) {
-      toast.error(err?.message || "Something went wrong while publishing.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Something went wrong while publishing."));
     } finally {
       setIsPublishing(false);
     }
@@ -349,6 +363,7 @@ const FlashSheetDetailPage = () => {
           sheet={sheet}
           crop={crop}
           zoom={zoom}
+          cropArea={cropArea}
           title={newFlashTitle}
           price={newFlashPrice}
           tags={newFlashTags}
@@ -380,6 +395,7 @@ const CropFlashModal = ({
   sheet,
   crop,
   zoom,
+  cropArea,
   title,
   price,
   tags,
@@ -396,6 +412,7 @@ const CropFlashModal = ({
   sheet: FlashSheet;
   crop: { x: number; y: number };
   zoom: number;
+  cropArea: Area | null;
   title: string;
   price: string;
   tags: string;
@@ -408,134 +425,268 @@ const CropFlashModal = ({
   onTagsChange: (value: string) => void;
   onClose: () => void;
   onPublish: () => void;
-}) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 px-4 py-6 backdrop-blur-xl">
-    <div className="relative grid h-[min(900px,92vh)] w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl lg:grid-cols-[minmax(0,1fr)_360px]">
+}) => {
+  const [mobileStep, setMobileStep] = useState<"crop" | "details">("crop");
+  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(
+    null
+  );
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
+    },
+    [croppedPreviewUrl]
+  );
+
+  const updateCroppedPreviewUrl = (previewUrl: string | null) => {
+    setCroppedPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return previewUrl;
+    });
+  };
+
+  const handleContinueToDetails = async () => {
+    if (!cropArea || isPreparingPreview) {
+      toast("Choose a crop area first.");
+      return;
+    }
+
+    try {
+      setIsPreparingPreview(true);
+      const blob = await getCroppedImg(sheet.imageUrl, cropArea);
+      updateCroppedPreviewUrl(URL.createObjectURL(blob));
+    } catch (err: unknown) {
+      updateCroppedPreviewUrl(null);
+      toast.error(
+        getErrorMessage(
+          err,
+          "Could not generate a preview, but the crop is still selected."
+        )
+      );
+    } finally {
+      setIsPreparingPreview(false);
+      setMobileStep("details");
+    }
+  };
+
+  const cropPanel = (
+    <div
+      className={`${
+        mobileStep === "details" ? "hidden lg:flex" : "flex"
+      } min-h-0 flex-col`}
+    >
+      <div className="border-b border-white/10 p-5 pr-16">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+          Crop from sheet
+        </p>
+        <h2 className="mt-2 text-2xl! font-bold text-white">
+          {sheet.title || "Untitled sheet"}
+        </h2>
+      </div>
+      <div className="relative min-h-0 flex-1 bg-black lg:min-h-[420px]">
+        <Cropper
+          image={sheet.imageUrl}
+          crop={crop}
+          zoom={zoom}
+          maxZoom={8}
+          aspect={1}
+          objectFit="cover"
+          onCropChange={onCropChange}
+          onZoomChange={onZoomChange}
+          onCropComplete={onCropComplete}
+        />
+      </div>
+      <div className="border-t border-white/10 p-4 lg:hidden">
+        <div className="flex">
+          <button
+            type="button"
+            onClick={handleContinueToDetails}
+            className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+            disabled={!cropArea || isPublishing || isPreparingPreview}
+          >
+            {isPreparingPreview ? "Preparing..." : "Continue"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDetailsFields = () => (
+    <>
+      <label className="block">
+        <span className="text-sm font-semibold text-zinc-300">Title</span>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Dragon"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+      </label>
+
+      <label className="block">
+        <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+          <DollarSign size={16} />
+          Price
+        </span>
+        <input
+          type="number"
+          value={price}
+          onChange={(e) => onPriceChange(e.target.value)}
+          placeholder="Optional"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+      </label>
+
+      <label className="block">
+        <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+          <Tag size={16} />
+          Tags
+        </span>
+        <input
+          type="text"
+          value={tags}
+          onChange={(e) => onTagsChange(e.target.value)}
+          placeholder="anime, color, dragon"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+      </label>
+    </>
+  );
+
+  const renderActionButtons = () => (
+    <div className="flex flex-col-reverse gap-3 sm:flex-row lg:flex-col-reverse">
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-4 top-4 z-20 rounded-full border border-white/10 bg-black/50 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
-        aria-label="Close crop modal"
+        className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
         disabled={isPublishing}
       >
-        <X size={18} />
+        Cancel
       </button>
-
-      <div className="flex min-h-0 flex-col">
-        <div className="border-b border-white/10 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-            Crop from sheet
-          </p>
-          <h2 className="mt-2 text-2xl! font-bold text-white">
-            {sheet.title || "Untitled sheet"}
-          </h2>
-        </div>
-        <div className="relative min-h-[420px] flex-1 bg-black">
-          <Cropper
-            image={sheet.imageUrl}
-            crop={crop}
-            zoom={zoom}
-            maxZoom={8}
-            aspect={1}
-            objectFit="cover"
-            onCropChange={onCropChange}
-            onZoomChange={onZoomChange}
-            onCropComplete={onCropComplete}
-          />
-        </div>
-      </div>
-
-      <aside className="flex min-h-0 flex-col border-t border-white/10 bg-black/30 lg:border-l lg:border-t-0">
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="flex gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
-                <Scissors size={18} />
-              </span>
-              <p className="text-sm leading-6 text-zinc-400">
-                Keep the crop tight around one flash design. The saved item will
-                stay linked to this sheet.
-              </p>
-            </div>
-          </div>
-
-          <label className="block">
-            <span className="text-sm font-semibold text-zinc-300">Zoom</span>
-            <input
-              aria-label="Zoom"
-              type="range"
-              min={1}
-              max={8}
-              step={0.1}
-              value={zoom}
-              onChange={(e) => onZoomChange(parseFloat(e.target.value))}
-              className="mt-3 w-full accent-red-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-semibold text-zinc-300">Title</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder="Dragon"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-            />
-          </label>
-
-          <label className="block">
-            <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-              <DollarSign size={16} />
-              Price
-            </span>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => onPriceChange(e.target.value)}
-              placeholder="Optional"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-            />
-          </label>
-
-          <label className="block">
-            <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-              <Tag size={16} />
-              Tags
-            </span>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => onTagsChange(e.target.value)}
-              placeholder="anime, color, dragon"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-            />
-          </label>
-        </div>
-
-        <div className="border-t border-white/10 p-5">
-          <div className="flex flex-col-reverse gap-3 sm:flex-row lg:flex-col-reverse">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
-              disabled={isPublishing}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onPublish}
-              className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={isPublishing}
-            >
-              {isPublishing ? "Publishing..." : "Publish flash"}
-            </button>
-          </div>
-        </div>
-      </aside>
+      <button
+        type="button"
+        onClick={onPublish}
+        className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+        disabled={isPublishing || !cropArea}
+      >
+        {isPublishing ? "Publishing..." : "Publish flash"}
+      </button>
     </div>
-  </div>
-);
+  );
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 top-20 z-[120] flex items-start justify-center overflow-hidden bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-xl md:inset-0 md:items-center md:px-4 md:py-6">
+      <div className="relative grid h-full w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:h-[min(900px,92vh)] lg:grid-cols-[minmax(0,1fr)_360px]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-20 rounded-full border border-white/10 bg-black/50 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          aria-label="Close crop modal"
+          disabled={isPublishing}
+        >
+          <X size={18} />
+        </button>
+
+        {cropPanel}
+
+        <div
+          className={`${
+            mobileStep === "details" ? "flex lg:hidden" : "hidden"
+          } min-h-0 flex-col`}
+        >
+          <div className="border-b border-white/10 p-5 pr-16">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+              Flash details
+            </p>
+            <h2 className="mt-2 text-2xl! font-bold text-white">
+              Publish cropped flash
+            </h2>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-4">
+                {croppedPreviewUrl ? (
+                  <img
+                    src={croppedPreviewUrl}
+                    alt="Cropped flash preview"
+                    className="h-24 w-24 shrink-0 rounded-xl border border-white/10 object-cover"
+                  />
+                ) : (
+                  <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-red-300">
+                    <Scissors size={22} />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    Crop preview
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400">
+                    This square preview uses the crop area that will be
+                    published from this sheet.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {renderDetailsFields()}
+
+            <button
+              type="button"
+              onClick={() => setMobileStep("crop")}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              disabled={isPublishing}
+            >
+              <ArrowLeft size={16} />
+              Back to crop
+            </button>
+          </div>
+
+          <div className="border-t border-white/10 p-4">
+            {renderActionButtons()}
+          </div>
+        </div>
+
+        <aside className="hidden min-h-0 flex-col border-t border-white/10 bg-black/30 lg:flex lg:border-l lg:border-t-0">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
+                  <Scissors size={18} />
+                </span>
+                <p className="text-sm leading-6 text-zinc-400">
+                  Keep the crop tight around one flash design. The saved item
+                  will stay linked to this sheet.
+                </p>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-semibold text-zinc-300">Zoom</span>
+              <input
+                aria-label="Zoom"
+                type="range"
+                min={1}
+                max={8}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+                className="mt-3 w-full accent-red-400"
+              />
+            </label>
+
+            {renderDetailsFields()}
+          </div>
+
+          <div className="border-t border-white/10 p-5">
+            {renderActionButtons()}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
 
 export default FlashSheetDetailPage;
