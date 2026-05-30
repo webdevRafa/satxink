@@ -1087,11 +1087,11 @@ const EventDetailsModal = ({
           className={`inline-flex items-center justify-center gap-2 rounded-lg px-5! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed ${
             isReserved
               ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-              : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+              : "bg-white !text-black hover:bg-white/85 disabled:opacity-60"
           }`}
         >
           {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
-          {!isReserved && <ChevronRight size={16} />}
+          {!isReserved && <ChevronRight className="h-4 w-4 text-black" />}
         </button>
       );
     }
@@ -1105,7 +1105,7 @@ const EventDetailsModal = ({
           className={`inline-flex items-center justify-center gap-2 rounded-lg px-5! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed ${
             isPaid
               ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-              : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+              : "bg-white !text-black hover:bg-white/85 disabled:opacity-60"
           }`}
         >
           {isPurchasing
@@ -1115,7 +1115,7 @@ const EventDetailsModal = ({
             : isPendingPayment
             ? "Resume checkout"
             : "Buy ticket"}
-          {!isPaid && <ChevronRight size={16} />}
+          {!isPaid && <ChevronRight className="h-4 w-4 text-black" />}
         </button>
       );
     }
@@ -1133,12 +1133,12 @@ const EventDetailsModal = ({
         <Link
           to={artistProfilePath}
           onClick={onClose}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold !text-black transition hover:bg-white/85"
         >
           {bookingMode === "flash_reservation"
             ? "Reserve with artist"
             : "Book with artist"}
-          <ChevronRight size={16} />
+          <ChevronRight className="h-4 w-4 text-black" />
         </Link>
       );
     }
@@ -1148,10 +1148,10 @@ const EventDetailsModal = ({
         <Link
           to={artistProfilePath}
           onClick={onClose}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold !text-black transition hover:bg-white/85"
         >
-          View host profile
-          <ChevronRight size={16} />
+          View artist profile
+          <ChevronRight className="h-4 w-4 text-black" />
         </Link>
       );
     }
@@ -1162,10 +1162,10 @@ const EventDetailsModal = ({
           href={event.mapLink}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold !text-black transition hover:bg-white/85"
         >
           View location
-          <ChevronRight size={16} />
+          <ChevronRight className="h-4 w-4 text-black" />
         </a>
       );
     }
@@ -1196,10 +1196,10 @@ const EventDetailsModal = ({
             type="button"
             onClick={onClose}
             disabled={isReserving || isPurchasing}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] !p-0 !text-white transition hover:border-white/25 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Close event details"
           >
-            <X size={18} />
+            <X className="h-5 w-5 text-white" strokeWidth={2.4} />
           </button>
         </header>
 
@@ -1223,7 +1223,7 @@ const EventDetailsModal = ({
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/35">
-                    Hosted by
+                    {isShopHosted ? "Shop" : "Artist"}
                   </p>
                   <div className="mt-3 flex items-center gap-3">
                     {isShopHosted ? (
@@ -1312,10 +1312,7 @@ const EventDetailsModal = ({
 
               {event.tags && event.tags.length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
-                    Tags
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {event.tags.map((tag) => (
                       <span
                         key={tag}
@@ -1332,16 +1329,7 @@ const EventDetailsModal = ({
           </div>
         </div>
 
-        <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p className="text-sm text-white/45">
-            {isPaid
-              ? "This ticket is already in your dashboard."
-              : isPendingPayment
-              ? "You have a pending checkout for this event."
-              : isReserved
-              ? "Your event pass is reserved."
-              : "Review the details, then claim the right event action."}
-          </p>
+        <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
@@ -1564,10 +1552,10 @@ const TicketCheckoutPreviewModal = ({
               type="button"
               onClick={() => onConfirm(event)}
               disabled={isPurchasing || isPaid}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold !text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPurchasing ? "Opening Stripe..." : isPaid ? "Ticket purchased" : actionLabel}
-              <ChevronRight size={16} />
+              <ChevronRight className="h-4 w-4 text-black" />
             </button>
           </div>
         </footer>
@@ -1776,10 +1764,10 @@ const PublicEventCard = ({
             <button
               type="button"
               onClick={() => onViewDetails(event)}
-              className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/45"
+              className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4! py-2! text-sm! font-semibold !text-black transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/45"
             >
               View event
-              <ChevronRight size={16} />
+              <ChevronRight className="h-4 w-4 text-black" />
             </button>
           </div>
         </div>
