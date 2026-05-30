@@ -3,7 +3,6 @@ import type { ComponentType } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  arrayUnion,
   addDoc,
   collection,
   doc,
@@ -26,7 +25,6 @@ import {
   Code,
   FileDown,
   Star,
-  Store,
   CheckCircle2,
   XCircle,
   Mail,
@@ -59,7 +57,6 @@ type AdminView =
   | "offers"
   | "bookings"
   | "sessions"
-  | "shopClaims"
   | "contactMessages";
 type StripeFilter = "all" | "connected" | "not_connected";
 type FeaturedFilter = "all" | "featured" | "not_featured";
@@ -511,7 +508,6 @@ const getInitialCollectionStatus = (): Record<AdminView, CollectionStatus> => ({
   offers: { loading: false, error: "", updatedAt: null },
   bookings: { loading: false, error: "", updatedAt: null },
   sessions: { loading: false, error: "", updatedAt: null },
-  shopClaims: { loading: false, error: "", updatedAt: null },
   contactMessages: { loading: false, error: "", updatedAt: null },
 });
 
@@ -521,7 +517,6 @@ const markAllCollectionsLoading = (): Record<AdminView, CollectionStatus> => ({
   offers: { loading: true, error: "", updatedAt: null },
   bookings: { loading: true, error: "", updatedAt: null },
   sessions: { loading: true, error: "", updatedAt: null },
-  shopClaims: { loading: true, error: "", updatedAt: null },
   contactMessages: { loading: true, error: "", updatedAt: null },
 });
 
@@ -972,244 +967,6 @@ const EmptyTableState = ({
     </div>
   ) : null;
 
-const ShopClaimsTable: React.FC<{
-  data: GenericRecord[];
-  usersById: UserLookup;
-  status?: CollectionStatus;
-  adminUser: UserRecord | null;
-  onSelect: (item: GenericRecord) => void;
-}> = ({ data, usersById, status, adminUser, onSelect }) => {
-  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">(
-    "pending"
-  );
-  const filteredClaims = useMemo(
-    () =>
-      filter === "all"
-        ? data
-        : data.filter((claim) => getNormalizedShopClaimStatus(claim) === filter),
-    [data, filter]
-  );
-
-  const handleMarkVerified = async (claim: GenericRecord) => {
-    const userId = getString(claim, "userId");
-    let shopId = getString(claim, "shopId");
-    if (!userId) {
-      toast.error("Claim is missing a user id.");
-      return;
-    }
-
-    const visitNote = window.prompt(
-      "Optional in-person verification note for this shop:"
-    );
-    if (visitNote === null) return;
-
-    const claimant = usersById[userId];
-    const nextRole = claimant?.role === "artist" ? "artist" : "shop_owner";
-    let resolvedShopName = getString(claim, "shopName");
-
-    try {
-      if (!shopId) {
-        const requestedShop = claim.requestedShop as
-          | { name?: string; address?: string; mapLink?: string }
-          | undefined;
-        if (!requestedShop?.name) {
-          toast.error("New shop claims need a requested shop name.");
-          return;
-        }
-
-        const shopRef = await addDoc(collection(db, "shops"), {
-          name: requestedShop.name,
-          address: requestedShop.address || "",
-          mapLink: requestedShop.mapLink || "",
-          ownerUserIds: [userId],
-          isVerified: true,
-          verifiedAt: serverTimestamp(),
-          verifiedBy: adminUser?.id || null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        shopId = shopRef.id;
-        resolvedShopName = requestedShop.name;
-      }
-
-      await updateDoc(doc(db, "users", userId), {
-        role: nextRole,
-        shopOwnerShopIds: arrayUnion(shopId),
-        ownedShopIds: arrayUnion(shopId),
-        shopClaimStatus: "verified",
-        updatedAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, "shops", shopId), {
-        ownerUserIds: arrayUnion(userId),
-        isVerified: true,
-        verifiedAt: serverTimestamp(),
-        verifiedBy: adminUser?.id || null,
-        updatedAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, "shopClaims", claim.id), {
-        status: "verified",
-        verificationMethod: "in_person",
-        verificationStatus: "verified_in_person",
-        shopId,
-        shopName: resolvedShopName,
-        adminNotes: visitNote || getString(claim, "adminNotes"),
-        verifiedAt: serverTimestamp(),
-        verifiedBy: adminUser?.id || null,
-        reviewedAt: serverTimestamp(),
-        reviewedBy: adminUser?.id || null,
-        updatedAt: serverTimestamp(),
-      });
-      toast.success("Shop verified and access granted.");
-    } catch (error) {
-      console.error("Failed to verify shop claim:", error);
-      toast.error("Could not verify this claim.");
-    }
-  };
-
-  const handleReject = async (claim: GenericRecord) => {
-    const reason = window.prompt("Optional rejection note for this claim:");
-    try {
-      await updateDoc(doc(db, "shopClaims", claim.id), {
-        status: "rejected",
-        verificationMethod: "in_person",
-        verificationStatus: "rejected",
-        adminNotes: reason || "",
-        reviewedAt: serverTimestamp(),
-        reviewedBy: adminUser?.id || null,
-        updatedAt: serverTimestamp(),
-      });
-      const userId = getString(claim, "userId");
-      if (userId) {
-        await updateDoc(doc(db, "users", userId), {
-          shopClaimStatus: "rejected",
-          updatedAt: serverTimestamp(),
-        });
-      }
-      toast.success("Shop claim rejected.");
-    } catch (error) {
-      console.error("Failed to reject shop claim:", error);
-      toast.error("Could not reject this claim.");
-    }
-  };
-
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl! font-semibold text-white">Shop claims</h1>
-          <p className="mt-1 text-sm text-neutral-400">
-            Use this queue for in-person shop verification, then grant dashboard
-            access when the visit is complete.
-          </p>
-        </div>
-        <DataHealth
-          status={status}
-          total={data.length}
-          visible={filteredClaims.length}
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(["pending", "verified", "rejected", "all"] as const).map((item) => (
-          <QuickFilterButton
-            key={item}
-            label={item === "all" ? "All" : formatStatusLabel(item)}
-            count={
-              item === "all"
-                ? data.length
-                : data.filter((claim) => getNormalizedShopClaimStatus(claim) === item).length
-            }
-            active={filter === item}
-            onClick={() => setFilter(item)}
-          />
-        ))}
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111]">
-        <div className="grid grid-cols-[1.1fr_.95fr_.85fr_.9fr] gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 text-xs uppercase tracking-[0.14em] text-neutral-500">
-          <span>Claimant</span>
-          <span>Shop</span>
-          <span>Verification</span>
-          <span className="text-right">Actions</span>
-        </div>
-        <div className="divide-y divide-white/10">
-          {filteredClaims.map((claim) => {
-            const claimant = usersById[getString(claim, "userId")];
-            const statusValue = getNormalizedShopClaimStatus(claim);
-            const verificationStatus =
-              getString(claim, "verificationStatus") ||
-              (statusValue === "verified" ? "verified_in_person" : "pending_visit");
-            const adminNotes = getString(claim, "adminNotes");
-            const claimantNotes = getString(claim, "notes");
-
-            return (
-              <div
-                key={claim.id}
-                className="grid grid-cols-[1.1fr_.95fr_.85fr_.9fr] items-center gap-4 px-4 py-4 text-sm"
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelect(claim)}
-                  className="min-w-0 p-0! text-left"
-                >
-                  <p className="truncate font-semibold text-white">
-                    {getUserName(claimant, getString(claim, "userId"))}
-                  </p>
-                  <p className="truncate text-neutral-500">
-                    {getString(claim, "claimantEmail") || claimant?.email || "-"}
-                  </p>
-                </button>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-white">
-                    {getString(claim, "shopName") || getString(claim, "shopId")}
-                  </p>
-                  <p className="truncate text-neutral-500">
-                    {getString(claim, "shopId") || "New shop request"}
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-white">
-                    {formatShopVerificationStatus(verificationStatus)}
-                  </p>
-                  <p className="truncate text-neutral-500">
-                    {adminNotes || claimantNotes || "In-person visit required"}
-                  </p>
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <span className={getAdminStatusBadgeClass(statusValue)}>
-                    {formatStatusLabel(statusValue)}
-                  </span>
-                  {statusValue === "pending" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkVerified(claim)}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 hover:bg-emerald-300/15"
-                      >
-                        <CheckCircle2 size={14} />
-                        Mark verified
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleReject(claim)}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-300/20 bg-red-300/10 px-3! text-xs! font-semibold text-red-100 hover:bg-red-300/15"
-                      >
-                        <XCircle size={14} />
-                        Reject
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <EmptyTableState total={data.length} visible={filteredClaims.length} />
-      </div>
-    </section>
-  );
-};
-
 const getAdminStatusBadgeClass = (status: string) => {
   const base =
     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize";
@@ -1220,19 +977,6 @@ const getAdminStatusBadgeClass = (status: string) => {
     return `${base} border-red-300/25 bg-red-300/10 text-red-100`;
   }
   return `${base} border-amber-300/25 bg-amber-300/10 text-amber-100`;
-};
-
-const getNormalizedShopClaimStatus = (claim: GenericRecord) => {
-  const status = getString(claim, "status");
-  if (status === "approved" || status === "verified") return "verified";
-  if (status === "rejected") return "rejected";
-  return "pending";
-};
-
-const formatShopVerificationStatus = (status: string) => {
-  if (status === "verified_in_person") return "Verified in person";
-  if (status === "rejected") return "Rejected";
-  return "Needs in-person visit";
 };
 
 /**
@@ -1263,7 +1007,6 @@ const AdminSidebarNavigation: React.FC<SidebarProps> = ({
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
     { key: "sessions", label: "Sessions", icon: Clock },
-    { key: "shopClaims", label: "Shop Claims", icon: Store },
     { key: "contactMessages", label: "Contact", icon: Mail },
   ];
   return (
@@ -3031,7 +2774,6 @@ const AdminDashboardView: React.FC = () => {
   const [offers, setOffers] = useState<GenericRecord[]>([]);
   const [bookings, setBookings] = useState<GenericRecord[]>([]);
   const [sessions, setSessions] = useState<GenericRecord[]>([]);
-  const [shopClaims, setShopClaims] = useState<GenericRecord[]>([]);
   const [contactMessages, setContactMessages] = useState<GenericRecord[]>([]);
   const [collectionStatuses, setCollectionStatuses] = useState(
     getInitialCollectionStatus
@@ -3193,22 +2935,6 @@ const AdminDashboardView: React.FC = () => {
       },
       (error) => updateStatus("sessions", getCollectionErrorState(error))
     );
-    const shopClaimsQuery = query(
-      collection(db, "shopClaims"),
-      orderBy("createdAt", "desc")
-    );
-    const unsubShopClaims = onSnapshot(
-      shopClaimsQuery,
-      (snap) => {
-        const results: GenericRecord[] = [];
-        snap.forEach((docSnap) => {
-          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
-        });
-        setShopClaims(results);
-        updateStatus("shopClaims", getCollectionSuccessState());
-      },
-      (error) => updateStatus("shopClaims", getCollectionErrorState(error))
-    );
     const contactMessagesQuery = query(
       collection(db, "contactMessages"),
       orderBy("createdAt", "desc")
@@ -3233,7 +2959,6 @@ const AdminDashboardView: React.FC = () => {
       unsubOffers();
       unsubBookings();
       unsubSessions();
-      unsubShopClaims();
       unsubContactMessages();
     };
   }, [currentUser]);
@@ -3245,9 +2970,6 @@ const AdminDashboardView: React.FC = () => {
     offers: offers.length,
     bookings: bookings.length,
     sessions: sessionRows.length,
-    shopClaims: shopClaims.filter(
-      (claim) => getNormalizedShopClaimStatus(claim) === "pending"
-    ).length,
     contactMessages: contactMessages.filter(
       (message) => (getString(message, "status") || "new") === "new"
     ).length,
@@ -3314,15 +3036,6 @@ const AdminDashboardView: React.FC = () => {
             data={sessionRows}
             usersById={usersById}
             status={collectionStatuses.sessions}
-            onSelect={(item) => setSelectedItem(item)}
-          />
-        )}
-        {activeView === "shopClaims" && (
-          <ShopClaimsTable
-            data={shopClaims}
-            usersById={usersById}
-            status={collectionStatuses.shopClaims}
-            adminUser={currentUser}
             onSelect={(item) => setSelectedItem(item)}
           />
         )}

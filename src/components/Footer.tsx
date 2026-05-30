@@ -23,8 +23,6 @@ const footerLinks = [
 
 const artistLinks = [
   { label: "Join as artist", to: "/signup/artist" },
-  { label: "Claim shop", to: "/shop-dashboard" },
-  { label: "Artist login", to: "/login-page" },
 ];
 
 const trustSignals = [
@@ -36,14 +34,12 @@ const trustSignals = [
 const audienceOptions = [
   { value: "client", label: "Client" },
   { value: "artist", label: "Artist" },
-  { value: "shop", label: "Shop" },
   { value: "other", label: "Other" },
 ];
 
 const topicOptions = [
   { value: "general", label: "General question" },
   { value: "artist_onboarding", label: "Artist onboarding" },
-  { value: "shop_claim", label: "Shop claim" },
   { value: "support", label: "Support" },
   { value: "partnership", label: "Partnership" },
 ];

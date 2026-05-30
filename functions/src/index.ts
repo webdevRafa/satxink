@@ -42,10 +42,7 @@ const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
 
 const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
-  user.role === "artist" ||
-  user.role === "shop_owner" ||
-  (Array.isArray(user.shopOwnerShopIds) && user.shopOwnerShopIds.length > 0) ||
-  (Array.isArray(user.ownedShopIds) && user.ownedShopIds.length > 0);
+  user.role === "artist";
 
 const calculatePlatformFeeCents = (artistAmountCents: number) => {
   if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) return 0;
@@ -604,7 +601,7 @@ const createStripeConnectAccount = onCall(
     if (!userCanConnectPayouts(artist)) {
       throw new HttpsError(
         "permission-denied",
-        "Only artists and verified shop owners can connect payouts."
+        "Only artists can connect payouts."
       );
     }
 
@@ -639,7 +636,7 @@ const createStripeConnectOnboardingLink = onCall(
     if (!userCanConnectPayouts(artist)) {
       throw new HttpsError(
         "permission-denied",
-        "Only artists and verified shop owners can connect payouts."
+        "Only artists can connect payouts."
       );
     }
 

@@ -38,7 +38,6 @@ import FlashSheetDetailPage from "./pages/FlashSheetDetailPage";
 import FlashMarketplacePage from "./pages/FlashMarketplacePage";
 import PublicFlashSheetPage from "./pages/PublicFlashSheetPage";
 import AdminDashboardView from "./pages/AdminDashboardView";
-import ShopDashboardView from "./pages/ShopDashboardView";
 
 function App() {
   const { pathname } = useLocation(); // <- cleaner than location.pathname
@@ -91,7 +90,6 @@ function App() {
         <Route path="/payment/:bookingId" element={<PaymentPage />} />
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/admin" element={<AdminDashboardView />} />
-        <Route path="/shop-dashboard" element={<ShopDashboardView />} />
 
         <Route
           path="/client-profile-setup"
