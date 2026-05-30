@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
@@ -7,7 +14,6 @@ import {
   ChevronRight,
   Clock,
   DollarSign,
-  Eye,
   Filter,
   ImageIcon,
   MapPin,
@@ -58,6 +64,8 @@ type BookingRequest = {
 };
 
 type PreparationFilter = "all" | "preparing" | "not_started";
+type RequestTypeFilter = "all" | "flash" | "custom";
+type ConcreteRequestType = Exclude<RequestTypeFilter, "all">;
 
 const OFFER_PREPARATION_ETA_OPTIONS = [
   "Later today",
@@ -71,6 +79,12 @@ const PREPARATION_FILTERS: { label: string; value: PreparationFilter }[] = [
   { label: "All", value: "all" },
   { label: "Preparing", value: "preparing" },
   { label: "Not started", value: "not_started" },
+];
+
+const REQUEST_TYPE_FILTERS: { label: string; value: RequestTypeFilter }[] = [
+  { label: "All types", value: "all" },
+  { label: "Flash", value: "flash" },
+  { label: "Custom", value: "custom" },
 ];
 
 const REQUESTS_PER_PAGE = 6;
@@ -104,6 +118,8 @@ const BookingRequestsList: React.FC<Props> = ({
   const [isFiltering, setIsFiltering] = useState(false);
   const [preparationFilter, setPreparationFilter] =
     useState<PreparationFilter>("all");
+  const [requestTypeFilter, setRequestTypeFilter] =
+    useState<RequestTypeFilter>("all");
   const [declinedRequestIds, setDeclinedRequestIds] = useState<string[]>([]);
   const [isDeclining, setIsDeclining] = useState(false);
   const [preparingRequestIds, setPreparingRequestIds] = useState<string[]>([]);
@@ -136,9 +152,16 @@ const BookingRequestsList: React.FC<Props> = ({
           )
         : visibleRequests;
 
-      if (preparationFilter === "all") return dateFilteredRequests;
+      const typeFilteredRequests =
+        requestTypeFilter === "all"
+          ? dateFilteredRequests
+          : dateFilteredRequests.filter(
+              (request) => getRequestType(request) === requestTypeFilter
+            );
 
-      return dateFilteredRequests.filter((request) =>
+      if (preparationFilter === "all") return typeFilteredRequests;
+
+      return typeFilteredRequests.filter((request) =>
         preparationFilter === "preparing"
           ? request.offerPreparationStatus === "preparing"
           : request.offerPreparationStatus !== "preparing"
@@ -147,6 +170,7 @@ const BookingRequestsList: React.FC<Props> = ({
     [
       isFiltering,
       preparationFilter,
+      requestTypeFilter,
       selectedMonth,
       selectedYear,
       visibleRequests,
@@ -156,7 +180,10 @@ const BookingRequestsList: React.FC<Props> = ({
   const preparingCount = visibleRequests.filter(
     (request) => request.offerPreparationStatus === "preparing"
   ).length;
-  const filtersAreActive = isFiltering || preparationFilter !== "all";
+  const filtersAreActive =
+    isFiltering ||
+    preparationFilter !== "all" ||
+    requestTypeFilter !== "all";
 
   const newestRequest = visibleRequests[0];
   const totalPages = Math.max(
@@ -180,7 +207,13 @@ const BookingRequestsList: React.FC<Props> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [isFiltering, preparationFilter, selectedMonth, selectedYear]);
+  }, [
+    isFiltering,
+    preparationFilter,
+    requestTypeFilter,
+    selectedMonth,
+    selectedYear,
+  ]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -260,6 +293,7 @@ const BookingRequestsList: React.FC<Props> = ({
   const clearFilters = () => {
     setIsFiltering(false);
     setPreparationFilter("all");
+    setRequestTypeFilter("all");
   };
 
   const goToPage = (page: number) => {
@@ -414,6 +448,23 @@ const BookingRequestsList: React.FC<Props> = ({
                   className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     preparationFilter === filter.value
                       ? "border-white bg-white text-black"
+                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              {REQUEST_TYPE_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setRequestTypeFilter(filter.value)}
+                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
+                    requestTypeFilter === filter.value
+                      ? "border-[var(--color-primary)] bg-[var(--color-primary)]/20 text-white"
                       : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
                   }`}
                 >
@@ -682,7 +733,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
+    "minmax(82px,.34fr) minmax(92px,.34fr) minmax(190px,.78fr) 82px minmax(230px,.92fr) minmax(215px,.82fr) minmax(112px,.38fr) minmax(206px,.72fr)";
 
   return (
     <>
@@ -700,12 +751,13 @@ const RequestTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1240px]">
+          <div className="min-w-[1320px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Created</span>
+              <span>Type</span>
               <span>Client</span>
               <span>Reference</span>
               <span>Idea</span>
@@ -817,6 +869,22 @@ const RequestPagination = ({
   );
 };
 
+const RequestTypeBadge = ({ type }: { type: ConcreteRequestType }) => {
+  const isFlash = type === "flash";
+
+  return (
+    <span
+      className={`inline-flex h-7 w-fit items-center rounded-full border px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] ${
+        isFlash
+          ? "border-[var(--color-primary)]/35 bg-[var(--color-primary)]/15 text-red-100"
+          : "border-white/10 bg-white/[0.04] text-neutral-200"
+      }`}
+    >
+      {isFlash ? "Flash" : "Custom"}
+    </span>
+  );
+};
+
 const RequestRow = ({
   request,
   columns,
@@ -832,23 +900,38 @@ const RequestRow = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const requestType = getRequestType(request);
+
+  const handleRowKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onOpen();
+    }
+  };
 
   return (
     <div
-      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={handleRowKeyDown}
+      className="grid cursor-pointer items-center gap-0 px-3 py-4 text-left transition hover:bg-white/[0.025] focus:outline-none focus:ring-1 focus:ring-white/25"
       style={{ gridTemplateColumns: columns }}
+      aria-label={`Open ${getRequestTypeLabel(request)} request from ${
+        request.clientName || "client"
+      }`}
     >
-      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+      <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-white">
           {formatShortDate(request.createdAt)}
         </p>
-      </button>
+      </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-w-0 items-center gap-3 p-0! text-left"
-      >
+      <div className="min-w-0">
+        <RequestTypeBadge type={requestType} />
+      </div>
+
+      <div className="flex min-w-0 items-center gap-3">
         <img
           src={request.clientAvatar || "/default-avatar.png"}
           alt={request.clientName || "Client"}
@@ -859,13 +942,10 @@ const RequestRow = ({
             {request.clientName || "Client"}
           </p>
         </div>
-      </button>
+      </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
+      <div
         className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
-        aria-label="View request reference"
       >
         {previewUrl ? (
           <img
@@ -878,7 +958,7 @@ const RequestRow = ({
             <ImageIcon size={18} />
           </span>
         )}
-      </button>
+      </div>
 
       <PreviewMetaRows
         rows={[
@@ -943,7 +1023,10 @@ const RequestRow = ({
       <div className="flex items-center justify-end gap-2 pr-2">
         <button
           type="button"
-          onClick={onPrepareOffer}
+          onClick={(event) => {
+            event.stopPropagation();
+            onPrepareOffer();
+          }}
           className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
             isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
           }`}
@@ -963,15 +1046,10 @@ const RequestRow = ({
         </button>
         <button
           type="button"
-          onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-        >
-          <Eye size={14} />
-          Details
-        </button>
-        <button
-          type="button"
-          onClick={onMakeOffer}
+          onClick={(event) => {
+            event.stopPropagation();
+            onMakeOffer();
+          }}
           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
         >
           <Send size={14} />
@@ -995,6 +1073,7 @@ const RequestMobileCard = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const requestType = getRequestType(request);
   const budgetLabel =
     request.sourceType === "flash"
       ? formatFlashPrice(request.flashPrice)
@@ -1010,6 +1089,7 @@ const RequestMobileCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-neutral-500">
             <span>{formatShortDate(request.createdAt)}</span>
+            <RequestTypeBadge type={requestType} />
             {isPreparingOffer && (
               <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-50">
                 Preparing
@@ -1078,7 +1158,7 @@ const RequestMobileCard = ({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-3">
+      <div className="grid grid-cols-2 gap-2 border-t border-white/10 p-3">
         <button
           type="button"
           onClick={onPrepareOffer}
@@ -1086,14 +1166,6 @@ const RequestMobileCard = ({
         >
           <Send size={13} className="text-amber-200" />
           {isPreparingOffer ? "Timing" : "Prepare"}
-        </button>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2! text-[11px]! font-semibold text-white transition hover:bg-white/10"
-        >
-          <Eye size={13} />
-          Details
         </button>
         <button
           type="button"
@@ -1862,6 +1934,12 @@ const formatFlashPrice = (price?: number | null) =>
   typeof price === "number" && Number.isFinite(price) && price > 0
     ? `$${price}`
     : "Price not listed";
+
+const getRequestType = (request: BookingRequest): ConcreteRequestType =>
+  request.sourceType === "flash" ? "flash" : "custom";
+
+const getRequestTypeLabel = (request: BookingRequest) =>
+  getRequestType(request) === "flash" ? "flash" : "custom";
 
 const formatAvailableDaysSummary = (request: BookingRequest) =>
   request.availableDays?.length
