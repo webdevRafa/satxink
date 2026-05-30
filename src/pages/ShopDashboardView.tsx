@@ -314,9 +314,10 @@ const ShopDashboardView = () => {
                 artist={currentUser}
                 ownerType="shop"
                 shopOverride={activeShop}
+                shopRosterArtists={artists}
                 onOpenPayments={() => setActiveView("payments")}
                 managerTitle="Shop events"
-                managerDescription="Create flash days, walk-in days, guest spots, pop-ups, and public shop events for the SATX Ink events page."
+                managerDescription="Create shop events that route clients back to SATX RSVPs, artist requests, flash reservations, paid passes, or waitlist follow-up."
               />
             )}
             {activeView === "payments" && (

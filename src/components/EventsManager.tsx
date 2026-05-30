@@ -44,6 +44,7 @@ import { db, functions, storage } from "../firebase/firebaseConfig";
 import type {
   ArtistEvent,
   EventBookingMode,
+  EventClientActionType,
   EventLocationType,
   EventPriceType,
   EventStatus,
@@ -68,10 +69,14 @@ type EventFormState = {
   mapLink: string;
   priceType: EventPriceType;
   bookingMode: EventBookingMode;
+  clientActionType: EventClientActionType;
+  externalUrl: string;
+  externalLabel: string;
   price: string;
   depositRequired: boolean;
   depositAmount: string;
   capacity: string;
+  participantArtistIds: string[];
   tags: string[];
   tagDraft: string;
   status: EventStatus;
@@ -101,6 +106,13 @@ type ShopDefaults = {
   mapLink?: string;
 };
 
+type ShopRosterArtist = {
+  id: string;
+  displayName?: string;
+  name?: string;
+  avatarUrl?: string;
+};
+
 const emptyForm: EventFormState = {
   title: "",
   description: "",
@@ -115,10 +127,14 @@ const emptyForm: EventFormState = {
   mapLink: "",
   priceType: "varies",
   bookingMode: "rsvp",
+  clientActionType: "free_rsvp",
+  externalUrl: "",
+  externalLabel: "",
   price: "",
   depositRequired: false,
   depositAmount: "",
   capacity: "",
+  participantArtistIds: [],
   tags: [],
   tagDraft: "",
   status: "draft",
@@ -131,7 +147,7 @@ const eventTypeLabels: Record<EventType, string> = {
   convention: "Convention",
   pop_up: "Pop-up",
   walk_in_day: "Walk-in Day",
-  shop_event: "Shop Event",
+  shop_event: "Open House / Shop Event",
   other: "Other",
 };
 
@@ -142,37 +158,55 @@ const priceTypeLabels: Record<EventPriceType, string> = {
   varies: "Varies",
 };
 
-const bookingModeLabels: Record<EventBookingMode, string> = {
-  info_only: "Info only",
-  rsvp: "Free RSVP",
-  deposit_required: "Deposit reservation",
+const clientActionLabels: Record<EventClientActionType, string> = {
+  details_only: "Details only",
+  free_rsvp: "Free RSVP",
+  paid_event_pass: "Paid event pass",
   flash_reservation: "Flash reservation",
-  paid_ticket: "Paid ticket",
+  appointment_request: "Appointment request",
+  waitlist: "SATX waitlist",
+  external_link: "External link",
 };
 
-const eventAttendanceModes: Array<{
-  value: EventBookingMode;
+const eventClientActionOptions: Array<{
+  value: EventClientActionType;
   label: string;
-  disabled?: boolean;
-  note?: string;
+  note: string;
 }> = [
-  { value: "info_only", label: "Info only" },
-  { value: "rsvp", label: "Free RSVP" },
   {
-    value: "deposit_required",
-    label: "Deposit reservation",
-    disabled: true,
-    note: "Coming soon",
+    value: "details_only",
+    label: "Details only",
+    note: "Announcement page with SATX profile and discovery links.",
+  },
+  {
+    value: "free_rsvp",
+    label: "Free RSVP",
+    note: "Attendance/reminder pass only. This should not promise a tattoo spot.",
+  },
+  {
+    value: "paid_event_pass",
+    label: "Paid event pass",
+    note: "Admission-style pass for workshops, private previews, expos, or VIP access.",
   },
   {
     value: "flash_reservation",
     label: "Flash reservation",
-    disabled: true,
-    note: "Coming soon",
+    note: "Flash-day funnel that keeps clients inside SATX flash/profile flows.",
   },
   {
-    value: "paid_ticket",
-    label: "Paid ticket",
+    value: "appointment_request",
+    label: "Appointment request",
+    note: "Best for guest spots, conventions, and limited booking windows.",
+  },
+  {
+    value: "waitlist",
+    label: "SATX waitlist",
+    note: "Walk-in interest capture that can be converted into SATX bookings.",
+  },
+  {
+    value: "external_link",
+    label: "External link",
+    note: "Use sparingly for convention or admission sites that must stay external.",
   },
 ];
 
@@ -204,7 +238,7 @@ const eventEditorSteps: Array<{
 ];
 
 const stepErrorKeys: Record<EventEditorStepKey, EventFormErrorKey[]> = {
-  basics: ["title"],
+  basics: ["title", "externalUrl", "participantArtistIds"],
   schedule: ["startDate", "dateRange", "timeRange", "location"],
   pricing: ["price", "depositAmount", "capacity", "stripe"],
   publish: [],
@@ -223,14 +257,16 @@ const EventsManager = ({
   onOpenPayments,
   ownerType = "artist",
   shopOverride,
+  shopRosterArtists = [],
   managerTitle = "Artist events",
-  managerDescription = "Promote flash days, guest spots, conventions, pop-ups, and shop events from one place.",
+  managerDescription = "Promote events that convert client interest into SATX RSVPs, tattoo requests, flash reservations, or paid event passes.",
 }: {
   uid: string;
   artist?: ArtistLite | null;
   onOpenPayments?: () => void;
   ownerType?: "artist" | "shop";
   shopOverride?: ShopDefaults | null;
+  shopRosterArtists?: ShopRosterArtist[];
   managerTitle?: string;
   managerDescription?: string;
 }) => {
@@ -409,11 +445,19 @@ const EventsManager = ({
   );
 
   const openCreateModal = () => {
+    const defaultClientAction = getDefaultClientAction(
+      emptyForm.eventType,
+      ownerType
+    );
     setEditingEvent(null);
     setForm({
       ...emptyForm,
-      bookingMode: ownerType === "shop" ? "info_only" : emptyForm.bookingMode,
-      depositRequired: ownerType === "shop" ? false : emptyForm.depositRequired,
+      clientActionType: defaultClientAction,
+      bookingMode: getBookingModeForClientAction(defaultClientAction),
+      priceType:
+        defaultClientAction === "paid_event_pass" ? "fixed" : emptyForm.priceType,
+      depositRequired: false,
+      participantArtistIds: [],
       shopName: shopDefaults?.name || artist?.studioName || "",
       address: shopDefaults?.address || "",
       mapLink: shopDefaults?.mapLink || "",
@@ -424,6 +468,7 @@ const EventsManager = ({
 
   const openEditModal = (event: ArtistEvent) => {
     const bookingMode = event.bookingMode || getDefaultBookingMode(event.eventType);
+    const clientActionType = getEventClientActionType(event);
 
     setEditingEvent(event);
     setForm({
@@ -443,6 +488,9 @@ const EventsManager = ({
           ? "fixed"
           : event.priceType || "varies",
       bookingMode,
+      clientActionType,
+      externalUrl: event.externalUrl || "",
+      externalLabel: event.externalLabel || "",
       price: typeof event.price === "number" ? String(event.price) : "",
       depositRequired:
         bookingMode !== "info_only" &&
@@ -457,6 +505,7 @@ const EventsManager = ({
         typeof event.capacity === "number" && event.capacity > 0
           ? String(event.capacity)
           : "",
+      participantArtistIds: event.participantArtistIds || [],
       tags: event.tags || [],
       tagDraft: "",
       status: event.status || "draft",
@@ -479,7 +528,7 @@ const EventsManager = ({
   const handleSave = async () => {
     if (!uid || isSaving) return;
 
-    const validationErrors = getEventFormErrors(form, stripeReady);
+    const validationErrors = getEventFormErrors(form, stripeReady, ownerType);
     const firstValidationError = getFirstEventFormError(validationErrors);
 
     if (firstValidationError) {
@@ -488,10 +537,7 @@ const EventsManager = ({
     }
 
     const parsedCapacity = parseOptionalNumber(form.capacity);
-    const bookingRequiresDeposit =
-      form.bookingMode === "deposit_required" ||
-      form.bookingMode === "flash_reservation";
-    const bookingAllowsDeposit = bookingRequiresDeposit;
+    const bookingMode = getBookingModeForClientAction(form.clientActionType);
 
     try {
       setIsSaving(true);
@@ -523,24 +569,27 @@ const EventsManager = ({
         address: form.address.trim() || "",
         mapLink: form.mapLink.trim() || "",
         priceType: form.priceType,
-        bookingMode: form.bookingMode,
+        bookingMode,
+        clientActionType: form.clientActionType,
+        externalUrl:
+          form.clientActionType === "external_link"
+            ? form.externalUrl.trim()
+            : "",
+        externalLabel:
+          form.clientActionType === "external_link"
+            ? form.externalLabel.trim()
+            : "",
         price:
           form.priceType === "free" || form.priceType === "varies"
             ? null
             : parseOptionalNumber(form.price),
-        depositRequired:
-          bookingRequiresDeposit ||
-          (bookingAllowsDeposit &&
-            form.depositRequired &&
-            Number(form.depositAmount || 0) > 0),
-        depositAmount:
-          (bookingRequiresDeposit ||
-            (bookingAllowsDeposit && form.depositRequired)) &&
-          Number(form.depositAmount || 0) > 0
-            ? parseOptionalNumber(form.depositAmount)
-            : null,
+        depositRequired: false,
+        depositAmount: null,
         capacity: parsedCapacity || null,
         spotsClaimed: editingEvent?.spotsClaimed || 0,
+        participantArtistIds:
+          ownerType === "shop" ? form.participantArtistIds : [],
+        satxActionNote: getClientActionDashboardNote(form.clientActionType),
         tags: form.tags,
         status: form.status,
         visibility: form.visibility,
@@ -765,6 +814,7 @@ const EventsManager = ({
           stripeReady={stripeReady}
           onOpenPayments={onOpenPayments}
           ownerType={ownerType}
+          shopRosterArtists={shopRosterArtists}
         />
       )}
 
@@ -823,6 +873,7 @@ const EventCard = ({
   const requiresPayment = eventModeRequiresPayment(
     event.bookingMode || getDefaultBookingMode(event.eventType)
   );
+  const clientActionType = getEventClientActionType(event);
   const checkedInCount = registrations.filter(
     (registration) => registration.status === "checked_in"
   ).length;
@@ -889,7 +940,7 @@ const EventCard = ({
             <EventMeta icon={<DollarSign size={15} />} text={priceLabel} />
             <EventMeta
               icon={<CreditCard size={15} />}
-              text={bookingModeLabels[event.bookingMode || getDefaultBookingMode(event.eventType)]}
+              text={clientActionLabels[clientActionType]}
             />
             <EventMeta
               icon={<Users size={15} />}
@@ -1032,6 +1083,7 @@ const EventEditorModal = ({
   stripeReady,
   onOpenPayments,
   ownerType,
+  shopRosterArtists,
 }: {
   form: EventFormState;
   setForm: React.Dispatch<React.SetStateAction<EventFormState>>;
@@ -1045,12 +1097,13 @@ const EventEditorModal = ({
   stripeReady: boolean;
   onOpenPayments?: () => void;
   ownerType: "artist" | "shop";
+  shopRosterArtists: ShopRosterArtist[];
 }) => {
   const [activeStep, setActiveStep] = useState<EventEditorStepKey>("basics");
   const [stepDirection, setStepDirection] = useState<"forward" | "back">(
     "forward"
   );
-  const formErrors = getEventFormErrors(form, stripeReady);
+  const formErrors = getEventFormErrors(form, stripeReady, ownerType);
   const currentStepIndex = eventEditorSteps.findIndex(
     (step) => step.key === activeStep
   );
@@ -1215,10 +1268,17 @@ const EventEditorModal = ({
                   setForm((current) => ({
                     ...current,
                     eventType,
-                    bookingMode:
-                      current.bookingMode === getDefaultBookingMode(current.eventType)
-                        ? getDefaultBookingMode(eventType)
-                        : current.bookingMode,
+                    clientActionType:
+                      current.clientActionType ===
+                      getDefaultClientAction(current.eventType, ownerType)
+                        ? getDefaultClientAction(eventType, ownerType)
+                        : current.clientActionType,
+                    bookingMode: getBookingModeForClientAction(
+                      current.clientActionType ===
+                        getDefaultClientAction(current.eventType, ownerType)
+                        ? getDefaultClientAction(eventType, ownerType)
+                        : current.clientActionType
+                    ),
                   }));
                 }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
@@ -1233,54 +1293,95 @@ const EventEditorModal = ({
           </div>
 
           <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-            <Field label="Access mode">
+            <Field label="Client action">
               <select
-                value={form.bookingMode}
+                value={form.clientActionType}
                 onChange={(event) => {
-                  const nextBookingMode = event.target.value as EventBookingMode;
+                  const nextClientAction =
+                    event.target.value as EventClientActionType;
 
                   setForm((current) => ({
                     ...current,
-                    bookingMode: nextBookingMode,
+                    clientActionType: nextClientAction,
+                    bookingMode: getBookingModeForClientAction(nextClientAction),
                     priceType:
-                      nextBookingMode === "paid_ticket"
+                      nextClientAction === "paid_event_pass"
                         ? "fixed"
                         : current.priceType,
-                    depositRequired:
-                      nextBookingMode === "deposit_required" ||
-                      nextBookingMode === "flash_reservation"
-                        ? true
-                        : false,
-                    depositAmount:
-                      nextBookingMode === "deposit_required" ||
-                      nextBookingMode === "flash_reservation"
-                        ? current.depositAmount
-                        : "",
+                    depositRequired: false,
+                    depositAmount: "",
+                    externalLabel:
+                      nextClientAction === "external_link"
+                        ? current.externalLabel || "Open event link"
+                        : current.externalLabel,
                   }));
                 }}
                 className="w-full rounded-md border border-white/10 bg-[#171717] px-3 py-2 text-white outline-none focus:border-white/30"
               >
-                {eventAttendanceModes.map((mode) => (
-                  <option
-                    key={mode.value}
-                    value={mode.value}
-                    disabled={Boolean(mode.disabled && mode.value !== form.bookingMode)}
-                  >
+                {eventClientActionOptions.map((mode) => (
+                  <option key={mode.value} value={mode.value}>
                     {mode.label}
-                    {mode.note ? ` - ${mode.note}` : ""}
                   </option>
                 ))}
               </select>
             </Field>
             <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
               <p className="text-sm font-semibold text-white">
-                {bookingModeLabels[form.bookingMode]}
+                {clientActionLabels[form.clientActionType]}
               </p>
               <p className="mt-1 text-sm leading-6 text-white/50">
-                {getBookingModeHelp(form.bookingMode)}
+                {getClientActionHelp(form.clientActionType, ownerType)}
               </p>
             </div>
           </div>
+
+          {ownerType === "shop" &&
+            (form.clientActionType === "flash_reservation" ||
+              form.clientActionType === "appointment_request" ||
+              form.clientActionType === "waitlist") && (
+              <ShopEventArtistSelector
+                artists={shopRosterArtists}
+                selectedArtistIds={form.participantArtistIds}
+                error={formErrors.participantArtistIds}
+                onChange={(participantArtistIds) =>
+                  setForm((current) => ({
+                    ...current,
+                    participantArtistIds,
+                  }))
+                }
+              />
+            )}
+
+          {form.clientActionType === "external_link" && (
+            <div className="grid gap-4 md:grid-cols-[1fr_0.7fr]">
+              <Field label="External URL" error={formErrors.externalUrl}>
+                <input
+                  value={form.externalUrl}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      externalUrl: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
+                  placeholder="https://..."
+                />
+              </Field>
+              <Field label="Button label">
+                <input
+                  value={form.externalLabel}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      externalLabel: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-white outline-none focus:border-white/30"
+                  placeholder="Open event link"
+                />
+              </Field>
+            </div>
+          )}
 
           <Field label="Description">
             <textarea
@@ -1428,7 +1529,7 @@ const EventEditorModal = ({
 
           {activeStep === "pricing" && (
             <>
-          {eventModeRequiresPayment(form.bookingMode) && !stripeReady && (
+          {clientActionRequiresStripe(form.clientActionType) && !stripeReady && (
             <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -1436,9 +1537,8 @@ const EventEditorModal = ({
                     Stripe Connect is required for paid event booking.
                   </p>
                   <p className="mt-1 text-sm leading-6 text-amber-100/70">
-                    You can save this event as a draft, but publishing it with
-                    deposits, flash reservations, or paid tickets requires a
-                    connected Stripe account.
+                    You can save this event as a draft, but publishing paid
+                    event passes requires a connected Stripe account.
                   </p>
                 </div>
                 {onOpenPayments && (
@@ -1456,32 +1556,18 @@ const EventEditorModal = ({
 
           <div className="rounded-xl border border-sky-300/20 bg-sky-300/10 p-4">
             <p className="text-sm font-semibold text-sky-100">
-              {form.bookingMode === "info_only"
-                ? "Info-only events do not collect money on SATX Ink."
-                : form.bookingMode === "rsvp"
-                ? "Free RSVP creates SATX Ink event passes."
-                : "Paid tickets create SATX Ink event passes."}
+              {getClientActionPricingTitle(form.clientActionType)}
             </p>
             <p className="mt-1 text-sm leading-6 text-sky-100/70">
-              {form.bookingMode === "info_only"
-                ? "Use price only as public display context, such as Free, Varies, or Starting at. Deposits are hidden because checkout happens outside the platform for info-only events."
-                : form.bookingMode === "rsvp"
-                ? "Visitors can claim a free pass, and you get attendee capacity tracking plus check-in tools."
-                : "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host. Deposit and flash-specific reservations are still staged for a later workflow."}
+              {getClientActionPricingHelp(form.clientActionType)}
             </p>
           </div>
 
-          <div
-            className={`grid gap-4 ${
-              form.bookingMode === "deposit_required" ||
-              form.bookingMode === "flash_reservation"
-                ? "md:grid-cols-[1.15fr_0.85fr_1fr_1fr_0.85fr]"
-                : "md:grid-cols-[1.15fr_0.85fr_0.85fr]"
-            }`}
-          >
+          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr_0.85fr]">
             <Field
               label={
-                form.bookingMode === "info_only"
+                form.clientActionType !== "free_rsvp" &&
+                form.clientActionType !== "paid_event_pass"
                   ? "Displayed price"
                   : "Price type"
               }
@@ -1513,9 +1599,9 @@ const EventEditorModal = ({
               form.priceType === "starting_at") && (
               <Field
                 label={
-                  form.bookingMode === "paid_ticket"
-                    ? "Ticket price"
-                    : form.bookingMode === "info_only"
+                  form.clientActionType === "paid_event_pass"
+                    ? "Pass price"
+                    : form.clientActionType !== "free_rsvp"
                     ? "Display amount"
                     : "Price"
                 }
@@ -1540,55 +1626,13 @@ const EventEditorModal = ({
               </Field>
             )}
 
-            {(form.bookingMode === "deposit_required" ||
-              form.bookingMode === "flash_reservation") && (
-              <>
-                <Field label="Deposit">
-                  <div className="flex h-[42px] items-center rounded-md border border-white/10 bg-white/[0.04] px-3 transition hover:border-white/25 hover:bg-white/[0.07]">
-                    <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white/75">
-                      <input
-                        type="checkbox"
-                        checked={form.depositRequired}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            depositRequired: event.target.checked,
-                            depositAmount: event.target.checked
-                              ? current.depositAmount
-                              : "",
-                          }))
-                        }
-                        className="h-4 w-4 accent-[var(--color-primary)]"
-                      />
-                      Required
-                    </label>
-                  </div>
-                </Field>
-
-                <Field label="Deposit amount">
-                  <input
-                    type="number"
-                    min="0"
-                    disabled={!form.depositRequired}
-                    value={form.depositAmount}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        depositAmount: event.target.value,
-                        depositRequired: Number(event.target.value || 0) > 0,
-                      }))
-                    }
-                    className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-35 focus:border-white/30"
-                    placeholder={form.depositRequired ? "20" : "Off"}
-                  />
-                </Field>
-              </>
-            )}
-
             <Field
               label={
-                form.bookingMode === "info_only"
+                form.clientActionType === "details_only" ||
+                form.clientActionType === "external_link"
                   ? "Venue capacity"
+                  : form.clientActionType === "waitlist"
+                  ? "Queue size"
                   : "Capacity"
               }
             >
@@ -1604,15 +1648,20 @@ const EventEditorModal = ({
                 }
                 className="h-[42px] w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
                 placeholder={
-                  form.bookingMode === "info_only" ? "Optional" : "100"
+                  form.clientActionType === "details_only" ||
+                  form.clientActionType === "external_link"
+                    ? "Optional"
+                    : "100"
                 }
               />
             </Field>
           </div>
-          {form.bookingMode === "info_only" && (
+          {(form.clientActionType === "details_only" ||
+            form.clientActionType === "external_link") && (
             <p className="text-xs leading-5 text-white/35">
-              Capacity is optional for info-only events and is shown as venue
-              context only. SATX Ink will not reserve spots or collect payment.
+              Capacity is optional for awareness-only events and is shown as
+              venue context only. For tattoo work, use an appointment,
+              waitlist, or flash-reservation action to keep the lead on SATX.
             </p>
           )}
 
@@ -1871,6 +1920,99 @@ const EventStepTabs = ({
   </div>
 );
 
+const ShopEventArtistSelector = ({
+  artists,
+  selectedArtistIds,
+  error,
+  onChange,
+}: {
+  artists: ShopRosterArtist[];
+  selectedArtistIds: string[];
+  error?: string;
+  onChange: (artistIds: string[]) => void;
+}) => {
+  const toggleArtist = (artistId: string) => {
+    onChange(
+      selectedArtistIds.includes(artistId)
+        ? selectedArtistIds.filter((id) => id !== artistId)
+        : [...selectedArtistIds, artistId]
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">
+            Participating artists
+          </p>
+          <p className="mt-1 text-sm leading-6 text-white/50">
+            Shop events should point clients back to the artists who can take
+            SATX bookings, flash reservations, or waitlist follow-ups.
+          </p>
+        </div>
+        <span className="text-xs font-semibold text-white/35">
+          {selectedArtistIds.length} selected
+        </span>
+      </div>
+
+      {artists.length === 0 ? (
+        <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100/80">
+          Add artists to this shop roster before publishing shop events that
+          depend on artist participation.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {artists.map((artist) => {
+            const isSelected = selectedArtistIds.includes(artist.id);
+            const artistName = artist.displayName || artist.name || "Artist";
+
+            return (
+              <button
+                key={artist.id}
+                type="button"
+                onClick={() => toggleArtist(artist.id)}
+                className={`flex items-center gap-3 rounded-lg border p-3! text-left transition ${
+                  isSelected
+                    ? "border-[var(--color-primary)]/45 bg-[var(--color-primary)]/12"
+                    : "border-white/10 bg-black/20 hover:border-white/25"
+                }`}
+              >
+                <img
+                  src={artist.avatarUrl || "/default-avatar.png"}
+                  alt={artistName}
+                  className="h-10 w-10 rounded-full border border-white/10 object-cover"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">
+                    {artistName}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-white/40">
+                    SATX artist roster
+                  </span>
+                </span>
+                <span
+                  className={`h-4 w-4 rounded-full border ${
+                    isSelected
+                      ? "border-[var(--color-primary)] bg-[var(--color-primary)]"
+                      : "border-white/25"
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4">
+          <ValidationCallout message={error} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ValidationCallout = ({ message }: { message: string }) => (
   <div className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
     <Info className="mt-0.5 shrink-0" size={16} />
@@ -1889,12 +2031,10 @@ const EventReviewSummary = ({
     ? `${form.startDate}${form.startTime ? ` at ${formatTime(form.startTime)}` : ""}`
     : "Date not set";
   const priceLabel =
-    form.bookingMode === "paid_ticket"
-      ? `Ticket ${formatCurrency(form.price)}`
-      : form.bookingMode === "info_only"
-      ? getInfoOnlyPriceLabel(form)
-      : form.depositRequired
-      ? `Deposit ${formatCurrency(form.depositAmount)}`
+    form.clientActionType === "paid_event_pass"
+      ? `Event pass ${formatCurrency(form.price)}`
+      : form.clientActionType !== "free_rsvp"
+      ? getDisplayPriceLabel(form)
       : priceTypeLabels[form.priceType];
 
   return (
@@ -1920,8 +2060,8 @@ const EventReviewSummary = ({
         <ReviewRow label="Title" value={form.title || "Untitled event"} />
         <ReviewRow label="Type" value={eventTypeLabels[form.eventType]} />
         <ReviewRow
-          label="Access mode"
-          value={bookingModeLabels[form.bookingMode]}
+          label="Client action"
+          value={clientActionLabels[form.clientActionType]}
         />
         <ReviewRow label="Starts" value={dateLabel} />
         <ReviewRow
@@ -1936,12 +2076,34 @@ const EventReviewSummary = ({
         />
         <ReviewRow label="Price display" value={priceLabel} />
         <ReviewRow
-          label={form.bookingMode === "info_only" ? "Venue capacity" : "Capacity"}
+          label={
+            form.clientActionType === "details_only" ||
+            form.clientActionType === "external_link"
+              ? "Venue capacity"
+              : form.clientActionType === "waitlist"
+              ? "Queue size"
+              : "Capacity"
+          }
           value={
             form.capacity ||
-            (form.bookingMode === "info_only" ? "Not shown" : "Not set")
+            (form.clientActionType === "details_only" ||
+            form.clientActionType === "external_link"
+              ? "Not shown"
+              : "Not set")
           }
         />
+        {form.clientActionType === "external_link" && (
+          <ReviewRow
+            label="External link"
+            value={form.externalUrl || "Not set"}
+          />
+        )}
+        {ownerType === "shop" && form.participantArtistIds.length > 0 && (
+          <ReviewRow
+            label="Artists"
+            value={`${form.participantArtistIds.length} participating`}
+          />
+        )}
       </div>
     </div>
   );
@@ -2013,16 +2175,16 @@ const parseOptionalNumber = (value: string) => {
 
 const getEventFormErrors = (
   form: EventFormState,
-  stripeReady: boolean
+  stripeReady: boolean,
+  ownerType: "artist" | "shop"
 ): EventFormErrors => {
   const errors: EventFormErrors = {};
   const parsedCapacity = parseOptionalNumber(form.capacity);
   const parsedPrice = parseOptionalNumber(form.price);
-  const parsedDeposit = parseOptionalNumber(form.depositAmount);
-  const bookingRequiresDeposit =
-    form.bookingMode === "deposit_required" ||
-    form.bookingMode === "flash_reservation";
-  const bookingRequiresPayment = eventModeRequiresPayment(form.bookingMode);
+  const capacityRequired =
+    form.clientActionType === "free_rsvp" ||
+    form.clientActionType === "paid_event_pass";
+  const paidAction = form.clientActionType === "paid_event_pass";
 
   if (!form.title.trim()) {
     errors.title = "Add a clear event title.";
@@ -2063,37 +2225,51 @@ const getEventFormErrors = (
   }
 
   if (
-    form.bookingMode === "paid_ticket" &&
+    paidAction &&
     (!parsedPrice || parsedPrice <= 5)
   ) {
-    errors.price = "Paid ticket prices must be greater than the platform fee.";
+    errors.price =
+      "Paid event pass prices must be greater than the platform fee.";
   }
 
-  if (
-    (bookingRequiresDeposit || form.depositRequired) &&
-    (!parsedDeposit || parsedDeposit <= 5)
-  ) {
-    errors.depositAmount =
-      "Paid event deposits must be greater than the platform fee.";
-  }
-
-  if (
-    form.bookingMode !== "info_only" &&
-    (!parsedCapacity || parsedCapacity <= 0)
-  ) {
+  if (capacityRequired && (!parsedCapacity || parsedCapacity <= 0)) {
     errors.capacity = "Add a valid event capacity.";
   }
 
   if (
-    form.bookingMode === "info_only" &&
+    !capacityRequired &&
     parsedCapacity !== null &&
     parsedCapacity <= 0
   ) {
-    errors.capacity = "Use a positive venue capacity or leave it blank.";
+    errors.capacity = "Use a positive capacity or leave it blank.";
   }
 
-  if (form.status === "published" && bookingRequiresPayment && !stripeReady) {
-    errors.stripe = "Connect Stripe before publishing paid events.";
+  if (form.clientActionType === "external_link") {
+    if (!form.externalUrl.trim()) {
+      errors.externalUrl = "Add the external event link.";
+    } else if (!/^https?:\/\//i.test(form.externalUrl.trim())) {
+      errors.externalUrl = "External links must start with http:// or https://.";
+    }
+  }
+
+  if (
+    form.status === "published" &&
+    ownerType === "shop" &&
+    (form.clientActionType === "flash_reservation" ||
+      form.clientActionType === "appointment_request" ||
+      form.clientActionType === "waitlist") &&
+    form.participantArtistIds.length === 0
+  ) {
+    errors.participantArtistIds =
+      "Pick at least one participating artist so clients can continue through SATX.";
+  }
+
+  if (
+    form.status === "published" &&
+    clientActionRequiresStripe(form.clientActionType) &&
+    !stripeReady
+  ) {
+    errors.stripe = "Connect Stripe before publishing paid event passes.";
   }
 
   return errors;
@@ -2116,7 +2292,7 @@ const formatCurrency = (value: string) => {
   return `$${parsed.toLocaleString()}`;
 };
 
-const getInfoOnlyPriceLabel = (form: EventFormState) => {
+const getDisplayPriceLabel = (form: EventFormState) => {
   if (form.priceType === "free") return "Free";
   if (form.priceType === "varies") return "Pricing varies";
   if (form.priceType === "starting_at") {
@@ -2125,6 +2301,129 @@ const getInfoOnlyPriceLabel = (form: EventFormState) => {
   if (form.priceType === "fixed") return formatCurrency(form.price);
   return priceTypeLabels[form.priceType];
 };
+
+const getEventClientActionType = (
+  event: Pick<
+    ArtistEvent,
+    "clientActionType" | "bookingMode" | "eventType" | "ownerType"
+  >
+): EventClientActionType => {
+  if (event.clientActionType) return event.clientActionType;
+  if (event.bookingMode === "rsvp") return "free_rsvp";
+  if (event.bookingMode === "paid_ticket") return "paid_event_pass";
+  if (event.bookingMode === "flash_reservation") return "flash_reservation";
+  if (event.bookingMode === "deposit_required") return "appointment_request";
+  return getDefaultClientAction(event.eventType, event.ownerType || "artist");
+};
+
+const getDefaultClientAction = (
+  eventType: EventType,
+  ownerType: "artist" | "shop"
+): EventClientActionType => {
+  if (eventType === "flash_day") return "flash_reservation";
+  if (eventType === "guest_spot") return "appointment_request";
+  if (eventType === "walk_in_day") return "waitlist";
+  if (eventType === "convention") return "appointment_request";
+  if (eventType === "pop_up") return ownerType === "shop" ? "free_rsvp" : "appointment_request";
+  if (eventType === "shop_event") return ownerType === "shop" ? "free_rsvp" : "details_only";
+  return "details_only";
+};
+
+const getBookingModeForClientAction = (
+  clientActionType: EventClientActionType
+): EventBookingMode => {
+  if (clientActionType === "free_rsvp") return "rsvp";
+  if (clientActionType === "paid_event_pass") return "paid_ticket";
+  return "info_only";
+};
+
+const clientActionRequiresStripe = (clientActionType: EventClientActionType) =>
+  clientActionType === "paid_event_pass";
+
+const getClientActionHelp = (
+  clientActionType: EventClientActionType,
+  ownerType: "artist" | "shop"
+) => {
+  if (clientActionType === "details_only") {
+    return "Best for announcements. Use this when the event should inform clients but not replace SATX booking flows.";
+  }
+
+  if (clientActionType === "free_rsvp") {
+    return "Clients can RSVP for reminders and check-in, but the RSVP does not reserve a tattoo spot.";
+  }
+
+  if (clientActionType === "paid_event_pass") {
+    return "For admission-style events such as workshops, private previews, expos, or VIP access. Payment stays on SATX.";
+  }
+
+  if (clientActionType === "flash_reservation") {
+    return ownerType === "shop"
+      ? "For shop flash days. Pick participating artists so clients are pushed toward SATX artist flash and booking flows."
+      : "For artist flash days. Clients are steered toward SATX flash inventory and profile booking instead of offline claims.";
+  }
+
+  if (clientActionType === "appointment_request") {
+    return "Best for guest spots and convention dates. The event should drive clients to request work through SATX.";
+  }
+
+  if (clientActionType === "waitlist") {
+    return "Best for walk-in days. Use it to capture demand and convert clients into SATX requests instead of unmanaged door traffic.";
+  }
+
+  return "Use only when the event must be completed on an external site, such as convention admission or a venue-run event page.";
+};
+
+const getClientActionPricingTitle = (
+  clientActionType: EventClientActionType
+) => {
+  if (clientActionType === "paid_event_pass") {
+    return "Paid event passes keep admission payments on SATX Ink.";
+  }
+  if (clientActionType === "free_rsvp") {
+    return "Free RSVP creates attendance passes, not tattoo appointments.";
+  }
+  if (clientActionType === "flash_reservation") {
+    return "Flash events should drive clients toward SATX flash booking.";
+  }
+  if (clientActionType === "appointment_request") {
+    return "Appointment events should convert into SATX tattoo requests.";
+  }
+  if (clientActionType === "waitlist") {
+    return "Walk-in interest should stay captured inside SATX.";
+  }
+  if (clientActionType === "external_link") {
+    return "External links should be the exception, not the default.";
+  }
+  return "Details-only events do not collect money on SATX Ink.";
+};
+
+const getClientActionPricingHelp = (
+  clientActionType: EventClientActionType
+) => {
+  if (clientActionType === "paid_event_pass") {
+    return "Clients pay through Stripe, receive a QR pass in their dashboard, and can be checked in by the host.";
+  }
+  if (clientActionType === "free_rsvp") {
+    return "Use RSVP for headcount and reminders. The public event copy clarifies that tattoo spots still need to be requested or reserved through SATX.";
+  }
+  if (clientActionType === "flash_reservation") {
+    return "Use displayed price as public context. The event CTA prioritizes SATX flash/profile flows so clients do not treat the event as an offline booking workaround.";
+  }
+  if (clientActionType === "appointment_request") {
+    return "Use displayed price as estimate context. The event CTA points to SATX profile/request flows where custom tattoo booking belongs.";
+  }
+  if (clientActionType === "waitlist") {
+    return "Capacity can represent queue size. The event should capture interest and route clients into SATX follow-up, not unmanaged walk-in booking.";
+  }
+  if (clientActionType === "external_link") {
+    return "Use displayed price as context only. Prefer SATX actions unless a convention, venue, or organizer requires an external link.";
+  }
+  return "Use price only as public display context, such as Free, Varies, or Starting at.";
+};
+
+const getClientActionDashboardNote = (
+  clientActionType: EventClientActionType
+) => eventClientActionOptions.find((option) => option.value === clientActionType)?.note || "";
 
 const getEventManagerCallableErrorMessage = (error: unknown, fallback: string) => {
   if (
@@ -2181,26 +2480,6 @@ const eventModeRequiresPayment = (bookingMode: EventBookingMode) =>
   bookingMode === "flash_reservation" ||
   bookingMode === "paid_ticket";
 
-const getBookingModeHelp = (bookingMode: EventBookingMode) => {
-  if (bookingMode === "info_only") {
-    return "Best for announcements, pop-ups, and externally managed events. SATX Ink will not collect deposits, sell tickets, or reserve spots.";
-  }
-
-  if (bookingMode === "rsvp") {
-    return "Clients can claim a free event pass. You get an attendee list, capacity tracking, and check-in tools.";
-  }
-
-  if (bookingMode === "deposit_required") {
-    return "Coming soon: clients will reserve a general event spot by paying a deposit through Stripe.";
-  }
-
-  if (bookingMode === "flash_reservation") {
-    return "Coming soon: clients will reserve specific flash or priority access for flash-day workflows.";
-  }
-
-  return "Clients buy a ticket through Stripe and receive a scannable SATX Ink event pass.";
-};
-
 const getEventTime = (event: ArtistEvent) => {
   if (!event.startDate) return Number.MAX_SAFE_INTEGER;
   return new Date(`${event.startDate}T${event.startTime || "00:00"}`).getTime();
@@ -2243,8 +2522,26 @@ const getEventCapacityLabel = (
   event: ArtistEvent,
   registrationCount?: number
 ) => {
-  if (event.bookingMode === "info_only") {
+  const clientActionType = getEventClientActionType(event);
+
+  if (
+    clientActionType === "details_only" ||
+    clientActionType === "external_link"
+  ) {
     return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  if (clientActionType === "waitlist") {
+    return event.capacity
+      ? `${event.capacity} queue spots`
+      : "SATX waitlist interest";
+  }
+
+  if (
+    clientActionType === "appointment_request" ||
+    clientActionType === "flash_reservation"
+  ) {
+    return event.capacity ? `${event.capacity} booking slots` : "SATX booking flow";
   }
 
   return `${registrationCount || event.spotsClaimed || 0}/${

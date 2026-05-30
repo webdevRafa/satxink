@@ -26,6 +26,15 @@ export type EventBookingMode =
   | "flash_reservation"
   | "paid_ticket";
 
+export type EventClientActionType =
+  | "details_only"
+  | "free_rsvp"
+  | "paid_event_pass"
+  | "flash_reservation"
+  | "appointment_request"
+  | "waitlist"
+  | "external_link";
+
 export type ArtistEvent = {
   id: string;
   artistId: string;
@@ -51,11 +60,16 @@ export type ArtistEvent = {
   priceType: EventPriceType;
   price?: number | null;
   bookingMode?: EventBookingMode;
+  clientActionType?: EventClientActionType;
+  externalUrl?: string;
+  externalLabel?: string;
   depositRequired?: boolean;
   depositAmount?: number | null;
 
   capacity: number;
   spotsClaimed?: number;
+  participantArtistIds?: string[];
+  satxActionNote?: string;
 
   thumbnailUrl?: string;
   thumbnailPath?: string;

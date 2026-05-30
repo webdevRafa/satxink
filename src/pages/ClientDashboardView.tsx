@@ -257,19 +257,19 @@ const ClientDashboardView = () => {
 
       if (result.data.paid) {
         if (!options.quiet) {
-          toast.success("Ticket payment confirmed. Your QR pass is ready.");
+          toast.success("Event pass payment confirmed. Your QR pass is ready.");
         }
         return;
       }
 
       if (!options.quiet) {
-        toast("Stripe still shows this ticket as pending.");
+      toast("Stripe still shows this event pass as pending.");
       }
     } catch (error) {
-      console.error("Event ticket payment refresh failed:", error);
+      console.error("Event pass payment refresh failed:", error);
       if (!options.quiet) {
         toast.error(
-          getClientCallableErrorMessage(error, "Could not refresh this ticket.")
+          getClientCallableErrorMessage(error, "Could not refresh this event pass.")
         );
       }
     } finally {
@@ -784,7 +784,7 @@ const ClientDashboardView = () => {
     }
 
     if (pass.paymentStatus !== "free") {
-      toast.error("Paid event tickets cannot be cancelled from RSVP tools yet.");
+      toast.error("Paid event passes cannot be cancelled from RSVP tools yet.");
       return;
     }
 
@@ -2041,7 +2041,7 @@ const ClientEventPassesSection = ({
           Event passes
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
-          Free RSVPs and future paid tickets live here. Show the QR pass at the
+          Free RSVPs and paid event passes live here. Show the QR pass at the
           event so the host can check you in through SATX Ink.
         </p>
       </div>
@@ -2058,7 +2058,8 @@ const ClientEventPassesSection = ({
         <Ticket className="mx-auto mb-3 text-white/30" size={36} />
         <h3 className="text-lg font-semibold text-white">No event passes yet</h3>
         <p className="mx-auto mt-2 max-w-md text-sm text-white/50">
-          RSVP to a public event and your scannable pass will appear here.
+          RSVP to a public event or buy a paid event pass and your scannable
+          pass will appear here.
         </p>
       </div>
     ) : (
@@ -2078,7 +2079,7 @@ const ClientEventPassesSection = ({
             pass.paymentStatus === "free"
               ? "Free RSVP"
               : pass.paymentStatus === "paid"
-              ? "Paid ticket"
+              ? "Paid event pass"
               : pass.paymentStatus === "pending"
               ? "Payment pending"
               : pass.paymentStatus;
@@ -2152,13 +2153,13 @@ const ClientEventPassesSection = ({
                         )}
                         {syncingPassId === pass.id
                           ? "Checking payment..."
-                          : "Refresh ticket status"}
+                          : "Refresh event pass"}
                       </button>
                     ) : (
                       <span className="rounded-md border border-white/10 bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/45">
                         {pass.status === "pending_payment"
                           ? "Finish checkout from the event page"
-                          : "Managed by ticket checkout"}
+                          : "Managed by event checkout"}
                       </span>
                     )}
                   </div>

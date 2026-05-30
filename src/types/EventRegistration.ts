@@ -26,6 +26,7 @@ export type EventRegistration = {
   eventThumbnailUrl?: string;
   eventType?: string;
   bookingMode?: string;
+  clientActionType?: string;
   clientId: string;
   clientName?: string;
   clientAvatarUrl?: string;

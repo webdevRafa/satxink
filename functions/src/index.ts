@@ -1209,6 +1209,7 @@ const createEventRsvp = onCall(
         eventThumbnailUrl: event.thumbnailUrl || "",
         eventType: event.eventType || "",
         bookingMode: event.bookingMode || "rsvp",
+        clientActionType: event.clientActionType || "free_rsvp",
         clientId: uid,
         clientName: user.displayName || user.name || req.auth?.token?.name || "Client",
         clientAvatarUrl: user.avatarUrl || req.auth?.token?.picture || "",
@@ -1251,7 +1252,7 @@ const createEventCheckoutSession = onCall(
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) {
-      throw new HttpsError("unauthenticated", "Sign in to buy event tickets.");
+      throw new HttpsError("unauthenticated", "Sign in to buy event passes.");
     }
 
     const eventId = String(req.data?.eventId || "").trim();
@@ -1277,18 +1278,18 @@ const createEventCheckoutSession = onCall(
 
       const eventData = eventSnap.data() || {};
       if (eventData.status !== "published" || eventData.visibility !== "public") {
-        throw new HttpsError("failed-precondition", "This event is not selling tickets.");
+        throw new HttpsError("failed-precondition", "This event is not selling paid passes.");
       }
 
       if (eventData.bookingMode !== "paid_ticket") {
-        throw new HttpsError("failed-precondition", "This event is not a paid ticket event.");
+        throw new HttpsError("failed-precondition", "This event is not selling paid passes.");
       }
 
       const priceCents = Math.round(Number(eventData.price || 0) * 100);
       if (!priceCents || priceCents <= PLATFORM_FEE_MIN_CENTS) {
         throw new HttpsError(
           "failed-precondition",
-          "Paid ticket prices must be greater than the platform fee."
+          "Paid event pass prices must be greater than the platform fee."
         );
       }
 
@@ -1298,7 +1299,7 @@ const createEventCheckoutSession = onCall(
         (existingRegistration?.status === "paid" ||
           existingRegistration?.status === "checked_in")
       ) {
-        throw new HttpsError("already-exists", "You already have a ticket for this event.");
+        throw new HttpsError("already-exists", "You already have an event pass for this event.");
       }
 
       const registrationsSnap = await transaction.get(
@@ -1330,6 +1331,7 @@ const createEventCheckoutSession = onCall(
           eventThumbnailUrl: eventData.thumbnailUrl || "",
           eventType: eventData.eventType || "",
           bookingMode: eventData.bookingMode || "paid_ticket",
+          clientActionType: eventData.clientActionType || "paid_event_pass",
           clientId: uid,
           clientName:
             userData.displayName || userData.name || req.auth?.token?.name || "Client",
@@ -1379,7 +1381,7 @@ const createEventCheckoutSession = onCall(
       if (!connectStatus.chargesEnabled || !connectStatus.onboardingComplete) {
         throw new HttpsError(
           "failed-precondition",
-          "This event host needs to finish Stripe onboarding before selling tickets."
+          "This event host needs to finish Stripe onboarding before selling paid passes."
         );
       }
 
@@ -1402,8 +1404,8 @@ const createEventCheckoutSession = onCall(
                 currency: "usd",
                 unit_amount: clientTotalCents,
                 product_data: {
-                  name: `${event.title || "SATX Ink event"} ticket`,
-                  description: event.shopName || event.address || "Event ticket",
+                  name: `${event.title || "SATX Ink event"} pass`,
+                  description: event.shopName || event.address || "Event pass",
                   images: event.thumbnailUrl ? [event.thumbnailUrl] : undefined,
                 },
               },
@@ -1511,7 +1513,7 @@ const cancelEventRsvp = onCall(
       if (registration.paymentStatus !== "free") {
         throw new HttpsError(
           "failed-precondition",
-          "Paid event tickets cannot be cancelled from the RSVP tool yet."
+          "Paid event passes cannot be cancelled from the RSVP tool yet."
         );
       }
 
@@ -1592,7 +1594,7 @@ const checkInEventRegistration = onCall(
     }
 
     if (registration.status === "pending_payment") {
-      throw new HttpsError("failed-precondition", "This ticket has not been paid yet.");
+      throw new HttpsError("failed-precondition", "This event pass has not been paid yet.");
     }
 
     if (registration.status === "checked_in") {
@@ -1858,10 +1860,10 @@ const stripeWebhook = onRequest(
             session,
             event.account ?? session.metadata?.stripeConnectedAccountId ?? null
           );
-          res.status(200).send("Event ticket updated.");
+          res.status(200).send("Event pass updated.");
         } catch (err) {
-          console.error("Error updating event ticket:", err);
-          res.status(500).send("Failed to update event ticket.");
+          console.error("Error updating event pass:", err);
+          res.status(500).send("Failed to update event pass.");
         }
         return;
       }

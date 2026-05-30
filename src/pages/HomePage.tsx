@@ -60,7 +60,7 @@ const eventTypeLabels: Record<EventType, string> = {
   convention: "Convention",
   pop_up: "Pop-up",
   walk_in_day: "Walk-in Day",
-  shop_event: "Shop Event",
+  shop_event: "Open House / Shop Event",
   other: "Event",
 };
 

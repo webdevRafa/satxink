@@ -31,7 +31,12 @@ import {
   where,
 } from "firebase/firestore";
 import { auth, db, functions } from "../firebase/firebaseConfig";
-import type { ArtistEvent, EventBookingMode, EventType } from "../types/Event";
+import type {
+  ArtistEvent,
+  EventBookingMode,
+  EventClientActionType,
+  EventType,
+} from "../types/Event";
 import type { EventRegistration } from "../types/EventRegistration";
 import {
   calculateClientPaymentBreakdown,
@@ -57,6 +62,7 @@ type PublicArtist = {
 type PublicEvent = ArtistEvent & {
   artist?: PublicArtist;
   shop?: PublicShop;
+  participantArtists?: PublicArtist[];
 };
 
 type PublicShop = {
@@ -74,7 +80,7 @@ const eventTypeLabels: Record<EventType, string> = {
   convention: "Convention",
   pop_up: "Pop-up",
   walk_in_day: "Walk-in Day",
-  shop_event: "Shop Event",
+  shop_event: "Open House / Shop Event",
   other: "Other",
 };
 
@@ -295,7 +301,14 @@ export const EventsPage = () => {
           });
 
         const artistIds = Array.from(
-          new Set(rawEvents.map((event) => event.artistId).filter(Boolean))
+          new Set(
+            rawEvents
+              .flatMap((event) => [
+                event.artistId,
+                ...(event.participantArtistIds || []),
+              ])
+              .filter((artistId): artistId is string => Boolean(artistId))
+          )
         );
 
         const artistsById = await fetchVerifiedArtistsById(artistIds);
@@ -312,6 +325,9 @@ export const EventsPage = () => {
           .map((event) => ({
             ...event,
             artist: event.artistId ? artistsById[event.artistId] : undefined,
+            participantArtists: (event.participantArtistIds || [])
+              .map((artistId) => artistsById[artistId])
+              .filter((artist): artist is PublicArtist => Boolean(artist)),
             shop: event.shopId ? shopsById[event.shopId] : undefined,
           }))
           .filter((event) =>
@@ -365,7 +381,7 @@ export const EventsPage = () => {
 
   const handlePaidTicket = (event: PublicEvent) => {
     if (!currentUserId) {
-      toast.error("Sign in as a client to buy event tickets.");
+      toast.error("Sign in as a client to buy event passes.");
       return;
     }
 
@@ -381,7 +397,7 @@ export const EventsPage = () => {
 
   const handleConfirmPaidTicket = async (event: PublicEvent) => {
     if (!currentUserId) {
-      toast.error("Sign in as a client to buy event tickets.");
+      toast.error("Sign in as a client to buy event passes.");
       return;
     }
 
@@ -413,8 +429,8 @@ export const EventsPage = () => {
       setSelectedTicketEvent(null);
       window.location.href = response.data.url;
     } catch (error) {
-      console.error("Event ticket checkout failed:", error);
-      toast.error(getCallableErrorMessage(error, "Could not start ticket checkout."));
+      console.error("Event pass checkout failed:", error);
+      toast.error(getCallableErrorMessage(error, "Could not start event pass checkout."));
     } finally {
       setPurchasingEventId("");
     }
@@ -1068,7 +1084,7 @@ const EventDetailsModal = ({
     : "";
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
-  const bookingMode = event.bookingMode || "info_only";
+  const clientActionType = getEventClientActionType(event);
   const isReserved = Boolean(
     registration &&
       registration.status !== "cancelled" &&
@@ -1078,7 +1094,7 @@ const EventDetailsModal = ({
   const isPendingPayment = registration?.status === "pending_payment";
 
   const renderPrimaryAction = () => {
-    if (bookingMode === "rsvp") {
+    if (clientActionType === "free_rsvp") {
       return (
         <button
           type="button"
@@ -1090,13 +1106,17 @@ const EventDetailsModal = ({
               : "bg-white !text-black hover:bg-white/85 disabled:opacity-60"
           }`}
         >
-          {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
+          {isReserving
+            ? "Reserving..."
+            : isReserved
+            ? "RSVP saved"
+            : "RSVP for reminders"}
           {!isReserved && <ChevronRight className="h-4 w-4 text-black" />}
         </button>
       );
     }
 
-    if (bookingMode === "paid_ticket") {
+    if (clientActionType === "paid_event_pass") {
       return (
         <button
           type="button"
@@ -1111,35 +1131,59 @@ const EventDetailsModal = ({
           {isPurchasing
             ? "Opening checkout..."
             : isPaid
-            ? "Ticket purchased"
+            ? "Event pass purchased"
             : isPendingPayment
             ? "Resume checkout"
-            : "Buy ticket"}
+            : "Buy event pass"}
           {!isPaid && <ChevronRight className="h-4 w-4 text-black" />}
         </button>
       );
     }
 
-    if (bookingMode === "deposit_required" || bookingMode === "flash_reservation") {
-      if (!artistProfilePath) {
-        return (
-          <span className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/45">
-            Artist booking unavailable
-          </span>
-        );
-      }
-
+    if (clientActionType === "flash_reservation") {
       return (
-        <Link
-          to={artistProfilePath}
-          onClick={onClose}
+        <EventProfileAction
+          event={event}
+          artistProfilePath={artistProfilePath}
+          label={isShopHosted ? "Browse participating artists" : "Reserve flash on SATX"}
+          onClose={onClose}
+        />
+      );
+    }
+
+    if (clientActionType === "appointment_request") {
+      return (
+        <EventProfileAction
+          event={event}
+          artistProfilePath={artistProfilePath}
+          label={isShopHosted ? "View artists to request" : "Request appointment"}
+          onClose={onClose}
+        />
+      );
+    }
+
+    if (clientActionType === "waitlist") {
+      return (
+        <EventProfileAction
+          event={event}
+          artistProfilePath={artistProfilePath}
+          label={isShopHosted ? "Join through artists" : "Request a spot"}
+          onClose={onClose}
+        />
+      );
+    }
+
+    if (clientActionType === "external_link" && event.externalUrl) {
+      return (
+        <a
+          href={event.externalUrl}
+          target="_blank"
+          rel="noreferrer"
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold !text-black transition hover:bg-white/85"
         >
-          {bookingMode === "flash_reservation"
-            ? "Reserve with artist"
-            : "Book with artist"}
+          {event.externalLabel || "Open event link"}
           <ChevronRight className="h-4 w-4 text-black" />
-        </Link>
+        </a>
       );
     }
 
@@ -1268,6 +1312,31 @@ const EventDetailsModal = ({
                     </div>
                   </div>
                 </div>
+
+                {event.participantArtists && event.participantArtists.length > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      Participating artists
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {event.participantArtists.slice(0, 6).map((artist) => (
+                        <Link
+                          key={artist.id}
+                          to={`/artists/${artist.id}`}
+                          onClick={onClose}
+                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/70 transition hover:border-white/25 hover:text-white"
+                        >
+                          <img
+                            src={artist.avatarUrl || "/default-avatar.png"}
+                            alt={getArtistName(artist)}
+                            className="h-5 w-5 rounded-full object-cover"
+                          />
+                          {getArtistName(artist)}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </aside>
 
@@ -1303,7 +1372,7 @@ const EventDetailsModal = ({
                   icon={<Users size={16} />}
                   label="Availability"
                   value={
-                    bookingMode === "paid_ticket"
+                    clientActionType === "paid_event_pass"
                       ? getPaidTicketAvailabilityLabel(event)
                       : getEventCapacityLabel(event)
                   }
@@ -1347,6 +1416,32 @@ const EventDetailsModal = ({
   );
 };
 
+const EventProfileAction = ({
+  event,
+  artistProfilePath,
+  label,
+  onClose,
+}: {
+  event: PublicEvent;
+  artistProfilePath: string;
+  label: string;
+  onClose: () => void;
+}) => {
+  const fallbackArtist = event.participantArtists?.[0];
+  const to = artistProfilePath || (fallbackArtist ? `/artists/${fallbackArtist.id}` : "/artists");
+
+  return (
+    <Link
+      to={to}
+      onClick={onClose}
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold !text-black transition hover:bg-white/85"
+    >
+      {label}
+      <ChevronRight className="h-4 w-4 text-black" />
+    </Link>
+  );
+};
+
 const TicketCheckoutPreviewModal = ({
   event,
   registration,
@@ -1374,7 +1469,7 @@ const TicketCheckoutPreviewModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm">
       <button
         type="button"
-        aria-label="Close ticket preview"
+        aria-label="Close event pass preview"
         className="absolute inset-0 cursor-default"
         onClick={onClose}
       />
@@ -1383,7 +1478,7 @@ const TicketCheckoutPreviewModal = ({
         <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
-              Ticket checkout
+              Event pass checkout
             </p>
             <h2 className="mt-1 text-2xl! font-semibold text-white">
               Review your event pass
@@ -1394,7 +1489,7 @@ const TicketCheckoutPreviewModal = ({
             onClick={onClose}
             disabled={isPurchasing}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Close ticket preview"
+            aria-label="Close event pass preview"
           >
             <X size={18} />
           </button>
@@ -1482,13 +1577,13 @@ const TicketCheckoutPreviewModal = ({
                 </div>
                 <div className="divide-y divide-white/10">
                   <TicketBreakdownRow
-                    label="Event ticket"
+                    label="Event pass"
                     note={`Paid to ${hostName}`}
                     value={formatMoneyFromCents(paymentBreakdown.artistAmountCents)}
                   />
                   <TicketBreakdownRow
                     label="SATX Ink fee"
-                    note="Platform fee for ticketing and QR check-in"
+                    note="Platform fee for passes and QR check-in"
                     value={formatMoneyFromCents(paymentBreakdown.platformFeeCents)}
                   />
                   <TicketBreakdownRow
@@ -1502,7 +1597,7 @@ const TicketCheckoutPreviewModal = ({
                         Estimated total today
                       </p>
                       <p className="mt-1 text-xs text-emerald-50/60">
-                        Includes ticket, SATX Ink fee, and processing.
+                        Includes event pass, SATX Ink fee, and processing.
                       </p>
                     </div>
                     <p className="text-xl font-semibold text-emerald-50">
@@ -1534,10 +1629,10 @@ const TicketCheckoutPreviewModal = ({
         <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p className="text-sm text-white/45">
             {isPaid
-              ? "This ticket is already in your dashboard."
+              ? "This event pass is already in your dashboard."
               : isPendingPayment
               ? "You have a pending checkout for this event."
-              : "Review the ticket details before opening Stripe."}
+              : "Review the event pass details before opening Stripe."}
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
@@ -1554,7 +1649,7 @@ const TicketCheckoutPreviewModal = ({
               disabled={isPurchasing || isPaid}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold !text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPurchasing ? "Opening Stripe..." : isPaid ? "Ticket purchased" : actionLabel}
+              {isPurchasing ? "Opening Stripe..." : isPaid ? "Event pass purchased" : actionLabel}
               <ChevronRight className="h-4 w-4 text-black" />
             </button>
           </div>
@@ -1618,10 +1713,11 @@ const PublicEventCard = ({
   const artistProfilePath = !isShopHosted && event.artistId
     ? `/artists/${event.artistId}`
     : "";
+  const clientActionType = getEventClientActionType(event);
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
-  const isRsvpEvent = event.bookingMode === "rsvp";
-  const isPaidTicketEvent = event.bookingMode === "paid_ticket";
+  const isRsvpEvent = clientActionType === "free_rsvp";
+  const isPaidTicketEvent = clientActionType === "paid_event_pass";
   const isReserved = Boolean(
     registration &&
       registration.status !== "cancelled" &&
@@ -1630,7 +1726,7 @@ const PublicEventCard = ({
   const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
   const isPendingPayment = registration?.status === "pending_payment";
   const registrationLabel = isPaid
-    ? "Ticket purchased"
+    ? "Event pass purchased"
     : isPendingPayment
     ? "Checkout pending"
     : isReserved
@@ -1724,13 +1820,19 @@ const PublicEventCard = ({
             {isRsvpEvent && (
               <EventMeta
                 icon={<CalendarDays size={16} />}
-                text="Free RSVP pass available"
+                text="Free RSVP for reminders, not a tattoo spot"
               />
             )}
             {isPaidTicketEvent && (
               <EventMeta
                 icon={<Ticket size={16} />}
                 text="Paid SATX Ink pass with QR check-in"
+              />
+            )}
+            {!isRsvpEvent && !isPaidTicketEvent && (
+              <EventMeta
+                icon={<Ticket size={16} />}
+                text={getClientActionSummary(clientActionType)}
               />
             )}
           </div>
@@ -1946,13 +2048,61 @@ const getEventHostName = (event: PublicEvent) => {
   return event.artist ? getArtistName(event.artist) : "Verified artist";
 };
 
+const getEventClientActionType = (
+  event: Pick<
+    ArtistEvent,
+    "clientActionType" | "bookingMode" | "eventType" | "ownerType"
+  >
+): EventClientActionType => {
+  if (event.clientActionType) return event.clientActionType;
+  if (event.bookingMode === "rsvp") return "free_rsvp";
+  if (event.bookingMode === "paid_ticket") return "paid_event_pass";
+  if (event.bookingMode === "flash_reservation") return "flash_reservation";
+  if (event.bookingMode === "deposit_required") return "appointment_request";
+  if (event.eventType === "flash_day") return "flash_reservation";
+  if (event.eventType === "guest_spot" || event.eventType === "convention") {
+    return "appointment_request";
+  }
+  if (event.eventType === "walk_in_day") return "waitlist";
+  if (event.eventType === "shop_event" && event.ownerType === "shop") {
+    return "free_rsvp";
+  }
+  return "details_only";
+};
+
+const getClientActionSummary = (clientActionType: EventClientActionType) => {
+  if (clientActionType === "flash_reservation") {
+    return "Reserve flash through SATX artist flow";
+  }
+  if (clientActionType === "appointment_request") {
+    return "Request the appointment through SATX";
+  }
+  if (clientActionType === "waitlist") {
+    return "Capture interest through SATX";
+  }
+  if (clientActionType === "external_link") {
+    return "External event link";
+  }
+  return "Event details and SATX profile links";
+};
+
 const eventModeRequiresPayment = (bookingMode?: EventBookingMode) =>
   bookingMode === "deposit_required" ||
   bookingMode === "flash_reservation" ||
   bookingMode === "paid_ticket";
 
 const isPublicEventBookable = (event: PublicEvent) => {
+  const clientActionType = getEventClientActionType(event);
+  if (clientActionType === "paid_event_pass") return true;
   if (event.bookingMode === "paid_ticket") return true;
+  if (
+    clientActionType === "flash_reservation" ||
+    clientActionType === "appointment_request" ||
+    clientActionType === "waitlist" ||
+    clientActionType === "external_link"
+  ) {
+    return true;
+  }
   if (!eventModeRequiresPayment(event.bookingMode)) return true;
   if (event.ownerType === "shop" && !event.artist) return false;
   return isStripeConnectReady(event.artist);
@@ -2073,8 +2223,28 @@ const getLocationLabel = (event: ArtistEvent) => {
 };
 
 const getEventCapacityLabel = (event: ArtistEvent) => {
-  if (event.bookingMode === "info_only") {
+  const clientActionType = getEventClientActionType(event);
+
+  if (
+    clientActionType === "details_only" ||
+    clientActionType === "external_link"
+  ) {
     return event.capacity ? `Venue capacity ${event.capacity}` : "Details only";
+  }
+
+  if (clientActionType === "free_rsvp") {
+    return `${event.spotsClaimed || 0}/${event.capacity || 0} RSVPs claimed`;
+  }
+
+  if (clientActionType === "waitlist") {
+    return event.capacity ? `${event.capacity} queue spots` : "SATX waitlist";
+  }
+
+  if (
+    clientActionType === "appointment_request" ||
+    clientActionType === "flash_reservation"
+  ) {
+    return event.capacity ? `${event.capacity} booking slots` : "SATX booking flow";
   }
 
   return `${event.spotsClaimed || 0}/${event.capacity || 0} spots claimed`;
@@ -2084,10 +2254,10 @@ const getPaidTicketAvailabilityLabel = (event: ArtistEvent) => {
   const claimed = Number(event.spotsClaimed || 0);
   const capacity = Number(event.capacity || 0);
 
-  if (!capacity) return "Open ticket capacity";
+  if (!capacity) return "Open pass capacity";
 
   const remaining = Math.max(capacity - claimed, 0);
-  return `${remaining} of ${capacity} tickets available`;
+  return `${remaining} of ${capacity} passes available`;
 };
 
 const getPriceLabel = (event: ArtistEvent) => {
