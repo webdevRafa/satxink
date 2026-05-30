@@ -31,6 +31,19 @@ import type { FlashSheet } from "../types/FlashSheet";
 import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
 
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (
+    err &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    return (err as { message: string }).message;
+  }
+
+  return fallback;
+};
+
 const FlashSheetDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -86,8 +99,8 @@ const FlashSheetDetailPage = () => {
         toast.error("Flash sheet not found.");
       }
       await fetchFlashes(id);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to load flash sheet.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to load flash sheet."));
     } finally {
       setIsLoading(false);
     }
@@ -137,8 +150,8 @@ const FlashSheetDetailPage = () => {
       setZoom(1);
       if (id) fetchFlashes(id);
       toast.success("Flash published.");
-    } catch (err: any) {
-      toast.error(err?.message || "Something went wrong while publishing.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Something went wrong while publishing."));
     } finally {
       setIsPublishing(false);
     }
@@ -409,8 +422,8 @@ const CropFlashModal = ({
   onClose: () => void;
   onPublish: () => void;
 }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 px-4 py-6 backdrop-blur-xl">
-    <div className="relative grid h-[min(900px,92vh)] w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl lg:grid-cols-[minmax(0,1fr)_360px]">
+  <div className="fixed inset-x-0 bottom-0 top-20 z-[120] flex items-start justify-center overflow-hidden bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-xl md:inset-0 md:items-center md:px-4 md:py-6">
+    <div className="relative grid h-full w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:h-[min(900px,92vh)] lg:grid-cols-[minmax(0,1fr)_360px]">
       <button
         type="button"
         onClick={onClose}
