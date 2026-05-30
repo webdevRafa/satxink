@@ -2088,92 +2088,88 @@ const ArtistDashboardProfileHeader = ({
   return (
     <section
       aria-label="Artist profile summary"
-      className="relative w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-3 shadow-lg sm:p-5"
+      className="w-full max-w-6xl py-1 sm:py-2"
     >
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
-        <div className="relative mx-auto shrink-0 sm:mx-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <img
             src={artist.avatarUrl || "/fallback-avatar.jpg"}
             alt={artistDisplayName}
             decoding="async"
-            className="aspect-square h-16 w-16 rounded-full border border-white/10 object-cover shadow-lg sm:h-24 sm:w-24"
+            className="aspect-square h-14 w-14 shrink-0 rounded-full object-cover shadow-[0_14px_34px_rgba(0,0,0,0.38),0_0_0_1px_rgba(255,255,255,0.14)] sm:h-[72px] sm:w-[72px]"
           />
-          <span className="absolute bottom-0 right-0 rounded-full bg-black px-2 py-0.5 text-[9px] font-semibold text-white ring-1 ring-white/10">
-            Artist
-          </span>
-        </div>
 
-        <div className="min-w-0 flex-1 text-center sm:text-left">
-          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-primary)] sm:text-[11px] sm:tracking-[0.18em]">
-              Artist profile
-            </p>
-            <h1 className="truncate text-xl! font-semibold text-white sm:text-2xl!">
-              {artistDisplayName}
-            </h1>
-          </div>
-
-          <div className="mt-0.5 flex flex-col gap-0.5 text-xs text-neutral-400 sm:mt-1 sm:flex-row sm:items-center sm:gap-3 sm:text-sm">
-            {artistShopName &&
-              (artist.shopMapLink ? (
-                <a
-                  href={normalizeUrl(artist.shopMapLink)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-w-0 items-center justify-center gap-1.5 font-medium text-neutral-300 transition hover:text-white sm:justify-start"
-                >
-                  <MapPin size={14} className="shrink-0" />
-                  <span className="truncate">{artistShopName}</span>
-                </a>
-              ) : (
-                <p className="inline-flex min-w-0 items-center justify-center gap-1.5 font-medium text-neutral-300 sm:justify-start">
-                  <MapPin size={14} className="shrink-0" />
-                  <span className="truncate">{artistShopName}</span>
-                </p>
-              ))}
-
-            {artist.bio && (
-              <p className="min-w-0 truncate text-neutral-400">
-                {artist.bio}
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)] sm:text-[11px]">
+                Artist profile
               </p>
-            )}
-          </div>
+              <h1 className="my-0! min-w-0 truncate text-xl! font-semibold leading-tight text-white sm:text-2xl!">
+                {artistDisplayName}
+              </h1>
+            </div>
 
-          {(socialLinks.length > 0 || artistStyles.length > 0) && (
-            <div className="mt-2 flex flex-col gap-2 sm:mt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              {artistStyles.length > 0 && (
-                <ul className="flex min-w-0 flex-wrap justify-center gap-1 sm:justify-start sm:gap-1.5">
-                  {artistStyles.map((style) => (
-                    <li
-                      key={style}
-                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] leading-4 text-neutral-200 sm:px-2.5 sm:text-[11px]"
-                    >
-                      {style}
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400 sm:text-sm">
+              {artistShopName &&
+                (artist.shopMapLink ? (
+                  <a
+                    href={normalizeUrl(artist.shopMapLink)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-w-0 items-center gap-1.5 font-medium text-neutral-300 transition hover:text-white"
+                  >
+                    <MapPin size={14} className="shrink-0 text-white/35" />
+                    <span className="truncate">{artistShopName}</span>
+                  </a>
+                ) : (
+                  <p className="my-0! inline-flex min-w-0 items-center gap-1.5 font-medium text-neutral-300">
+                    <MapPin size={14} className="shrink-0 text-white/35" />
+                    <span className="truncate">{artistShopName}</span>
+                  </p>
+                ))}
 
-              {socialLinks.length > 0 && (
-                <div className="flex shrink-0 justify-center gap-1.5 sm:justify-end sm:gap-2">
-                  {socialLinks.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={link.label}
-                      title={link.label}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08] sm:h-8 sm:w-8"
-                    >
-                      {link.icon}
-                    </a>
-                  ))}
-                </div>
+              {artist.bio && (
+                <p className="my-0! min-w-0 truncate text-neutral-400">
+                  {artist.bio}
+                </p>
               )}
             </div>
-          )}
+
+            {artistStyles.length > 0 && (
+              <ul className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold leading-none text-neutral-300 sm:text-[11px]">
+                {artistStyles.map((style, index) => (
+                  <li key={style} className="inline-flex items-center gap-2">
+                    {index > 0 && (
+                      <span
+                        className="h-1 w-1 rounded-full bg-white/20"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span>{style}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
+
+        {socialLinks.length > 0 && (
+          <div className="flex shrink-0 items-center gap-2 pl-[68px] sm:pl-0">
+            {socialLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={link.label}
+                title={link.label}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white/85 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                {link.icon}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
