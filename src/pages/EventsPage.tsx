@@ -215,6 +215,8 @@ export const EventsPage = () => {
   const [selectedTicketEvent, setSelectedTicketEvent] = useState<PublicEvent | null>(
     null
   );
+  const [selectedDetailsEvent, setSelectedDetailsEvent] =
+    useState<PublicEvent | null>(null);
   const [hostFilter, setHostFilter] = useState<EventHostFilter>("artist");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | EventType>(
@@ -370,6 +372,11 @@ export const EventsPage = () => {
     if (event.bookingMode !== "paid_ticket") return;
 
     setSelectedTicketEvent(event);
+  };
+
+  const handleDetailsPaidTicket = (event: PublicEvent) => {
+    if (currentUserId) setSelectedDetailsEvent(null);
+    handlePaidTicket(event);
   };
 
   const handleConfirmPaidTicket = async (event: PublicEvent) => {
@@ -691,16 +698,33 @@ export const EventsPage = () => {
                   laterEvents: eventDateGroupsByHost[host].laterEvents,
                   dateFilter,
                   registrationsByEventId,
-                  reservingEventId,
-                  purchasingEventId,
-                  onFreeRsvp: handleFreeRsvp,
-                  onPaidTicket: handlePaidTicket,
+                  onViewDetails: setSelectedDetailsEvent,
                 })}
               </div>
             ))}
           </EventHostStage>
         </section>
       </main>
+
+      <EventDetailsModal
+        event={selectedDetailsEvent}
+        registration={
+          selectedDetailsEvent
+            ? registrationsByEventId[selectedDetailsEvent.id]
+            : undefined
+        }
+        isReserving={Boolean(
+          selectedDetailsEvent && reservingEventId === selectedDetailsEvent.id
+        )}
+        isPurchasing={Boolean(
+          selectedDetailsEvent && purchasingEventId === selectedDetailsEvent.id
+        )}
+        onClose={() => {
+          if (!reservingEventId && !purchasingEventId) setSelectedDetailsEvent(null);
+        }}
+        onFreeRsvp={handleFreeRsvp}
+        onPaidTicket={handleDetailsPaidTicket}
+      />
 
       <TicketCheckoutPreviewModal
         event={selectedTicketEvent}
@@ -741,10 +765,7 @@ const renderEventContent = ({
   laterEvents,
   dateFilter,
   registrationsByEventId,
-  reservingEventId,
-  purchasingEventId,
-  onFreeRsvp,
-  onPaidTicket,
+  onViewDetails,
 }: {
   loading: boolean;
   filteredEvents: PublicEvent[];
@@ -753,10 +774,7 @@ const renderEventContent = ({
   laterEvents: PublicEvent[];
   dateFilter: DateFilter;
   registrationsByEventId: Record<string, EventRegistration>;
-  reservingEventId: string;
-  purchasingEventId: string;
-  onFreeRsvp: (event: PublicEvent) => void;
-  onPaidTicket: (event: PublicEvent) => void;
+  onViewDetails: (event: PublicEvent) => void;
 }) => {
   if (loading) return <EventsPageSkeleton />;
   if (filteredEvents.length === 0) return <EmptyEventsState />;
@@ -770,10 +788,7 @@ const renderEventContent = ({
           events={filteredEvents}
           layout="rail"
           registrationsByEventId={registrationsByEventId}
-          reservingEventId={reservingEventId}
-          purchasingEventId={purchasingEventId}
-          onFreeRsvp={onFreeRsvp}
-          onPaidTicket={onPaidTicket}
+          onViewDetails={onViewDetails}
         />
       </div>
     );
@@ -788,10 +803,7 @@ const renderEventContent = ({
           events={todayEvents}
           layout="rail"
           registrationsByEventId={registrationsByEventId}
-          reservingEventId={reservingEventId}
-          purchasingEventId={purchasingEventId}
-          onFreeRsvp={onFreeRsvp}
-          onPaidTicket={onPaidTicket}
+          onViewDetails={onViewDetails}
         />
       )}
 
@@ -802,10 +814,7 @@ const renderEventContent = ({
           events={weekEvents}
           layout="rail"
           registrationsByEventId={registrationsByEventId}
-          reservingEventId={reservingEventId}
-          purchasingEventId={purchasingEventId}
-          onFreeRsvp={onFreeRsvp}
-          onPaidTicket={onPaidTicket}
+          onViewDetails={onViewDetails}
         />
       )}
 
@@ -816,10 +825,7 @@ const renderEventContent = ({
           events={laterEvents}
           layout="rail"
           registrationsByEventId={registrationsByEventId}
-          reservingEventId={reservingEventId}
-          purchasingEventId={purchasingEventId}
-          onFreeRsvp={onFreeRsvp}
-          onPaidTicket={onPaidTicket}
+          onViewDetails={onViewDetails}
         />
       )}
     </div>
@@ -896,20 +902,14 @@ const EventSection = ({
   events,
   layout = "grid",
   registrationsByEventId,
-  reservingEventId,
-  purchasingEventId,
-  onFreeRsvp,
-  onPaidTicket,
+  onViewDetails,
 }: {
   eyebrow: string;
   title: string;
   events: PublicEvent[];
   layout?: "grid" | "rail";
   registrationsByEventId: Record<string, EventRegistration>;
-  reservingEventId: string;
-  purchasingEventId: string;
-  onFreeRsvp: (event: PublicEvent) => void;
-  onPaidTicket: (event: PublicEvent) => void;
+  onViewDetails: (event: PublicEvent) => void;
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const hasRailControls = layout === "rail" && events.length > 1;
@@ -1000,10 +1000,7 @@ const EventSection = ({
               key={event.id}
               event={event}
               registration={registrationsByEventId[event.id]}
-              isReserving={reservingEventId === event.id}
-              isPurchasing={purchasingEventId === event.id}
-              onFreeRsvp={onFreeRsvp}
-              onPaidTicket={onPaidTicket}
+              onViewDetails={onViewDetails}
               className="shrink-0 snap-start"
               style={{ width: EVENT_CARD_WIDTH }}
             />
@@ -1016,10 +1013,7 @@ const EventSection = ({
               key={event.id}
               event={event}
               registration={registrationsByEventId[event.id]}
-              isReserving={reservingEventId === event.id}
-              isPurchasing={purchasingEventId === event.id}
-              onFreeRsvp={onFreeRsvp}
-              onPaidTicket={onPaidTicket}
+              onViewDetails={onViewDetails}
             />
           ))}
         </div>
@@ -1047,6 +1041,323 @@ const RailButton = ({
     {children}
   </button>
 );
+
+const EventDetailsModal = ({
+  event,
+  registration,
+  isReserving,
+  isPurchasing,
+  onClose,
+  onFreeRsvp,
+  onPaidTicket,
+}: {
+  event: PublicEvent | null;
+  registration?: EventRegistration;
+  isReserving: boolean;
+  isPurchasing: boolean;
+  onClose: () => void;
+  onFreeRsvp: (event: PublicEvent) => void;
+  onPaidTicket: (event: PublicEvent) => void;
+}) => {
+  if (!event) return null;
+
+  const hostName = getEventHostName(event);
+  const isShopHosted = getEventHostType(event) === "shop";
+  const artistProfilePath = !isShopHosted && event.artistId
+    ? `/artists/${event.artistId}`
+    : "";
+  const locationLabel = getLocationLabel(event);
+  const priceLabel = getPriceLabel(event);
+  const bookingMode = event.bookingMode || "info_only";
+  const isReserved = Boolean(
+    registration &&
+      registration.status !== "cancelled" &&
+      registration.status !== "refunded"
+  );
+  const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
+  const isPendingPayment = registration?.status === "pending_payment";
+
+  const renderPrimaryAction = () => {
+    if (bookingMode === "rsvp") {
+      return (
+        <button
+          type="button"
+          onClick={() => onFreeRsvp(event)}
+          disabled={isReserved || isReserving}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg px-5! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+            isReserved
+              ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+              : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+          }`}
+        >
+          {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
+          {!isReserved && <ChevronRight size={16} />}
+        </button>
+      );
+    }
+
+    if (bookingMode === "paid_ticket") {
+      return (
+        <button
+          type="button"
+          onClick={() => onPaidTicket(event)}
+          disabled={isPaid || isPurchasing}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg px-5! py-3! text-sm! font-semibold transition disabled:cursor-not-allowed ${
+            isPaid
+              ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+              : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
+          }`}
+        >
+          {isPurchasing
+            ? "Opening checkout..."
+            : isPaid
+            ? "Ticket purchased"
+            : isPendingPayment
+            ? "Resume checkout"
+            : "Buy ticket"}
+          {!isPaid && <ChevronRight size={16} />}
+        </button>
+      );
+    }
+
+    if (bookingMode === "deposit_required" || bookingMode === "flash_reservation") {
+      if (!artistProfilePath) {
+        return (
+          <span className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/45">
+            Artist booking unavailable
+          </span>
+        );
+      }
+
+      return (
+        <Link
+          to={artistProfilePath}
+          onClick={onClose}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+        >
+          {bookingMode === "flash_reservation"
+            ? "Reserve with artist"
+            : "Book with artist"}
+          <ChevronRight size={16} />
+        </Link>
+      );
+    }
+
+    if (artistProfilePath) {
+      return (
+        <Link
+          to={artistProfilePath}
+          onClick={onClose}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+        >
+          View host profile
+          <ChevronRight size={16} />
+        </Link>
+      );
+    }
+
+    if (event.mapLink) {
+      return (
+        <a
+          href={event.mapLink}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/85"
+        >
+          View location
+          <ChevronRight size={16} />
+        </a>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Close event details"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <section className="relative z-10 flex max-h-[min(90vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#151515] text-white shadow-2xl shadow-black/60">
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">
+              Event details
+            </p>
+            <h2 className="mt-1 text-2xl! font-semibold leading-tight text-white sm:text-3xl!">
+              {event.title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isReserving || isPurchasing}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Close event details"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="satx-scrollbar min-h-0 overflow-y-auto">
+          <div className="grid gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="border-b border-white/10 bg-black/20 lg:border-b-0 lg:border-r lg:border-white/10">
+              <div className="sticky top-0 space-y-4 p-5 sm:p-6">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black/35">
+                  {event.thumbnailUrl ? (
+                    <img
+                      src={event.thumbnailUrl}
+                      alt={event.title}
+                      className="h-64 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center text-white/30">
+                      <ImageOff size={36} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                    Hosted by
+                  </p>
+                  <div className="mt-3 flex items-center gap-3">
+                    {isShopHosted ? (
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/60">
+                        <Store size={20} />
+                      </span>
+                    ) : artistProfilePath ? (
+                      <Link
+                        to={artistProfilePath}
+                        onClick={onClose}
+                        className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-white/45"
+                        aria-label={`View ${hostName}'s artist profile`}
+                      >
+                        <img
+                          src={event.artist?.avatarUrl || "/default-avatar.png"}
+                          alt={hostName}
+                          className="h-12 w-12 rounded-full border border-white/10 object-cover transition hover:border-white/30"
+                        />
+                      </Link>
+                    ) : (
+                      <img
+                        src={event.artist?.avatarUrl || "/default-avatar.png"}
+                        alt={hostName}
+                        className="h-12 w-12 rounded-full border border-white/10 object-cover"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      {artistProfilePath ? (
+                        <Link
+                          to={artistProfilePath}
+                          onClick={onClose}
+                          className="block truncate text-base font-semibold text-white transition hover:text-white/75"
+                        >
+                          {hostName}
+                        </Link>
+                      ) : (
+                        <p className="truncate text-base font-semibold text-white">
+                          {hostName}
+                        </p>
+                      )}
+                      <p className="mt-1 text-sm text-white/45">{locationLabel}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white/55">
+                  {eventTypeLabels[event.eventType] || "Event"}
+                </span>
+                {event.description && (
+                  <p className="mt-4 text-sm leading-6 text-white/60">
+                    {event.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TicketPreviewFact
+                  icon={<CalendarDays size={16} />}
+                  label="When"
+                  value={formatEventDate(event)}
+                />
+                <TicketPreviewFact
+                  icon={<MapPin size={16} />}
+                  label="Where"
+                  value={locationLabel}
+                />
+                <TicketPreviewFact
+                  icon={<DollarSign size={16} />}
+                  label="Price"
+                  value={priceLabel}
+                />
+                <TicketPreviewFact
+                  icon={<Users size={16} />}
+                  label="Availability"
+                  value={
+                    bookingMode === "paid_ticket"
+                      ? getPaidTicketAvailabilityLabel(event)
+                      : getEventCapacityLabel(event)
+                  }
+                />
+              </div>
+
+              {event.tags && event.tags.length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                    Tags
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {event.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-white/55"
+                      >
+                        <Tag size={12} />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex flex-col gap-3 border-t border-white/10 bg-[#171717] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className="text-sm text-white/45">
+            {isPaid
+              ? "This ticket is already in your dashboard."
+              : isPendingPayment
+              ? "You have a pending checkout for this event."
+              : isReserved
+              ? "Your event pass is reserved."
+              : "Review the details, then claim the right event action."}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isReserving || isPurchasing}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-5! py-3! text-sm! font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Close
+            </button>
+            {renderPrimaryAction()}
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+};
 
 const TicketCheckoutPreviewModal = ({
   event,
@@ -1304,24 +1615,21 @@ const TicketBreakdownRow = ({
 const PublicEventCard = ({
   event,
   registration,
-  isReserving,
-  isPurchasing,
-  onFreeRsvp,
-  onPaidTicket,
+  onViewDetails,
   className = "",
   style,
 }: {
   event: PublicEvent;
   registration?: EventRegistration;
-  isReserving: boolean;
-  isPurchasing: boolean;
-  onFreeRsvp: (event: PublicEvent) => void;
-  onPaidTicket: (event: PublicEvent) => void;
+  onViewDetails: (event: PublicEvent) => void;
   className?: string;
   style?: React.CSSProperties;
 }) => {
   const hostName = getEventHostName(event);
   const isShopHosted = getEventHostType(event) === "shop";
+  const artistProfilePath = !isShopHosted && event.artistId
+    ? `/artists/${event.artistId}`
+    : "";
   const locationLabel = getLocationLabel(event);
   const priceLabel = getPriceLabel(event);
   const isRsvpEvent = event.bookingMode === "rsvp";
@@ -1333,6 +1641,13 @@ const PublicEventCard = ({
   );
   const isPaid = registration?.status === "paid" || registration?.status === "checked_in";
   const isPendingPayment = registration?.status === "pending_payment";
+  const registrationLabel = isPaid
+    ? "Ticket purchased"
+    : isPendingPayment
+    ? "Checkout pending"
+    : isReserved
+    ? "Pass reserved"
+    : "";
 
   return (
     <article
@@ -1364,6 +1679,18 @@ const PublicEventCard = ({
               <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/60">
                 <Store size={19} />
               </span>
+            ) : artistProfilePath ? (
+              <Link
+                to={artistProfilePath}
+                className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-white/45"
+                aria-label={`View ${hostName}'s artist profile`}
+              >
+                <img
+                  src={event.artist?.avatarUrl || "/default-avatar.png"}
+                  alt={hostName}
+                  className="h-11 w-11 rounded-full border border-white/10 object-cover transition group-hover:border-white/25"
+                />
+              </Link>
             ) : (
               <img
                 src={event.artist?.avatarUrl || "/default-avatar.png"}
@@ -1376,7 +1703,17 @@ const PublicEventCard = ({
                 {event.title}
               </h3>
               <p className="mt-1 truncate text-sm text-white/50">
-                by {hostName}
+                by{" "}
+                {artistProfilePath ? (
+                  <Link
+                    to={artistProfilePath}
+                    className="text-white/70 transition hover:text-white"
+                  >
+                    {hostName}
+                  </Link>
+                ) : (
+                  <span>{hostName}</span>
+                )}
               </p>
             </div>
           </div>
@@ -1430,60 +1767,20 @@ const PublicEventCard = ({
             </div>
           )}
 
-          <div className="mt-auto flex flex-wrap justify-end gap-2 pt-5">
-            {isRsvpEvent && (
-              <button
-                type="button"
-                onClick={() => onFreeRsvp(event)}
-                disabled={isReserved || isReserving}
-                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
-                  isReserved
-                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
-                }`}
-              >
-                {isReserving ? "Reserving..." : isReserved ? "Pass reserved" : "RSVP free"}
-              </button>
-            )}
-            {isPaidTicketEvent && (
-              <button
-                type="button"
-                onClick={() => onPaidTicket(event)}
-                disabled={isPaid || isPurchasing}
-                className={`inline-flex items-center gap-2 rounded-full px-4! py-2! text-sm! font-semibold transition disabled:cursor-not-allowed ${
-                  isPaid
-                    ? "border border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-                    : "bg-white text-black hover:bg-white/85 disabled:opacity-60"
-                }`}
-                title={
-                  isPendingPayment
-                    ? "Resume checkout to finish reserving your paid event pass."
-                    : "Buy a ticket and receive a QR pass in your dashboard."
-                }
-              >
-                {isPurchasing
-                  ? "Opening checkout..."
-                  : isPaid
-                  ? "Ticket purchased"
-                  : isPendingPayment
-                  ? "Resume checkout"
-                  : "Buy ticket"}
-              </button>
-            )}
-            {!isShopHosted && event.artistId ? (
-              <Link
-                to={`/artists/${event.artistId}`}
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
-              >
-                View artist
-                <ChevronRight size={16} />
-              </Link>
-            ) : (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/70">
-                Shop event
-                <ChevronRight size={16} />
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+            {registrationLabel && (
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                {registrationLabel}
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => onViewDetails(event)}
+              className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4! py-2! text-sm! font-semibold text-black transition hover:bg-white/85 focus:outline-none focus:ring-2 focus:ring-white/45"
+            >
+              View event
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
       </div>
