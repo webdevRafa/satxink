@@ -28,7 +28,6 @@ import {
 import { getDownloadURL, ref } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import { getCroppedImg } from "../utils/cropImage";
 import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
 
@@ -43,6 +42,34 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   }
 
   return fallback;
+};
+
+const getSerializableCropArea = (area: Area | null): Area | null => {
+  if (
+    !area ||
+    !Number.isFinite(area.x) ||
+    !Number.isFinite(area.y) ||
+    !Number.isFinite(area.width) ||
+    !Number.isFinite(area.height) ||
+    area.width <= 0 ||
+    area.height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    x: Math.max(0, Math.round(area.x)),
+    y: Math.max(0, Math.round(area.y)),
+    width: Math.max(1, Math.round(area.width)),
+    height: Math.max(1, Math.round(area.height)),
+  };
+};
+
+const parseOptionalPrice = (value: string) => {
+  if (!value.trim()) return null;
+
+  const parsedValue = parseFloat(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
 const FlashSheetDetailPage = () => {
@@ -125,11 +152,20 @@ const FlashSheetDetailPage = () => {
   };
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
-    setCropArea(areaPixels);
+    setCropArea((currentCropArea) =>
+      getSerializableCropArea(areaPixels) || currentCropArea
+    );
   };
 
   const handleSaveNewFlash = async () => {
-    if (!sheet || !cropArea || isPublishing) return;
+    const validCropArea = getSerializableCropArea(cropArea);
+
+    if (!sheet || !validCropArea || isPublishing) {
+      if (!validCropArea) {
+        toast("Adjust the crop before publishing.");
+      }
+      return;
+    }
 
     try {
       setIsPublishing(true);
@@ -137,9 +173,9 @@ const FlashSheetDetailPage = () => {
       const cropFlashFromSheet = httpsCallable(functions, "cropFlashFromSheet");
       await cropFlashFromSheet({
         sheetId: sheet.id,
-        crop: cropArea,
+        crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
-        price: newFlashPrice ? parseFloat(newFlashPrice) : null,
+        price: parseOptionalPrice(newFlashPrice),
         tags: parseTags(newFlashTags),
       });
 
@@ -391,6 +427,62 @@ const MiniStat = ({ label, value }: { label: string; value: string | number }) =
   </div>
 );
 
+const PreviewPlaceholder = () => (
+  <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-red-300">
+    <Scissors size={22} />
+  </span>
+);
+
+const CroppedFlashPreview = ({
+  imageUrl,
+  cropArea,
+}: {
+  imageUrl: string;
+  cropArea: Area;
+}) => {
+  const [imageSize, setImageSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const previewStyle = useMemo(() => {
+    if (!imageSize || cropArea.width <= 0 || cropArea.height <= 0) {
+      return undefined;
+    }
+
+    return {
+      width: `${(imageSize.width / cropArea.width) * 100}%`,
+      height: `${(imageSize.height / cropArea.height) * 100}%`,
+      left: `-${(cropArea.x / cropArea.width) * 100}%`,
+      top: `-${(cropArea.y / cropArea.height) * 100}%`,
+    };
+  }, [cropArea, imageSize]);
+
+  if (imageFailed) return <PreviewPlaceholder />;
+
+  return (
+    <span className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black">
+      <img
+        src={imageUrl}
+        alt="Cropped flash preview"
+        onLoad={(event) => {
+          setImageFailed(false);
+          setImageSize({
+            width: event.currentTarget.naturalWidth,
+            height: event.currentTarget.naturalHeight,
+          });
+        }}
+        onError={() => setImageFailed(true)}
+        className={`absolute ${
+          previewStyle ? "max-w-none" : "h-full w-full object-cover"
+        }`}
+        style={previewStyle}
+      />
+    </span>
+  );
+};
+
 const CropFlashModal = ({
   sheet,
   crop,
@@ -427,47 +519,14 @@ const CropFlashModal = ({
   onPublish: () => void;
 }) => {
   const [mobileStep, setMobileStep] = useState<"crop" | "details">("crop");
-  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(
-    null
-  );
-  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
-
-  useEffect(
-    () => () => {
-      if (croppedPreviewUrl) URL.revokeObjectURL(croppedPreviewUrl);
-    },
-    [croppedPreviewUrl]
-  );
-
-  const updateCroppedPreviewUrl = (previewUrl: string | null) => {
-    setCroppedPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return previewUrl;
-    });
-  };
-
-  const handleContinueToDetails = async () => {
-    if (!cropArea || isPreparingPreview) {
+  const validCropArea = getSerializableCropArea(cropArea);
+  const handleContinueToDetails = () => {
+    if (!validCropArea) {
       toast("Choose a crop area first.");
       return;
     }
 
-    try {
-      setIsPreparingPreview(true);
-      const blob = await getCroppedImg(sheet.imageUrl, cropArea);
-      updateCroppedPreviewUrl(URL.createObjectURL(blob));
-    } catch (err: unknown) {
-      updateCroppedPreviewUrl(null);
-      toast.error(
-        getErrorMessage(
-          err,
-          "Could not generate a preview, but the crop is still selected."
-        )
-      );
-    } finally {
-      setIsPreparingPreview(false);
-      setMobileStep("details");
-    }
+    setMobileStep("details");
   };
 
   const cropPanel = (
@@ -503,9 +562,9 @@ const CropFlashModal = ({
             type="button"
             onClick={handleContinueToDetails}
             className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-            disabled={!cropArea || isPublishing || isPreparingPreview}
+            disabled={!validCropArea || isPublishing}
           >
-            {isPreparingPreview ? "Preparing..." : "Continue"}
+            Continue
           </button>
         </div>
       </div>
@@ -569,7 +628,7 @@ const CropFlashModal = ({
         type="button"
         onClick={onPublish}
         className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-        disabled={isPublishing || !cropArea}
+        disabled={isPublishing || !validCropArea}
       >
         {isPublishing ? "Publishing..." : "Publish flash"}
       </button>
@@ -608,16 +667,13 @@ const CropFlashModal = ({
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-4">
-                {croppedPreviewUrl ? (
-                  <img
-                    src={croppedPreviewUrl}
-                    alt="Cropped flash preview"
-                    className="h-24 w-24 shrink-0 rounded-xl border border-white/10 object-cover"
+                {validCropArea ? (
+                  <CroppedFlashPreview
+                    imageUrl={sheet.imageUrl}
+                    cropArea={validCropArea}
                   />
                 ) : (
-                  <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-red-300">
-                    <Scissors size={22} />
-                  </span>
+                  <PreviewPlaceholder />
                 )}
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white">
