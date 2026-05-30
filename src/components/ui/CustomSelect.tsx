@@ -10,6 +10,7 @@ type CustomSelectProps = {
   className?: string;
   buttonClassName?: string;
   optionsClassName?: string;
+  optionsPlacement?: "bottom" | "top";
 };
 
 const CustomSelect = ({
@@ -20,8 +21,11 @@ const CustomSelect = ({
   className = "",
   buttonClassName = "",
   optionsClassName = "",
+  optionsPlacement = "bottom",
 }: CustomSelectProps) => {
   const selectedOption = options.find((option) => option.value === value);
+  const optionsPositionClass =
+    optionsPlacement === "top" ? "bottom-full mb-2" : "mt-2";
 
   return (
     <Listbox value={value} onChange={onChange}>
@@ -48,7 +52,7 @@ const CustomSelect = ({
             </span>
           </Listbox.Button>
           <Listbox.Options
-            className={`shop-picker-scrollbar absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-1 text-white shadow-2xl shadow-black ring-1 ring-black/60 focus:outline-none ${optionsClassName}`}
+            className={`shop-picker-scrollbar absolute z-50 ${optionsPositionClass} max-h-60 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-1 text-white shadow-2xl shadow-black ring-1 ring-black/60 focus:outline-none ${optionsClassName}`}
           >
             {options.map((option) => (
               <Listbox.Option

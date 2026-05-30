@@ -1,4 +1,11 @@
-import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FC,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -6,9 +13,9 @@ import {
   ImageOff,
   Layers,
   Search,
-  Sparkles,
   Tag,
 } from "lucide-react";
+import CountUp from "react-countup";
 import {
   collection,
   documentId,
@@ -50,7 +57,41 @@ const featuredStyles = FEATURED_TATTOO_STYLES;
 const HOME_FLASH_FETCH_LIMIT = 40;
 const HOME_SHEET_FETCH_LIMIT = 24;
 
+function useViewportEntry<T extends Element>() {
+  const targetRef = useRef<T | null>(null);
+  const isInViewRef = useRef(false);
+  const [entryCount, setEntryCount] = useState(0);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isInViewRef.current) {
+          isInViewRef.current = true;
+          setEntryCount((count) => count + 1);
+        } else if (!entry.isIntersecting) {
+          isInViewRef.current = false;
+        }
+      },
+      {
+        rootMargin: "0px 0px -12% 0px",
+        threshold: 0.35,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { targetRef, entryCount };
+}
+
 export const HomePage: FC = () => {
+  const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
+    useViewportEntry<HTMLDListElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,9 +190,17 @@ export const HomePage: FC = () => {
 
   const heroStats = useMemo(
     () => [
-      { label: "Styles to explore", value: `${featuredStyles.length}+` },
-      { label: "Flash previews", value: loading ? "..." : flashes.length },
-      { label: "Flash sheets", value: loading ? "..." : sheets.length },
+      { label: "Styles to explore", value: featuredStyles.length, suffix: "+" },
+      {
+        label: "Flash previews",
+        value: flashes.length,
+        loading,
+      },
+      {
+        label: "Flash sheets",
+        value: sheets.length,
+        loading,
+      },
     ],
     [flashes.length, loading, sheets.length]
   );
@@ -196,11 +245,7 @@ export const HomePage: FC = () => {
 
         <div className="relative z-10 mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl flex-col justify-end px-5 pb-16 pt-24 md:px-8 lg:pb-20">
           <div className="max-w-3xl">
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/65 backdrop-blur">
-              <Sparkles size={14} />
-              San Antonio tattoo discovery
-            </p>
-            <h1 className="mt-6 max-w-4xl text-5xl! font-bold leading-[0.98] text-white md:text-7xl!">
+            <h1 className="max-w-4xl text-5xl! font-bold leading-[0.98] text-white md:text-7xl!">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
@@ -226,19 +271,36 @@ export const HomePage: FC = () => {
             </div>
           </div>
 
-          <div className="mt-14 grid gap-3 sm:grid-cols-3">
+          <dl
+            ref={heroStatsRef}
+            className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
+          >
             {heroStats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-xl border border-white/10 bg-black/35 p-4 backdrop-blur"
+                className="flex min-w-0 flex-col"
               >
-                <p className="text-2xl font-semibold text-white">
-                  {stat.value}
-                </p>
-                <p className="mt-1 text-sm text-white/50">{stat.label}</p>
+                <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
+                  {stat.label}
+                </dt>
+                <dd className="order-1 text-xl font-semibold leading-none text-white sm:text-2xl">
+                  {stat.loading ? (
+                    "..."
+                  ) : heroStatsEntryCount > 0 ? (
+                    <CountUp
+                      key={`${stat.label}-${heroStatsEntryCount}-${stat.value}`}
+                      end={stat.value}
+                      duration={1.4}
+                      separator=","
+                      suffix={stat.suffix}
+                    />
+                  ) : (
+                    `${stat.value}${stat.suffix || ""}`
+                  )}
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 

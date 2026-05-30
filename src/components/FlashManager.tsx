@@ -323,69 +323,63 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   };
 
   return (
-    <div className="mt-6 space-y-8">
+    <div className="mt-6 w-full max-w-7xl space-y-8">
       {!stripeReady && <StripeRequiredNotice onOpenPayments={onOpenPayments} />}
 
       <section className="overflow-hidden rounded-lg border border-white/10 bg-[#121212]">
-        <div className="grid gap-3 border-b border-white/10 bg-white/[0.02] p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-4">
+        <div className="grid gap-2.5 border-b border-white/10 bg-white/[0.02] p-2.5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-red-300 md:text-[11px]">
               Flash studio
             </p>
-            <h2 className="mt-1 text-xl! font-bold text-white">
-              Build a cleaner flash marketplace
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-400">
-              Upload single designs, organize them into sheets, or crop clean
-              purchasable pieces from a full flash sheet.
+            <p className="mt-1 max-w-2xl text-xs leading-4 text-zinc-400 md:text-sm md:leading-5">
+              Let clients discover and seamlessly request your flash.
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 md:min-w-[420px]">
+          <div className="grid grid-cols-3 gap-1.5 md:min-w-[300px] md:gap-2">
             <StatCard label="Sheets" value={flashSheets.length} />
             <StatCard label="Itemized" value={linkedFlashCount} />
             <StatCard label="Solo" value={standaloneFlashCount} />
           </div>
         </div>
 
-        <div className="grid gap-3 p-3 lg:grid-cols-[0.98fr_1.02fr] md:p-4">
-          <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2.5 p-2.5 md:p-3 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="grid grid-cols-2 gap-1.5 md:gap-2">
             <ModeCard
               active={mode === "individual"}
-              icon={<Plus size={18} />}
+              icon={<Plus size={15} />}
               title="Individual flash"
-              description="Post one design as standalone flash or attach it to an existing sheet."
               onClick={() => setMode("individual")}
             />
             <ModeCard
               active={mode === "sheet"}
-              icon={<Layers size={18} />}
+              icon={<Layers size={15} />}
               title="Flash sheet"
-              description="Upload a full sheet, then crop and publish each design from the sheet editor."
               onClick={() => setMode("sheet")}
             />
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-300">
+          <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-2">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-300 md:h-8 md:w-8">
                   {mode === "individual" ? (
-                    <ImageIcon size={18} />
+                    <ImageIcon size={15} />
                   ) : (
-                    <Scissors size={18} />
+                    <Scissors size={15} />
                   )}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-base! font-bold text-white">
+                  <h3 className="text-sm! font-bold text-white">
                     {mode === "individual"
                       ? "Upload a flash item"
                       : "Upload a flash sheet"}
                   </h3>
-                  <p className="mt-1 text-xs leading-5 text-zinc-400">
+                  <p className="mt-1 text-xs leading-4 text-zinc-400">
                     {mode === "individual"
-                      ? "Perfect for one-off pieces, quick drops, and designs that do not need a full sheet."
-                      : "Best for larger drops where clients should see the whole collection and each cropped piece."}
+                      ? "Add a one-off piece clients can request."
+                      : "Upload a sheet, then crop requestable pieces."}
                   </p>
                 </div>
               </div>
@@ -394,21 +388,21 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900 disabled:opacity-100"
+                  className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 md:h-9"
                   disabled={!stripeReady}
                 >
-                  <Upload size={16} className="text-current" />
+                  <Upload size={15} className="text-current" />
                   Upload item
                 </button>
               ) : (
                 <label
-                  className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm font-bold text-neutral-950 shadow-sm transition hover:bg-white/85 ${
+                  className={`inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 md:h-9 ${
                     stripeReady
                       ? "cursor-pointer"
-                      : "cursor-not-allowed bg-white/90 text-neutral-900 opacity-100"
+                      : "cursor-not-allowed bg-white/90 text-neutral-900! opacity-100"
                   }`}
                 >
-                  <Upload size={16} className="text-current" />
+                  <Upload size={15} className="text-current" />
                   Upload sheet
                   {stripeReady && (
                     <input
@@ -685,6 +679,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 (flash) => flash.sheetId === sheet.id
               ).length;
               const tags = Array.isArray(sheet.tags) ? sheet.tags.slice(0, 3) : [];
+              const sheetPreviewUrl = sheet.thumbUrl || sheet.imageUrl;
 
               return (
                 <button
@@ -694,12 +689,21 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   className="group overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919]"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-black">
-                    <img
-                      src={sheet.thumbUrl || sheet.imageUrl}
-                      alt={sheet.title || "Flash sheet"}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                      loading="lazy"
-                    />
+                    {sheetPreviewUrl ? (
+                      <img
+                        src={sheetPreviewUrl}
+                        alt={sheet.title || "Flash sheet"}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-500">
+                        <Grid2X2 size={24} />
+                        <span className="text-xs font-semibold">
+                          Processing cover
+                        </span>
+                      </div>
+                    )}
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
                       <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
                         <Scissors size={14} />
@@ -747,51 +751,46 @@ const ModeCard = ({
   active,
   icon,
   title,
-  description,
   onClick,
 }: {
   active: boolean;
   icon: ReactNode;
   title: string;
-  description: string;
   onClick: () => void;
 }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`rounded-lg border p-3! text-left transition ${
+    className={`min-w-0 rounded-lg border p-2! text-left transition md:p-2.5! ${
       active
         ? "border-red-300/45 bg-red-500/10"
         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
     }`}
   >
-    <div className="flex items-start gap-3">
+    <div className="flex min-w-0 items-center gap-1.5 md:gap-2.5">
       <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md md:h-7 md:w-7 ${
           active ? "bg-red-500/15 text-red-200" : "bg-white/5 text-zinc-300"
         }`}
       >
         {icon}
       </span>
-      <span>
-        <span className="flex items-center gap-2 text-sm font-bold text-white">
-          {title}
-          {active && <Check size={15} className="text-red-200" />}
-        </span>
-        <span className="mt-1 block text-xs leading-4 text-zinc-500">
-          {description}
-        </span>
+      <span className="flex min-w-0 items-center gap-1 text-[11px] font-bold text-white md:gap-1.5 md:text-xs">
+        <span className="truncate">{title}</span>
+        {active && <Check size={13} className="shrink-0 text-red-200" />}
       </span>
     </div>
   </button>
 );
 
 const StatCard = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
-    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+  <div className="rounded-md border border-white/10 bg-black/25 px-2 py-1.5 md:px-2.5 md:py-2">
+    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-500 md:text-[10px] md:tracking-[0.16em]">
       {label}
     </p>
-    <p className="mt-1 text-lg! font-bold text-white">{value}</p>
+    <p className="mt-0.5 text-sm! font-bold leading-none text-white md:text-base!">
+      {value}
+    </p>
   </div>
 );
 

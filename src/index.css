@@ -93,6 +93,27 @@
   will-change: transform;
 }
 
+@keyframes flash-upload-tag-pill-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.flash-upload-tag-pill {
+  animation: flash-upload-tag-pill-in 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-upload-tag-pill {
+    animation: none;
+  }
+}
+
 
 /* Clean up padding + match your dark theme */
 .rdrCalendarWrapper {
