@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -73,6 +74,19 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
 
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+  useEffect(() => {
+    if (!showSheetTitleModal || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showSheetTitleModal]);
 
   const waitForFile = async (
     storageRef: ReturnType<typeof ref>,
@@ -344,110 +358,112 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         />
       )}
 
-      {showSheetTitleModal && (
-        <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-hidden bg-black backdrop-blur-xl md:overflow-y-auto md:bg-black/80 md:px-4 md:py-8">
-          <div className="mx-auto flex h-full w-full items-stretch justify-center md:min-h-full md:items-center">
-            <div className="relative grid h-full w-full max-w-4xl overflow-y-auto border border-white/10 bg-[#111111] text-white shadow-2xl md:h-auto md:overflow-hidden md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
-            <button
-              type="button"
-              onClick={closeSheetTitleModal}
-              className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
-              aria-label="Close sheet upload modal"
-              disabled={isUploadingSheet}
-            >
-              <X size={18} />
-            </button>
-
-            <div className="border-b border-white/10 bg-black/30 p-5 md:border-b-0 md:border-r md:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-                New flash sheet
-              </p>
-              <h2 className="mt-3 text-2xl! font-bold text-white">
-                Name the collection
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
-                This title appears on your dashboard, public profile, and the
-                sheet editor where you crop individual flash.
-              </p>
-              {sheetImage && (
-                <div className="mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
-                  <img
-                    src={sheetImage}
-                    alt="Flash sheet preview"
-                    className="h-full w-full object-contain md:object-cover"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] md:p-6">
-              <label className="block">
-                <span className="text-sm font-semibold text-zinc-300">
-                  Sheet title
-                </span>
-                <input
-                  type="text"
-                  value={sheetTitleInput}
-                  onChange={(e) => setSheetTitleInput(e.target.value)}
-                  placeholder="Dragon Ball sheet"
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                />
-              </label>
-
-              <label className="mt-4 block">
-                <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                  <Tag size={16} />
-                  Sheet tags
-                </span>
-                <input
-                  type="text"
-                  value={sheetTagsInput}
-                  onChange={(e) => setSheetTagsInput(e.target.value)}
-                  placeholder="anime, color, dragon"
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                />
-              </label>
-
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
-                    <Scissors size={18} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      Continue in sheet editor
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">
-                      Once the sheet is saved, the full editor opens so you can
-                      crop designs and review itemized flash beneath it.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      {showSheetTitleModal &&
+        createPortal(
+          <div className="request-modal-scrollbar fixed bottom-0 left-0 right-0 top-0 z-[120] h-dvh min-h-screen w-screen overflow-y-auto bg-black text-white backdrop-blur-xl md:px-4 md:py-8">
+            <div className="mx-auto flex min-h-full w-full items-stretch justify-center md:items-center">
+              <div className="relative grid min-h-full w-full max-w-4xl overflow-y-auto border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-0 md:overflow-hidden md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
                 <button
                   type="button"
                   onClick={closeSheetTitleModal}
-                  className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Close sheet upload modal"
                   disabled={isUploadingSheet}
                 >
-                  Cancel
+                  <X size={18} />
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitFlashSheet}
-                  className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={isUploadingSheet || !sheetTitleInput.trim()}
-                >
-                  {isUploadingSheet ? "Saving..." : "Save & continue"}
-                </button>
+
+                <div className="border-b border-white/10 bg-black/30 p-5 md:border-b-0 md:border-r md:p-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                    New flash sheet
+                  </p>
+                  <h2 className="mt-3 text-2xl! font-bold text-white">
+                    Name the collection
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">
+                    This title appears on your dashboard, public profile, and the
+                    sheet editor where you crop individual flash.
+                  </p>
+                  {sheetImage && (
+                    <div className="mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
+                      <img
+                        src={sheetImage}
+                        alt="Flash sheet preview"
+                        className="h-full w-full object-contain md:object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] md:p-6">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-zinc-300">
+                      Sheet title
+                    </span>
+                    <input
+                      type="text"
+                      value={sheetTitleInput}
+                      onChange={(e) => setSheetTitleInput(e.target.value)}
+                      placeholder="Dragon Ball sheet"
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                      <Tag size={16} />
+                      Sheet tags
+                    </span>
+                    <input
+                      type="text"
+                      value={sheetTagsInput}
+                      onChange={(e) => setSheetTagsInput(e.target.value)}
+                      placeholder="anime, color, dragon"
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                    />
+                  </label>
+
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
+                        <Scissors size={18} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          Continue in sheet editor
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          Once the sheet is saved, the full editor opens so you can
+                          crop designs and review itemized flash beneath it.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closeSheetTitleModal}
+                      className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                      disabled={isUploadingSheet}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitFlashSheet}
+                      className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+                      disabled={isUploadingSheet || !sheetTitleInput.trim()}
+                    >
+                      {isUploadingSheet ? "Saving..." : "Save & continue"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       <section>
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
