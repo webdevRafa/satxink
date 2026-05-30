@@ -2079,7 +2079,6 @@ const ArtistDashboardProfileHeader = ({
   artist: DashboardArtist;
 }) => {
   const artistDisplayName = artist.displayName || artist.name || "Artist";
-  const artistShopName = artist.shopName || artist.studioName;
   const artistStyles = Array.isArray(artist.specialties)
     ? artist.specialties.filter(Boolean)
     : [];
@@ -2090,86 +2089,62 @@ const ArtistDashboardProfileHeader = ({
       aria-label="Artist profile summary"
       className="w-full max-w-6xl py-1 sm:py-2"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <img
-            src={artist.avatarUrl || "/fallback-avatar.jpg"}
-            alt={artistDisplayName}
-            decoding="async"
-            className="aspect-square h-14 w-14 shrink-0 rounded-full object-cover shadow-[0_14px_34px_rgba(0,0,0,0.38),0_0_0_1px_rgba(255,255,255,0.14)] sm:h-[72px] sm:w-[72px]"
-          />
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <img
+          src={artist.avatarUrl || "/fallback-avatar.jpg"}
+          alt={artistDisplayName}
+          decoding="async"
+          className="aspect-square h-14 w-14 shrink-0 rounded-full object-cover shadow-[0_14px_34px_rgba(0,0,0,0.38),0_0_0_1px_rgba(255,255,255,0.14)] sm:h-[72px] sm:w-[72px]"
+        />
 
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)] sm:text-[11px]">
-                Artist profile
-              </p>
-              <h1 className="my-0! min-w-0 truncate text-xl! font-semibold leading-tight text-white sm:text-2xl!">
-                {artistDisplayName}
-              </h1>
-            </div>
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)] sm:text-[11px]">
+              Artist profile
+            </p>
+            <h1 className="my-0! min-w-0 truncate text-xl! font-semibold leading-tight text-white sm:text-2xl!">
+              {artistDisplayName}
+            </h1>
+          </div>
 
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400 sm:text-sm">
-              {artistShopName &&
-                (artist.shopMapLink ? (
-                  <a
-                    href={normalizeUrl(artist.shopMapLink)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-w-0 items-center gap-1.5 font-medium text-neutral-300 transition hover:text-white"
-                  >
-                    <MapPin size={14} className="shrink-0 text-white/35" />
-                    <span className="truncate">{artistShopName}</span>
-                  </a>
-                ) : (
-                  <p className="my-0! inline-flex min-w-0 items-center gap-1.5 font-medium text-neutral-300">
-                    <MapPin size={14} className="shrink-0 text-white/35" />
-                    <span className="truncate">{artistShopName}</span>
-                  </p>
-                ))}
+          {(artistStyles.length > 0 || socialLinks.length > 0) && (
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+              {artistStyles.length > 0 && (
+                <ul className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold leading-none text-neutral-300 sm:text-[11px]">
+                  {artistStyles.map((style, index) => (
+                    <li key={style} className="inline-flex items-center gap-2">
+                      {index > 0 && (
+                        <span
+                          className="h-1 w-1 rounded-full bg-white/20"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span>{style}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-              {artist.bio && (
-                <p className="my-0! min-w-0 truncate text-neutral-400">
-                  {artist.bio}
-                </p>
+              {socialLinks.length > 0 && (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {socialLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      title={link.label}
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-white/85 transition hover:bg-white/[0.06] hover:text-white sm:h-7 sm:w-7"
+                    >
+                      {link.icon}
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
-
-            {artistStyles.length > 0 && (
-              <ul className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold leading-none text-neutral-300 sm:text-[11px]">
-                {artistStyles.map((style, index) => (
-                  <li key={style} className="inline-flex items-center gap-2">
-                    {index > 0 && (
-                      <span
-                        className="h-1 w-1 rounded-full bg-white/20"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span>{style}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          )}
         </div>
-
-        {socialLinks.length > 0 && (
-          <div className="flex shrink-0 items-center gap-2 pl-[68px] sm:pl-0">
-            {socialLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={link.label}
-                title={link.label}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-white/85 transition hover:bg-white/[0.06] hover:text-white"
-              >
-                {link.icon}
-              </a>
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );
