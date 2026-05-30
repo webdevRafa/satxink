@@ -44,6 +44,34 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   return fallback;
 };
 
+const getSerializableCropArea = (area: Area | null): Area | null => {
+  if (
+    !area ||
+    !Number.isFinite(area.x) ||
+    !Number.isFinite(area.y) ||
+    !Number.isFinite(area.width) ||
+    !Number.isFinite(area.height) ||
+    area.width <= 0 ||
+    area.height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    x: Math.max(0, Math.round(area.x)),
+    y: Math.max(0, Math.round(area.y)),
+    width: Math.max(1, Math.round(area.width)),
+    height: Math.max(1, Math.round(area.height)),
+  };
+};
+
+const parseOptionalPrice = (value: string) => {
+  if (!value.trim()) return null;
+
+  const parsedValue = parseFloat(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+};
+
 const FlashSheetDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -124,11 +152,20 @@ const FlashSheetDetailPage = () => {
   };
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
-    setCropArea(areaPixels);
+    setCropArea((currentCropArea) =>
+      getSerializableCropArea(areaPixels) || currentCropArea
+    );
   };
 
   const handleSaveNewFlash = async () => {
-    if (!sheet || !cropArea || isPublishing) return;
+    const validCropArea = getSerializableCropArea(cropArea);
+
+    if (!sheet || !validCropArea || isPublishing) {
+      if (!validCropArea) {
+        toast("Adjust the crop before publishing.");
+      }
+      return;
+    }
 
     try {
       setIsPublishing(true);
@@ -136,9 +173,9 @@ const FlashSheetDetailPage = () => {
       const cropFlashFromSheet = httpsCallable(functions, "cropFlashFromSheet");
       await cropFlashFromSheet({
         sheetId: sheet.id,
-        crop: cropArea,
+        crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
-        price: newFlashPrice ? parseFloat(newFlashPrice) : null,
+        price: parseOptionalPrice(newFlashPrice),
         tags: parseTags(newFlashTags),
       });
 
@@ -482,8 +519,9 @@ const CropFlashModal = ({
   onPublish: () => void;
 }) => {
   const [mobileStep, setMobileStep] = useState<"crop" | "details">("crop");
+  const validCropArea = getSerializableCropArea(cropArea);
   const handleContinueToDetails = () => {
-    if (!cropArea) {
+    if (!validCropArea) {
       toast("Choose a crop area first.");
       return;
     }
@@ -524,7 +562,7 @@ const CropFlashModal = ({
             type="button"
             onClick={handleContinueToDetails}
             className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-            disabled={!cropArea || isPublishing}
+            disabled={!validCropArea || isPublishing}
           >
             Continue
           </button>
@@ -590,7 +628,7 @@ const CropFlashModal = ({
         type="button"
         onClick={onPublish}
         className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-        disabled={isPublishing || !cropArea}
+        disabled={isPublishing || !validCropArea}
       >
         {isPublishing ? "Publishing..." : "Publish flash"}
       </button>
@@ -629,10 +667,10 @@ const CropFlashModal = ({
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-4">
-                {cropArea ? (
+                {validCropArea ? (
                   <CroppedFlashPreview
                     imageUrl={sheet.imageUrl}
-                    cropArea={cropArea}
+                    cropArea={validCropArea}
                   />
                 ) : (
                   <PreviewPlaceholder />
