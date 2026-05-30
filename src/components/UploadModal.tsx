@@ -221,7 +221,7 @@ const UploadModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-6 md:overflow-hidden md:px-4 md:py-0">
+    <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:overflow-hidden md:px-4 md:py-0 md:pb-0">
       <div className="mx-auto flex min-h-full w-full items-start justify-center md:h-full md:min-h-0 md:items-end">
         <div className="relative grid w-full max-w-5xl overflow-visible rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:h-[calc(100vh-5.25rem)] md:grid-cols-[0.95fr_1.05fr] md:rounded-b-none">
         <button

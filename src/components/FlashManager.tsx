@@ -436,8 +436,9 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       )}
 
       {showSheetTitleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
-          <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
+        <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:px-4 md:py-8">
+          <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
+            <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:grid-cols-[0.9fr_1.1fr]">
             <button
               type="button"
               onClick={closeSheetTitleModal}
@@ -460,11 +461,13 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 sheet editor where you crop individual flash.
               </p>
               {sheetImage && (
-                <img
-                  src={sheetImage}
-                  alt="Flash sheet preview"
-                  className="mt-5 aspect-square w-full rounded-2xl border border-white/10 object-cover"
-                />
+                <div className="mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
+                  <img
+                    src={sheetImage}
+                    alt="Flash sheet preview"
+                    className="h-full w-full object-contain md:object-cover"
+                  />
+                </div>
               )}
             </div>
 
@@ -531,6 +534,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   {isUploadingSheet ? "Uploading..." : "Save sheet"}
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -815,8 +819,9 @@ const FlashDetailsModal = ({
   onClose: () => void;
   onSave: () => void;
 }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
-    <div className="relative w-full max-w-lg rounded-[1.25rem] border border-white/10 bg-[#111111] p-5 text-white shadow-2xl md:p-6">
+  <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
+    <div className="mx-auto flex min-h-full w-full items-start justify-center sm:items-center">
+      <div className="relative w-full max-w-lg rounded-[1.25rem] border border-white/10 bg-[#111111] p-5 text-white shadow-2xl md:p-6">
       <button
         type="button"
         onClick={onClose}
@@ -872,6 +877,7 @@ const FlashDetailsModal = ({
         >
           {isSaving ? "Saving..." : "Publish flash"}
         </button>
+      </div>
       </div>
     </div>
   </div>
