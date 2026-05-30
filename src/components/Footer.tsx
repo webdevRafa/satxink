@@ -186,8 +186,8 @@ export const Footer = () => {
                 Local focus
               </p>
               <p className="mt-3 leading-6 text-neutral-300">
-                Built around SATX shops, artists, and public flash drops so
-                clients can move from discovery to booking with less guesswork.
+                Built around SATX artists and public flash drops so clients can
+                move from discovery to booking with less guesswork.
               </p>
             </div>
           </section>
