@@ -71,6 +71,9 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     [flashes]
   );
 
+  const canSaveSheetDetails =
+    sheetTitleInput.trim().length > 0 && sheetTagsInput.trim().length > 0;
+
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
 
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -395,7 +398,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   )}
                 </div>
 
-                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] md:p-6">
+                <div className="p-5 pb-0 md:p-6">
                   <label className="block">
                     <span className="text-sm font-semibold text-zinc-300">
                       Sheet title
@@ -440,7 +443,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     </div>
                   </div>
 
-                  <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <div className="sticky bottom-0 -mx-5 mt-6 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#111111]/95 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] backdrop-blur md:static md:mx-0 md:mt-7 md:flex-row md:justify-end md:border-t-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                     <button
                       type="button"
                       onClick={closeSheetTitleModal}
@@ -452,8 +455,12 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={handleSubmitFlashSheet}
-                      className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-                      disabled={isUploadingSheet || !sheetTitleInput.trim()}
+                      className={`rounded-xl px-5! py-3! text-sm font-semibold transition disabled:cursor-not-allowed ${
+                        canSaveSheetDetails && !isUploadingSheet
+                          ? "bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.18),0_14px_32px_rgba(255,255,255,0.08)] hover:bg-zinc-200"
+                          : "bg-white/55 text-zinc-500"
+                      }`}
+                      disabled={isUploadingSheet || !canSaveSheetDetails}
                     >
                       {isUploadingSheet ? "Saving..." : "Save & continue"}
                     </button>
