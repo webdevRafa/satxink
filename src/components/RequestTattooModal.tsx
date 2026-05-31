@@ -60,7 +60,7 @@ const availableDayOptions = [
   "Sunday",
 ];
 
-type ScheduleStep = "dates" | "time";
+type ScheduleStep = "dates" | "time" | "days";
 
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
@@ -111,7 +111,7 @@ const RequestTattooModal: React.FC<Props> = ({
     });
 
     return () => window.cancelAnimationFrame(scrollFrame);
-  }, [isOpen, step]);
+  }, [isOpen, step, scheduleStep]);
 
   const reset = () => {
     setStep(1);
@@ -165,18 +165,35 @@ const RequestTattooModal: React.FC<Props> = ({
     setScheduleStep("time");
   };
 
-  const handleConfirmTiming = () => {
+  const confirmTimingSelection = () => {
     if (!availableTime.from || !availableTime.to) {
       toast.error("Choose a preferred start and end time.");
-      return;
+      return false;
     }
 
     if (!hasMinimumTimeWindow(availableTime.from, availableTime.to)) {
       toast.error("Preferred time windows need to be at least 1 hour.");
-      return;
+      return false;
     }
 
     setTimingConfirmed(true);
+    return true;
+  };
+
+  const handleConfirmTiming = () => {
+    confirmTimingSelection();
+  };
+
+  const handleContinueToAvailableDays = () => {
+    if (!confirmTimingSelection()) return;
+
+    setScheduleStep("days");
+  };
+
+  const toggleAvailableDay = (day: string) => {
+    setAvailableDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -542,7 +559,14 @@ const RequestTattooModal: React.FC<Props> = ({
                       onSelectDate={handleSelectCalendarDate}
                     />
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex items-center justify-between lg:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setStep(1)}
+                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 lg:hidden"
+                      >
+                        Back
+                      </button>
                       <button
                         type="button"
                         onClick={handleConfirmDateWindow}
@@ -627,7 +651,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={handleConfirmTiming}
-                        className={`modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! px-3! py-2! text-xs! font-semibold transition ${
+                        className={`modal-action-button hidden items-center justify-center gap-2 rounded-lg! px-3! py-2! text-xs! font-semibold transition lg:inline-flex ${
                           timingConfirmed
                             ? "bg-[#19d69b] text-black hover:bg-[#34e8ad]"
                             : "bg-white text-black hover:bg-white/85"
@@ -635,12 +659,78 @@ const RequestTattooModal: React.FC<Props> = ({
                       >
                         {timingConfirmed ? "Timing confirmed" : "Confirm timing"}
                       </button>
+                      <button
+                        type="button"
+                        onClick={handleContinueToAvailableDays}
+                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 lg:hidden"
+                      >
+                        Continue
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`transition-all duration-300 ease-out lg:hidden ${
+                      scheduleStep === "days"
+                        ? "translate-x-0 opacity-100"
+                        : "pointer-events-none absolute translate-x-6 opacity-0"
+                    }`}
+                  >
+                    <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
+                        <p className="text-xs! uppercase tracking-[0.16em] text-[#19d69b]">
+                          Selected window
+                        </p>
+                        <p className="mt-1 text-sm! font-semibold text-white">
+                          {getDateRangeLabel(preferredDateRange)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+                        <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
+                          Preferred time
+                        </p>
+                        <p className="mt-1 text-sm! font-semibold text-white">
+                          {getTimeRangeLabel(availableTime)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg! font-semibold! text-white">
+                      Days that usually work
+                    </h3>
+                    <p className="mt-1 text-sm text-white/55">
+                      Select any days you are normally available. You can
+                      confirm exact times after the artist replies.
+                    </p>
+
+                    <AvailableDaysSelector
+                      availableDays={availableDays}
+                      onToggleDay={toggleAvailableDay}
+                    />
+
+                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setScheduleStep("time")}
+                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !timingConfirmed}
+                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isSubmitting ? "Sending..." : "Send request"}
+                        <Send size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <div className="hidden rounded-lg border border-white/10 bg-white/[0.035] p-5 lg:block">
                 <div
                   className={`transition duration-300 ${
                     timingConfirmed
@@ -656,28 +746,10 @@ const RequestTattooModal: React.FC<Props> = ({
                     exact times after the artist replies.
                   </p>
 
-                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {availableDayOptions.map((day) => (
-                      <button
-                        key={day}
-                        type="button"
-                        className={`rounded-md border px-3! py-3! text-left text-sm! font-medium transition ${
-                          availableDays.includes(day)
-                            ? "border-[#19d69b]/55 bg-[#19d69b]/15 text-white"
-                            : "border-white/10 bg-black/30 text-white/65 hover:border-white/25 hover:bg-white/[0.05]"
-                        }`}
-                        onClick={() =>
-                          setAvailableDays((prev) =>
-                            prev.includes(day)
-                              ? prev.filter((d) => d !== day)
-                              : [...prev, day]
-                          )
-                        }
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
+                  <AvailableDaysSelector
+                    availableDays={availableDays}
+                    onToggleDay={toggleAvailableDay}
+                  />
                 </div>
 
                 <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
@@ -705,6 +777,31 @@ const RequestTattooModal: React.FC<Props> = ({
     </div>
   );
 };
+
+const AvailableDaysSelector = ({
+  availableDays,
+  onToggleDay,
+}: {
+  availableDays: string[];
+  onToggleDay: (day: string) => void;
+}) => (
+  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+    {availableDayOptions.map((day) => (
+      <button
+        key={day}
+        type="button"
+        className={`rounded-md border px-3! py-3! text-left text-sm! font-medium transition ${
+          availableDays.includes(day)
+            ? "border-[#19d69b]/55 bg-[#19d69b]/15 text-white"
+            : "border-white/10 bg-black/30 text-white/65 hover:border-white/25 hover:bg-white/[0.05]"
+        }`}
+        onClick={() => onToggleDay(day)}
+      >
+        {day}
+      </button>
+    ))}
+  </div>
+);
 
 const CalendarRangePicker = ({
   month,
@@ -839,6 +936,29 @@ const getDateRangeLabel = ([start, end]: string[]) => {
   }
   if (start) return `Starting ${formatFriendlyDate(start)}`;
   return "No dates picked";
+};
+
+const getTimeRangeLabel = ({
+  from,
+  to,
+}: {
+  from: string;
+  to: string;
+}) => {
+  if (!from || !to) return "No time picked";
+
+  return `${formatFriendlyTime(from)} - ${formatFriendlyTime(to)}`;
+};
+
+const formatFriendlyTime = (time: string) => {
+  const [rawHour, rawMinute] = time.split(":").map(Number);
+
+  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return time;
+
+  const suffix = rawHour >= 12 ? "PM" : "AM";
+  const hour = rawHour % 12 || 12;
+  const minute = String(rawMinute).padStart(2, "0");
+  return `${hour}:${minute} ${suffix}`;
 };
 
 const isDateInRange = (dateValue: string, start: string, end: string) =>
