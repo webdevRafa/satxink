@@ -1655,8 +1655,13 @@ const ArtistDashboardView = () => {
           />
         )}
 
-        {activeTab === "offers" && uid && (
-          <OffersList uid={uid} artist={artist} />
+        {uid && (
+          <div
+            className={activeTab === "offers" ? "contents" : "hidden"}
+            aria-hidden={activeTab !== "offers"}
+          >
+            <OffersList uid={uid} artist={artist} />
+          </div>
         )}
 
         {/* Booking cards */}

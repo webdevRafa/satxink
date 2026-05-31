@@ -82,7 +82,6 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
   const [revisionSourceOffer, setRevisionSourceOffer] =
     useState<DashboardOffer | null>(null);
   const [revisionRequest, setRevisionRequest] = useState<RevisionRequest>(null);
-  const [showLoadingFallback, setShowLoadingFallback] = useState(false);
   const [depositAmount, setDepositAmount] = useState(0);
   const [offerPrice, setOfferPrice] = useState(0);
   const [offerMessage, setOfferMessage] = useState("");
@@ -103,19 +102,6 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
   const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
   const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-
-  useEffect(() => {
-    if (!loading) {
-      setShowLoadingFallback(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setShowLoadingFallback(true);
-    }, 240);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [loading]);
 
   useEffect(() => {
     if (!uid) return;
@@ -344,35 +330,6 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     }
   };
 
-  if (loading) {
-    return (
-      <section
-        className="mt-6 min-h-[28rem] w-full max-w-7xl space-y-6"
-        aria-busy="true"
-      >
-        {showLoadingFallback && (
-          <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h1 className="text-3xl! font-semibold text-white">
-                Sent offers
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                Track every offer you have sent, review proposed dates, and keep
-                an eye on client responses.
-              </p>
-            </div>
-
-            <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
-              <MetricCard label="Waiting" value="-" />
-              <MetricCard label="Declined" value="-" />
-              <MetricCard label="Newest" value="-" />
-            </div>
-          </div>
-        )}
-      </section>
-    );
-  }
-
   return (
     <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -387,11 +344,13 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
         </div>
 
         <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
-          <MetricCard label="Waiting" value={pendingCount} />
-          <MetricCard label="Declined" value={declinedCount} />
+          <MetricCard label="Waiting" value={loading ? "-" : pendingCount} />
+          <MetricCard label="Declined" value={loading ? "-" : declinedCount} />
           <MetricCard
             label="Newest"
-            value={newestOffer ? formatShortDate(newestOffer.createdAt) : "-"}
+            value={
+              !loading && newestOffer ? formatShortDate(newestOffer.createdAt) : "-"
+            }
           />
         </div>
       </div>
@@ -440,13 +399,21 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
               ))}
             </div>
             <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
-              Showing {filteredOffers.length} of {activeOffers.length}
+              {loading
+                ? "Loading offers"
+                : `Showing ${filteredOffers.length} of ${activeOffers.length}`}
             </span>
           </div>
         </div>
       </div>
 
-      {filteredOffers.length === 0 ? (
+      {loading ? (
+        <div
+          ref={offersPageTopRef}
+          className="min-h-[16rem]"
+          aria-busy="true"
+        />
+      ) : filteredOffers.length === 0 ? (
         <EmptyOffers statusFilter={statusFilter} />
       ) : (
         <div ref={offersPageTopRef} className="space-y-3">
