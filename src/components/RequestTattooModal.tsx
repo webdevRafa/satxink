@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Eye,
   ImageIcon,
   MapPin,
   Ruler,
@@ -60,7 +61,9 @@ const availableDayOptions = [
   "Sunday",
 ];
 
-type ScheduleStep = "dates" | "time" | "days";
+type ScheduleStep = "dates" | "time" | "days" | "preview";
+type PreviewReturnStep = Exclude<ScheduleStep, "preview">;
+type AvailableTime = { from: string; to: string };
 
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
@@ -74,8 +77,13 @@ const RequestTattooModal: React.FC<Props> = ({
   const [bodyPlacement, setBodyPlacement] = useState("");
   const [size, setSize] = useState("");
   const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
-  const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
+  const [availableTime, setAvailableTime] = useState<AvailableTime>({
+    from: "",
+    to: "",
+  });
   const [scheduleStep, setScheduleStep] = useState<ScheduleStep>("dates");
+  const [previewReturnStep, setPreviewReturnStep] =
+    useState<PreviewReturnStep>("time");
   const [visibleCalendarMonth, setVisibleCalendarMonth] = useState(() =>
     getMonthStart(new Date())
   );
@@ -121,6 +129,7 @@ const RequestTattooModal: React.FC<Props> = ({
     setPreferredDateRange(["", ""]);
     setAvailableTime({ from: "", to: "" });
     setScheduleStep("dates");
+    setPreviewReturnStep("time");
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setTimingConfirmed(false);
     setAvailableDays([]);
@@ -188,6 +197,16 @@ const RequestTattooModal: React.FC<Props> = ({
     if (!confirmTimingSelection()) return;
 
     setScheduleStep("days");
+  };
+
+  const handleOpenPreview = (returnStep: PreviewReturnStep) => {
+    if (!timingConfirmed) {
+      toast.error("Confirm your preferred timing before previewing.");
+      return;
+    }
+
+    setPreviewReturnStep(returnStep);
+    setScheduleStep("preview");
   };
 
   const toggleAvailableDay = (day: string) => {
@@ -508,8 +527,29 @@ const RequestTattooModal: React.FC<Props> = ({
           {step === 2 && (
             <form
               onSubmit={handleSubmit}
-              className="grid grid-cols-1 gap-6 lg:grid-cols-[0.9fr_1.1fr]"
+              className={
+                scheduleStep === "preview"
+                  ? "mx-auto max-w-4xl"
+                  : "grid grid-cols-1 gap-6 lg:grid-cols-[0.9fr_1.1fr]"
+              }
             >
+              {scheduleStep === "preview" ? (
+                <RequestPreviewPanel
+                  artistName={artistName}
+                  referencePreviewUrl={referencePreviewUrl}
+                  description={description}
+                  bodyPlacement={bodyPlacement}
+                  size={size}
+                  budget={budget}
+                  customBudget={customBudget}
+                  preferredDateRange={preferredDateRange}
+                  availableTime={availableTime}
+                  availableDays={availableDays}
+                  isSubmitting={isSubmitting}
+                  onBack={() => setScheduleStep(previewReturnStep)}
+                />
+              ) : (
+                <>
               <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                 <div className="mb-5 flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
@@ -709,7 +749,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       onToggleDay={toggleAvailableDay}
                     />
 
-                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                    <div className="mt-6 grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => setScheduleStep("time")}
@@ -718,9 +758,17 @@ const RequestTattooModal: React.FC<Props> = ({
                         Back
                       </button>
                       <button
+                        type="button"
+                        onClick={() => handleOpenPreview("days")}
+                        className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.05] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      >
+                        Preview
+                        <Eye size={14} />
+                      </button>
+                      <button
                         type="submit"
                         disabled={isSubmitting || !timingConfirmed}
-                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isSubmitting ? "Sending..." : "Send request"}
                         <Send size={16} />
@@ -752,7 +800,7 @@ const RequestTattooModal: React.FC<Props> = ({
                   />
                 </div>
 
-                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <div className="mt-6 grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -761,15 +809,26 @@ const RequestTattooModal: React.FC<Props> = ({
                     Back
                   </button>
                   <button
+                    type="button"
+                    onClick={() => handleOpenPreview("time")}
+                    disabled={!timingConfirmed}
+                    className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.05] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    Preview
+                    <Eye size={14} />
+                  </button>
+                  <button
                     type="submit"
                     disabled={isSubmitting || !timingConfirmed}
-                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSubmitting ? "Sending..." : "Send request"}
                     <Send size={16} />
                   </button>
                 </div>
               </div>
+                </>
+              )}
             </form>
           )}
         </div>
@@ -777,6 +836,162 @@ const RequestTattooModal: React.FC<Props> = ({
     </div>
   );
 };
+
+const RequestPreviewPanel = ({
+  artistName,
+  referencePreviewUrl,
+  description,
+  bodyPlacement,
+  size,
+  budget,
+  customBudget,
+  preferredDateRange,
+  availableTime,
+  availableDays,
+  isSubmitting,
+  onBack,
+}: {
+  artistName: string;
+  referencePreviewUrl: string;
+  description: string;
+  bodyPlacement: string;
+  size: string;
+  budget: string;
+  customBudget: string;
+  preferredDateRange: string[];
+  availableTime: AvailableTime;
+  availableDays: string[];
+  isSubmitting: boolean;
+  onBack: () => void;
+}) => (
+  <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs! uppercase tracking-[0.18em] text-[#19d69b]">
+          Request preview
+        </p>
+        <h3 className="mt-2 text-xl! font-semibold! text-white">
+          Confirm your details
+        </h3>
+        <p className="mt-1 text-sm text-white/55">
+          Review what {artistName} will receive before you send it.
+        </p>
+      </div>
+
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/35 text-white/35">
+        {referencePreviewUrl ? (
+          <img
+            src={referencePreviewUrl}
+            alt="Reference preview"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <ImageIcon size={22} />
+        )}
+      </div>
+    </div>
+
+    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <PreviewDetail
+        label="Selected window"
+        value={getDateRangeLabel(preferredDateRange)}
+        accent
+      />
+      <PreviewDetail
+        label="Preferred time"
+        value={getTimeRangeLabel(availableTime)}
+      />
+      <PreviewDetail
+        label="Placement"
+        value={bodyPlacement || "Not specified"}
+      />
+      <PreviewDetail
+        label="Size"
+        value={getOptionLabel(tattooSizeOptions, size) || "Not specified"}
+      />
+      <PreviewDetail
+        label="Budget"
+        value={getBudgetLabel(budget, customBudget)}
+      />
+    </div>
+
+    <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3">
+      <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
+        Tattoo idea
+      </p>
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm! leading-6 text-white/80">
+        {description.trim()}
+      </p>
+    </div>
+
+    <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3">
+      <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
+        Days that usually work
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {availableDays.length > 0 ? (
+          availableDays.map((day) => (
+            <span
+              key={day}
+              className="rounded-full border border-[#19d69b]/35 bg-[#19d69b]/10 px-3! py-1.5! text-xs! font-semibold text-white"
+            >
+              {day}
+            </span>
+          ))
+        ) : (
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3! py-1.5! text-xs! font-semibold text-white/55">
+            No specific days selected
+          </span>
+        )}
+      </div>
+    </div>
+
+    <div className="mt-6 grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={onBack}
+        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+      >
+        Back
+      </button>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? "Sending..." : "Send request"}
+        <Send size={16} />
+      </button>
+    </div>
+  </div>
+);
+
+const PreviewDetail = ({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) => (
+  <div
+    className={`rounded-lg border p-3 ${
+      accent
+        ? "border-[#19d69b]/25 bg-[#19d69b]/10"
+        : "border-white/10 bg-black/25"
+    }`}
+  >
+    <p
+      className={`text-xs! uppercase tracking-[0.16em] ${
+        accent ? "text-[#19d69b]" : "text-white/40"
+      }`}
+    >
+      {label}
+    </p>
+    <p className="mt-1 text-sm! font-semibold text-white">{value}</p>
+  </div>
+);
 
 const AvailableDaysSelector = ({
   availableDays,
@@ -938,13 +1153,29 @@ const getDateRangeLabel = ([start, end]: string[]) => {
   return "No dates picked";
 };
 
+const getOptionLabel = (
+  options: { value: string; label: string }[],
+  value: string
+) => options.find((option) => option.value === value)?.label || value;
+
+const getBudgetLabel = (budget: string, customBudget: string) => {
+  if (budget === "custom") {
+    const parsedBudget = Number(customBudget);
+
+    if (Number.isFinite(parsedBudget) && parsedBudget > 0) {
+      return `$${parsedBudget.toLocaleString("en-US")}`;
+    }
+
+    return "Custom budget not entered";
+  }
+
+  return getOptionLabel(tattooBudgetOptions, budget) || "No budget shared";
+};
+
 const getTimeRangeLabel = ({
   from,
   to,
-}: {
-  from: string;
-  to: string;
-}) => {
+}: AvailableTime) => {
   if (!from || !to) return "No time picked";
 
   return `${formatFriendlyTime(from)} - ${formatFriendlyTime(to)}`;
