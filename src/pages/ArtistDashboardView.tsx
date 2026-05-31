@@ -42,7 +42,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   onSnapshot,
 } from "firebase/firestore";
@@ -76,6 +75,12 @@ type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
 type BookingSortMode = "upcoming" | "newest" | "oldest";
+type BookingStatusFilter =
+  | "all"
+  | "pending"
+  | "confirmed"
+  | "paid"
+  | "cancelled";
 type ArtistDashboardTab =
   | "requests"
   | "profile"
@@ -91,6 +96,36 @@ type ArtistDashboardTab =
   | "flashes"
   | "gallery"
   | "payments";
+
+const BOOKING_STATUS_FILTERS: {
+  label: string;
+  value: BookingStatusFilter;
+}[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Confirmed", value: "confirmed" },
+  { label: "Paid", value: "paid" },
+  { label: "Cancelled", value: "cancelled" },
+];
+
+const BOOKING_ROUTE_FILTERS: BookingStatusFilter[] = [
+  "pending",
+  "confirmed",
+  "paid",
+  "cancelled",
+];
+
+const isBookingRouteFilter = (
+  tab: string | null
+): tab is Exclude<BookingStatusFilter, "all"> =>
+  BOOKING_ROUTE_FILTERS.includes(tab as BookingStatusFilter);
+
+const getInitialDashboardTab = (tab: string | null): ArtistDashboardTab =>
+  isBookingRouteFilter(tab) ? "bookings" : getArtistDashboardTab(tab);
+
+const getInitialBookingStatusFilter = (
+  tab: string | null
+): BookingStatusFilter => (isBookingRouteFilter(tab) ? tab : "all");
 
 type ArtistProfileFormState = {
   displayName: string;
@@ -261,6 +296,10 @@ const ArtistDashboardView = () => {
   const [bookingSearchTerm, setBookingSearchTerm] = useState("");
   const [bookingSortMode, setBookingSortMode] =
     useState<BookingSortMode>("upcoming");
+  const [bookingStatusFilter, setBookingStatusFilter] =
+    useState<BookingStatusFilter>(() =>
+      getInitialBookingStatusFilter(searchParams.get("tab"))
+    );
   const [navCounts, setNavCounts] = useState<Record<string, number>>({
     requests: 0,
     offers: 0,
@@ -273,7 +312,7 @@ const ArtistDashboardView = () => {
     cancelled: 0,
   });
   const [activeTab, setActiveTab] = useState<ArtistDashboardTab>(() =>
-    getArtistDashboardTab(searchParams.get("tab"))
+    getInitialDashboardTab(searchParams.get("tab"))
   );
   const dashboardContentStartRef = useRef<HTMLDivElement | null>(null);
 
@@ -306,24 +345,32 @@ const ArtistDashboardView = () => {
     { date: "", time: "" },
   ]);
 
-  // Translate sidebar tab into actual Firestore status
-  const getFirestoreStatus = (tab: ArtistDashboardTab): Booking["status"] => {
-    if (tab === "pending") return "pending_payment";
-    if (tab === "confirmed") return "confirmed";
-    if (tab === "paid") return "paid";
-    if (tab === "cancelled") return "cancelled";
-    return "confirmed";
-  };
-
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (isArtistDashboardTab(tabParam)) {
+      if (isBookingRouteFilter(tabParam)) {
+        setActiveTab("bookings");
+        setBookingStatusFilter(tabParam);
+        return;
+      }
+
       setActiveTab(tabParam);
+      if (tabParam === "bookings") {
+        setBookingStatusFilter("all");
+      }
     }
   }, [searchParams]);
 
   const handleDashboardTabChange = (tab: ArtistDashboardTab) => {
-    setActiveTab(tab);
+    if (isBookingRouteFilter(tab)) {
+      setActiveTab("bookings");
+      setBookingStatusFilter(tab);
+    } else {
+      setActiveTab(tab);
+      if (tab === "bookings") {
+        setBookingStatusFilter("all");
+      }
+    }
 
     if (!window.matchMedia("(max-width: 767px)").matches) return;
 
@@ -797,38 +844,18 @@ const ArtistDashboardView = () => {
     };
   }, [uid]);
 
-  // Fetch bookings based on the current tab
+  // Fetch bookings based on the current workspace.
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || !["bookings", "sessions", "projects"].includes(activeTab)) return;
 
     setBookings([]);
-
-    const statusToFetch = getFirestoreStatus(activeTab);
 
     const q =
       activeTab === "sessions"
         ? query(collection(db, "bookings"), where("artistId", "==", uid))
-        : activeTab === "projects"
+      : activeTab === "projects"
         ? query(collection(db, "bookings"), where("artistId", "==", uid))
-        : activeTab === "confirmed"
-        ? query(
-            collection(db, "bookings"),
-            where("artistId", "==", uid),
-            where("status", "in", ["confirmed", "deposit_paid"]),
-            orderBy("createdAt", "desc")
-          )
-        : statusToFetch === "paid"
-        ? query(
-            collection(db, "bookings"),
-            where("artistId", "==", uid),
-            where("status", "==", "paid")
-          )
-        : query(
-            collection(db, "bookings"),
-            where("artistId", "==", uid),
-            where("status", "==", statusToFetch),
-            orderBy("createdAt", "desc")
-          );
+        : query(collection(db, "bookings"), where("artistId", "==", uid));
 
     const unsubscribe = onSnapshot(
       q,
@@ -842,7 +869,11 @@ const ArtistDashboardView = () => {
             ? rawBookings.filter((booking) => isActiveSessionBooking(booking))
             : activeTab === "projects"
             ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
-            : rawBookings.filter((booking) => !isActiveSessionBooking(booking));
+            : rawBookings.filter(
+                (booking) =>
+                  !isActiveSessionBooking(booking) &&
+                  getBookingStatusFilterValue(booking) !== "all"
+              );
 
         const clientIds = Array.from(
           new Set(
@@ -926,9 +957,16 @@ const ArtistDashboardView = () => {
     displayNameStatus === "checking" ||
     displayNameStatus === "taken";
   const visibleBookings = useMemo(() => {
+    const statusFilteredBookings =
+      activeTab === "bookings" && bookingStatusFilter !== "all"
+        ? bookings.filter(
+            (booking) =>
+              getBookingStatusFilterValue(booking) === bookingStatusFilter
+          )
+        : bookings;
     const normalizedSearch = bookingSearchTerm.trim().toLowerCase();
     const filteredBookings = normalizedSearch
-      ? bookings.filter((booking) => {
+      ? statusFilteredBookings.filter((booking) => {
           const dashboardBooking = booking as DashboardBooking;
           const clientName =
             dashboardBooking.user?.name ||
@@ -938,7 +976,7 @@ const ArtistDashboardView = () => {
 
           return clientName.toLowerCase().includes(normalizedSearch);
         })
-      : bookings;
+      : statusFilteredBookings;
 
     return [...filteredBookings].sort((a, b) => {
       if (bookingSortMode === "newest") {
@@ -951,7 +989,7 @@ const ArtistDashboardView = () => {
 
       return compareUpcomingBookings(a, b);
     });
-  }, [bookings, bookingSearchTerm, bookingSortMode]);
+  }, [activeTab, bookings, bookingSearchTerm, bookingSortMode, bookingStatusFilter]);
 
   const updateSessionRecord = async (
     booking: DashboardBooking,
@@ -1060,6 +1098,16 @@ const ArtistDashboardView = () => {
       }
     );
   };
+
+  const bookingStatusMetrics = [
+    { label: "Pending", value: navCounts.pending || 0 },
+    { label: "Confirmed", value: navCounts.confirmed || 0 },
+    { label: "Paid", value: navCounts.paid || 0 },
+    { label: "Cancelled", value: navCounts.cancelled || 0 },
+  ];
+  const activeBookingFilterLabel =
+    BOOKING_STATUS_FILTERS.find((filter) => filter.value === bookingStatusFilter)
+      ?.label || "All";
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -1665,19 +1713,23 @@ const ArtistDashboardView = () => {
         )}
 
         {/* Booking cards */}
-        {["pending", "confirmed", "paid", "cancelled", "sessions", "projects"].includes(activeTab) && (
+        {["bookings", "sessions", "projects"].includes(activeTab) && (
           <section className="mt-6 w-full max-w-7xl space-y-6">
             <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h1 className="text-3xl! font-semibold text-white capitalize">
-                  {activeTab === "sessions"
+                  {activeTab === "bookings"
+                    ? "Bookings"
+                    : activeTab === "sessions"
                     ? "Active sessions"
                     : activeTab === "projects"
                     ? "Ongoing projects"
-                    : `${activeTab} bookings`}
+                    : "Bookings"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  {activeTab === "sessions"
+                  {activeTab === "bookings"
+                    ? "Track accepted offers by payment stage, appointment status, and client readiness."
+                    : activeTab === "sessions"
                     ? "Manage started appointments, session records, in-shop balances, and completion notes."
                     : activeTab === "projects"
                     ? "Track multi-session projects, progress, next-session balances, and payment status."
@@ -1685,16 +1737,28 @@ const ArtistDashboardView = () => {
                 </p>
               </div>
 
-              <div className="grid w-full grid-cols-1 gap-2 lg:w-auto lg:min-w-[140px]">
-                <BookingMetricCard
-                  label="Showing"
-                  value={
-                    visibleBookings.length !== bookings.length
-                      ? `${visibleBookings.length}/${bookings.length}`
-                      : visibleBookings.length
-                  }
-                />
-              </div>
+              {activeTab === "bookings" ? (
+                <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:min-w-[560px]">
+                  {bookingStatusMetrics.map((metric) => (
+                    <BookingMetricCard
+                      key={metric.label}
+                      label={metric.label}
+                      value={metric.value}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid w-full grid-cols-1 gap-2 lg:w-auto lg:min-w-[140px]">
+                  <BookingMetricCard
+                    label="Showing"
+                    value={
+                      visibleBookings.length !== bookings.length
+                        ? `${visibleBookings.length}/${bookings.length}`
+                        : visibleBookings.length
+                    }
+                  />
+                </div>
+              )}
             </div>
 
             {bookings.length === 0 ? (
@@ -1703,14 +1767,18 @@ const ArtistDashboardView = () => {
                   <ReceiptText size={22} />
                 </div>
                 <h2 className="mt-4 text-xl! font-semibold! text-white capitalize">
-                  {activeTab === "sessions"
+                  {activeTab === "bookings"
+                    ? "No bookings yet"
+                    : activeTab === "sessions"
                     ? "No active sessions yet"
                     : activeTab === "projects"
                     ? "No ongoing projects yet"
-                    : `No ${activeTab} bookings yet`}
+                    : "No bookings yet"}
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
-                  {activeTab === "sessions"
+                  {activeTab === "bookings"
+                    ? "Once clients accept offers, their bookings will collect here by payment and appointment stage."
+                    : activeTab === "sessions"
                     ? "Start a session from a confirmed booking and it will move here for completion, balance confirmation, and photos."
                     : activeTab === "projects"
                     ? "When an accepted booking is marked as a multi-session project, it will appear here with progress and balance details."
@@ -1719,39 +1787,128 @@ const ArtistDashboardView = () => {
               </div>
             ) : (
               <>
-                <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:flex-row lg:items-center lg:justify-between">
-                  <label className="relative min-w-0 flex-1 lg:max-w-md">
-                    <Search
-                      size={16}
-                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="search"
-                      value={bookingSearchTerm}
-                      onChange={(event) => setBookingSearchTerm(event.target.value)}
-                      className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
-                      placeholder="Search by client name"
-                    />
-                  </label>
+                {activeTab === "bookings" ? (
+                  <div className="rounded-lg border border-white/10 p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
+                          <CalendarDays size={18} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <h2 className="mb-0! text-base! sm:text-lg!">
+                            Booking filters
+                          </h2>
+                          <p className="text-sm text-neutral-400">
+                            Move between payment stages without leaving bookings.
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <span className="text-xs uppercase tracking-[0.14em] text-neutral-500">
-                      Sort
-                    </span>
-                    <select
-                      value={bookingSortMode}
-                      onChange={(event) =>
-                        setBookingSortMode(event.target.value as BookingSortMode)
-                      }
-                      className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
-                    >
-                      <option value="upcoming">Soonest upcoming</option>
-                      <option value="newest">Newest bookings</option>
-                      <option value="oldest">Oldest bookings</option>
-                    </select>
+                      <div className="flex flex-col gap-2 xl:items-end">
+                        <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
+                          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                            {BOOKING_STATUS_FILTERS.map((filter) => (
+                              <button
+                                key={filter.value}
+                                type="button"
+                                onClick={() => setBookingStatusFilter(filter.value)}
+                                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
+                                  bookingStatusFilter === filter.value
+                                    ? "border-white bg-white text-black"
+                                    : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                                }`}
+                              >
+                                {filter.label}
+                                <span
+                                  className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                                    bookingStatusFilter === filter.value
+                                      ? "bg-black/10 text-black"
+                                      : "bg-white/[0.06] text-neutral-400"
+                                  }`}
+                                >
+                                  {filter.value === "all"
+                                    ? bookings.length
+                                    : navCounts[filter.value] || 0}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
+                            Showing {visibleBookings.length} of {bookings.length}
+                          </span>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,22rem)_auto]">
+                          <label className="relative min-w-0">
+                            <Search
+                              size={16}
+                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                              aria-hidden="true"
+                            />
+                            <input
+                              type="search"
+                              value={bookingSearchTerm}
+                              onChange={(event) =>
+                                setBookingSearchTerm(event.target.value)
+                              }
+                              className="h-10 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                              placeholder="Search by client"
+                            />
+                          </label>
+
+                          <select
+                            value={bookingSortMode}
+                            onChange={(event) =>
+                              setBookingSortMode(event.target.value as BookingSortMode)
+                            }
+                            className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
+                            aria-label="Sort bookings"
+                          >
+                            <option value="upcoming">Soonest upcoming</option>
+                            <option value="newest">Newest bookings</option>
+                            <option value="oldest">Oldest bookings</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <label className="relative min-w-0 flex-1 lg:max-w-md">
+                      <Search
+                        size={16}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="search"
+                        value={bookingSearchTerm}
+                        onChange={(event) =>
+                          setBookingSearchTerm(event.target.value)
+                        }
+                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                        placeholder="Search by client name"
+                      />
+                    </label>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <span className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                        Sort
+                      </span>
+                      <select
+                        value={bookingSortMode}
+                        onChange={(event) =>
+                          setBookingSortMode(event.target.value as BookingSortMode)
+                        }
+                        className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
+                      >
+                        <option value="upcoming">Soonest upcoming</option>
+                        <option value="newest">Newest bookings</option>
+                        <option value="oldest">Oldest bookings</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 {visibleBookings.length === 0 ? (
                   <div className="rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center">
@@ -1763,7 +1920,7 @@ const ArtistDashboardView = () => {
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                       Try another client name or clear the search to return to
-                      all {activeTab === "sessions" ? "sessions" : activeTab === "projects" ? "projects" : `${activeTab} bookings`}.
+                      all {activeTab === "bookings" ? (bookingStatusFilter === "all" ? "bookings" : `${activeBookingFilterLabel.toLowerCase()} bookings`) : activeTab === "sessions" ? "sessions" : activeTab === "projects" ? "projects" : "bookings"}.
                     </p>
                   </div>
                 ) : activeTab === "sessions" ? (
@@ -1782,7 +1939,6 @@ const ArtistDashboardView = () => {
                 ) : (
                   <ArtistBookingsTable
                     bookings={visibleBookings as DashboardBooking[]}
-                    activeTab={activeTab}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onStart={(booking) => setBookingToStart(booking)}
                   />
@@ -1880,12 +2036,10 @@ const BookingMetricCard = ({
 
 const ArtistBookingsTable = ({
   bookings,
-  activeTab,
   onOpenRecord,
   onStart,
 }: {
   bookings: DashboardBooking[];
-  activeTab: ArtistDashboardTab;
   onOpenRecord: (booking: DashboardBooking) => void;
   onStart: (booking: DashboardBooking) => void;
 }) => {
@@ -1912,7 +2066,6 @@ const ArtistBookingsTable = ({
               <ArtistBookingRow
                 key={booking.id}
                 booking={booking}
-                activeTab={activeTab}
                 columns={columns}
                 onOpenRecord={() => onOpenRecord(booking)}
                 onStart={() => onStart(booking)}
@@ -1927,13 +2080,11 @@ const ArtistBookingsTable = ({
 
 const ArtistBookingRow = ({
   booking,
-  activeTab,
   columns,
   onOpenRecord,
   onStart,
 }: {
   booking: DashboardBooking;
-  activeTab: ArtistDashboardTab;
   columns: string;
   onOpenRecord: () => void;
   onStart: () => void;
@@ -1943,7 +2094,7 @@ const ArtistBookingRow = ({
       ? formatBookingAppointment(booking.selectedDate)
       : "No date set";
   const canStartSession =
-    activeTab === "confirmed" &&
+    ["confirmed", "deposit_paid"].includes(booking.status) &&
     booking.status !== "pending_payment" &&
     !isActiveSessionBooking(booking) &&
     ["not_started", "awaiting_next_session", undefined].includes(
@@ -3211,6 +3362,18 @@ const formatDashboardMoney = (amount?: number) =>
     style: "currency",
     currency: "USD",
   }).format(Number(amount || 0));
+
+const getBookingStatusFilterValue = (
+  booking: Partial<Booking>
+): BookingStatusFilter => {
+  if (booking.status === "pending_payment") return "pending";
+  if (booking.status === "confirmed" || booking.status === "deposit_paid") {
+    return "confirmed";
+  }
+  if (booking.status === "paid") return "paid";
+  if (booking.status === "cancelled") return "cancelled";
+  return "all";
+};
 
 const getDashboardClientName = (booking: DashboardBooking) =>
   booking.user?.name ||

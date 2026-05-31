@@ -29,9 +29,7 @@ const SidebarNavigation: FC<SidebarProps> = ({
   onTabChange,
   counts = {},
 }) => {
-  const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showMobileBookings, setShowMobileBookings] = useState(false);
 
   const tabs = [
     { key: "requests", label: "Requests" },
@@ -46,32 +44,11 @@ const SidebarNavigation: FC<SidebarProps> = ({
     { key: "profile", label: "Profile" },
   ];
 
-  const bookingTabs = [
-    { key: "pending", label: "Pending" }, // internally maps to pending_payment
-    { key: "confirmed", label: "Confirmed" },
-    { key: "paid", label: "Paid" },
-    { key: "cancelled", label: "Cancelled" },
-  ];
-
-  const bookingTabKeys: ViewTab[] = [
-    "pending",
-    "confirmed",
-    "paid",
-    "cancelled",
-    "bookings",
-  ];
-  const bookingSectionIsActive = bookingTabKeys.includes(activeTab);
-  const activeBookingLabel = bookingTabs.find((tab) => tab.key === activeTab)?.label;
   const activeLabel =
-    (activeBookingLabel ? `${activeBookingLabel} bookings` : undefined) ||
     tabs.find((tab) => tab.key === activeTab)?.label ||
     "Dashboard";
   const activeCount =
-    typeof counts[activeTab] === "number"
-      ? counts[activeTab]
-      : bookingSectionIsActive
-      ? counts.bookings
-      : undefined;
+    typeof counts[activeTab] === "number" ? counts[activeTab] : undefined;
 
   const handleMobileTabChange = (tab: ViewTab) => {
     onTabChange(tab);
@@ -84,7 +61,6 @@ const SidebarNavigation: FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => {
-            setShowMobileBookings(bookingSectionIsActive);
             setShowMobileMenu(true);
           }}
           className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#111111]/95 px-3! py-3! text-left shadow-2xl shadow-black/30 backdrop-blur-xl transition hover:border-white/20"
@@ -118,63 +94,20 @@ const SidebarNavigation: FC<SidebarProps> = ({
         <ul className="space-y-2">
           {tabs.map(({ key, label }) => (
             <li key={key}>
-              {key === "bookings" ? (
-                <>
-                  <button
-                    onClick={() => setShowBookingsDropdown((prev) => !prev)}
-                    className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                      bookingSectionIsActive
-                        ? "text-white font-bold"
-                        : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
-                    }`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {label}
-                      <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showBookingsDropdown ? "rotate-180" : ""}`} />
-                    </span>
-                    {typeof counts.bookings === "number" && counts.bookings > 0 && (
-                      <CountBadge count={counts.bookings} active={bookingSectionIsActive} />
-                    )}
-                  </button>
-                  {showBookingsDropdown && (
-                    <ul className="ml-8 mt-2 space-y-1">
-                      {bookingTabs.map(({ key: subKey, label }) => (
-                        <li key={subKey}>
-                          <button
-                            onClick={() => onTabChange(subKey as ViewTab)}
-                            className={`flex w-full items-center gap-2 text-left px-3 py-1 rounded-lg transition-all ${
-                              activeTab === subKey
-                                ? "text-white font-bold"
-                                : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
-                            }`}
-                          >
-                            <span>{label}</span>
-                            {typeof counts[subKey as ViewTab] === "number" &&
-                              (counts[subKey as ViewTab] || 0) > 0 && (
-                              <CountBadge count={counts[subKey as ViewTab] || 0} active={activeTab === subKey} />
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={() => onTabChange(key as ViewTab)}
-                  className={`inline-flex w-full items-center gap-2 text-left px-4 py-2 rounded-lg transition-all ${
-                    activeTab === key
-                      ? "text-white font-bold"
-                      : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
-                  }`}
-                >
-                  <span>{label}</span>
-                  {typeof counts[key as ViewTab] === "number" &&
-                    (counts[key as ViewTab] || 0) > 0 && (
+              <button
+                onClick={() => onTabChange(key as ViewTab)}
+                className={`inline-flex w-full items-center gap-2 text-left px-4 py-2 rounded-lg transition-all ${
+                  activeTab === key
+                    ? "text-white font-bold"
+                    : "text-neutral-400 hover:bg-[var(--color-bg-card)]"
+                }`}
+              >
+                <span>{label}</span>
+                {typeof counts[key as ViewTab] === "number" &&
+                  (counts[key as ViewTab] || 0) > 0 && (
                     <CountBadge count={counts[key as ViewTab] || 0} active={activeTab === key} />
                   )}
-                </button>
-              )}
+              </button>
             </li>
           ))}
         </ul>
@@ -232,68 +165,21 @@ const SidebarNavigation: FC<SidebarProps> = ({
                   <ul className="space-y-1">
                     {tabs.map(({ key, label }) => (
                       <li key={key}>
-                        {key === "bookings" ? (
-                          <div className="rounded-lg border border-white/10 bg-white/[0.025]">
-                            <button
-                              type="button"
-                              onClick={() => setShowMobileBookings((prev) => !prev)}
-                              className={`flex w-full items-center gap-3 px-3! py-3! text-left text-sm font-semibold transition ${
-                                bookingSectionIsActive
-                                  ? "text-white"
-                                  : "text-neutral-400 hover:text-white"
-                              }`}
-                            >
-                              <span className="min-w-0 flex-1">{label}</span>
-                              {typeof counts.bookings === "number" && counts.bookings > 0 && (
-                                <CountBadge count={counts.bookings} active={bookingSectionIsActive} />
-                              )}
-                              <ChevronDown
-                                className={`h-4 w-4 shrink-0 text-neutral-500 transition-transform ${
-                                  showMobileBookings ? "rotate-180" : ""
-                                }`}
-                                aria-hidden="true"
-                              />
-                            </button>
-                            {showMobileBookings && (
-                              <div className="grid gap-1 border-t border-white/10 p-2!">
-                                {bookingTabs.map(({ key: subKey, label: subLabel }) => (
-                                  <button
-                                    key={subKey}
-                                    type="button"
-                                    onClick={() => handleMobileTabChange(subKey as ViewTab)}
-                                    className={`flex w-full items-center gap-2 rounded-md px-3! py-2.5! text-left text-sm transition ${
-                                      activeTab === subKey
-                                        ? "bg-white text-black"
-                                        : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"
-                                    }`}
-                                  >
-                                    <span className="flex-1">{subLabel}</span>
-                                    {typeof counts[subKey as ViewTab] === "number" &&
-                                      (counts[subKey as ViewTab] || 0) > 0 && (
-                                      <MobileCountBadge count={counts[subKey as ViewTab] || 0} active={activeTab === subKey} />
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleMobileTabChange(key as ViewTab)}
-                            className={`flex w-full items-center gap-3 rounded-lg px-3! py-3! text-left text-sm font-semibold transition ${
-                              activeTab === key
-                                ? "bg-white text-black"
-                                : "bg-white/[0.025] text-neutral-400 hover:bg-white/[0.06] hover:text-white"
-                            }`}
-                          >
-                            <span className="min-w-0 flex-1">{label}</span>
-                            {typeof counts[key as ViewTab] === "number" &&
-                              (counts[key as ViewTab] || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleMobileTabChange(key as ViewTab)}
+                          className={`flex w-full items-center gap-3 rounded-lg px-3! py-3! text-left text-sm font-semibold transition ${
+                            activeTab === key
+                              ? "bg-white text-black"
+                              : "bg-white/[0.025] text-neutral-400 hover:bg-white/[0.06] hover:text-white"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">{label}</span>
+                          {typeof counts[key as ViewTab] === "number" &&
+                            (counts[key as ViewTab] || 0) > 0 && (
                               <MobileCountBadge count={counts[key as ViewTab] || 0} active={activeTab === key} />
                             )}
-                          </button>
-                        )}
+                        </button>
                       </li>
                     ))}
                   </ul>
