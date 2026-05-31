@@ -443,11 +443,11 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     </div>
                   </div>
 
-                  <div className="sticky bottom-0 -mx-5 mt-6 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#111111]/95 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] backdrop-blur md:static md:mx-0 md:mt-7 md:flex-row md:justify-end md:border-t-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+                  <div className="sticky bottom-0 -mx-5 mt-6 grid grid-cols-2 gap-2.5 border-t border-white/10 bg-[#111111]/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur md:static md:mx-0 md:mt-7 md:flex md:justify-end md:border-t-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                     <button
                       type="button"
                       onClick={closeSheetTitleModal}
-                      className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                      className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3! py-3! text-xs font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white min-[390px]:text-sm md:px-5!"
                       disabled={isUploadingSheet}
                     >
                       Cancel
@@ -455,7 +455,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={handleSubmitFlashSheet}
-                      className={`rounded-xl px-5! py-3! text-sm font-semibold transition disabled:cursor-not-allowed ${
+                      className={`min-w-0 rounded-xl px-3! py-3! text-xs font-semibold transition disabled:cursor-not-allowed min-[390px]:text-sm md:px-5! ${
                         canSaveSheetDetails && !isUploadingSheet
                           ? "bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.18),0_14px_32px_rgba(255,255,255,0.08)] hover:bg-zinc-200"
                           : "bg-white/55 text-zinc-500"
