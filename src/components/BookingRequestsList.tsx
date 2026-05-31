@@ -1301,13 +1301,13 @@ const MobileRequestActionDock = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => (
   <div
-    className={`fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+    className={`fixed inset-x-0 bottom-0 z-[60] border-t border-white/10 bg-[#111111]/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
       visible
         ? "pointer-events-auto translate-y-0 opacity-100"
         : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
     }`}
   >
-    <div className="rounded-t-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+    <div className="mx-auto max-w-[30rem]">
       <button
         type="button"
         onClick={() => onMakeOffer(request)}
