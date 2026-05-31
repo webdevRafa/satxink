@@ -263,15 +263,15 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5 md:min-w-[300px] md:gap-2">
+          <div className="grid w-full grid-cols-3 gap-2 md:w-auto md:min-w-[420px]">
             <StatCard label="Sheets" value={flashSheets.length} />
             <StatCard label="Itemized" value={linkedFlashCount} />
             <StatCard label="Solo" value={standaloneFlashCount} />
           </div>
         </div>
 
-        <div className="grid gap-2.5 p-2.5 md:p-3 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+        <div className="grid gap-2.5 p-2.5 md:p-3 lg:w-fit lg:grid-cols-[20rem_minmax(0,27rem)] lg:items-start">
+          <div className="grid grid-cols-2 gap-1.5 md:gap-2 lg:w-80">
             <ModeCard
               active={mode === "individual"}
               icon={<Plus size={15} />}
@@ -286,8 +286,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             />
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="p-0">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
               <div className="flex min-w-0 items-start gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-300 md:h-8 md:w-8">
                   {mode === "individual" ? (
@@ -314,7 +314,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 md:h-9"
+                  className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 md:h-8"
                   disabled={!stripeReady}
                 >
                   <Upload size={15} className="text-current" />
@@ -322,7 +322,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 </button>
               ) : (
                 <label
-                  className={`inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 md:h-9 ${
+                  className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 md:h-8 ${
                     stripeReady
                       ? "cursor-pointer"
                       : "cursor-not-allowed bg-white/90 text-neutral-900! opacity-100"
@@ -612,15 +612,15 @@ const ModeCard = ({
   <button
     type="button"
     onClick={onClick}
-    className={`min-w-0 rounded-lg border p-2! text-left transition md:p-2.5! ${
+    className={`min-w-0 rounded-lg border p-2! text-left transition md:p-2! ${
       active
         ? "border-red-300/45 bg-red-500/10"
         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
     }`}
   >
-    <div className="flex min-w-0 items-center gap-1.5 md:gap-2.5">
+    <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
       <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md md:h-7 md:w-7 ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
           active ? "bg-red-500/15 text-red-200" : "bg-white/5 text-zinc-300"
         }`}
       >
@@ -635,11 +635,11 @@ const ModeCard = ({
 );
 
 const StatCard = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-md border border-white/10 bg-black/25 px-2 py-1.5 md:px-2.5 md:py-2">
-    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-500 md:text-[10px] md:tracking-[0.16em]">
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-zinc-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-0.5 text-sm! font-bold leading-none text-white md:text-base!">
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
       {value}
     </p>
   </div>
