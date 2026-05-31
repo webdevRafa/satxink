@@ -679,7 +679,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
+    "minmax(92px,.36fr) minmax(200px,.8fr) minmax(92px,.34fr) 88px minmax(190px,.72fr) minmax(225px,.86fr) minmax(118px,.4fr) minmax(268px,1fr)";
 
   return (
     <>
@@ -697,13 +697,14 @@ const RequestTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1240px]">
+          <div className="min-w-[1320px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Created</span>
               <span>Client</span>
+              <span>Type</span>
               <span>Reference</span>
               <span>Idea</span>
               <span>Availability</span>
@@ -841,6 +842,18 @@ const RequestRow = ({
         </p>
       </button>
 
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <span
+          className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+            request.sourceType === "flash"
+              ? "border-amber-200/25 bg-amber-300/10 text-amber-50"
+              : "border-white/10 bg-white/[0.035] text-neutral-200"
+          }`}
+        >
+          {formatRequestType(request)}
+        </span>
+      </button>
+
       <button
         type="button"
         onClick={onOpen}
@@ -886,10 +899,6 @@ const RequestRow = ({
           {
             label: "Size",
             value: request.size || "Size open",
-          },
-          {
-            label: "Message",
-            value: request.description || "No message provided.",
           },
         ]}
       />
@@ -1063,8 +1072,8 @@ const RequestMobileCard = ({
               value: request.size || "Size open",
             },
             {
-              label: "Message",
-              value: request.description || "No message provided.",
+              label: "Type",
+              value: formatRequestType(request),
             },
           ]}
         />
@@ -1944,6 +1953,9 @@ const formatFlashPrice = (price?: number | null) =>
   typeof price === "number" && Number.isFinite(price) && price > 0
     ? `$${price}`
     : "Price not listed";
+
+const formatRequestType = (request: BookingRequest) =>
+  request.sourceType === "flash" ? "Flash" : "Custom";
 
 const formatAvailableDaysSummary = (request: BookingRequest) =>
   request.availableDays?.length
