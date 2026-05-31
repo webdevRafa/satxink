@@ -1789,22 +1789,22 @@ const ArtistDashboardView = () => {
               <>
                 {activeTab === "bookings" ? (
                   <div className="rounded-lg border border-white/10 p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
-                          <CalendarDays size={18} aria-hidden="true" />
-                        </span>
-                        <div>
-                          <h2 className="mb-0! text-base! sm:text-lg!">
-                            Booking filters
-                          </h2>
-                          <p className="text-sm text-neutral-400">
-                            Move between payment stages without leaving bookings.
-                          </p>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
+                            <CalendarDays size={18} aria-hidden="true" />
+                          </span>
+                          <div>
+                            <h2 className="mb-0! text-base! sm:text-lg!">
+                              Booking filters
+                            </h2>
+                            <p className="text-sm text-neutral-400">
+                              Move between payment stages without leaving bookings.
+                            </p>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col gap-2 xl:items-end">
                         <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
                           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                             {BOOKING_STATUS_FILTERS.map((filter) => (
@@ -1837,38 +1837,38 @@ const ArtistDashboardView = () => {
                             Showing {visibleBookings.length} of {bookings.length}
                           </span>
                         </div>
+                      </div>
 
-                        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,22rem)_auto]">
-                          <label className="relative min-w-0">
-                            <Search
-                              size={16}
-                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-                              aria-hidden="true"
-                            />
-                            <input
-                              type="search"
-                              value={bookingSearchTerm}
-                              onChange={(event) =>
-                                setBookingSearchTerm(event.target.value)
-                              }
-                              className="h-10 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
-                              placeholder="Search by client"
-                            />
-                          </label>
-
-                          <select
-                            value={bookingSortMode}
+                      <div className="grid gap-2 sm:grid-cols-[minmax(14rem,22rem)_auto] xl:self-end">
+                        <label className="relative min-w-0">
+                          <Search
+                            size={16}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                            aria-hidden="true"
+                          />
+                          <input
+                            type="search"
+                            value={bookingSearchTerm}
                             onChange={(event) =>
-                              setBookingSortMode(event.target.value as BookingSortMode)
+                              setBookingSearchTerm(event.target.value)
                             }
-                            className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
-                            aria-label="Sort bookings"
-                          >
-                            <option value="upcoming">Soonest upcoming</option>
-                            <option value="newest">Newest bookings</option>
-                            <option value="oldest">Oldest bookings</option>
-                          </select>
-                        </div>
+                            className="h-10 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                            placeholder="Search by client"
+                          />
+                        </label>
+
+                        <select
+                          value={bookingSortMode}
+                          onChange={(event) =>
+                            setBookingSortMode(event.target.value as BookingSortMode)
+                          }
+                          className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
+                          aria-label="Sort bookings"
+                        >
+                          <option value="upcoming">Soonest upcoming</option>
+                          <option value="newest">Newest bookings</option>
+                          <option value="oldest">Oldest bookings</option>
+                        </select>
                       </div>
                     </div>
                   </div>
