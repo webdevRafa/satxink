@@ -381,7 +381,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                         setIsDeclining(false);
                         setDeclineReason("");
                       }}
-                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Back
                     </button>
@@ -389,7 +389,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding || !declineReason}
                       onClick={handleDecline}
-                      className="inline-flex items-center justify-center rounded-md border border-red-200/40 bg-red-200 px-5! py-3! text-sm! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-200/40 bg-red-200 px-3! py-2! text-xs! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isResponding ? "Declining..." : "Submit decline"}
                     </button>
@@ -400,7 +400,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={() => setIsDeclining(true)}
-                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Decline
                     </button>
@@ -408,7 +408,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={handleReviewCheckout}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Review checkout
                       <CreditCard size={16} />
@@ -515,7 +515,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={() => setIsReviewingCheckout(false)}
-                      className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Back
                     </button>
@@ -523,7 +523,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={handleAccept}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isResponding ? "Creating checkout..." : "Continue to Stripe"}
                       <Send size={16} />

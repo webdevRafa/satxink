@@ -380,7 +380,7 @@ const UploadModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={resetAndClose}
-              className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
             >
               Cancel
             </button>
@@ -388,7 +388,7 @@ const UploadModal: React.FC<Props> = ({
               type="button"
               onClick={handleFinalUpload}
               disabled={!canPublish || isUploading}
-              className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
+              className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
             >
               {isUploading ? "Uploading..." : "Publish"}
             </button>

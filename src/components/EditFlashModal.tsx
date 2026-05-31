@@ -94,7 +94,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               <button
                 type="button"
                 onClick={() => onDelete(flash)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4! py-3! text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! border border-red-400/20 bg-red-500/10 px-3! py-2! text-xs! font-semibold text-red-200 transition hover:bg-red-500/20"
               >
                 <Trash2 size={16} />
                 Delete
@@ -106,7 +106,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
               >
                 Cancel
               </button>
@@ -120,7 +120,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                     tags
                   )
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+                className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"
               >
                 <Save size={16} />
                 Save changes

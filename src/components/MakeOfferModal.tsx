@@ -979,7 +979,7 @@ const MakeOfferModal = ({
                     ? () => setIsPreviewingOffer(false)
                     : handleClose
                 }
-                className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.03] px-2.5! py-3! text-xs! font-semibold text-white transition hover:bg-white/10 sm:px-5! sm:text-sm!"
+                className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
               >
                 {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
@@ -987,7 +987,7 @@ const MakeOfferModal = ({
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! py-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2 sm:px-5! sm:text-sm!"
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2"
                 >
                   Preview offer
                   <ReceiptText size={16} className="text-amber-200" />
@@ -996,7 +996,7 @@ const MakeOfferModal = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-white px-2.5! py-3! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2 sm:px-5! sm:text-sm!"
+                className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
               >
                 {isSubmitting ? "Sending..." : "Send offer"}
                 <Send size={16} />

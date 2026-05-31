@@ -321,7 +321,7 @@ const FlashRequestModal = ({
             <button
               type="submit"
               disabled={isSubmitting || !client}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#b6382d] px-4! py-3! text-sm! font-semibold text-white transition hover:bg-[#cf4639] disabled:cursor-not-allowed disabled:opacity-50"
+              className="modal-action-button inline-flex w-full items-center justify-center gap-2 rounded-lg! bg-[#b6382d] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-[#cf4639] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "Sending..." : "Send flash request"}
               <Send size={16} />

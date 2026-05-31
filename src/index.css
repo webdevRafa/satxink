@@ -406,6 +406,7 @@ body.modal-open {
   line-height: 1rem !important;
 }
 
+.modal-action-button,
 .flash-sheet-modal-action {
   border-radius: 0.5rem !important;
   font-size: 0.75rem !important;

@@ -778,7 +778,7 @@ const EditGalleryItemModal = ({
             <button
               type="button"
               onClick={() => onDelete(item)}
-              className="rounded-xl border border-red-400/20 bg-red-500/10 px-4! py-3! text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+              className="modal-action-button rounded-lg! border border-red-400/20 bg-red-500/10 px-3! py-2! text-xs! font-semibold text-red-200 transition hover:bg-red-500/20"
             >
               Delete
             </button>
@@ -786,14 +786,14 @@ const EditGalleryItemModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => onSave(item.id, caption, tags)}
-                className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+                className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"
               >
                 Save changes
               </button>

@@ -642,7 +642,7 @@ const PrepareOfferDialog = ({
                       <button
                         type="button"
                         onClick={onClose}
-                        className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-4! text-sm! font-semibold text-white transition hover:bg-white/10"
+                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                       >
                         Cancel
                       </button>
@@ -650,7 +650,7 @@ const PrepareOfferDialog = ({
                         type="button"
                         disabled={!selectedEta || isSaving}
                         onClick={() => onConfirm(request, selectedEta)}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Send size={15} />
                         {isSaving ? "Updating..." : "Notify client"}
@@ -1476,14 +1476,14 @@ const RequestDetailsDialog = ({
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
                         >
                           <Send size={16} className="text-amber-200" />
                           Prepare offer
@@ -1491,7 +1491,7 @@ const RequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onMakeOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
                         >
                           <Send size={16} />
                           Make an offer
@@ -1681,14 +1681,14 @@ const FlashRequestDetailsDialog = ({
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
                         <button
                           type="button"
                           onClick={() => onPrepareOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-5! py-3! text-sm! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
+                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
                         >
                           <Send size={16} className="text-amber-200" />
                           Prepare offer
@@ -1696,7 +1696,7 @@ const FlashRequestDetailsDialog = ({
                         <button
                           type="button"
                           onClick={() => onMakeOffer(request)}
-                          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
                         >
                           <Send size={16} />
                           Make flash offer

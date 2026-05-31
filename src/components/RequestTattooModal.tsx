@@ -430,7 +430,7 @@ const RequestTattooModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
+                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
                   >
                     Continue
                     <CalendarDays size={16} />
@@ -570,14 +570,14 @@ const RequestTattooModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
+                    className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSubmitting ? "Sending..." : "Send request"}
                     <Send size={16} />
