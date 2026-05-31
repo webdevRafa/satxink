@@ -61,6 +61,7 @@ import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
+import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 import type { Booking } from "../types/Booking";
 import type { Artist } from "../types/Artist";
 import {
@@ -289,7 +290,6 @@ const ArtistDashboardView = () => {
   );
   const [isProfileDirty, setIsProfileDirty] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [customSpecialty, setCustomSpecialty] = useState("");
   const [currentSlug, setCurrentSlug] = useState("");
   const [displayNameStatus, setDisplayNameStatus] =
     useState<DisplayNameStatus>("idle");
@@ -436,28 +436,6 @@ const ArtistDashboardView = () => {
     });
   };
 
-  const addCustomSpecialty = () => {
-    const specialty = getTattooStyleLabel(customSpecialty);
-    if (!specialty) return;
-
-    updateProfileForm((current) => ({
-      ...current,
-      specialties: current.specialties.some(
-        (item) => item.toLowerCase() === specialty.toLowerCase()
-      )
-        ? current.specialties
-        : [...current.specialties, specialty],
-    }));
-    setCustomSpecialty("");
-  };
-
-  const removeSpecialty = (specialty: string) => {
-    updateProfileForm((current) => ({
-      ...current,
-      specialties: current.specialties.filter((item) => item !== specialty),
-    }));
-  };
-
   const handleAvatarFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -536,7 +514,6 @@ const ArtistDashboardView = () => {
 
   const resetProfileForm = () => {
     setProfileForm(createProfileFormState(artist));
-    setCustomSpecialty("");
     setDisplayNameStatus("idle");
     setIsProfileDirty(false);
   };
@@ -1330,51 +1307,23 @@ const ArtistDashboardView = () => {
                     })}
                   </div>
 
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      value={customSpecialty}
-                      onChange={(event) =>
-                        setCustomSpecialty(event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          addCustomSpecialty();
-                        }
-                      }}
-                      className="min-w-0 flex-1 rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                      placeholder="Add a custom specialty"
-                    />
-                    <button
-                      type="button"
-                      onClick={addCustomSpecialty}
-                      className="rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white"
-                    >
-                      Add style
-                    </button>
-                  </div>
-
-                  {profileForm.specialties.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {profileForm.specialties.map((specialty) => (
-                        <span
-                          key={specialty}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-200"
-                        >
-                          {specialty}
-                          <button
-                            type="button"
-                            onClick={() => removeSpecialty(specialty)}
-                            className="text-neutral-500 transition hover:text-white"
-                            aria-label={`Remove ${specialty}`}
-                          >
-                            <X size={13} aria-hidden="true" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <AnimatedTagInput
+                    className="mt-4"
+                    value={profileForm.specialties}
+                    onChange={(nextSpecialties) =>
+                      updateProfileForm({
+                        specialties:
+                          getCanonicalTattooStyles(nextSpecialties),
+                      })
+                    }
+                    label="Custom specialties"
+                    helperText="Press space or comma to add a custom specialty."
+                    emptyPlaceholder="fine-line, realism, lettering"
+                    addPlaceholder="Add another style"
+                    displayPrefix=""
+                    normalizeTag={getTattooStyleLabel}
+                    inputAriaLabel="Add custom specialty"
+                  />
                 </section>
 
                 <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">

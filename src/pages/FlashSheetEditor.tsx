@@ -20,6 +20,7 @@ import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { getCroppedImgFromElement } from "../utils/getCroppedImgFromElement";
 import { isStripeConnectReady } from "../utils/stripeConnect";
+import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 
 const FlashSheetEditor = () => {
   const { sheetId } = useParams();
@@ -31,7 +32,7 @@ const FlashSheetEditor = () => {
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [stripeReady, setStripeReady] = useState(false);
   const uidRef = useRef<string | null>(null);
@@ -83,7 +84,7 @@ const FlashSheetEditor = () => {
   }, [sheetId]);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
-  const handleCropComplete = (_: any, croppedPixels: Area) => {
+  const handleCropComplete = (_croppedArea: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
     // Save the actual <img> from Cropper (in DOM)
     const cropperImage = document.querySelector(
@@ -134,7 +135,7 @@ const FlashSheetEditor = () => {
       for (let i = 0; i < maxRetries; i++) {
         try {
           return await getDownloadURL(fileRef);
-        } catch (err) {
+        } catch {
           await new Promise((res) => setTimeout(res, 1000)); // wait 1s
         }
       }
@@ -158,10 +159,7 @@ const FlashSheetEditor = () => {
       fullPath: `${basePath}_full.jpg`,
       title,
       price: price ? parseFloat(price) : null,
-      tags: tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags,
       artistStripeConnectReady: true,
       marketplaceVisible: true,
       isFromSheet: true,
@@ -172,7 +170,7 @@ const FlashSheetEditor = () => {
     setPendingBlob(null);
     setTitle("");
     setPrice("");
-    setTags("");
+    setTags([]);
     setShowModal(false);
     setCroppedAreaPixels(null);
     setZoom(1);
@@ -229,12 +227,11 @@ const FlashSheetEditor = () => {
               placeholder="Price (optional)"
               className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
             />
-            <input
-              type="text"
+            <AnimatedTagInput
               value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="Tags (comma separated)"
-              className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
+              onChange={setTags}
+              label="Tags"
+              emptyPlaceholder="anime, color, dragon"
             />
             <div className="flex justify-end gap-2">
               <button

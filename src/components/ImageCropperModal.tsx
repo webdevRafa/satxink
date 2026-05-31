@@ -141,14 +141,14 @@ const ImageCropperModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white"
+              className="modal-action-button rounded-lg! border border-white/10 px-3! py-2! text-xs! text-neutral-300 transition hover:border-white/25 hover:text-white"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               <Check size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
               Use photo

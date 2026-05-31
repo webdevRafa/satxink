@@ -1,5 +1,8 @@
 import { Listbox } from "@headlessui/react";
 import { Check, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { CSSProperties } from "react";
 import type { SelectOption } from "../../utils/timeOptions";
 
 type CustomSelectProps = {
@@ -24,14 +27,42 @@ const CustomSelect = ({
   optionsPlacement = "bottom",
 }: CustomSelectProps) => {
   const selectedOption = options.find((option) => option.value === value);
-  const optionsPositionClass =
-    optionsPlacement === "top" ? "bottom-full mb-2" : "mt-2";
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [optionsStyle, setOptionsStyle] = useState<CSSProperties>({});
+
+  const updateOptionsPosition = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button || typeof window === "undefined") return;
+
+    const rect = button.getBoundingClientRect();
+    const gap = 8;
+    const preferredMaxHeight = 256;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    const shouldPlaceAbove =
+      optionsPlacement === "top" ||
+      (optionsPlacement === "bottom" && spaceBelow < 180 && spaceAbove > spaceBelow);
+    const availableSpace = shouldPlaceAbove ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(144, Math.min(preferredMaxHeight, availableSpace));
+
+    setOptionsStyle({
+      left: rect.left,
+      maxHeight,
+      position: "fixed",
+      top: shouldPlaceAbove
+        ? Math.max(gap, rect.top - gap - maxHeight)
+        : rect.bottom + gap,
+      width: rect.width,
+      zIndex: 240,
+    });
+  }, [optionsPlacement]);
 
   return (
     <Listbox value={value} onChange={onChange}>
       {({ open }) => (
         <div className={`relative ${className}`}>
           <Listbox.Button
+            ref={buttonRef}
             className={`relative w-full cursor-pointer rounded-md border border-white/10 bg-black/35 px-3 py-3 pr-10 text-left text-sm text-white outline-none transition hover:border-white/25 focus:border-white/35 ${buttonClassName}`}
           >
             <span
@@ -51,37 +82,79 @@ const CustomSelect = ({
               />
             </span>
           </Listbox.Button>
-          <Listbox.Options
-            className={`shop-picker-scrollbar absolute z-50 ${optionsPositionClass} max-h-60 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-1 text-white shadow-2xl shadow-black ring-1 ring-black/60 focus:outline-none ${optionsClassName}`}
-          >
-            {options.map((option) => (
-              <Listbox.Option
-                key={option.value}
-                value={option.value}
-                className={({ active, selected }) =>
-                  `relative cursor-pointer select-none rounded-md py-2.5 pl-3 pr-9 text-sm transition ${
-                    active || selected
-                      ? "bg-white/10 text-white"
-                      : "text-neutral-300"
-                  }`
-                }
-              >
-                {({ selected }) => (
-                  <>
-                    <span className="block truncate">{option.label}</span>
-                    {selected && (
-                      <span className="absolute inset-y-0 right-2 flex items-center text-[var(--color-primary)]">
-                        <Check size={15} aria-hidden="true" />
-                      </span>
-                    )}
-                  </>
-                )}
-              </Listbox.Option>
-            ))}
-          </Listbox.Options>
+          <PortaledOptions
+            open={open}
+            options={options}
+            optionsClassName={optionsClassName}
+            optionsStyle={optionsStyle}
+            updateOptionsPosition={updateOptionsPosition}
+          />
         </div>
       )}
     </Listbox>
+  );
+};
+
+const PortaledOptions = ({
+  open,
+  options,
+  optionsClassName,
+  optionsStyle,
+  updateOptionsPosition,
+}: {
+  open: boolean;
+  options: SelectOption[];
+  optionsClassName: string;
+  optionsStyle: CSSProperties;
+  updateOptionsPosition: () => void;
+}) => {
+  useLayoutEffect(() => {
+    if (open) updateOptionsPosition();
+  }, [open, updateOptionsPosition]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    window.addEventListener("resize", updateOptionsPosition);
+    window.addEventListener("scroll", updateOptionsPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateOptionsPosition);
+      window.removeEventListener("scroll", updateOptionsPosition, true);
+    };
+  }, [open, updateOptionsPosition]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <Listbox.Options
+      style={optionsStyle}
+      className={`shop-picker-scrollbar overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-1 text-white shadow-2xl shadow-black ring-1 ring-black/60 focus:outline-none ${optionsClassName}`}
+    >
+      {options.map((option) => (
+        <Listbox.Option
+          key={option.value}
+          value={option.value}
+          className={({ active, selected }) =>
+            `relative cursor-pointer select-none rounded-md py-2.5 pl-3 pr-9 text-sm transition ${
+              active || selected ? "bg-white/10 text-white" : "text-neutral-300"
+            }`
+          }
+        >
+          {({ selected }) => (
+            <>
+              <span className="block truncate">{option.label}</span>
+              {selected && (
+                <span className="absolute inset-y-0 right-2 flex items-center text-[var(--color-primary)]">
+                  <Check size={15} aria-hidden="true" />
+                </span>
+              )}
+            </>
+          )}
+        </Listbox.Option>
+      ))}
+    </Listbox.Options>,
+    document.body
   );
 };
 

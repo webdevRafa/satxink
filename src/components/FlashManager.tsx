@@ -29,12 +29,12 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import { parseTags } from "../utils/tags";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
 import UploadModal from "./UploadModal";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type FlashManagerProps = {
   uid: string;
@@ -51,7 +51,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const navigate = useNavigate();
   const stripeReady = isStripeConnectReady(artist);
 
-  const [mode, setMode] = useState<UploadMode>("individual");
+  const [mode, setMode] = useState<UploadMode>("sheet");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
@@ -63,7 +63,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
-  const [sheetTagsInput, setSheetTagsInput] = useState("");
+  const [sheetTags, setSheetTags] = useState<string[]>([]);
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
   const linkedFlashCount = useMemo(
@@ -72,7 +72,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   );
 
   const canSaveSheetDetails =
-    sheetTitleInput.trim().length > 0 && sheetTagsInput.trim().length > 0;
+    sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
 
@@ -178,7 +178,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const closeSheetTitleModal = () => {
     setShowSheetTitleModal(false);
     setSheetTitleInput("");
-    setSheetTagsInput("");
+    setSheetTags([]);
     setPendingSheetFile(null);
     setSheetImage(null);
   };
@@ -215,7 +215,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       const docRef = await addDoc(collection(db, "flashSheets"), {
         artistId: uid,
         title: sheetTitleInput.trim(),
-        tags: parseTags(sheetTagsInput),
+        tags: sheetTags,
         artistStripeConnectReady: true,
         marketplaceVisible: true,
         fileName: baseName,
@@ -226,7 +226,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       });
 
       setSheetTitleInput("");
-      setSheetTagsInput("");
+      setSheetTags([]);
       setPendingSheetFile(null);
       setSheetImage(null);
       setShowSheetTitleModal(false);
@@ -263,31 +263,31 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5 md:min-w-[300px] md:gap-2">
+          <div className="grid w-full grid-cols-3 gap-2 md:w-auto md:min-w-[420px]">
             <StatCard label="Sheets" value={flashSheets.length} />
             <StatCard label="Itemized" value={linkedFlashCount} />
             <StatCard label="Solo" value={standaloneFlashCount} />
           </div>
         </div>
 
-        <div className="grid gap-2.5 p-2.5 md:p-3 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="grid grid-cols-2 gap-1.5 md:gap-2">
-            <ModeCard
-              active={mode === "individual"}
-              icon={<Plus size={15} />}
-              title="Individual flash"
-              onClick={() => setMode("individual")}
-            />
+        <div className="grid gap-2.5 p-2.5 md:p-3 lg:w-fit lg:grid-cols-[20rem_minmax(0,32rem)] lg:items-start">
+          <div className="grid grid-cols-2 gap-1.5 md:gap-2 lg:w-80">
             <ModeCard
               active={mode === "sheet"}
               icon={<Layers size={15} />}
               title="Flash sheet"
               onClick={() => setMode("sheet")}
             />
+            <ModeCard
+              active={mode === "individual"}
+              icon={<Plus size={15} />}
+              title="Individual flash"
+              onClick={() => setMode("individual")}
+            />
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="p-0">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-start sm:gap-3">
               <div className="flex min-w-0 items-start gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-300 md:h-8 md:w-8">
                   {mode === "individual" ? (
@@ -314,7 +314,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 md:h-9"
+                  className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white p-2! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 sm:w-[9.75rem]"
                   disabled={!stripeReady}
                 >
                   <Upload size={15} className="text-current" />
@@ -322,7 +322,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 </button>
               ) : (
                 <label
-                  className={`inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 md:h-9 ${
+                  className={`inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white p-2! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 sm:w-[9.75rem] ${
                     stripeReady
                       ? "cursor-pointer"
                       : "cursor-not-allowed bg-white/90 text-neutral-900! opacity-100"
@@ -412,19 +412,18 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     />
                   </label>
 
-                  <label className="mt-4 block">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                      <Tag size={16} />
-                      Sheet tags
-                    </span>
-                    <input
-                      type="text"
-                      value={sheetTagsInput}
-                      onChange={(e) => setSheetTagsInput(e.target.value)}
-                      placeholder="anime, color, dragon"
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                    />
-                  </label>
+                  <AnimatedTagInput
+                    className="mt-4"
+                    value={sheetTags}
+                    onChange={setSheetTags}
+                    label={
+                      <>
+                        <Tag size={16} />
+                        Sheet tags
+                      </>
+                    }
+                    emptyPlaceholder="anime, color, dragon"
+                  />
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <div className="flex gap-3">
@@ -447,7 +446,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={closeSheetTitleModal}
-                      className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3! py-3! text-xs font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white min-[390px]:text-sm md:px-5!"
+                      className="modal-action-button min-w-0 rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white md:px-4!"
                       disabled={isUploadingSheet}
                     >
                       Cancel
@@ -455,7 +454,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={handleSubmitFlashSheet}
-                      className={`min-w-0 rounded-xl px-3! py-3! text-xs font-semibold transition disabled:cursor-not-allowed min-[390px]:text-sm md:px-5! ${
+                      className={`modal-action-button min-w-0 rounded-lg! px-3! py-2! text-xs! font-semibold transition disabled:cursor-not-allowed md:px-4! ${
                         canSaveSheetDetails && !isUploadingSheet
                           ? "bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.18),0_14px_32px_rgba(255,255,255,0.08)] hover:bg-zinc-200"
                           : "bg-white/55 text-zinc-500"
@@ -613,15 +612,15 @@ const ModeCard = ({
   <button
     type="button"
     onClick={onClick}
-    className={`min-w-0 rounded-lg border p-2! text-left transition md:p-2.5! ${
+    className={`min-w-0 rounded-lg border p-2! text-left transition md:p-2! ${
       active
         ? "border-red-300/45 bg-red-500/10"
         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
     }`}
   >
-    <div className="flex min-w-0 items-center gap-1.5 md:gap-2.5">
+    <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
       <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md md:h-7 md:w-7 ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
           active ? "bg-red-500/15 text-red-200" : "bg-white/5 text-zinc-300"
         }`}
       >
@@ -636,11 +635,11 @@ const ModeCard = ({
 );
 
 const StatCard = ({ label, value }: { label: string; value: number }) => (
-  <div className="rounded-md border border-white/10 bg-black/25 px-2 py-1.5 md:px-2.5 md:py-2">
-    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-500 md:text-[10px] md:tracking-[0.16em]">
+  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-zinc-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-0.5 text-sm! font-bold leading-none text-white md:text-base!">
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
       {value}
     </p>
   </div>

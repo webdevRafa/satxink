@@ -8,7 +8,7 @@ import { getCroppedImg } from "../utils/cropImage";
 import { db, storage } from "../firebase/firebaseConfig";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { parseTags } from "../utils/tags";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type Props = {
   uid: string;
@@ -30,7 +30,7 @@ const FlashCropModal = ({
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
@@ -85,7 +85,7 @@ const FlashCropModal = ({
         sheetId,
         title: title.trim() || "Untitled Flash",
         price: price ? parseFloat(price) : null,
-        tags: parseTags(tagsInput),
+        tags,
         fullUrl,
         thumbUrl,
         webp90Url,
@@ -98,8 +98,10 @@ const FlashCropModal = ({
       toast.success("Flash saved.");
       onFlashAdded();
       onClose();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to save flash.");
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save flash."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -194,19 +196,17 @@ const FlashCropModal = ({
               />
             </label>
 
-            <label className="block">
-              <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                <Tag size={16} />
-                Tags
-              </span>
-              <input
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="anime, color, dragon"
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-              />
-            </label>
+            <AnimatedTagInput
+              value={tags}
+              onChange={setTags}
+              label={
+                <>
+                  <Tag size={16} />
+                  Tags
+                </>
+              }
+              emptyPlaceholder="anime, color, dragon"
+            />
           </div>
 
           <div className="border-t border-white/10 p-5">
@@ -214,7 +214,7 @@ const FlashCropModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
                 disabled={isSaving}
               >
                 Cancel
@@ -222,7 +222,7 @@ const FlashCropModal = ({
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+                className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
                 disabled={isSaving || !cropArea}
               >
                 {isSaving ? "Saving..." : "Save flash"}
