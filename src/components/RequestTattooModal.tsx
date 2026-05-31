@@ -391,11 +391,6 @@ const RequestTattooModal: React.FC<Props> = ({
               <h2 className="mt-1 text-xl! font-semibold! text-white">
                 Tell {artistName} what you have in mind
               </h2>
-              {artist.studioName && (
-                <p className="mt-1 text-sm text-white/50">
-                  {artist.studioName}
-                </p>
-              )}
             </div>
           </div>
           <button
