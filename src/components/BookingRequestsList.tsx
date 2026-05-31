@@ -1344,6 +1344,74 @@ const MobileRequestActionDock = ({
   </div>
 );
 
+const ImageLoadingSurface = ({ label }: { label: string }) => (
+  <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-[#080808]">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_56%)]" />
+    <div className="absolute inset-4 rounded-xl border border-white/5 bg-white/[0.035] motion-safe:animate-pulse" />
+    <div className="absolute left-6 right-6 top-7 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+    <div className="relative flex flex-col items-center gap-3 text-neutral-500">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] motion-safe:animate-pulse">
+        <ImageIcon size={26} />
+      </span>
+      <span className="text-xs font-semibold uppercase tracking-[0.16em]">
+        {label}
+      </span>
+    </div>
+  </div>
+);
+
+const ImageUnavailableSurface = ({ label }: { label: string }) => (
+  <div className="flex h-full min-h-[inherit] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+    <ImageIcon size={34} />
+    <span>{label}</span>
+  </div>
+);
+
+const LoadAwareZoomImage = ({
+  src,
+  alt,
+  className,
+  loadingLabel,
+  errorLabel,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+  loadingLabel: string;
+  errorLabel: string;
+}) => {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    "loading"
+  );
+
+  useEffect(() => {
+    setStatus("loading");
+  }, [src]);
+
+  if (!src || status === "error") {
+    return <ImageUnavailableSurface label={errorLabel} />;
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      {status === "loading" && <ImageLoadingSurface label={loadingLabel} />}
+      <Zoom>
+        <img
+          src={src}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          onLoad={() => setStatus("loaded")}
+          onError={() => setStatus("error")}
+          className={`${className} transition-opacity duration-500 ease-out ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </Zoom>
+    </div>
+  );
+};
+
 const RequestDetailsDialog = ({
   request,
   isDeclining,
@@ -1429,13 +1497,15 @@ const RequestDetailsDialog = ({
                   <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {request.fullUrl || request.thumbUrl ? (
-                        <Zoom>
-                          <img
-                            src={request.fullUrl || request.thumbUrl}
+                        <div className="relative min-h-[360px] overflow-hidden bg-black sm:min-h-[420px]">
+                          <LoadAwareZoomImage
+                            src={request.fullUrl || request.thumbUrl || ""}
                             alt="Tattoo request reference"
                             className="h-full max-h-[72vh] min-h-[360px] w-full object-contain sm:min-h-[420px]"
+                            loadingLabel="Loading reference"
+                            errorLabel="Reference image unavailable"
                           />
-                        </Zoom>
+                        </div>
                       ) : (
                         <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
@@ -1780,13 +1850,13 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
       />
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
         {previewUrl ? (
-          <Zoom>
-            <img
-              src={previewUrl}
-              alt={request.flashTitle || "Requested flash design"}
-              className="h-full w-full object-cover"
-            />
-          </Zoom>
+          <LoadAwareZoomImage
+            src={previewUrl}
+            alt={request.flashTitle || "Requested flash design"}
+            className="h-full w-full object-cover"
+            loadingLabel="Loading flash"
+            errorLabel="Flash image unavailable"
+          />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
             <ImageIcon size={34} />
