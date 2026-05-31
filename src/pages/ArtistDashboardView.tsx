@@ -728,10 +728,6 @@ const ArtistDashboardView = () => {
       });
     };
 
-    const countActiveBookings = (docs: { data: () => Record<string, unknown> }[]) =>
-      docs.filter((bookingDoc) => !isActiveSessionBooking(bookingDoc.data()))
-        .length;
-
     const unsubs = [
       onSnapshot(
         query(
@@ -760,7 +756,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "pending_payment")
         ),
-        (snap) => updateCount("pending", countActiveBookings(snap.docs)),
+        (snap) => updateCount("pending", snap.size),
         (error) =>
           console.error("Artist pending booking count listener failed:", error)
       ),
@@ -770,7 +766,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "confirmed")
         ),
-        (snap) => updateCount("confirmed", countActiveBookings(snap.docs)),
+        (snap) => updateCount("confirmed", snap.size),
         (error) =>
           console.error(
             "Artist confirmed booking count listener failed:",
@@ -783,7 +779,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "deposit_paid")
         ),
-        (snap) => updateCount("deposit_paid", countActiveBookings(snap.docs)),
+        (snap) => updateCount("deposit_paid", snap.size),
         (error) =>
           console.error(
             "Artist deposit-paid booking count listener failed:",
@@ -796,7 +792,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "paid")
         ),
-        (snap) => updateCount("paid", countActiveBookings(snap.docs)),
+        (snap) => updateCount("paid", snap.size),
         (error) =>
           console.error("Artist paid booking count listener failed:", error)
       ),
@@ -806,7 +802,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "cancelled")
         ),
-        (snap) => updateCount("cancelled", countActiveBookings(snap.docs)),
+        (snap) => updateCount("cancelled", snap.size),
         (error) =>
           console.error(
             "Artist cancelled booking count listener failed:",
@@ -870,9 +866,7 @@ const ArtistDashboardView = () => {
             : activeTab === "projects"
             ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
             : rawBookings.filter(
-                (booking) =>
-                  !isActiveSessionBooking(booking) &&
-                  getBookingStatusFilterValue(booking) !== "all"
+                (booking) => getBookingStatusFilterValue(booking) !== "all"
               );
 
         const clientIds = Array.from(
@@ -2044,12 +2038,12 @@ const ArtistBookingsTable = ({
   onStart: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(210px,1.12fr) 96px minmax(150px,.72fr) minmax(190px,.95fr) minmax(210px,1.1fr) minmax(190px,.82fr)";
+    "minmax(200px,1.02fr) 88px minmax(135px,.62fr) minmax(155px,.72fr) minmax(170px,.75fr) minmax(190px,.96fr) minmax(176px,.76fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1120px]">
+        <div className="min-w-[1210px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -2057,6 +2051,7 @@ const ArtistBookingsTable = ({
             <span>Client</span>
             <span>Sample</span>
             <span>Status</span>
+            <span>Session</span>
             <span>Price | Deposit</span>
             <span>Scheduled</span>
             <span className="text-right">Actions</span>
@@ -2093,13 +2088,7 @@ const ArtistBookingRow = ({
     booking.selectedDate?.date && booking.selectedDate?.time
       ? formatBookingAppointment(booking.selectedDate)
       : "No date set";
-  const canStartSession =
-    ["confirmed", "deposit_paid"].includes(booking.status) &&
-    booking.status !== "pending_payment" &&
-    !isActiveSessionBooking(booking) &&
-    ["not_started", "awaiting_next_session", undefined].includes(
-      booking.sessionStatus
-    );
+  const canStartSession = canStartBookingSession(booking);
 
   return (
     <div
@@ -2145,7 +2134,11 @@ const ArtistBookingRow = ({
         )}
       </button>
 
-      <BookingStatusBadge status={booking.status} />
+      <div className="pr-3">
+        <BookingStatusBadge status={booking.status} />
+      </div>
+
+      <BookingSessionCell booking={booking} />
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
@@ -3254,6 +3247,31 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
   );
 };
 
+const BookingSessionCell = ({ booking }: { booking: DashboardBooking }) => {
+  const session = getBookingSessionDisplay(booking);
+  const toneClass =
+    session.tone === "emerald"
+      ? "text-emerald-200"
+      : session.tone === "sky"
+      ? "text-sky-200"
+      : session.tone === "amber"
+      ? "text-amber-200"
+      : session.tone === "red"
+      ? "text-red-200"
+      : "text-neutral-400";
+
+  return (
+    <div className="min-w-0 pr-4">
+      <p className="truncate text-sm font-semibold text-white">
+        {session.primary}
+      </p>
+      <p className={`mt-1 truncate text-xs font-medium ${toneClass}`}>
+        {session.secondary}
+      </p>
+    </div>
+  );
+};
+
 const SessionPaymentSummary = ({
   primaryLabel,
   primaryAmount,
@@ -3402,6 +3420,68 @@ const getEstimatedSessionCount = (booking: Partial<Booking>) =>
 
 const getActiveSessionNumber = (booking: Partial<Booking>) =>
   Math.max(Number(booking.activeSessionNumber || 1), 1);
+
+const getCompletedSessionCount = (booking: Partial<Booking>) =>
+  Math.max(Number(booking.completedSessionCount || 0), 0);
+
+const isBookingFullyCompleted = (booking: Partial<Booking>) => {
+  const sessionCount = getEstimatedSessionCount(booking);
+  const completedCount = getCompletedSessionCount(booking);
+
+  return booking.sessionStatus === "completed" || completedCount >= sessionCount;
+};
+
+const getDisplaySessionNumber = (booking: Partial<Booking>) => {
+  const sessionCount = getEstimatedSessionCount(booking);
+  const completedCount = Math.min(getCompletedSessionCount(booking), sessionCount);
+
+  if (isBookingFullyCompleted(booking)) return sessionCount;
+  if (booking.sessionStatus === "awaiting_next_session") {
+    return Math.min(completedCount + 1, sessionCount);
+  }
+
+  return Math.min(getActiveSessionNumber(booking), sessionCount);
+};
+
+const getBookingSessionDisplay = (booking: Partial<Booking>) => {
+  const primary = `Session ${getDisplaySessionNumber(booking)} of ${getEstimatedSessionCount(booking)}`;
+
+  if (booking.status === "cancelled") {
+    return { primary, secondary: "Cancelled", tone: "red" as const };
+  }
+
+  if (booking.status === "pending_payment") {
+    return { primary, secondary: "Waiting on payment", tone: "amber" as const };
+  }
+
+  if (booking.sessionStatus === "in_progress") {
+    return { primary, secondary: "In progress", tone: "sky" as const };
+  }
+
+  if (isBookingFullyCompleted(booking)) {
+    return { primary, secondary: "All sessions complete", tone: "emerald" as const };
+  }
+
+  if (booking.sessionStatus === "awaiting_next_session") {
+    return { primary, secondary: "Next session ready", tone: "emerald" as const };
+  }
+
+  return { primary, secondary: "Ready to start", tone: "emerald" as const };
+};
+
+const canStartBookingSession = (booking: Partial<Booking>) => {
+  if (!["confirmed", "deposit_paid", "paid"].includes(String(booking.status))) {
+    return false;
+  }
+
+  if (booking.sessionStatus === "in_progress" || isBookingFullyCompleted(booking)) {
+    return false;
+  }
+
+  return ["not_started", "awaiting_next_session", undefined].includes(
+    booking.sessionStatus
+  );
+};
 
 const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
   const remaining = getDashboardRemainingBalance(booking);
