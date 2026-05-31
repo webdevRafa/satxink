@@ -1182,6 +1182,46 @@ const useMobileModalActionDock = (isOpen: boolean) => {
   const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
 
   useEffect(() => {
+    if (!isOpen || !window.matchMedia("(max-width: 639px)").matches) return;
+
+    const scrollY = window.scrollY;
+    const bodyStyle = document.body.style;
+    const htmlStyle = document.documentElement.style;
+    const previousBodyPosition = bodyStyle.position;
+    const previousBodyTop = bodyStyle.top;
+    const previousBodyLeft = bodyStyle.left;
+    const previousBodyRight = bodyStyle.right;
+    const previousBodyWidth = bodyStyle.width;
+    const previousBodyOverflow = bodyStyle.overflow;
+    const previousBodyOverscroll = bodyStyle.overscrollBehavior;
+    const previousHtmlOverflow = htmlStyle.overflow;
+    const previousHtmlOverscroll = htmlStyle.overscrollBehavior;
+
+    htmlStyle.overflow = "hidden";
+    htmlStyle.overscrollBehavior = "none";
+    bodyStyle.position = "fixed";
+    bodyStyle.top = `-${scrollY}px`;
+    bodyStyle.left = "0";
+    bodyStyle.right = "0";
+    bodyStyle.width = "100%";
+    bodyStyle.overflow = "hidden";
+    bodyStyle.overscrollBehavior = "none";
+
+    return () => {
+      bodyStyle.position = previousBodyPosition;
+      bodyStyle.top = previousBodyTop;
+      bodyStyle.left = previousBodyLeft;
+      bodyStyle.right = previousBodyRight;
+      bodyStyle.width = previousBodyWidth;
+      bodyStyle.overflow = previousBodyOverflow;
+      bodyStyle.overscrollBehavior = previousBodyOverscroll;
+      htmlStyle.overflow = previousHtmlOverflow;
+      htmlStyle.overscrollBehavior = previousHtmlOverscroll;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
 
     if (!isOpen || !scrollContainer) {
@@ -1329,7 +1369,7 @@ const RequestDetailsDialog = ({
 
   return (
   <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -1339,14 +1379,14 @@ const RequestDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
       <div
         ref={scrollContainerRef}
-        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
       >
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -1541,7 +1581,7 @@ const FlashRequestDetailsDialog = ({
 
   return (
   <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -1551,14 +1591,14 @@ const FlashRequestDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
       <div
         ref={scrollContainerRef}
-        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
       >
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
