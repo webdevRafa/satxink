@@ -446,7 +446,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={closeSheetTitleModal}
-                      className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3! py-3! text-xs font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white min-[390px]:text-sm md:px-5!"
+                      className="min-w-0 rounded-lg border border-white/10 bg-white/5 px-3! py-2.5! text-xs font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white md:px-4!"
                       disabled={isUploadingSheet}
                     >
                       Cancel
@@ -454,7 +454,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     <button
                       type="button"
                       onClick={handleSubmitFlashSheet}
-                      className={`min-w-0 rounded-xl px-3! py-3! text-xs font-semibold transition disabled:cursor-not-allowed min-[390px]:text-sm md:px-5! ${
+                      className={`min-w-0 rounded-lg px-3! py-2.5! text-xs font-semibold transition disabled:cursor-not-allowed md:px-4! ${
                         canSaveSheetDetails && !isUploadingSheet
                           ? "bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.18),0_14px_32px_rgba(255,255,255,0.08)] hover:bg-zinc-200"
                           : "bg-white/55 text-zinc-500"

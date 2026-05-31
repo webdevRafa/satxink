@@ -159,7 +159,9 @@ const AnimatedTagInput = ({
         />
       </div>
       {helperText && (
-        <p className="mt-1.5 text-xs leading-5 text-zinc-500">{helperText}</p>
+        <p className="mt-1.5 text-[11px] leading-4 text-zinc-600">
+          {helperText}
+        </p>
       )}
     </div>
   );
