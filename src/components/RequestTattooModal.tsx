@@ -282,14 +282,14 @@ const RequestTattooModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md">
-      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-hidden bg-black/80 px-3 py-3 text-white backdrop-blur-md sm:px-4 sm:py-4 lg:py-5">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-2rem)] lg:max-h-[calc(100dvh-2.5rem)]">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
           <div className="flex items-center gap-4">
             <img
               src={artist.avatarUrl || "/default-avatar.png"}
               alt={artist.name}
-              className="h-14 w-14 rounded-full border border-white/15 object-cover"
+              className="h-12 w-12 rounded-full border border-white/15 object-cover"
             />
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -308,14 +308,14 @@ const RequestTattooModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
             aria-label="Close request modal"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="overflow-y-auto p-5 request-modal-scrollbar sm:p-6">
+        <div className="overflow-y-auto p-4 request-modal-scrollbar sm:p-5">
           {step === 1 && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
@@ -705,8 +705,8 @@ const CalendarRangePicker = ({
     formatDateInputValue(month) > formatDateInputValue(getMonthStart(new Date()));
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
+      <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
           onClick={() => onMonthChange(addMonths(month, -1))}
@@ -731,19 +731,16 @@ const CalendarRangePicker = ({
         {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
           <span
             key={`${day}-${index}`}
-            className="py-1 text-[10px]! font-semibold uppercase text-white/35"
+            className="py-0.5 text-[10px]! font-semibold uppercase text-white/35"
           >
             {day}
           </span>
         ))}
 
-        {calendarCells.map((date, index) => {
-          if (!date) {
-            return <span key={`empty-${index}`} className="h-9" />;
-          }
-
+        {calendarCells.map((date) => {
           const dateValue = formatDateInputValue(date);
           const isPast = dateValue < todayDateInput;
+          const isCurrentMonth = date.getMonth() === month.getMonth();
           const isStart = dateValue === start;
           const isEnd = dateValue === end;
           const isInRange = isDateInRange(dateValue, start, end);
@@ -755,11 +752,13 @@ const CalendarRangePicker = ({
               type="button"
               disabled={isPast}
               onClick={() => onSelectDate(date)}
-              className={`h-9 rounded-md p-0! text-xs! font-semibold transition disabled:cursor-not-allowed disabled:opacity-25 ${
+              className={`h-8 rounded-md p-0! text-xs! font-semibold transition disabled:cursor-not-allowed disabled:opacity-25 ${
                 isSelected
                   ? "bg-[#19d69b] text-black shadow-[0_0_20px_rgba(25,214,155,0.22)]"
-                  : isInRange
+                : isInRange
                   ? "bg-[#19d69b]/18 text-white"
+                : !isCurrentMonth
+                  ? "border border-white/5 bg-white/[0.015] text-white/32 hover:border-[#19d69b]/30 hover:bg-[#19d69b]/10 hover:text-white/80"
                   : "border border-white/10 bg-white/[0.025] text-white/70 hover:border-[#19d69b]/45 hover:bg-[#19d69b]/10 hover:text-white"
               }`}
             >
@@ -781,15 +780,14 @@ const addMonths = (date: Date, amount: number) =>
 const getCalendarCells = (month: Date) => {
   const firstDay = getMonthStart(month);
   const dayOffset = firstDay.getDay();
-  const daysInMonth = new Date(
-    firstDay.getFullYear(),
-    firstDay.getMonth() + 1,
-    0
-  ).getDate();
-  const cells: Array<Date | null> = Array.from({ length: dayOffset }, () => null);
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - dayOffset);
+  const cells: Date[] = [];
 
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(new Date(firstDay.getFullYear(), firstDay.getMonth(), day));
+  for (let index = 0; index < 42; index += 1) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + index);
+    cells.push(cellDate);
   }
 
   return cells;
