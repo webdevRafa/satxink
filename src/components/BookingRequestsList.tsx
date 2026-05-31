@@ -918,11 +918,6 @@ const RequestRow = ({
             ? formatFlashPrice(request.flashPrice)
             : formatBudget(request.budget)}
         </p>
-        {request.sourceType === "flash" && (
-          <p className="mt-1 truncate text-xs text-neutral-500">
-            {request.flashTitle || "Flash request"}
-          </p>
-        )}
         {isPreparingOffer && (
           <div className="mt-2 flex min-w-0">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[11px] font-medium text-amber-50">
