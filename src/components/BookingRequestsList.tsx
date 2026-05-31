@@ -1718,12 +1718,6 @@ const FlashRequestDetailsDialog = ({
                         </p>
                       </div>
 
-                      <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50/80">
-                        This request is tied to one listed flash design. The
-                        offer should use the listed flash price and a single
-                        appointment flow.
-                      </div>
-
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <button
                           type="button"
