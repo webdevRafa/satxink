@@ -1715,7 +1715,7 @@ const ArtistDashboardView = () => {
         {/* Booking cards */}
         {["bookings", "sessions", "projects"].includes(activeTab) && (
           <section className="mt-6 w-full max-w-7xl space-y-6">
-            <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h1 className="text-3xl! font-semibold text-white capitalize">
                   {activeTab === "bookings"
