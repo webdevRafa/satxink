@@ -1182,6 +1182,46 @@ const useMobileModalActionDock = (isOpen: boolean) => {
   const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
 
   useEffect(() => {
+    if (!isOpen || !window.matchMedia("(max-width: 639px)").matches) return;
+
+    const scrollY = window.scrollY;
+    const bodyStyle = document.body.style;
+    const htmlStyle = document.documentElement.style;
+    const previousBodyPosition = bodyStyle.position;
+    const previousBodyTop = bodyStyle.top;
+    const previousBodyLeft = bodyStyle.left;
+    const previousBodyRight = bodyStyle.right;
+    const previousBodyWidth = bodyStyle.width;
+    const previousBodyOverflow = bodyStyle.overflow;
+    const previousBodyOverscroll = bodyStyle.overscrollBehavior;
+    const previousHtmlOverflow = htmlStyle.overflow;
+    const previousHtmlOverscroll = htmlStyle.overscrollBehavior;
+
+    htmlStyle.overflow = "hidden";
+    htmlStyle.overscrollBehavior = "none";
+    bodyStyle.position = "fixed";
+    bodyStyle.top = `-${scrollY}px`;
+    bodyStyle.left = "0";
+    bodyStyle.right = "0";
+    bodyStyle.width = "100%";
+    bodyStyle.overflow = "hidden";
+    bodyStyle.overscrollBehavior = "none";
+
+    return () => {
+      bodyStyle.position = previousBodyPosition;
+      bodyStyle.top = previousBodyTop;
+      bodyStyle.left = previousBodyLeft;
+      bodyStyle.right = previousBodyRight;
+      bodyStyle.width = previousBodyWidth;
+      bodyStyle.overflow = previousBodyOverflow;
+      bodyStyle.overscrollBehavior = previousBodyOverscroll;
+      htmlStyle.overflow = previousHtmlOverflow;
+      htmlStyle.overscrollBehavior = previousHtmlOverscroll;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
 
     if (!isOpen || !scrollContainer) {
@@ -1246,6 +1286,7 @@ const MobileRequestActionDock = ({
   visible,
   isDeclining,
   primaryLabel,
+  showPrepareOffer = true,
   onDecline,
   onMakeOffer,
   onPrepareOffer,
@@ -1254,6 +1295,7 @@ const MobileRequestActionDock = ({
   visible: boolean;
   isDeclining: boolean;
   primaryLabel: string;
+  showPrepareOffer?: boolean;
   onDecline: (request: BookingRequest) => void;
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
@@ -1274,15 +1316,21 @@ const MobileRequestActionDock = ({
         <Send size={16} />
         {primaryLabel}
       </button>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => onPrepareOffer(request)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 transition hover:bg-amber-300/16"
-        >
-          <Send size={14} className="text-amber-200" />
-          Prepare
-        </button>
+      <div
+        className={`mt-2 grid gap-2 ${
+          showPrepareOffer ? "grid-cols-2" : "grid-cols-1"
+        }`}
+      >
+        {showPrepareOffer && (
+          <button
+            type="button"
+            onClick={() => onPrepareOffer(request)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+          >
+            <Send size={14} className="text-amber-200" />
+            Prepare
+          </button>
+        )}
         <button
           type="button"
           disabled={isDeclining}
@@ -1329,7 +1377,7 @@ const RequestDetailsDialog = ({
 
   return (
   <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -1339,14 +1387,14 @@ const RequestDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
       <div
         ref={scrollContainerRef}
-        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
       >
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -1541,7 +1589,7 @@ const FlashRequestDetailsDialog = ({
 
   return (
   <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -1551,14 +1599,14 @@ const FlashRequestDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
       <div
         ref={scrollContainerRef}
-        className="fixed inset-0 overflow-y-auto request-modal-scrollbar"
+        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
       >
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -1568,7 +1616,7 @@ const FlashRequestDetailsDialog = ({
             leaveFrom="scale-100 opacity-100"
             leaveTo="scale-95 opacity-0"
           >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
               {request && (
                 <>
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
@@ -1590,8 +1638,8 @@ const FlashRequestDetailsDialog = ({
                     </button>
                   </div>
 
-                  <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
-                    <div className="border-b border-white/10 bg-black/40 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                  <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="flex items-start justify-center border-b border-white/10 bg-black/35 p-5 lg:border-b-0 lg:border-r lg:p-6">
                       <FlashRequestPreviewCard request={request} />
                     </div>
 
@@ -1687,14 +1735,6 @@ const FlashRequestDetailsDialog = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onPrepareOffer(request)}
-                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
-                        >
-                          <Send size={16} className="text-amber-200" />
-                          Prepare offer
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => onMakeOffer(request)}
                           className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
                         >
@@ -1714,6 +1754,7 @@ const FlashRequestDetailsDialog = ({
               visible={mobileActionsVisible}
               isDeclining={isDeclining}
               primaryLabel="Make flash offer"
+              showPrepareOffer={false}
               onDecline={onDecline}
               onMakeOffer={onMakeOffer}
               onPrepareOffer={onPrepareOffer}
@@ -1730,8 +1771,8 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
-      <div className="relative aspect-[4/5] bg-black">
+    <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
         {previewUrl ? (
           <Zoom>
             <img
@@ -1746,28 +1787,14 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
             <span>No flash image available</span>
           </div>
         )}
-        <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3! py-1.5! text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
           Flash item
         </span>
       </div>
-      <div className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg! font-semibold! text-white">
-              {request.flashTitle || "Untitled flash"}
-            </h3>
-            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
-              {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
-            </p>
-          </div>
-          <p className="shrink-0 text-lg font-semibold text-white">
-            {formatFlashPrice(request.flashPrice)}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <InfoPill icon={<MapPin size={14} />} label={request.bodyPlacement} />
-          <InfoPill icon={<Ruler size={14} />} label={request.size} />
-        </div>
+      <div className="px-1 pt-4">
+        <h3 className="truncate text-lg! font-semibold! text-white">
+          {request.flashTitle || "Untitled flash"}
+        </h3>
       </div>
     </div>
   );
@@ -1789,19 +1816,6 @@ const DetailTile = ({
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
-);
-
-const InfoPill = ({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label?: string | number;
-}) => (
-  <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-    <span className="text-neutral-500">{icon}</span>
-    <span className="truncate">{label || "Not set"}</span>
-  </span>
 );
 
 const EmptyRequests = ({ isFiltering }: { isFiltering: boolean }) => (
