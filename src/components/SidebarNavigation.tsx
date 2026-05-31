@@ -35,7 +35,7 @@ const SidebarNavigation: FC<SidebarProps> = ({
     { key: "requests", label: "Requests" },
     { key: "offers", label: "Offers" },
     { key: "bookings", label: "Bookings" },
-    { key: "sessions", label: "Sessions" },
+    { key: "sessions", label: "Session" },
     { key: "projects", label: "Projects" },
     { key: "flashes", label: "Flash Studio" },
     { key: "gallery", label: "Gallery" },

@@ -959,7 +959,8 @@ const ArtistDashboardView = () => {
           )
         : bookings;
     const normalizedSearch = bookingSearchTerm.trim().toLowerCase();
-    const filteredBookings = normalizedSearch
+    const shouldApplySearch = activeTab !== "sessions" && Boolean(normalizedSearch);
+    const filteredBookings = shouldApplySearch
       ? statusFilteredBookings.filter((booking) => {
           const dashboardBooking = booking as DashboardBooking;
           const clientName =
@@ -984,6 +985,10 @@ const ArtistDashboardView = () => {
       return compareUpcomingBookings(a, b);
     });
   }, [activeTab, bookings, bookingSearchTerm, bookingSortMode, bookingStatusFilter]);
+  const hasActiveSessionInProgress = useMemo(
+    () => bookings.some((booking) => booking.sessionStatus === "in_progress"),
+    [bookings]
+  );
 
   const updateSessionRecord = async (
     booking: DashboardBooking,
@@ -1715,7 +1720,7 @@ const ArtistDashboardView = () => {
                   {activeTab === "bookings"
                     ? "Bookings"
                     : activeTab === "sessions"
-                    ? "Active sessions"
+                    ? "Active Session"
                     : activeTab === "projects"
                     ? "Ongoing projects"
                     : "Bookings"}
@@ -1724,7 +1729,7 @@ const ArtistDashboardView = () => {
                   {activeTab === "bookings"
                     ? "Track accepted offers by payment stage, appointment status, and client readiness."
                     : activeTab === "sessions"
-                    ? "Manage started appointments, session records, in-shop balances, and completion notes."
+                    ? "Focus on the appointment that is currently in progress and close it out cleanly."
                     : activeTab === "projects"
                     ? "Track multi-session projects, progress, next-session balances, and payment status."
                     : "Review client appointments, payment status, studio details, and selected tattoo references."}
@@ -1764,7 +1769,7 @@ const ArtistDashboardView = () => {
                   {activeTab === "bookings"
                     ? "No bookings yet"
                     : activeTab === "sessions"
-                    ? "No active sessions yet"
+                    ? "No active session"
                     : activeTab === "projects"
                     ? "No ongoing projects yet"
                     : "No bookings yet"}
@@ -1773,7 +1778,7 @@ const ArtistDashboardView = () => {
                   {activeTab === "bookings"
                     ? "Once clients accept offers, their bookings will collect here by payment and appointment stage."
                     : activeTab === "sessions"
-                    ? "Start a session from a confirmed booking and it will move here for completion, balance confirmation, and photos."
+                    ? "Start a session from Bookings when the appointment begins. It will appear here until the session is complete."
                     : activeTab === "projects"
                     ? "When an accepted booking is marked as a multi-session project, it will appear here with progress and balance details."
                     : "When a client reaches this booking stage, their appointment details will appear here."}
@@ -1866,7 +1871,7 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : activeTab === "sessions" ? null : (
                   <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:flex-row lg:items-center lg:justify-between">
                     <label className="relative min-w-0 flex-1 lg:max-w-md">
                       <Search
@@ -1914,7 +1919,7 @@ const ArtistDashboardView = () => {
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                       Try another client name or clear the search to return to
-                      all {activeTab === "bookings" ? (bookingStatusFilter === "all" ? "bookings" : `${activeBookingFilterLabel.toLowerCase()} bookings`) : activeTab === "sessions" ? "sessions" : activeTab === "projects" ? "projects" : "bookings"}.
+                      all {activeTab === "bookings" ? (bookingStatusFilter === "all" ? "bookings" : `${activeBookingFilterLabel.toLowerCase()} bookings`) : activeTab === "sessions" ? "active session records" : activeTab === "projects" ? "projects" : "bookings"}.
                     </p>
                   </div>
                 ) : activeTab === "sessions" ? (
@@ -1935,6 +1940,7 @@ const ArtistDashboardView = () => {
                     bookings={visibleBookings as DashboardBooking[]}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onStart={(booking) => setBookingToStart(booking)}
+                    hasActiveSession={hasActiveSessionInProgress}
                   />
                 )}
               </>
@@ -1988,6 +1994,7 @@ const ArtistDashboardView = () => {
           booking={selectedBookingRecord}
           onClose={() => setSelectedBookingRecord(null)}
           isSessionView={activeTab === "sessions"}
+          hasActiveSession={hasActiveSessionInProgress}
           onSessionStarted={() => {
             setSelectedBookingRecord(null);
             setActiveTab("sessions");
@@ -2032,10 +2039,12 @@ const ArtistBookingsTable = ({
   bookings,
   onOpenRecord,
   onStart,
+  hasActiveSession,
 }: {
   bookings: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
   onStart: (booking: DashboardBooking) => void;
+  hasActiveSession: boolean;
 }) => {
   const columns =
     "minmax(200px,1.02fr) 88px minmax(135px,.62fr) minmax(155px,.72fr) minmax(170px,.75fr) minmax(190px,.96fr) minmax(176px,.76fr)";
@@ -2064,6 +2073,7 @@ const ArtistBookingsTable = ({
                 columns={columns}
                 onOpenRecord={() => onOpenRecord(booking)}
                 onStart={() => onStart(booking)}
+                hasActiveSession={hasActiveSession}
               />
             ))}
           </div>
@@ -2078,17 +2088,19 @@ const ArtistBookingRow = ({
   columns,
   onOpenRecord,
   onStart,
+  hasActiveSession,
 }: {
   booking: DashboardBooking;
   columns: string;
   onOpenRecord: () => void;
   onStart: () => void;
+  hasActiveSession: boolean;
 }) => {
   const appointmentLabel =
     booking.selectedDate?.date && booking.selectedDate?.time
       ? formatBookingAppointment(booking.selectedDate)
       : "No date set";
-  const canStartSession = canStartBookingSession(booking);
+  const canStartSession = canStartBookingSession(booking) && !hasActiveSession;
 
   return (
     <div
@@ -2294,22 +2306,20 @@ const SessionsTable = ({
   onBalancePaid: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(190px,1.15fr) 78px minmax(170px,.95fr) minmax(190px,1fr) minmax(150px,.82fr) minmax(190px,1fr) minmax(172px,.78fr)";
+    "minmax(290px,1.15fr) minmax(170px,.7fr) minmax(230px,.9fr) minmax(230px,.9fr) minmax(180px,.72fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1140px]">
+        <div className="min-w-[1100px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
           >
-            <span>Client</span>
-            <span>Created</span>
+            <span>Client / Reference</span>
             <span>Session</span>
-            <span>Payment</span>
-            <span>Scheduled</span>
-            <span>Location</span>
+            <span>Appointment</span>
+            <span>Balance</span>
             <span className="text-right">Actions</span>
           </div>
 
@@ -2321,6 +2331,7 @@ const SessionsTable = ({
               const isMultiSession = isDashboardMultiSessionBooking(booking);
               const activeSessionNumber = getActiveSessionNumber(booking);
               const sessionCount = getEstimatedSessionCount(booking);
+              const sessionLabel = `Session ${activeSessionNumber} of ${sessionCount}`;
               const remainingPaymentStatus =
                 booking.remainingPaymentStatus || "due";
               const remainingBalance = getDashboardRemainingBalance(booking);
@@ -2343,51 +2354,56 @@ const SessionsTable = ({
                   className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
                   style={{ gridTemplateColumns: columns }}
                 >
-                  <div className="flex min-w-0 items-center gap-3 pr-3">
-                    <img
-                      src={clientAvatar}
-                      alt={clientName}
-                      className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-white">
-                        {clientName}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-neutral-500 uppercase tracking-[0.12em]">
-                        Booking {getShortBookingId(booking.id)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="pr-3 text-sm text-neutral-300">
-                    {formatDashboardDate(booking.createdAt)}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenRecord(booking)}
+                    className="flex min-w-0 items-center gap-3 pr-4 text-left"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <img
+                        src={clientAvatar}
+                        alt={clientName}
+                        className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-white">
+                          {clientName}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs uppercase tracking-[0.12em] text-neutral-500">
+                          Booking {getShortBookingId(booking.id)}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="ml-auto hidden h-14 w-16 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] sm:block">
+                      {booking.sampleImageUrl ? (
+                        <img
+                          src={booking.sampleImageUrl}
+                          alt="Session reference"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-neutral-500">
+                          <ImageIcon size={17} />
+                        </span>
+                      )}
+                    </span>
+                  </button>
 
                   <div className="flex min-w-0 flex-col items-start gap-2 pr-3">
                     <SessionStatusBadge status={sessionStatus} />
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
-                      Session {activeSessionNumber} of {sessionCount}
+                      {sessionLabel}
                     </span>
-                    <RemainingPaymentBadge
-                      status={remainingPaymentStatus}
-                      viewer="artist"
-                    />
+                    <span className="text-xs font-medium text-neutral-500">
+                      {isMultiSession ? "Multi-session project" : "Single appointment"}
+                    </span>
                   </div>
 
-                  <SessionPaymentSummary
-                    primaryLabel={isMultiSession ? "Due this session" : "Balance due"}
-                    primaryAmount={dueThisSession}
-                    remainingBalance={remainingBalance}
-                    depositAmount={booking.depositAmount}
-                    totalAmount={booking.price}
-                  />
-
-                  <span className="pr-3 text-sm font-medium leading-5 text-neutral-300">
-                    {formatBookingAppointment(booking.selectedDate)}
-                  </span>
-
                   <div className="min-w-0 pr-3">
-                    <p className="truncate text-sm font-semibold text-white">
+                    <p className="truncate text-sm font-semibold text-neutral-100">
+                      {formatBookingAppointment(booking.selectedDate)}
+                    </p>
+                    <p className="mt-1 truncate text-sm text-neutral-400">
                       {booking.shopName || "Private Studio"}
                     </p>
                     <p className="mt-1 truncate text-xs leading-5 text-neutral-500">
@@ -2395,35 +2411,47 @@ const SessionsTable = ({
                     </p>
                   </div>
 
+                  <div className="min-w-0 pr-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                      {isMultiSession ? "Due this session" : "Balance due"}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {formatDashboardMoney(dueThisSession)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <RemainingPaymentBadge
+                        status={remainingPaymentStatus}
+                        viewer="artist"
+                      />
+                      <span className="text-xs text-neutral-500">
+                        {formatDashboardMoney(remainingBalance)} remaining
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col items-stretch justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={!canStart && !canComplete}
-                      onClick={() =>
-                        canStart ? onStart(booking) : onComplete(booking)
-                      }
-                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      {canStart ? <CalendarDays size={14} /> : <Check size={14} />}
-                      {canStart
-                        ? "Start"
-                        : sessionStatus === "completed"
-                        ? "Done"
-                        : "Complete"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canMarkBalancePaid}
-                      onClick={() => onBalancePaid(booking)}
-                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      <DollarSign size={14} />
-                      {remainingPaymentStatus === "artist_confirmed"
-                        ? "Marked"
-                        : remainingPaymentStatus === "confirmed"
-                        ? "Paid"
-                        : "Mark paid"}
-                    </button>
+                    {(canStart || canComplete) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          canStart ? onStart(booking) : onComplete(booking)
+                        }
+                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                      >
+                        {canStart ? <CalendarDays size={14} /> : <Check size={14} />}
+                        {canStart ? "Start session" : "Complete session"}
+                      </button>
+                    )}
+                    {canMarkBalancePaid && (
+                      <button
+                        type="button"
+                        onClick={() => onBalancePaid(booking)}
+                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2.5! py-2! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                      >
+                        <DollarSign size={14} />
+                        Balance paid
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
@@ -2606,7 +2634,7 @@ const ConfirmStartSessionDialog = ({
             )}
 
             <p className="mt-4 text-sm leading-6 text-neutral-400">
-              This moves the booking into Active Sessions so you can complete
+              This moves the booking into the Session workspace so you can complete
               the session record, add photos, and manage any remaining balance.
             </p>
 
@@ -2638,11 +2666,13 @@ const BookingRecordDialog = ({
   booking,
   onClose,
   isSessionView,
+  hasActiveSession,
   onSessionStarted,
 }: {
   booking: DashboardBooking | null;
   onClose: () => void;
   isSessionView: boolean;
+  hasActiveSession: boolean;
   onSessionStarted: () => void;
 }) => {
   const [sessionStatus, setSessionStatus] =
@@ -2690,6 +2720,7 @@ const BookingRecordDialog = ({
     : 0;
   const canStartSession =
     booking?.status !== "pending_payment" &&
+    !hasActiveSession &&
     (sessionStatus === "not_started" ||
       sessionStatus === "awaiting_next_session");
   const showSessionWorkspace =
@@ -3054,7 +3085,7 @@ const BookingRecordDialog = ({
                                     ? usesExternalRemaining
                                       ? "after the client pays you directly."
                                       : "through the client's Stripe balance checkout."
-                                    : "payment from the Sessions section."}
+                                    : "payment from the Session section."}
                                 </p>
                               </div>
                               <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
@@ -3271,45 +3302,6 @@ const BookingSessionCell = ({ booking }: { booking: DashboardBooking }) => {
     </div>
   );
 };
-
-const SessionPaymentSummary = ({
-  primaryLabel,
-  primaryAmount,
-  remainingBalance,
-  depositAmount,
-  totalAmount,
-}: {
-  primaryLabel: string;
-  primaryAmount: number;
-  remainingBalance: number;
-  depositAmount?: number;
-  totalAmount?: number;
-}) => (
-  <div className="pr-3">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-      {primaryLabel}
-    </p>
-    <p className="mt-1 text-base font-semibold text-white">
-      {formatDashboardMoney(primaryAmount)}
-    </p>
-    <div className="mt-2 space-y-1 text-xs text-neutral-500">
-      <div className="flex items-center justify-between gap-3">
-        <span>Remaining</span>
-        <span className="font-medium text-neutral-300">
-          {formatDashboardMoney(remainingBalance)}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <span>Deposit paid</span>
-        <span>{formatDashboardMoney(depositAmount)}</span>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <span>Total</span>
-        <span>{formatDashboardMoney(totalAmount)}</span>
-      </div>
-    </div>
-  </div>
-);
 
 const SessionStatusBadge = ({
   status,
@@ -3635,10 +3627,19 @@ const getBookingCreatedTime = (booking: Booking) => {
   return 0;
 };
 
-const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unknown>) =>
-  booking.sessionStatus === "in_progress" ||
-  booking.sessionStatus === "completed" ||
-  booking.sessionStatus === "awaiting_next_session";
+const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unknown>) => {
+  if (booking.sessionStatus === "in_progress") return true;
+
+  if (booking.sessionStatus !== "completed") return false;
+
+  const typedBooking = booking as Partial<Booking>;
+  const remainingPaymentStatus = String(typedBooking.remainingPaymentStatus || "");
+
+  return (
+    getDashboardRemainingBalance(typedBooking) > 0 &&
+    remainingPaymentStatus !== "confirmed"
+  );
+};
 
 const isOngoingProjectBooking = (
   booking: Partial<Booking> | Record<string, unknown>
