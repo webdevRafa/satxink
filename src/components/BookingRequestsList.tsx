@@ -1771,7 +1771,19 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
 
   return (
-    <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+    <div className="relative isolate w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+      <div
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+        aria-hidden="true"
+      />
+      <span
+        className="spotlight-border-glint spotlight-border-glint--left"
+        aria-hidden="true"
+      />
+      <span
+        className="spotlight-border-glint spotlight-border-glint--right"
+        aria-hidden="true"
+      />
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
         {previewUrl ? (
           <Zoom>
