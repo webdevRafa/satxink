@@ -696,10 +696,10 @@ const RequestTable = ({
       </div>
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
-        <div className="request-modal-scrollbar overflow-x-auto rounded-lg">
+        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
           <div className="min-w-[1240px]">
             <div
-              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-16 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Created</span>
