@@ -315,25 +315,6 @@ const RequestTattooModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="grid border-b border-white/10 bg-black/20 px-5 py-3 text-sm text-white/55 sm:grid-cols-2 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                step === 1 ? "bg-[#19d69b]" : "bg-white/30"
-              }`}
-            />
-            Details
-          </div>
-          <div className="mt-2 flex items-center gap-2 sm:mt-0">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                step === 2 ? "bg-[#19d69b]" : "bg-white/30"
-              }`}
-            />
-            Schedule
-          </div>
-        </div>
-
         <div className="overflow-y-auto p-5 request-modal-scrollbar sm:p-6">
           {step === 1 && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
