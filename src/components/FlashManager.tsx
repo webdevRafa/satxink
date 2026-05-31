@@ -270,7 +270,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           </div>
         </div>
 
-        <div className="grid gap-2.5 p-2.5 md:p-3 lg:w-fit lg:grid-cols-[20rem_minmax(0,27rem)] lg:items-start">
+        <div className="grid gap-2.5 p-2.5 md:p-3 lg:w-fit lg:grid-cols-[20rem_minmax(0,32rem)] lg:items-start">
           <div className="grid grid-cols-2 gap-1.5 md:gap-2 lg:w-80">
             <ModeCard
               active={mode === "individual"}
@@ -287,7 +287,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
           </div>
 
           <div className="p-0">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-start sm:gap-3">
               <div className="flex min-w-0 items-start gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-300 md:h-8 md:w-8">
                   {mode === "individual" ? (
@@ -314,7 +314,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 <button
                   type="button"
                   onClick={openIndividualUpload}
-                  className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 md:h-8"
+                  className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white p-2! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/90 disabled:text-neutral-900! disabled:opacity-100 sm:w-[9.75rem]"
                   disabled={!stripeReady}
                 >
                   <Upload size={15} className="text-current" />
@@ -322,7 +322,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 </button>
               ) : (
                 <label
-                  className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 md:h-8 ${
+                  className={`inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white p-2! text-xs! font-bold text-neutral-950! shadow-sm transition hover:bg-white/85 sm:w-[9.75rem] ${
                     stripeReady
                       ? "cursor-pointer"
                       : "cursor-not-allowed bg-white/90 text-neutral-900! opacity-100"
