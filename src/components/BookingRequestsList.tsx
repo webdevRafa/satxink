@@ -1335,7 +1335,7 @@ const MobileRequestActionDock = ({
           type="button"
           disabled={isDeclining}
           onClick={() => onDecline(request)}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center rounded-md border border-red-300/20 bg-red-500/[0.06] px-3! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isDeclining ? "Declining..." : "Decline"}
         </button>
@@ -1594,7 +1594,7 @@ const RequestDetailsDialog = ({
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
@@ -1793,7 +1793,7 @@ const FlashRequestDetailsDialog = ({
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
