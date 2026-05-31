@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Flash } from "../types/Flash";
-import { formatTagsInput, parseTags } from "../utils/tags";
 import { DollarSign, Save, Tag, Trash2, X } from "lucide-react";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type Props = {
   flash: Flash;
@@ -18,7 +18,7 @@ type Props = {
 const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
-  const [tagsInput, setTagsInput] = useState(formatTagsInput(flash.tags));
+  const [tags, setTags] = useState<string[]>(flash.tags || []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
@@ -76,18 +76,17 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               />
             </label>
 
-            <label className="block">
-              <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                <Tag size={16} />
-                Tags
-              </span>
-              <input
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                placeholder="traditional, rose, blackwork"
-              />
-            </label>
+            <AnimatedTagInput
+              value={tags}
+              onChange={setTags}
+              label={
+                <>
+                  <Tag size={16} />
+                  Tags
+                </>
+              }
+              emptyPlaceholder="traditional, rose, blackwork"
+            />
           </div>
 
           <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -118,7 +117,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                     flash.id,
                     title,
                     price ? parseFloat(price) : null,
-                    parseTags(tagsInput)
+                    tags
                   )
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"

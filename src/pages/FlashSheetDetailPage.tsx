@@ -28,8 +28,8 @@ import {
 import { getDownloadURL, ref } from "firebase/storage";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import { parseTags } from "../utils/tags";
 import EditFlashModal from "../components/EditFlashModal";
+import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (
@@ -110,7 +110,7 @@ const FlashSheetDetailPage = () => {
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
-  const [newFlashTags, setNewFlashTags] = useState("");
+  const [newFlashTags, setNewFlashTags] = useState<string[]>([]);
 
   const sheetTags = useMemo(
     () => (Array.isArray(sheet?.tags) ? sheet.tags.slice(0, 5) : []),
@@ -199,13 +199,13 @@ const FlashSheetDetailPage = () => {
         crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
         price: parseOptionalPrice(newFlashPrice),
-        tags: parseTags(newFlashTags),
+        tags: newFlashTags,
       });
 
       setShowCropModal(false);
       setNewFlashTitle("");
       setNewFlashPrice("");
-      setNewFlashTags("");
+      setNewFlashTags([]);
       setCropArea(null);
       setZoom(1);
       if (id) fetchFlashes(id);
@@ -530,14 +530,14 @@ const CropFlashModal = ({
   cropArea: Area | null;
   title: string;
   price: string;
-  tags: string;
+  tags: string[];
   isPublishing: boolean;
   onCropChange: (value: { x: number; y: number }) => void;
   onZoomChange: (value: number) => void;
   onCropComplete: (croppedArea: Area, croppedAreaPixels: Area) => void;
   onTitleChange: (value: string) => void;
   onPriceChange: (value: string) => void;
-  onTagsChange: (value: string) => void;
+  onTagsChange: (value: string[]) => void;
   onClose: () => void;
   onPublish: () => void;
 }) => {
@@ -636,19 +636,17 @@ const CropFlashModal = ({
         />
       </label>
 
-      <label className="block">
-        <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-          <Tag size={16} />
-          Tags
-        </span>
-        <input
-          type="text"
-          value={tags}
-          onChange={(e) => onTagsChange(e.target.value)}
-          placeholder="anime, color, dragon"
-          className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-        />
-      </label>
+      <AnimatedTagInput
+        value={tags}
+        onChange={onTagsChange}
+        label={
+          <>
+            <Tag size={16} />
+            Tags
+          </>
+        }
+        emptyPlaceholder="anime, color, dragon"
+      />
     </>
   );
 

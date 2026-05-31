@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -25,7 +24,7 @@ import {
 } from "lucide-react";
 import UploadModal from "./UploadModal";
 import type { GalleryItem } from "../types/GalleryItem";
-import { parseTags } from "../utils/tags";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type SlideDirection = "next" | "prev";
 
@@ -720,62 +719,7 @@ const EditGalleryItemModal = ({
 }) => {
   const [caption, setCaption] = useState(item.caption || "");
   const [tags, setTags] = useState<string[]>(item.tags || []);
-  const [newTag, setNewTag] = useState("");
   const [warning, setWarning] = useState<string | null>(null);
-
-  const handleAddTags = (value = newTag) => {
-    const nextTags = parseTags(value);
-    if (nextTags.length === 0) return;
-
-    const availableSlots = 6 - tags.length;
-    if (availableSlots <= 0) {
-      setWarning("You can only add up to 6 tags.");
-      setNewTag("");
-      return;
-    }
-
-    const uniqueTags = nextTags.filter((tag) => !tags.includes(tag));
-    if (uniqueTags.length === 0) {
-      setNewTag("");
-      return;
-    }
-
-    const tagsToAdd = uniqueTags.slice(0, availableSlots);
-    setTags([...tags, ...tagsToAdd]);
-    setNewTag("");
-
-    if (uniqueTags.length > availableSlots) {
-      setWarning("You can only add up to 6 tags.");
-      return;
-    }
-
-    setWarning(null);
-  };
-
-  const handleTagInputChange = (value: string) => {
-    if (value.includes(",") || /\s$/.test(value)) {
-      handleAddTags(value);
-      return;
-    }
-
-    setNewTag(value);
-  };
-
-  const handleTagKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" || event.key === "," || event.key === " ") {
-      event.preventDefault();
-      handleAddTags();
-    }
-
-    if (event.key === "Backspace" && !newTag && tags.length > 0) {
-      setTags(tags.slice(0, -1));
-      setWarning(null);
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
-  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-6 backdrop-blur-xl request-modal-scrollbar sm:py-8">
@@ -816,49 +760,18 @@ const EditGalleryItemModal = ({
             />
           </label>
 
-          <div className="mt-4">
-            <span className="text-sm font-semibold text-zinc-300">Tags</span>
-            <div className="mt-2 flex min-h-11 flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/25 p-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="group flex min-h-8 max-w-[180px] items-center gap-1.5 truncate rounded-full border border-white/10 bg-white/[0.08] px-3! py-1! text-xs font-semibold text-white/80"
-                  title={tag}
-                >
-                  #{tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag)}
-                    className="text-white/35 transition hover:text-red-200 group-hover:text-red-200"
-                    aria-label={`Remove ${tag}`}
-                  >
-                    <X size={13} />
-                  </button>
-                </span>
-              ))}
-              <input
-                value={newTag}
-                onChange={(e) => handleTagInputChange(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={() => handleAddTags()}
-                className="min-w-[160px] flex-1 bg-transparent px-1 py-1 text-sm text-white outline-none placeholder:text-zinc-600"
-                placeholder={
-                  tags.length ? "Add another tag" : "Type a tag, then press comma or space"
-                }
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => handleAddTags()}
-              disabled={!newTag.trim()}
-              className="rounded-xl border border-white/10 bg-white/5 px-4! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
-            >
-              Add
-            </button>
-          </div>
+          <AnimatedTagInput
+            className="mt-4"
+            value={tags}
+            onChange={(nextTags) => {
+              setTags(nextTags);
+              setWarning(null);
+            }}
+            label="Tags"
+            maxTags={6}
+            onLimitExceeded={() => setWarning("You can only add up to 6 tags.")}
+            emptyPlaceholder="Type a tag, then press comma or space"
+          />
           {warning && <p className="mt-2 text-xs text-rose-200!">{warning}</p>}
 
           <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">

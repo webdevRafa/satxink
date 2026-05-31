@@ -29,12 +29,12 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import { parseTags } from "../utils/tags";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
 import UploadModal from "./UploadModal";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type FlashManagerProps = {
   uid: string;
@@ -63,7 +63,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
-  const [sheetTagsInput, setSheetTagsInput] = useState("");
+  const [sheetTags, setSheetTags] = useState<string[]>([]);
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
   const linkedFlashCount = useMemo(
@@ -72,7 +72,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   );
 
   const canSaveSheetDetails =
-    sheetTitleInput.trim().length > 0 && sheetTagsInput.trim().length > 0;
+    sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
 
@@ -178,7 +178,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const closeSheetTitleModal = () => {
     setShowSheetTitleModal(false);
     setSheetTitleInput("");
-    setSheetTagsInput("");
+    setSheetTags([]);
     setPendingSheetFile(null);
     setSheetImage(null);
   };
@@ -215,7 +215,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       const docRef = await addDoc(collection(db, "flashSheets"), {
         artistId: uid,
         title: sheetTitleInput.trim(),
-        tags: parseTags(sheetTagsInput),
+        tags: sheetTags,
         artistStripeConnectReady: true,
         marketplaceVisible: true,
         fileName: baseName,
@@ -226,7 +226,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       });
 
       setSheetTitleInput("");
-      setSheetTagsInput("");
+      setSheetTags([]);
       setPendingSheetFile(null);
       setSheetImage(null);
       setShowSheetTitleModal(false);
@@ -412,19 +412,18 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     />
                   </label>
 
-                  <label className="mt-4 block">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                      <Tag size={16} />
-                      Sheet tags
-                    </span>
-                    <input
-                      type="text"
-                      value={sheetTagsInput}
-                      onChange={(e) => setSheetTagsInput(e.target.value)}
-                      placeholder="anime, color, dragon"
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                    />
-                  </label>
+                  <AnimatedTagInput
+                    className="mt-4"
+                    value={sheetTags}
+                    onChange={setSheetTags}
+                    label={
+                      <>
+                        <Tag size={16} />
+                        Sheet tags
+                      </>
+                    }
+                    emptyPlaceholder="anime, color, dragon"
+                  />
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <div className="flex gap-3">

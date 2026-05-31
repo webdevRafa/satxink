@@ -12,10 +12,10 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { parseTags } from "../utils/tags";
 import type { FlashSheet } from "../types/FlashSheet";
 import CustomSelect from "./ui/CustomSelect";
 import type { SelectOption } from "../utils/timeOptions";
+import AnimatedTagInput from "./ui/AnimatedTagInput";
 
 type Props = {
   uid: string;
@@ -29,21 +29,6 @@ type Props = {
 };
 
 type SheetRelationshipMode = "standalone" | "existing";
-
-const mergeTags = (currentTags: string[], incomingTags: string[]) => {
-  const existing = new Set(currentTags.map((tag) => tag.toLowerCase()));
-  const merged = [...currentTags];
-
-  incomingTags.forEach((tag) => {
-    const normalized = tag.trim().replace(/^#/, "").toLowerCase();
-    if (normalized && !existing.has(normalized)) {
-      merged.push(normalized);
-      existing.add(normalized);
-    }
-  });
-
-  return merged;
-};
 
 const UploadModal: React.FC<Props> = ({
   uid,
@@ -61,7 +46,6 @@ const UploadModal: React.FC<Props> = ({
   const [captionOrTitle, setCaptionOrTitle] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [tagDraft, setTagDraft] = useState("");
   const [sheetRelationshipMode, setSheetRelationshipMode] =
     useState<SheetRelationshipMode>("standalone");
   const [selectedSheetId, setSelectedSheetId] = useState("");
@@ -104,7 +88,6 @@ const UploadModal: React.FC<Props> = ({
     setCaptionOrTitle("");
     setPriceInput("");
     setTags([]);
-    setTagDraft("");
     setSheetRelationshipMode("standalone");
     setSelectedSheetId("");
     setIsUploading(false);
@@ -123,52 +106,6 @@ const UploadModal: React.FC<Props> = ({
     reader.readAsDataURL(selected);
   };
 
-  const addTags = (rawValue: string) => {
-    const nextTags = parseTags(rawValue);
-    if (nextTags.length === 0) return;
-
-    setTags((currentTags) => mergeTags(currentTags, nextTags));
-  };
-
-  const handleTagDraftChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    if (!/[\s,]/.test(value)) {
-      setTagDraft(value);
-      return;
-    }
-
-    const parts = value.split(/[\s,]+/);
-    const endsWithSeparator = /[\s,]$/.test(value);
-    const completedParts = endsWithSeparator ? parts : parts.slice(0, -1);
-
-    addTags(completedParts.join(" "));
-    setTagDraft(endsWithSeparator ? "" : parts[parts.length - 1] || "");
-  };
-
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === "Enter" || e.key === "Tab") && tagDraft.trim()) {
-      e.preventDefault();
-      addTags(tagDraft);
-      setTagDraft("");
-      return;
-    }
-
-    if (e.key === "Backspace" && !tagDraft && tags.length > 0) {
-      setTags((currentTags) => currentTags.slice(0, -1));
-    }
-  };
-
-  const handleTagBlur = () => {
-    if (!tagDraft.trim()) return;
-    addTags(tagDraft);
-    setTagDraft("");
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setTags((currentTags) => currentTags.filter((tag) => tag !== tagToRemove));
-  };
-
   const handleFinalUpload = async () => {
     if (!canPublish || !croppedFile || isUploading) return;
     if (isFlashUpload && !artistStripeConnectReady) {
@@ -183,7 +120,6 @@ const UploadModal: React.FC<Props> = ({
       const ext = croppedFile.name.split(".").pop() || "jpg";
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
-      const uploadTags = mergeTags(tags, parseTags(tagDraft));
       const price = isFlashUpload && priceInput ? parseFloat(priceInput) : null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
@@ -193,7 +129,7 @@ const UploadModal: React.FC<Props> = ({
         caption: captionOrTitle || null,
         title: isFlashUpload ? captionOrTitle || "Untitled Flash" : null,
         price,
-        tags: uploadTags,
+        tags,
         artistStripeConnectReady: isFlashUpload
           ? artistStripeConnectReady
           : null,
@@ -335,44 +271,16 @@ const UploadModal: React.FC<Props> = ({
               </label>
             )}
 
-            <div>
-              <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                <Tag size={16} />
-                Tags
-              </span>
-              <div className="mt-2 flex min-h-[52px] w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3! py-2! transition focus-within:border-red-400/70">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="flash-upload-tag-pill inline-flex items-center gap-1.5 rounded-full border border-red-200/20 bg-red-500/10 px-2.5! py-1.5! text-xs font-semibold text-red-100"
-                  >
-                    #{tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="rounded-full p-0.5! text-red-100/70 transition hover:bg-white/10 hover:text-white"
-                      aria-label={`Remove ${tag} tag`}
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  placeholder={
-                    tags.length > 0 ? "Add another" : "dragon, color, anime"
-                  }
-                  value={tagDraft}
-                  onChange={handleTagDraftChange}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={handleTagBlur}
-                  className="min-w-[9rem] flex-1 bg-transparent px-1! py-1.5! text-sm text-white outline-none placeholder:text-zinc-600"
-                />
-              </div>
-              <p className="mt-1.5 text-xs leading-5 text-zinc-500">
-                Press space or comma to create a tag.
-              </p>
-            </div>
+            <AnimatedTagInput
+              value={tags}
+              onChange={setTags}
+              label={
+                <>
+                  <Tag size={16} />
+                  Tags
+                </>
+              }
+            />
 
             {isFlashUpload && allowSheetLink && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
