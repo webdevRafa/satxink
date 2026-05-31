@@ -511,7 +511,7 @@ const OffersTable = ({
             >
               <span>Client</span>
               <span>Sample</span>
-              <span>Pricing</span>
+              <span>Price | Deposit</span>
               <span>Schedule</span>
               <span>Status</span>
               <span className="text-right">Actions</span>
@@ -684,10 +684,8 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          ${offer.price}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          Deposit {formatDeposit(offer)}
+          ${offer.price} <span className="text-neutral-600">|</span>{" "}
+          {formatDeposit(offer)}
         </p>
       </div>
 

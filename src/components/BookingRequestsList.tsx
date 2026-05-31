@@ -830,6 +830,7 @@ const RequestRow = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const canPrepareOffer = request.sourceType !== "flash";
 
   return (
     <div
@@ -942,26 +943,28 @@ const RequestRow = ({
       </div>
 
       <div className="flex min-w-0 items-center justify-end gap-1.5 pr-0">
-        <button
-          type="button"
-          onClick={onPrepareOffer}
-          className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
-            isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
-          }`}
-          aria-label={
-            isPreparingOffer
-              ? "Update offer preparation timing"
-              : "Prepare offer and notify client"
-          }
-        >
-          <Send size={14} className="text-amber-200" />
-          {isPreparingOffer ? "Timing" : "Prepare"}
-          <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
-            {isPreparingOffer
-              ? "Update when the client should expect your offer."
-              : "Let the client know you are preparing an offer."}
-          </span>
-        </button>
+        {canPrepareOffer && (
+          <button
+            type="button"
+            onClick={onPrepareOffer}
+            className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
+              isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
+            }`}
+            aria-label={
+              isPreparingOffer
+                ? "Update offer preparation timing"
+                : "Prepare offer and notify client"
+            }
+          >
+            <Send size={14} className="text-amber-200" />
+            {isPreparingOffer ? "Timing" : "Prepare"}
+            <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+              {isPreparingOffer
+                ? "Update when the client should expect your offer."
+                : "Let the client know you are preparing an offer."}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpen}
@@ -996,6 +999,7 @@ const RequestMobileCard = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const canPrepareOffer = request.sourceType !== "flash";
   const budgetLabel =
     request.sourceType === "flash"
       ? formatFlashPrice(request.flashPrice)
@@ -1079,15 +1083,21 @@ const RequestMobileCard = ({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-3">
-        <button
-          type="button"
-          onClick={onPrepareOffer}
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
-        >
-          <Send size={13} className="text-amber-200" />
-          {isPreparingOffer ? "Timing" : "Prepare"}
-        </button>
+      <div
+        className={`grid gap-2 border-t border-white/10 p-3 ${
+          canPrepareOffer ? "grid-cols-3" : "grid-cols-2"
+        }`}
+      >
+        {canPrepareOffer && (
+          <button
+            type="button"
+            onClick={onPrepareOffer}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+          >
+            <Send size={13} className="text-amber-200" />
+            {isPreparingOffer ? "Timing" : "Prepare"}
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpen}
