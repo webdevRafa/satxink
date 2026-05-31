@@ -1598,7 +1598,7 @@ const FlashRequestDetailsDialog = ({
         ref={scrollContainerRef}
         className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
       >
-        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -1608,7 +1608,7 @@ const FlashRequestDetailsDialog = ({
             leaveFrom="scale-100 opacity-100"
             leaveTo="scale-95 opacity-0"
           >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
               {request && (
                 <>
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
@@ -1630,7 +1630,7 @@ const FlashRequestDetailsDialog = ({
                     </button>
                   </div>
 
-                  <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
                     <div className="border-b border-white/10 bg-black/40 p-5 lg:border-b-0 lg:border-r lg:p-6">
                       <FlashRequestPreviewCard request={request} />
                     </div>
