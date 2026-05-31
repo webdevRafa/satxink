@@ -679,7 +679,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(92px,.36fr) minmax(200px,.8fr) minmax(92px,.34fr) 88px minmax(190px,.72fr) minmax(225px,.86fr) minmax(118px,.4fr) minmax(268px,1fr)";
+    "minmax(82px,.34fr) minmax(210px,.92fr) minmax(82px,.32fr) minmax(74px,.3fr) minmax(150px,.58fr) minmax(205px,.8fr) minmax(110px,.4fr) minmax(282px,1fr)";
 
   return (
     <>
@@ -696,8 +696,8 @@ const RequestTable = ({
       </div>
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
-        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1320px]">
+        <div className="request-modal-scrollbar overflow-x-auto rounded-lg">
+          <div className="min-w-[1240px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
@@ -842,18 +842,6 @@ const RequestRow = ({
         </p>
       </button>
 
-      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
-        <span
-          className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-            request.sourceType === "flash"
-              ? "border-amber-200/25 bg-amber-300/10 text-amber-50"
-              : "border-white/10 bg-white/[0.035] text-neutral-200"
-          }`}
-        >
-          {formatRequestType(request)}
-        </span>
-      </button>
-
       <button
         type="button"
         onClick={onOpen}
@@ -869,6 +857,18 @@ const RequestRow = ({
             {request.clientName || "Client"}
           </p>
         </div>
+      </button>
+
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <span
+          className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+            request.sourceType === "flash"
+              ? "border-amber-200/25 bg-amber-300/10 text-amber-50"
+              : "border-white/10 bg-white/[0.035] text-neutral-200"
+          }`}
+        >
+          {formatRequestType(request)}
+        </span>
       </button>
 
       <button
@@ -941,11 +941,11 @@ const RequestRow = ({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 pr-2">
+      <div className="flex min-w-0 items-center justify-end gap-1.5 pr-0">
         <button
           type="button"
           onClick={onPrepareOffer}
-          className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
+          className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
             isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
           }`}
           aria-label={
@@ -965,7 +965,7 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
           <Eye size={14} />
           Details
@@ -973,7 +973,7 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onMakeOffer}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
         >
           <Send size={14} />
           Offer
