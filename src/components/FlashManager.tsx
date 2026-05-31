@@ -51,7 +51,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const navigate = useNavigate();
   const stripeReady = isStripeConnectReady(artist);
 
-  const [mode, setMode] = useState<UploadMode>("individual");
+  const [mode, setMode] = useState<UploadMode>("sheet");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
@@ -273,16 +273,16 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         <div className="grid gap-2.5 p-2.5 md:p-3 lg:w-fit lg:grid-cols-[20rem_minmax(0,32rem)] lg:items-start">
           <div className="grid grid-cols-2 gap-1.5 md:gap-2 lg:w-80">
             <ModeCard
-              active={mode === "individual"}
-              icon={<Plus size={15} />}
-              title="Individual flash"
-              onClick={() => setMode("individual")}
-            />
-            <ModeCard
               active={mode === "sheet"}
               icon={<Layers size={15} />}
               title="Flash sheet"
               onClick={() => setMode("sheet")}
+            />
+            <ModeCard
+              active={mode === "individual"}
+              icon={<Plus size={15} />}
+              title="Individual flash"
+              onClick={() => setMode("individual")}
             />
           </div>
 
