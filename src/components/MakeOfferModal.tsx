@@ -32,6 +32,8 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
 import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
@@ -1295,44 +1297,47 @@ const FlashOfferSummaryCard = ({
   request: BookingRequest;
   previewUrl: string;
 }) => (
-  <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
-    <div className="relative aspect-[4/5] bg-black">
+  <div className="relative isolate mx-auto w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+    <div
+      className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+      aria-hidden="true"
+    />
+    <span
+      className="spotlight-border-glint spotlight-border-glint--left"
+      aria-hidden="true"
+    />
+    <span
+      className="spotlight-border-glint spotlight-border-glint--right"
+      aria-hidden="true"
+    />
+    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
       {previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={request.flashTitle || "Requested flash"}
-          className="h-full w-full object-cover"
-        />
+        <Zoom>
+          <img
+            src={previewUrl}
+            alt={request.flashTitle || "Requested flash"}
+            className="h-full w-full object-cover"
+          />
+        </Zoom>
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-          <ImageIcon size={28} />
-          <span className="text-sm">No flash image</span>
+        <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+          <ImageIcon size={34} />
+          <span>No flash image</span>
         </div>
       )}
-      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3! py-1.5! text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
         Flash item
       </span>
     </div>
-    <div className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg! font-semibold! text-white">
-            {request.flashTitle || "Untitled flash"}
-          </h3>
-          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
-            {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
-          </p>
-        </div>
-        <p className="shrink-0 text-lg font-semibold text-white">
-          {typeof request.flashPrice === "number" && request.flashPrice > 0
-            ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
-            : "No price"}
-        </p>
-      </div>
-      <div className="rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm leading-6 text-emerald-50/80">
-        This offer will reserve the listed flash design as a single-session
-        booking.
-      </div>
+    <div className="flex items-start justify-between gap-4 px-1 pt-4">
+      <h3 className="min-w-0 truncate text-lg! font-semibold! text-white">
+        {request.flashTitle || "Untitled flash"}
+      </h3>
+      <p className="shrink-0 text-base font-semibold text-white">
+        {typeof request.flashPrice === "number" && request.flashPrice > 0
+          ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
+          : "No price"}
+      </p>
     </div>
   </div>
 );
