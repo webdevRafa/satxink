@@ -398,7 +398,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   )}
                 </div>
 
-                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+5.75rem)] md:p-6">
+                <div className="p-5 pb-0 md:p-6">
                   <label className="block">
                     <span className="text-sm font-semibold text-zinc-300">
                       Sheet title
@@ -426,16 +426,16 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     />
                   </label>
 
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-3 md:mt-6 md:p-4">
-                    <div className="flex gap-2.5 md:gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300 md:h-9 md:w-9">
-                        <Scissors size={16} />
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
+                        <Scissors size={18} />
                       </span>
                       <div>
                         <p className="text-sm font-semibold text-white">
                           Continue in sheet editor
                         </p>
-                        <p className="mt-1 text-[11px] leading-4 text-zinc-500 md:text-xs md:leading-5">
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
                           Once the sheet is saved, the full editor opens so you can
                           crop designs and review itemized flash beneath it.
                         </p>
@@ -443,7 +443,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     </div>
                   </div>
 
-                  <div className="fixed inset-x-0 bottom-0 z-[130] grid grid-cols-2 gap-2.5 border-t border-white/10 bg-[#111111]/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-18px_34px_rgba(0,0,0,0.42)] backdrop-blur md:static md:z-auto md:mt-7 md:flex md:justify-end md:border-t-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
+                  <div className="sticky bottom-0 -mx-5 mt-6 grid grid-cols-2 gap-2.5 border-t border-white/10 bg-[#111111]/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur md:static md:mx-0 md:mt-7 md:flex md:justify-end md:border-t-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
                     <button
                       type="button"
                       onClick={closeSheetTitleModal}
