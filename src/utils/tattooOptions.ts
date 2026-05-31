@@ -24,9 +24,11 @@ export const bodyPlacementOptions: SelectOption[] = [
 ];
 
 export const tattooSizeOptions: SelectOption[] = [
-  { value: "Small", label: "Small (up to 3x3 inches)" },
-  { value: "Medium", label: "Medium (up to 6x6 inches)" },
-  { value: "Large", label: "Large (over 6x6 inches)" },
+  { value: "Micro / tiny", label: "Micro / tiny (under 2 inches)" },
+  { value: "Small", label: "Small (2-4 inches)" },
+  { value: "Medium", label: "Medium (4-6 inches)" },
+  { value: "Large", label: "Large (6-10 inches)" },
+  { value: "Extra large", label: "Extra large (10+ inches)" },
 ];
 
 export const tattooBudgetOptions: SelectOption[] = [
