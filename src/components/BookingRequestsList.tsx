@@ -1790,24 +1790,10 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
           Flash item
         </span>
       </div>
-      <div className="space-y-3 px-1 pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg! font-semibold! text-white">
-              {request.flashTitle || "Untitled flash"}
-            </h3>
-            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
-              {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
-            </p>
-          </div>
-          <p className="shrink-0 text-lg font-semibold text-white">
-            {formatFlashPrice(request.flashPrice)}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <InfoPill icon={<MapPin size={14} />} label={request.bodyPlacement} />
-          <InfoPill icon={<Ruler size={14} />} label={request.size} />
-        </div>
+      <div className="px-1 pt-4">
+        <h3 className="truncate text-lg! font-semibold! text-white">
+          {request.flashTitle || "Untitled flash"}
+        </h3>
       </div>
     </div>
   );
@@ -1829,19 +1815,6 @@ const DetailTile = ({
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
-);
-
-const InfoPill = ({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label?: string | number;
-}) => (
-  <span className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2.5 py-2 text-xs text-neutral-300">
-    <span className="text-neutral-500">{icon}</span>
-    <span className="truncate">{label || "Not set"}</span>
-  </span>
 );
 
 const EmptyRequests = ({ isFiltering }: { isFiltering: boolean }) => (
