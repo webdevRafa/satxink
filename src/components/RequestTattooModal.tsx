@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   DollarSign,
   ImageIcon,
   MapPin,
@@ -58,6 +60,8 @@ const availableDayOptions = [
   "Sunday",
 ];
 
+type ScheduleStep = "dates" | "time";
+
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -71,6 +75,11 @@ const RequestTattooModal: React.FC<Props> = ({
   const [size, setSize] = useState("");
   const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
   const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
+  const [scheduleStep, setScheduleStep] = useState<ScheduleStep>("dates");
+  const [visibleCalendarMonth, setVisibleCalendarMonth] = useState(() =>
+    getMonthStart(new Date())
+  );
+  const [timingConfirmed, setTimingConfirmed] = useState(false);
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [budget, setBudget] = useState("");
@@ -99,6 +108,9 @@ const RequestTattooModal: React.FC<Props> = ({
     setSize("");
     setPreferredDateRange(["", ""]);
     setAvailableTime({ from: "", to: "" });
+    setScheduleStep("dates");
+    setVisibleCalendarMonth(getMonthStart(new Date()));
+    setTimingConfirmed(false);
     setAvailableDays([]);
     setReferenceImage(null);
     setBudget("");
@@ -120,8 +132,43 @@ const RequestTattooModal: React.FC<Props> = ({
     setStep(2);
   };
 
+  const handleSelectCalendarDate = (date: Date) => {
+    const dateValue = formatDateInputValue(date);
+
+    if (dateValue < todayDateInput) return;
+
+    setTimingConfirmed(false);
+    setPreferredDateRange(([start, end]) => {
+      if (!start || end || dateValue < start) return [dateValue, ""];
+      return [start, dateValue];
+    });
+  };
+
+  const handleConfirmDateWindow = () => {
+    if (!preferredDateRange[0] || !preferredDateRange[1]) {
+      toast.error("Pick the first and last day of your ideal window.");
+      return;
+    }
+
+    setScheduleStep("time");
+  };
+
+  const handleConfirmTiming = () => {
+    if (!availableTime.from || !availableTime.to) {
+      toast.error("Choose a preferred start and end time.");
+      return;
+    }
+
+    setTimingConfirmed(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!timingConfirmed) {
+      toast.error("Confirm your preferred timing before sending.");
+      return;
+    }
 
     if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
       toast.error("Preferred dates must be today or later.");
@@ -461,109 +508,171 @@ const RequestTattooModal: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-white/65">
-                      Earliest date
-                    </span>
-                    <input
-                      type="date"
-                      min={todayDateInput}
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
-                      value={preferredDateRange[0]}
-                      onChange={(e) =>
-                        setPreferredDateRange([
-                          e.target.value,
-                          preferredDateRange[1],
-                        ])
-                      }
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-white/65">
-                      Latest date
-                    </span>
-                    <input
-                      type="date"
-                      min={preferredDateRange[0] || todayDateInput}
-                      className="w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-[#19d69b]"
-                      value={preferredDateRange[1]}
-                      onChange={(e) =>
-                        setPreferredDateRange([
-                          preferredDateRange[0],
-                          e.target.value,
-                        ])
-                      }
-                    />
-                  </label>
-                </div>
+                <div className="relative overflow-hidden">
+                  <div
+                    className={`transition-all duration-300 ease-out ${
+                      scheduleStep === "dates"
+                        ? "translate-x-0 opacity-100"
+                        : "pointer-events-none absolute -translate-x-6 opacity-0"
+                    }`}
+                  >
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm! font-semibold text-white">
+                          Pick your ideal window
+                        </p>
+                        <p className="mt-1 text-xs! leading-5 text-white/45">
+                          Choose a first day, then a later day to highlight the
+                          full range.
+                        </p>
+                      </div>
+                      {preferredDateRange[0] && (
+                        <span className="rounded-full border border-white/10 bg-black/30 px-3! py-1.5! text-[11px]! font-semibold text-white/70">
+                          {getDateRangeLabel(preferredDateRange)}
+                        </span>
+                      )}
+                    </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-white/65">
-                      From
-                    </span>
-                    <QuarterHourTimeSelect
-                      value={availableTime.from}
-                      onChange={(value) =>
-                        setAvailableTime((prev) => ({
-                          ...prev,
-                          from: value,
-                        }))
-                      }
-                      placeholder="Select time"
-                      buttonClassName="focus:border-[#19d69b]"
+                    <CalendarRangePicker
+                      month={visibleCalendarMonth}
+                      selectedRange={preferredDateRange}
+                      todayDateInput={todayDateInput}
+                      onMonthChange={setVisibleCalendarMonth}
+                      onSelectDate={handleSelectCalendarDate}
                     />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-white/65">
-                      To
-                    </span>
-                    <QuarterHourTimeSelect
-                      value={availableTime.to}
-                      onChange={(value) =>
-                        setAvailableTime((prev) => ({
-                          ...prev,
-                          to: value,
-                        }))
-                      }
-                      placeholder="Select time"
-                      buttonClassName="focus:border-[#19d69b]"
-                    />
-                  </label>
+
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleConfirmDateWindow}
+                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                      >
+                        Confirm dates
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`transition-all duration-300 ease-out ${
+                      scheduleStep === "time"
+                        ? "translate-x-0 opacity-100"
+                        : "pointer-events-none absolute translate-x-6 opacity-0"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimingConfirmed(false);
+                        setScheduleStep("dates");
+                      }}
+                      className="mb-4 inline-flex items-center gap-2 p-0! text-xs! font-semibold text-white/55 transition hover:text-white"
+                    >
+                      <ChevronLeft size={14} />
+                      Change dates
+                    </button>
+
+                    <div className="mb-4 rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
+                      <p className="text-xs! uppercase tracking-[0.16em] text-[#19d69b]">
+                        Selected window
+                      </p>
+                      <p className="mt-1 text-sm! font-semibold text-white">
+                        {getDateRangeLabel(preferredDateRange)}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-white/65">
+                          From
+                        </span>
+                        <QuarterHourTimeSelect
+                          value={availableTime.from}
+                          onChange={(value) => {
+                            setTimingConfirmed(false);
+                            setAvailableTime((prev) => ({
+                              ...prev,
+                              from: value,
+                            }));
+                          }}
+                          placeholder="Select time"
+                          buttonClassName="focus:border-[#19d69b]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-medium text-white/65">
+                          To
+                        </span>
+                        <QuarterHourTimeSelect
+                          value={availableTime.to}
+                          onChange={(value) => {
+                            setTimingConfirmed(false);
+                            setAvailableTime((prev) => ({
+                              ...prev,
+                              to: value,
+                            }));
+                          }}
+                          placeholder="Select time"
+                          buttonClassName="focus:border-[#19d69b]"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleConfirmTiming}
+                        className={`modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! px-3! py-2! text-xs! font-semibold transition ${
+                          timingConfirmed
+                            ? "bg-[#19d69b] text-black hover:bg-[#34e8ad]"
+                            : "bg-white text-black hover:bg-white/85"
+                        }`}
+                      >
+                        {timingConfirmed ? "Timing confirmed" : "Confirm timing"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                <h3 className="text-lg! font-semibold! text-white">
-                  Days that usually work
-                </h3>
-                <p className="mt-1 text-sm text-white/55">
-                  Select any days you are normally available. You can confirm
-                  exact times after the artist replies.
-                </p>
+                <div
+                  className={`transition duration-300 ${
+                    timingConfirmed
+                      ? ""
+                      : "lg:pointer-events-none lg:select-none lg:opacity-45"
+                  }`}
+                >
+                  <h3 className="text-lg! font-semibold! text-white">
+                    Days that usually work
+                  </h3>
+                  <p className="mt-1 text-sm text-white/55">
+                    Select any days you are normally available. You can confirm
+                    exact times after the artist replies.
+                  </p>
 
-                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {availableDayOptions.map((day) => (
-                    <button
-                      key={day}
-                      type="button"
-                      className={`rounded-md border px-3! py-3! text-left text-sm! font-medium transition ${
-                        availableDays.includes(day)
-                          ? "border-[#19d69b]/55 bg-[#19d69b]/15 text-white"
-                          : "border-white/10 bg-black/30 text-white/65 hover:border-white/25 hover:bg-white/[0.05]"
-                      }`}
-                      onClick={() =>
-                        setAvailableDays((prev) =>
-                          prev.includes(day)
-                            ? prev.filter((d) => d !== day)
-                            : [...prev, day]
-                        )
-                      }
-                    >
-                      {day}
-                    </button>
-                  ))}
+                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {availableDayOptions.map((day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={`rounded-md border px-3! py-3! text-left text-sm! font-medium transition ${
+                          availableDays.includes(day)
+                            ? "border-[#19d69b]/55 bg-[#19d69b]/15 text-white"
+                            : "border-white/10 bg-black/30 text-white/65 hover:border-white/25 hover:bg-white/[0.05]"
+                        }`}
+                        onClick={() =>
+                          setAvailableDays((prev) =>
+                            prev.includes(day)
+                              ? prev.filter((d) => d !== day)
+                              : [...prev, day]
+                          )
+                        }
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
@@ -576,7 +685,7 @@ const RequestTattooModal: React.FC<Props> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !timingConfirmed}
                     className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSubmitting ? "Sending..." : "Send request"}
@@ -591,5 +700,145 @@ const RequestTattooModal: React.FC<Props> = ({
     </div>
   );
 };
+
+const CalendarRangePicker = ({
+  month,
+  selectedRange,
+  todayDateInput,
+  onMonthChange,
+  onSelectDate,
+}: {
+  month: Date;
+  selectedRange: string[];
+  todayDateInput: string;
+  onMonthChange: (nextMonth: Date) => void;
+  onSelectDate: (date: Date) => void;
+}) => {
+  const calendarCells = getCalendarCells(month);
+  const monthLabel = month.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const [start, end] = selectedRange;
+  const canGoPrevious =
+    formatDateInputValue(month) > formatDateInputValue(getMonthStart(new Date()));
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/25 p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => onMonthChange(addMonths(month, -1))}
+          disabled={!canGoPrevious}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] p-0! text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Previous month"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <p className="text-sm! font-semibold text-white">{monthLabel}</p>
+        <button
+          type="button"
+          onClick={() => onMonthChange(addMonths(month, 1))}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] p-0! text-white/70 transition hover:bg-white/10 hover:text-white"
+          aria-label="Next month"
+        >
+          <ChevronRight size={15} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+          <span
+            key={`${day}-${index}`}
+            className="py-1 text-[10px]! font-semibold uppercase text-white/35"
+          >
+            {day}
+          </span>
+        ))}
+
+        {calendarCells.map((date, index) => {
+          if (!date) {
+            return <span key={`empty-${index}`} className="h-9" />;
+          }
+
+          const dateValue = formatDateInputValue(date);
+          const isPast = dateValue < todayDateInput;
+          const isStart = dateValue === start;
+          const isEnd = dateValue === end;
+          const isInRange = isDateInRange(dateValue, start, end);
+          const isSelected = isStart || isEnd;
+
+          return (
+            <button
+              key={dateValue}
+              type="button"
+              disabled={isPast}
+              onClick={() => onSelectDate(date)}
+              className={`h-9 rounded-md p-0! text-xs! font-semibold transition disabled:cursor-not-allowed disabled:opacity-25 ${
+                isSelected
+                  ? "bg-[#19d69b] text-black shadow-[0_0_20px_rgba(25,214,155,0.22)]"
+                  : isInRange
+                  ? "bg-[#19d69b]/18 text-white"
+                  : "border border-white/10 bg-white/[0.025] text-white/70 hover:border-[#19d69b]/45 hover:bg-[#19d69b]/10 hover:text-white"
+              }`}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const getMonthStart = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), 1);
+
+const addMonths = (date: Date, amount: number) =>
+  new Date(date.getFullYear(), date.getMonth() + amount, 1);
+
+const getCalendarCells = (month: Date) => {
+  const firstDay = getMonthStart(month);
+  const dayOffset = firstDay.getDay();
+  const daysInMonth = new Date(
+    firstDay.getFullYear(),
+    firstDay.getMonth() + 1,
+    0
+  ).getDate();
+  const cells: Array<Date | null> = Array.from({ length: dayOffset }, () => null);
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(new Date(firstDay.getFullYear(), firstDay.getMonth(), day));
+  }
+
+  return cells;
+};
+
+const formatDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatFriendlyDate = (dateInput: string) => {
+  if (!dateInput) return "";
+  const [year, month, day] = dateInput.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const getDateRangeLabel = ([start, end]: string[]) => {
+  if (start && end) {
+    return `${formatFriendlyDate(start)} - ${formatFriendlyDate(end)}`;
+  }
+  if (start) return `Starting ${formatFriendlyDate(start)}`;
+  return "No dates picked";
+};
+
+const isDateInRange = (dateValue: string, start: string, end: string) =>
+  Boolean(start && end && dateValue > start && dateValue < end);
 
 export default RequestTattooModal;
