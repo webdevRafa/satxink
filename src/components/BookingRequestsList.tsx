@@ -1631,7 +1631,7 @@ const FlashRequestDetailsDialog = ({
                   </div>
 
                   <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
-                    <div className="border-b border-white/10 bg-black/40 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                    <div className="flex items-start justify-center border-b border-white/10 bg-black/35 p-5 lg:border-b-0 lg:border-r lg:p-6">
                       <FlashRequestPreviewCard request={request} />
                     </div>
 
@@ -1770,8 +1770,8 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
-      <div className="relative aspect-[4/5] bg-black">
+    <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
         {previewUrl ? (
           <Zoom>
             <img
@@ -1786,11 +1786,11 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
             <span>No flash image available</span>
           </div>
         )}
-        <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3! py-1.5! text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
           Flash item
         </span>
       </div>
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 px-1 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-lg! font-semibold! text-white">
