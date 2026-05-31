@@ -398,6 +398,22 @@ body {
 body.modal-open {
   overflow: hidden;
 }
+
+.flash-sheet-tag-helper {
+  color: #71717a !important;
+  font-size: 0.6875rem !important;
+  font-weight: 400 !important;
+  line-height: 1rem !important;
+}
+
+.flash-sheet-modal-action {
+  border-radius: 0.5rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
+  min-height: 2.25rem !important;
+  padding: 0.5rem 0.875rem !important;
+}
+
 @layer utilities {
   body.modal-open {
     overflow: hidden;
