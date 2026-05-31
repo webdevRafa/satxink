@@ -412,11 +412,11 @@ const MakeOfferModal = ({
   };
 
   const offerModalShellClassName = isFlashRequest
-    ? "fixed inset-0 z-50 flex h-dvh items-start justify-center overflow-hidden bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+4.75rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5"
+    ? "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5"
     : "fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md";
 
   const offerModalPanelClassName = isFlashRequest
-    ? "relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-5.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]"
+    ? "relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]"
     : "relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl";
 
   return (
