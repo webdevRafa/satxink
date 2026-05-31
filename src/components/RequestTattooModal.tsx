@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -85,6 +85,7 @@ const RequestTattooModal: React.FC<Props> = ({
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const modalBodyRef = useRef<HTMLDivElement | null>(null);
   const earliestEndTime = getMinimumEndTime(availableTime.from);
 
   const referencePreviewUrl = useMemo(
@@ -101,6 +102,16 @@ const RequestTattooModal: React.FC<Props> = ({
       if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
     };
   }, [referencePreviewUrl]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 2) return;
+
+    const scrollFrame = window.requestAnimationFrame(() => {
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(scrollFrame);
+  }, [isOpen, step]);
 
   const reset = () => {
     setStep(1);
@@ -321,7 +332,10 @@ const RequestTattooModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4 request-modal-scrollbar sm:p-5">
+        <div
+          ref={modalBodyRef}
+          className="overflow-y-auto p-4 request-modal-scrollbar sm:p-5"
+        >
           {step === 1 && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
