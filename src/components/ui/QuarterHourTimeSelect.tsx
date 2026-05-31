@@ -7,6 +7,7 @@ type QuarterHourTimeSelectProps = {
   placeholder?: string;
   className?: string;
   buttonClassName?: string;
+  minTime?: string;
 };
 
 const QuarterHourTimeSelect = ({
@@ -15,11 +16,16 @@ const QuarterHourTimeSelect = ({
   placeholder = "Select time",
   className = "",
   buttonClassName = "",
+  minTime,
 }: QuarterHourTimeSelectProps) => (
   <CustomSelect
     value={value}
     onChange={onChange}
-    options={quarterHourTimeOptions}
+    options={
+      minTime
+        ? quarterHourTimeOptions.filter((option) => option.value >= minTime)
+        : quarterHourTimeOptions
+    }
     placeholder={placeholder}
     className={className}
     buttonClassName={buttonClassName}

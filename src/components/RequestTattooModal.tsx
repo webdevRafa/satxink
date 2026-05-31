@@ -85,6 +85,7 @@ const RequestTattooModal: React.FC<Props> = ({
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const earliestEndTime = getMinimumEndTime(availableTime.from);
 
   const referencePreviewUrl = useMemo(
     () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
@@ -156,6 +157,11 @@ const RequestTattooModal: React.FC<Props> = ({
   const handleConfirmTiming = () => {
     if (!availableTime.from || !availableTime.to) {
       toast.error("Choose a preferred start and end time.");
+      return;
+    }
+
+    if (!hasMinimumTimeWindow(availableTime.from, availableTime.to)) {
+      toast.error("Preferred time windows need to be at least 1 hour.");
       return;
     }
 
@@ -574,6 +580,9 @@ const RequestTattooModal: React.FC<Props> = ({
                             setAvailableTime((prev) => ({
                               ...prev,
                               from: value,
+                              to: hasMinimumTimeWindow(value, prev.to)
+                                ? prev.to
+                                : "",
                             }));
                           }}
                           placeholder="Select time"
@@ -595,6 +604,7 @@ const RequestTattooModal: React.FC<Props> = ({
                           }}
                           placeholder="Select time"
                           buttonClassName="focus:border-[#19d69b]"
+                          minTime={earliestEndTime}
                         />
                       </label>
                     </div>
@@ -819,5 +829,36 @@ const getDateRangeLabel = ([start, end]: string[]) => {
 
 const isDateInRange = (dateValue: string, start: string, end: string) =>
   Boolean(start && end && dateValue > start && dateValue < end);
+
+const getTimeMinutes = (time: string) => {
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return hour * 60 + minute;
+};
+
+const formatTimeValue = (totalMinutes: number) => {
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const getMinimumEndTime = (startTime: string) => {
+  const startMinutes = getTimeMinutes(startTime);
+  if (startMinutes === null) return undefined;
+
+  const endMinutes = startMinutes + 60;
+  return endMinutes < 24 * 60 ? formatTimeValue(endMinutes) : undefined;
+};
+
+const hasMinimumTimeWindow = (startTime: string, endTime: string) => {
+  const startMinutes = getTimeMinutes(startTime);
+  const endMinutes = getTimeMinutes(endTime);
+
+  return (
+    startMinutes !== null &&
+    endMinutes !== null &&
+    endMinutes - startMinutes >= 60
+  );
+};
 
 export default RequestTattooModal;
