@@ -282,8 +282,8 @@ const RequestTattooModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-hidden bg-black/80 px-3 py-3 text-white backdrop-blur-md sm:px-4 sm:py-4 lg:py-5">
-      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-2rem)] lg:max-h-[calc(100dvh-2.5rem)]">
+    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-hidden bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+5.25rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
+      <div className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-5.25rem-0.75rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
           <div className="flex items-center gap-4">
             <img
