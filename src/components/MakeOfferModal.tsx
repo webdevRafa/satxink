@@ -10,6 +10,7 @@ import {
   CalendarDays,
   DollarSign,
   ImageIcon,
+  Info,
   Layers,
   MapPin,
   MessageSquareText,
@@ -142,6 +143,8 @@ const MakeOfferModal = ({
   const [isPreviewingOffer, setIsPreviewingOffer] = useState(false);
   const [allowExternalRemainingPayment, setAllowExternalRemainingPayment] =
     useState(false);
+  const [isRemainingPaymentHelpOpen, setIsRemainingPaymentHelpOpen] =
+    useState(false);
   const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
     useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
@@ -213,6 +216,12 @@ const MakeOfferModal = ({
   }, [isOpen, selectedRequest?.id]);
 
   useEffect(() => {
+    if (!canAllowExternalRemainingPayment) {
+      setIsRemainingPaymentHelpOpen(false);
+    }
+  }, [canAllowExternalRemainingPayment]);
+
+  useEffect(() => {
     if (!isOpen || !selectedRequest) return;
 
     if (selectedRequest.sourceType === "flash") {
@@ -241,6 +250,7 @@ const MakeOfferModal = ({
     setOfferImage(null);
     setPreviewUrl(null);
     setAllowExternalRemainingPayment(false);
+    setIsRemainingPaymentHelpOpen(false);
     setExternalRemainingPaymentNote("");
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
@@ -720,8 +730,9 @@ const MakeOfferModal = ({
 
                 {artist.paymentType === "internal" && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
-                    <label className="flex cursor-pointer items-start gap-3">
+                    <div className="flex items-start gap-3">
                       <input
+                        id="allow-external-remaining-payment"
                         type="checkbox"
                         checked={allowExternalRemainingPayment}
                         disabled={!canAllowExternalRemainingPayment}
@@ -730,11 +741,57 @@ const MakeOfferModal = ({
                         }
                         className="mt-1 h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
                       />
-                      <span>
-                        <span className="block text-sm font-semibold text-white">
-                          Allow the remaining balance at the shop
-                        </span>
-                        <span className="mt-1 block text-sm leading-6 text-neutral-400">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <label
+                            htmlFor="allow-external-remaining-payment"
+                            className="cursor-pointer text-sm font-semibold text-white"
+                          >
+                            Allow the remaining balance at the shop
+                          </label>
+                          {canAllowExternalRemainingPayment && (
+                            <span
+                              className="relative inline-flex"
+                              onMouseEnter={() =>
+                                setIsRemainingPaymentHelpOpen(true)
+                              }
+                              onMouseLeave={() =>
+                                setIsRemainingPaymentHelpOpen(false)
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setIsRemainingPaymentHelpOpen(true)
+                                }
+                                onFocus={() =>
+                                  setIsRemainingPaymentHelpOpen(true)
+                                }
+                                onBlur={() =>
+                                  setIsRemainingPaymentHelpOpen(false)
+                                }
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] p-0! text-neutral-400 transition hover:border-white/30 hover:text-white"
+                                aria-label="How remaining balance payment works"
+                              >
+                                <Info size={12} />
+                              </button>
+                              {isRemainingPaymentHelpOpen && (
+                                <span className="absolute left-1/2 top-full z-[80] mt-2 block w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 rounded-md border border-white/10 bg-[#090909] p-3 text-xs leading-5 text-neutral-300 shadow-2xl sm:left-0 sm:translate-x-0">
+                                  If this is off, the client pays the remaining
+                                  balance later through Stripe and the payout
+                                  goes to your Stripe Connect account. If this
+                                  is on, the client can choose to settle the
+                                  remaining balance directly with you at the
+                                  shop.
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <label
+                          htmlFor="allow-external-remaining-payment"
+                          className="mt-1 block cursor-pointer text-sm leading-6 text-neutral-400"
+                        >
                           The client can pay the deposit through SATX Ink now and
                           choose to pay the remaining{" "}
                           <span className="font-semibold text-white">
@@ -745,24 +802,9 @@ const MakeOfferModal = ({
                           directly with you after the session. SATX Ink's
                           platform fee is still calculated from the full quote
                           and collected during the deposit checkout.
-                        </span>
-                      </span>
-                    </label>
-                    {canAllowExternalRemainingPayment && (
-                      <p className="mt-3 rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-neutral-400">
-                        If this is off, the client pays the remaining balance
-                        later through Stripe and the payout goes to your Stripe
-                        Connect account. If this is on, the client can choose to
-                        settle the remaining balance directly with you at the
-                        shop.
-                      </p>
-                    )}
-                    {!canAllowExternalRemainingPayment && (
-                      <p className="mt-3 text-xs leading-5 text-neutral-500">
-                        Available once Stripe payments are enabled and the
-                        deposit is less than the total offer price.
-                      </p>
-                    )}
+                        </label>
+                      </div>
+                    </div>
                     {allowExternalRemainingPayment &&
                       canAllowExternalRemainingPayment && (
                         <textarea
