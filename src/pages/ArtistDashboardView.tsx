@@ -2459,7 +2459,7 @@ const SessionsTable = ({
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                     >
                       <Eye size={14} />
-                      Record
+                      Details
                     </button>
                   </div>
                 </div>
@@ -2833,7 +2833,7 @@ const BookingRecordDialog = ({
 
   return (
     <Transition appear show={!!booking} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -2843,11 +2843,11 @@ const BookingRecordDialog = ({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+          <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
         </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
-          <div className="flex min-h-full items-center justify-center p-4">
+        <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
+          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -2857,13 +2857,13 @@ const BookingRecordDialog = ({
               leaveFrom="scale-100 opacity-100"
               leaveTo="scale-95 opacity-0"
             >
-              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+              <Dialog.Panel className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
                 {booking && (
                   <>
                     <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
                       <div>
                         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                          Booking record
+                          Booking details
                         </p>
                         <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
                           Appointment with {clientName}
@@ -2873,13 +2873,13 @@ const BookingRecordDialog = ({
                         type="button"
                         onClick={onClose}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-                        aria-label="Close booking record"
+                        aria-label="Close booking details"
                       >
                         <X size={18} />
                       </button>
                     </div>
 
-                    <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
+                    <div className="grid min-h-0 gap-0 overflow-y-auto overscroll-contain request-modal-scrollbar lg:grid-cols-[1fr_0.95fr]">
                       <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                         {booking.sampleImageUrl ? (
                           <img
