@@ -2366,7 +2366,7 @@ const SessionsTable = ({
                         className="h-11 w-11 rounded-full border border-white/10 object-cover"
                       />
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold text-white">
+                        <span className="block truncate text-sm font-semibold text-white">
                           {clientName}
                         </span>
                         <span className="mt-0.5 block truncate text-xs uppercase tracking-[0.12em] text-neutral-500">
@@ -2389,43 +2389,44 @@ const SessionsTable = ({
                     </span>
                   </button>
 
-                  <div className="flex min-w-0 flex-col items-start gap-2 pr-3">
-                    <SessionStatusBadge status={sessionStatus} />
-                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
+                  <div className="min-w-0 pr-4">
+                    <p className="truncate text-sm font-semibold text-white">
                       {sessionLabel}
-                    </span>
-                    <span className="text-xs font-medium text-neutral-500">
+                    </p>
+                    <div className="mt-1">
+                      <SessionStatusBadge status={sessionStatus} />
+                    </div>
+                    <p className="mt-1 truncate text-xs text-neutral-500">
                       {isMultiSession ? "Multi-session project" : "Single appointment"}
-                    </span>
+                    </p>
                   </div>
 
                   <div className="min-w-0 pr-3">
                     <p className="truncate text-sm font-semibold text-neutral-100">
                       {formatBookingAppointment(booking.selectedDate)}
                     </p>
-                    <p className="mt-1 truncate text-sm text-neutral-400">
+                    <p className="mt-1 truncate text-xs text-neutral-500">
                       {booking.shopName || "Private Studio"}
                     </p>
-                    <p className="mt-1 truncate text-xs leading-5 text-neutral-500">
+                    <p className="mt-1 truncate text-xs text-neutral-600">
                       {booking.shopAddress || "Address not provided"}
                     </p>
                   </div>
 
                   <div className="min-w-0 pr-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                      {isMultiSession ? "Due this session" : "Balance due"}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
+                    <p className="truncate text-sm font-semibold text-white">
                       {formatDashboardMoney(dueThisSession)}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="mt-1 truncate text-xs text-neutral-500">
+                      {isMultiSession ? "Due this session" : "Balance due"}{" "}
+                      <span className="text-neutral-700">|</span>{" "}
+                      {formatDashboardMoney(remainingBalance)} remaining
+                    </p>
+                    <div className="mt-2">
                       <RemainingPaymentBadge
                         status={remainingPaymentStatus}
                         viewer="artist"
                       />
-                      <span className="text-xs text-neutral-500">
-                        {formatDashboardMoney(remainingBalance)} remaining
-                      </span>
                     </div>
                   </div>
 
