@@ -196,12 +196,23 @@ const MakeOfferModal = ({
       }),
     [depositAmount, effectiveOfferPrice]
   );
+  const currentOfferPrice = Number(offerPrice || 0);
+  const currentDepositAmount = Number(depositAmount || 0);
   const pricingStepInlineError =
-    !isFlashRequest && Number(depositAmount || 0) > Number(offerPrice || 0)
+    !isFlashRequest && currentOfferPrice > 0 && currentDepositAmount <= 0
+      ? "Enter a deposit to book before continuing."
+      : !isFlashRequest && currentDepositAmount > currentOfferPrice
       ? "Deposit cannot be greater than the offer price."
       : "";
+  const currentCustomOfferStepId =
+    CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
   const isCustomOfferStepContinueBlocked =
-    customOfferStepIndex === 0 && Boolean(pricingStepInlineError);
+    (currentCustomOfferStepId === "pricing" &&
+      (!currentOfferPrice ||
+        currentDepositAmount <= 0 ||
+        Boolean(pricingStepInlineError))) ||
+    (currentCustomOfferStepId === "appointment" &&
+      completedDateOptions.length === 0);
   const isCustomOfferStepperFinalStep =
     customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
 
@@ -294,8 +305,12 @@ const MakeOfferModal = ({
           : "Enter a valid offer price.";
     }
 
-    if (depositAmount < 0 || depositAmount > submissionOfferPrice) {
-      return "Deposit must be between $0 and the offer price.";
+    if (depositAmount <= 0) {
+      return "Enter a deposit to book before sending this offer.";
+    }
+
+    if (depositAmount > submissionOfferPrice) {
+      return "Deposit cannot be greater than the offer price.";
     }
 
     if (completedDateOptions.length === 0) {
@@ -489,17 +504,30 @@ const MakeOfferModal = ({
   };
 
   const getCustomOfferStepValidationError = (stepId: CustomOfferStepId) => {
-    if (stepId !== "pricing") return null;
+    if (stepId === "appointment") {
+      if (completedDateOptions.length === 0) {
+        return "Add at least one appointment option before continuing.";
+      }
 
-    const currentOfferPrice = Number(offerPrice || 0);
-    const currentDepositAmount = Number(depositAmount || 0);
+      if (
+        completedDateOptions.some((option) =>
+          isPastDateInputValue(option.date)
+        )
+      ) {
+        return "Appointment options must be today or later.";
+      }
+
+      return null;
+    }
+
+    if (stepId !== "pricing") return null;
 
     if (currentOfferPrice <= 0) {
       return "Enter a valid offer price before continuing.";
     }
 
-    if (currentDepositAmount < 0) {
-      return "Deposit cannot be negative.";
+    if (currentDepositAmount <= 0) {
+      return "Enter a deposit to book before continuing.";
     }
 
     if (currentDepositAmount > currentOfferPrice) {
@@ -1010,7 +1038,7 @@ const MakeOfferModal = ({
                             return updated;
                           })
                         }
-                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-[var(--color-primary)] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:invert"
                       />
                       <QuarterHourTimeSelect
                         value={option.time}
@@ -1075,7 +1103,13 @@ const MakeOfferModal = ({
                     </div>
                   </div>
 
-                  <label className="group relative flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
+                  <label
+                    className={`group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04] ${
+                      previewUrl || retainedOfferSampleUrl
+                        ? "min-h-[18rem]"
+                        : "min-h-40"
+                    }`}
+                  >
                     <input
                       type="file"
                       accept="image/*"
@@ -1095,7 +1129,7 @@ const MakeOfferModal = ({
                             ? "Offer sample preview"
                             : "Retained offer sample"
                         }
-                        className="absolute inset-0 h-full w-full object-cover opacity-80"
+                        className="absolute inset-0 h-full w-full object-contain opacity-90"
                       />
                     ) : (
                       <>
@@ -1230,12 +1264,7 @@ const MakeOfferModal = ({
             </p>
             <div
               className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
-                isPreviewingOffer
-                  ? "grid-cols-2"
-                  : shouldUseCustomOfferStepper &&
-                    !isCustomOfferStepperFinalStep
-                  ? "grid-cols-4"
-                  : "grid-cols-3"
+                isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
               }`}
             >
               <button
@@ -1288,14 +1317,17 @@ const MakeOfferModal = ({
                   <ReceiptText size={16} className="text-amber-200" />
                 </button>
               )}
-              <button
-                type="submit"
-                disabled={isSubmitting || isOfferActionLocked}
-                className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
-              >
-                {isSubmitting ? "Sending..." : "Send offer"}
-                <Send size={16} />
-              </button>
+              {(!shouldUseCustomOfferStepper ||
+                isCustomOfferStepperFinalStep) && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isOfferActionLocked}
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
+                >
+                  {isSubmitting ? "Sending..." : "Send offer"}
+                  <Send size={16} />
+                </button>
+              )}
             </div>
           </div>
         </form>
