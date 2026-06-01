@@ -193,6 +193,12 @@ const MakeOfferModal = ({
       }),
     [depositAmount, effectiveOfferPrice]
   );
+  const pricingStepInlineError =
+    !isFlashRequest && Number(depositAmount || 0) > Number(offerPrice || 0)
+      ? "Deposit cannot be greater than the offer price."
+      : "";
+  const isCustomOfferStepContinueBlocked =
+    customOfferStepIndex === 0 && Boolean(pricingStepInlineError);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -476,11 +482,42 @@ const MakeOfferModal = ({
     }
   };
 
+  const getCustomOfferStepValidationError = (stepId: CustomOfferStepId) => {
+    if (stepId !== "pricing") return null;
+
+    const currentOfferPrice = Number(offerPrice || 0);
+    const currentDepositAmount = Number(depositAmount || 0);
+
+    if (currentOfferPrice <= 0) {
+      return "Enter a valid offer price before continuing.";
+    }
+
+    if (currentDepositAmount < 0) {
+      return "Deposit cannot be negative.";
+    }
+
+    if (currentDepositAmount > currentOfferPrice) {
+      return "Deposit cannot be greater than the offer price.";
+    }
+
+    return null;
+  };
+
   const goToCustomOfferStep = (stepIndex: number) => {
     const nextStepIndex = Math.min(
       Math.max(stepIndex, 0),
       FINAL_CUSTOM_OFFER_STEP_INDEX
     );
+
+    if (nextStepIndex > customOfferStepIndex) {
+      const currentStep = CUSTOM_OFFER_STEPS[customOfferStepIndex];
+      const validationError = getCustomOfferStepValidationError(currentStep.id);
+
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+    }
 
     setCustomOfferStepIndex(nextStepIndex);
     setFurthestCustomOfferStepIndex((currentStepIndex) =>
@@ -623,7 +660,7 @@ const MakeOfferModal = ({
 
                   <div className="space-y-5 p-5 sm:p-6">
                     {!isFlashRequest && (
-                      <div className="hidden rounded-lg border border-white/10 bg-black/25 p-3 lg:block">
+                      <div className="hidden rounded-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:sticky lg:top-6 lg:z-30 lg:block">
                         <div className="grid gap-2 lg:grid-cols-5">
                           {CUSTOM_OFFER_STEPS.map((step, index) => {
                             const isActive = index === customOfferStepIndex;
@@ -638,7 +675,7 @@ const MakeOfferModal = ({
                                 type="button"
                                 disabled={!canVisit}
                                 onClick={() => goToCustomOfferStep(index)}
-                                className={`group flex min-w-0 items-center gap-2 rounded-md border px-2.5! py-2! text-left transition ${
+                                className={`group flex min-w-0 items-center justify-center rounded-md border px-2.5! py-2.5! text-center transition ${
                                   isActive
                                     ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
                                     : isComplete
@@ -646,17 +683,6 @@ const MakeOfferModal = ({
                                     : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
                                 }`}
                               >
-                                <span
-                                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
-                                    isActive
-                                      ? "bg-white text-black"
-                                      : isComplete
-                                      ? "bg-emerald-300 text-black"
-                                      : "bg-white/10 text-white/70"
-                                  }`}
-                                >
-                                  {index + 1}
-                                </span>
                                 <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">
                                   {step.label}
                                 </span>
@@ -727,6 +753,11 @@ const MakeOfferModal = ({
                     required
                   />
                 </div>
+                {pricingStepInlineError && (
+                  <p className="mt-3 rounded-md border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100/85">
+                    {pricingStepInlineError}
+                  </p>
+                )}
 
                 {artist.paymentType === "internal" && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
@@ -1093,10 +1124,11 @@ const MakeOfferModal = ({
                         {customOfferStepIndex < FINAL_CUSTOM_OFFER_STEP_INDEX ? (
                           <button
                             type="button"
+                            disabled={isCustomOfferStepContinueBlocked}
                             onClick={() =>
                               goToCustomOfferStep(customOfferStepIndex + 1)
                             }
-                            className="modal-action-button inline-flex items-center justify-center rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                            className="modal-action-button inline-flex items-center justify-center rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-black/55"
                           >
                             Continue
                           </button>
