@@ -113,6 +113,7 @@ const CUSTOM_OFFER_STEPS = [
   { id: "appointment", label: "Appointment" },
   { id: "message", label: "Message" },
   { id: "sample", label: "Sample" },
+  { id: "preview", label: "Preview" },
 ] as const;
 
 type CustomOfferStepId = (typeof CUSTOM_OFFER_STEPS)[number]["id"];
@@ -201,6 +202,8 @@ const MakeOfferModal = ({
       : "";
   const isCustomOfferStepContinueBlocked =
     customOfferStepIndex === 0 && Boolean(pricingStepInlineError);
+  const isCustomOfferStepperFinalStep =
+    customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -538,6 +541,16 @@ const MakeOfferModal = ({
     return customOfferStepIndex === stepIndex
       ? "lg:block lg:animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
       : "lg:hidden";
+  };
+
+  const getCustomOfferPreviewStepClassName = () => {
+    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
+      (step) => step.id === "preview"
+    );
+
+    return customOfferStepIndex === stepIndex
+      ? "hidden lg:block lg:animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
+      : "hidden";
   };
 
   const offerModalShellClassName =
@@ -1106,41 +1119,96 @@ const MakeOfferModal = ({
                 </div>
                 )}
               </>
+
                     {!isFlashRequest && (
-                      <div className="hidden items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 p-3 lg:flex">
-                        <button
-                          type="button"
-                          disabled={customOfferStepIndex === 0}
-                          onClick={() =>
-                            setCustomOfferStepIndex((currentStepIndex) =>
-                              Math.max(currentStepIndex - 1, 0)
-                            )
-                          }
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Back
-                        </button>
-                        <p className="min-w-0 text-center text-xs font-medium text-neutral-500">
-                          Step {customOfferStepIndex + 1} of{" "}
-                          {CUSTOM_OFFER_STEPS.length}
-                        </p>
-                        {customOfferStepIndex < FINAL_CUSTOM_OFFER_STEP_INDEX ? (
-                          <button
-                            type="button"
-                            disabled={isCustomOfferStepContinueBlocked}
-                            onClick={() =>
-                              goToCustomOfferStep(customOfferStepIndex + 1)
-                            }
-                            className="modal-action-button inline-flex items-center justify-center rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-black/55"
-                          >
-                            Continue
-                          </button>
-                        ) : (
-                          <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-50">
-                            Ready to preview
+                      <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferPreviewStepClassName()}`}>
+                        <div className="mb-5 flex items-start gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
+                            <ReceiptText size={19} />
                           </span>
-                        )}
-                      </div>
+                          <div>
+                            <h3 className="text-lg! font-semibold! text-white">
+                              Preview
+                            </h3>
+                            <p className="text-sm text-neutral-400">
+                              Quick final check before the offer goes out.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <PreviewTile
+                            label="Offer price"
+                            value={formatMoneyFromCents(
+                              Math.round(effectiveOfferPrice * 100)
+                            )}
+                            tone="strong"
+                          />
+                          <PreviewTile
+                            label="Deposit to book"
+                            value={formatMoneyFromCents(
+                              Math.round(Number(depositAmount || 0) * 100)
+                            )}
+                          />
+                          <PreviewTile
+                            label="Remaining balance"
+                            value={formatMoneyFromCents(
+                              Math.round(remainingArtistBalance * 100)
+                            )}
+                          />
+                          <PreviewTile
+                            label="Project"
+                            value={
+                              isMultiSessionProject
+                                ? `${estimatedSessionCount} sessions`
+                                : "Single session"
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
+                          <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                            Appointment options
+                          </p>
+                          <div className="mt-3 grid gap-2">
+                            {completedDateOptions.length > 0 ? (
+                              completedDateOptions.map((option, index) => (
+                                <div
+                                  key={`${option.date}-${option.time}-${index}`}
+                                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm"
+                                >
+                                  <span className="font-semibold text-neutral-500">
+                                    Option {index + 1}
+                                  </span>
+                                  <span className="text-right font-medium text-white">
+                                    {formatOfferPreviewAppointment(option)}
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
+                                No complete appointment options yet.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+                            <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                              Message
+                            </p>
+                            <p className="mt-3 min-h-24 whitespace-pre-line text-sm leading-6 text-neutral-300">
+                              {offerMessage || "No message included."}
+                            </p>
+                          </div>
+                          <PreviewImage
+                            label="Offer sample"
+                            imageUrl={previewUrl || retainedOfferSampleUrl}
+                            emptyLabel="No sample included"
+                          />
+                        </div>
+                      </section>
                     )}
                   </div>
                 </div>
@@ -1150,7 +1218,11 @@ const MakeOfferModal = ({
 
           <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
             <p className="text-sm text-neutral-500">
-              {isPreviewingOffer
+              {shouldUseCustomOfferStepper
+                ? isCustomOfferStepperFinalStep
+                  ? "Review the preview, then send the offer."
+                  : "Continue through the offer steps before sending."
+                : isPreviewingOffer
                 ? "Review the offer summary before sending."
                 : `${completedDateOptions.length} appointment option${
                     completedDateOptions.length === 1 ? "" : "s"
@@ -1158,7 +1230,12 @@ const MakeOfferModal = ({
             </p>
             <div
               className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
-                isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
+                isPreviewingOffer
+                  ? "grid-cols-2"
+                  : shouldUseCustomOfferStepper &&
+                    !isCustomOfferStepperFinalStep
+                  ? "grid-cols-4"
+                  : "grid-cols-3"
               }`}
             >
               <button
@@ -1172,7 +1249,35 @@ const MakeOfferModal = ({
               >
                 {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
-              {!isPreviewingOffer && (
+              {shouldUseCustomOfferStepper && !isPreviewingOffer && (
+                <button
+                  type="button"
+                  disabled={customOfferStepIndex === 0}
+                  onClick={() =>
+                    setCustomOfferStepIndex((currentStepIndex) =>
+                      Math.max(currentStepIndex - 1, 0)
+                    )
+                  }
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Back
+                </button>
+              )}
+              {shouldUseCustomOfferStepper &&
+                !isPreviewingOffer &&
+                !isCustomOfferStepperFinalStep && (
+                  <button
+                    type="button"
+                    disabled={isCustomOfferStepContinueBlocked}
+                    onClick={() =>
+                      goToCustomOfferStep(customOfferStepIndex + 1)
+                    }
+                    className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-black/55"
+                  >
+                    Continue
+                  </button>
+                )}
+              {!isPreviewingOffer && !shouldUseCustomOfferStepper && (
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
