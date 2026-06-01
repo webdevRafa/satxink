@@ -182,6 +182,8 @@ const MakeOfferModal = ({
     artist?.paymentType === "internal" &&
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
+  const shouldShowRemainingPaymentChoice =
+    artist?.paymentType === "internal" && canAllowExternalRemainingPayment;
   const sessionEstimate =
     !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
@@ -223,6 +225,7 @@ const MakeOfferModal = ({
 
   useEffect(() => {
     if (!canAllowExternalRemainingPayment) {
+      setAllowExternalRemainingPayment(false);
       setIsRemainingPaymentHelpOpen(false);
     }
   }, [canAllowExternalRemainingPayment]);
@@ -745,7 +748,7 @@ const MakeOfferModal = ({
                     />
                   )}
                   <MoneyInput
-                    label="Deposit amount"
+                    label="Deposit to book"
                     value={depositAmount === 0 ? "" : depositAmount}
                     onChange={(value) =>
                       setDepositAmount(value ? Number(value) : 0)
@@ -759,7 +762,7 @@ const MakeOfferModal = ({
                   </p>
                 )}
 
-                {artist.paymentType === "internal" && (
+                {shouldShowRemainingPaymentChoice && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
                     <div className="flex items-start gap-3">
                       <input
@@ -807,7 +810,7 @@ const MakeOfferModal = ({
                                 <Info size={12} />
                               </button>
                               {isRemainingPaymentHelpOpen && (
-                                <span className="absolute left-1/2 top-full z-[80] mt-2 block w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 rounded-md border border-white/10 bg-[#090909] p-3 text-xs leading-5 text-neutral-300 shadow-2xl sm:left-0 sm:translate-x-0">
+                                <span className="absolute left-1/2 top-full z-[80] mt-5 block w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 rounded-md border border-white/10 bg-[#090909] p-3 text-xs leading-5 text-neutral-300 shadow-2xl sm:left-0 sm:translate-x-0">
                                   If this is off, the client pays the remaining
                                   balance later through Stripe and the payout
                                   goes to your Stripe Connect account. If this
