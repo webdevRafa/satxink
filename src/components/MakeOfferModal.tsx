@@ -870,23 +870,6 @@ const MakeOfferModal = ({
                         balance divided by {estimatedSessionCount} sessions.
                       </p>
                     </div>
-                    <div className="md:col-span-2 rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3">
-                      <div className="flex gap-2 text-sm leading-6 text-emerald-50/80">
-                        <ReceiptText
-                          size={16}
-                          className="mt-0.5 shrink-0 text-emerald-100"
-                        />
-                        <p>
-                          First appointment is chosen from the options below.
-                          Later sessions can be scheduled after each visit. The
-                          client sees an estimated{" "}
-                          <span className="font-semibold text-white">
-                            {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
-                          </span>{" "}
-                          due per session against the remaining project balance.
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 )}
               </section>
