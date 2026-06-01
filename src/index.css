@@ -108,6 +108,34 @@
   animation: flash-upload-tag-pill-in 180ms ease-out both;
 }
 
+@keyframes offer-step-in {
+  from {
+    opacity: 0;
+    transform: translate3d(14px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.offer-date-input {
+  color-scheme: dark;
+}
+
+.offer-date-input::-webkit-calendar-picker-indicator {
+  background-color: transparent;
+  cursor: pointer;
+  height: 100%;
+  margin-right: -0.5rem;
+  opacity: 0 !important;
+  width: 2.75rem;
+}
+
+.offer-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 0 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flash-upload-tag-pill {
     animation: none;

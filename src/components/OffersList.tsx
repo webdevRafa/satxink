@@ -330,22 +330,6 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     }
   };
 
-  if (loading) {
-    return (
-      <section className="mt-6 w-full max-w-7xl space-y-6">
-        <div className="h-36 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[0, 1, 2].map((item) => (
-            <div
-              key={item}
-              className="h-80 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]"
-            />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -360,11 +344,13 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
         </div>
 
         <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
-          <MetricCard label="Waiting" value={pendingCount} />
-          <MetricCard label="Declined" value={declinedCount} />
+          <MetricCard label="Waiting" value={loading ? "-" : pendingCount} />
+          <MetricCard label="Declined" value={loading ? "-" : declinedCount} />
           <MetricCard
             label="Newest"
-            value={newestOffer ? formatShortDate(newestOffer.createdAt) : "-"}
+            value={
+              !loading && newestOffer ? formatShortDate(newestOffer.createdAt) : "-"
+            }
           />
         </div>
       </div>
@@ -372,10 +358,10 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
         ref={filtersPanelRef}
-        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
           mobileFiltersDocked
             ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
-            : "bg-white/[0.03]"
+            : "bg-white/[0.03] md:bg-transparent"
         } ${
           mobileFiltersDocked && !mobileFiltersVisible
             ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
@@ -413,13 +399,21 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
               ))}
             </div>
             <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
-              Showing {filteredOffers.length} of {activeOffers.length}
+              {loading
+                ? "Loading offers"
+                : `Showing ${filteredOffers.length} of ${activeOffers.length}`}
             </span>
           </div>
         </div>
       </div>
 
-      {filteredOffers.length === 0 ? (
+      {loading ? (
+        <div
+          ref={offersPageTopRef}
+          className="min-h-[16rem]"
+          aria-busy="true"
+        />
+      ) : filteredOffers.length === 0 ? (
         <EmptyOffers statusFilter={statusFilter} />
       ) : (
         <div ref={offersPageTopRef} className="space-y-3">
@@ -517,7 +511,7 @@ const OffersTable = ({
             >
               <span>Client</span>
               <span>Sample</span>
-              <span>Pricing</span>
+              <span>Price | Deposit</span>
               <span>Schedule</span>
               <span>Status</span>
               <span className="text-right">Actions</span>
@@ -690,10 +684,8 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          ${offer.price}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          Deposit {formatDeposit(offer)}
+          ${offer.price} <span className="text-neutral-600">|</span>{" "}
+          {formatDeposit(offer)}
         </p>
       </div>
 
@@ -1192,7 +1184,7 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
     <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>

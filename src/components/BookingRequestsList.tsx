@@ -378,10 +378,10 @@ const BookingRequestsList: React.FC<Props> = ({
       <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
       <div
         ref={filtersPanelRef}
-        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:bg-white/[0.03] md:will-change-auto ${
+        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
           mobileFiltersDocked
             ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
-            : "bg-white/[0.03]"
+            : "bg-white/[0.03] md:bg-transparent"
         } ${
           mobileFiltersDocked && !mobileFiltersVisible
             ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
@@ -533,7 +533,7 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.025] px-2.5! py-2! sm:px-3! sm:py-2.5!">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
     <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
@@ -679,7 +679,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(92px,.38fr) minmax(205px,.88fr) 88px minmax(235px,.98fr) minmax(225px,.9fr) minmax(118px,.42fr) minmax(268px,1fr)";
+    "minmax(82px,.34fr) minmax(210px,.92fr) minmax(82px,.32fr) minmax(74px,.3fr) minmax(150px,.58fr) minmax(205px,.8fr) minmax(110px,.4fr) minmax(282px,1fr)";
 
   return (
     <>
@@ -704,6 +704,7 @@ const RequestTable = ({
             >
               <span>Created</span>
               <span>Client</span>
+              <span>Type</span>
               <span>Reference</span>
               <span>Idea</span>
               <span>Availability</span>
@@ -829,6 +830,7 @@ const RequestRow = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const canPrepareOffer = request.sourceType !== "flash";
 
   return (
     <div
@@ -856,6 +858,18 @@ const RequestRow = ({
             {request.clientName || "Client"}
           </p>
         </div>
+      </button>
+
+      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
+        <span
+          className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+            request.sourceType === "flash"
+              ? "border-amber-200/25 bg-amber-300/10 text-amber-50"
+              : "border-white/10 bg-white/[0.035] text-neutral-200"
+          }`}
+        >
+          {formatRequestType(request)}
+        </span>
       </button>
 
       <button
@@ -887,10 +901,6 @@ const RequestRow = ({
             label: "Size",
             value: request.size || "Size open",
           },
-          {
-            label: "Message",
-            value: request.description || "No message provided.",
-          },
         ]}
       />
 
@@ -918,11 +928,6 @@ const RequestRow = ({
             ? formatFlashPrice(request.flashPrice)
             : formatBudget(request.budget)}
         </p>
-        {request.sourceType === "flash" && (
-          <p className="mt-1 truncate text-xs text-neutral-500">
-            {request.flashTitle || "Flash request"}
-          </p>
-        )}
         {isPreparingOffer && (
           <div className="mt-2 flex min-w-0">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[11px] font-medium text-amber-50">
@@ -937,31 +942,33 @@ const RequestRow = ({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 pr-2">
-        <button
-          type="button"
-          onClick={onPrepareOffer}
-          className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
-            isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
-          }`}
-          aria-label={
-            isPreparingOffer
-              ? "Update offer preparation timing"
-              : "Prepare offer and notify client"
-          }
-        >
-          <Send size={14} className="text-amber-200" />
-          {isPreparingOffer ? "Timing" : "Prepare"}
-          <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
-            {isPreparingOffer
-              ? "Update when the client should expect your offer."
-              : "Let the client know you are preparing an offer."}
-          </span>
-        </button>
+      <div className="flex min-w-0 items-center justify-end gap-1.5 pr-0">
+        {canPrepareOffer && (
+          <button
+            type="button"
+            onClick={onPrepareOffer}
+            className={`group relative z-10 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:z-[70] hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white focus-visible:z-[70] ${
+              isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
+            }`}
+            aria-label={
+              isPreparingOffer
+                ? "Update offer preparation timing"
+                : "Prepare offer and notify client"
+            }
+          >
+            <Send size={14} className="text-amber-200" />
+            {isPreparingOffer ? "Timing" : "Prepare"}
+            <span className="pointer-events-none absolute right-0 top-[calc(100%+0.5rem)] z-[80] w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+              {isPreparingOffer
+                ? "Update when the client should expect your offer."
+                : "Let the client know you are preparing an offer."}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
           <Eye size={14} />
           Details
@@ -969,7 +976,7 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onMakeOffer}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
         >
           <Send size={14} />
           Offer
@@ -992,6 +999,7 @@ const RequestMobileCard = ({
 }) => {
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
+  const canPrepareOffer = request.sourceType !== "flash";
   const budgetLabel =
     request.sourceType === "flash"
       ? formatFlashPrice(request.flashPrice)
@@ -1068,22 +1076,28 @@ const RequestMobileCard = ({
               value: request.size || "Size open",
             },
             {
-              label: "Message",
-              value: request.description || "No message provided.",
+              label: "Type",
+              value: formatRequestType(request),
             },
           ]}
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 border-t border-white/10 p-3">
-        <button
-          type="button"
-          onClick={onPrepareOffer}
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
-        >
-          <Send size={13} className="text-amber-200" />
-          {isPreparingOffer ? "Timing" : "Prepare"}
-        </button>
+      <div
+        className={`grid gap-2 border-t border-white/10 p-3 ${
+          canPrepareOffer ? "grid-cols-3" : "grid-cols-2"
+        }`}
+      >
+        {canPrepareOffer && (
+          <button
+            type="button"
+            onClick={onPrepareOffer}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2! text-[11px]! font-semibold text-amber-50 transition hover:bg-amber-300/16"
+          >
+            <Send size={13} className="text-amber-200" />
+            {isPreparingOffer ? "Timing" : "Prepare"}
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpen}
@@ -1301,13 +1315,13 @@ const MobileRequestActionDock = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => (
   <div
-    className={`fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
+    className={`fixed inset-x-0 bottom-0 z-[60] border-t border-white/10 bg-[#111111]/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md sm:hidden motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none ${
       visible
         ? "pointer-events-auto translate-y-0 opacity-100"
         : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
     }`}
   >
-    <div className="rounded-t-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_-18px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+    <div className="mx-auto max-w-[30rem]">
       <button
         type="button"
         onClick={() => onMakeOffer(request)}
@@ -1335,7 +1349,7 @@ const MobileRequestActionDock = ({
           type="button"
           disabled={isDeclining}
           onClick={() => onDecline(request)}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center rounded-md border border-red-300/20 bg-red-500/[0.06] px-3! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isDeclining ? "Declining..." : "Decline"}
         </button>
@@ -1343,6 +1357,74 @@ const MobileRequestActionDock = ({
     </div>
   </div>
 );
+
+const ImageLoadingSurface = ({ label }: { label: string }) => (
+  <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-[#080808]">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_56%)]" />
+    <div className="absolute inset-4 rounded-xl border border-white/5 bg-white/[0.035] motion-safe:animate-pulse" />
+    <div className="absolute left-6 right-6 top-7 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+    <div className="relative flex flex-col items-center gap-3 text-neutral-500">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] motion-safe:animate-pulse">
+        <ImageIcon size={26} />
+      </span>
+      <span className="text-xs font-semibold uppercase tracking-[0.16em]">
+        {label}
+      </span>
+    </div>
+  </div>
+);
+
+const ImageUnavailableSurface = ({ label }: { label: string }) => (
+  <div className="flex h-full min-h-[inherit] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+    <ImageIcon size={34} />
+    <span>{label}</span>
+  </div>
+);
+
+const LoadAwareZoomImage = ({
+  src,
+  alt,
+  className,
+  loadingLabel,
+  errorLabel,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+  loadingLabel: string;
+  errorLabel: string;
+}) => {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    "loading"
+  );
+
+  useEffect(() => {
+    setStatus("loading");
+  }, [src]);
+
+  if (!src || status === "error") {
+    return <ImageUnavailableSurface label={errorLabel} />;
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      {status === "loading" && <ImageLoadingSurface label={loadingLabel} />}
+      <Zoom>
+        <img
+          src={src}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          onLoad={() => setStatus("loaded")}
+          onError={() => setStatus("error")}
+          className={`${className} transition-opacity duration-500 ease-out ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </Zoom>
+    </div>
+  );
+};
 
 const RequestDetailsDialog = ({
   request,
@@ -1429,13 +1511,15 @@ const RequestDetailsDialog = ({
                   <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {request.fullUrl || request.thumbUrl ? (
-                        <Zoom>
-                          <img
-                            src={request.fullUrl || request.thumbUrl}
+                        <div className="relative min-h-[360px] overflow-hidden bg-black sm:min-h-[420px]">
+                          <LoadAwareZoomImage
+                            src={request.fullUrl || request.thumbUrl || ""}
                             alt="Tattoo request reference"
                             className="h-full max-h-[72vh] min-h-[360px] w-full object-contain sm:min-h-[420px]"
+                            loadingLabel="Loading reference"
+                            errorLabel="Reference image unavailable"
                           />
-                        </Zoom>
+                        </div>
                       ) : (
                         <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
@@ -1524,7 +1608,7 @@ const RequestDetailsDialog = ({
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
@@ -1718,18 +1802,12 @@ const FlashRequestDetailsDialog = ({
                         </p>
                       </div>
 
-                      <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50/80">
-                        This request is tied to one listed flash design. The
-                        offer should use the listed flash price and a single
-                        appointment flow.
-                      </div>
-
                       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <button
                           type="button"
                           disabled={isDeclining}
                           onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isDeclining ? "Declining..." : "Decline"}
                         </button>
@@ -1771,16 +1849,28 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
   const previewUrl = request.fullUrl || request.thumbUrl || "";
 
   return (
-    <div className="w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+    <div className="relative isolate w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+      <div
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+        aria-hidden="true"
+      />
+      <span
+        className="spotlight-border-glint spotlight-border-glint--left"
+        aria-hidden="true"
+      />
+      <span
+        className="spotlight-border-glint spotlight-border-glint--right"
+        aria-hidden="true"
+      />
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
         {previewUrl ? (
-          <Zoom>
-            <img
-              src={previewUrl}
-              alt={request.flashTitle || "Requested flash design"}
-              className="h-full w-full object-cover"
-            />
-          </Zoom>
+          <LoadAwareZoomImage
+            src={previewUrl}
+            alt={request.flashTitle || "Requested flash design"}
+            className="h-full w-full object-cover"
+            loadingLabel="Loading flash"
+            errorLabel="Flash image unavailable"
+          />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
             <ImageIcon size={34} />
@@ -1873,6 +1963,9 @@ const formatFlashPrice = (price?: number | null) =>
   typeof price === "number" && Number.isFinite(price) && price > 0
     ? `$${price}`
     : "Price not listed";
+
+const formatRequestType = (request: BookingRequest) =>
+  request.sourceType === "flash" ? "Flash" : "Custom";
 
 const formatAvailableDaysSummary = (request: BookingRequest) =>
   request.availableDays?.length

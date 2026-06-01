@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -32,6 +33,8 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
+import Zoom from "react-medium-image-zoom";
+import "react-medium-image-zoom/dist/styles.css";
 import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
@@ -105,6 +108,19 @@ type Props = {
   additionalOfferData?: Record<string, unknown>;
 };
 
+const CUSTOM_OFFER_STEPS = [
+  { id: "pricing", label: "Pricing" },
+  { id: "sessions", label: "Sessions" },
+  { id: "appointment", label: "Appointment" },
+  { id: "message", label: "Message" },
+  { id: "sample", label: "Sample" },
+  { id: "preview", label: "Preview" },
+] as const;
+
+type CustomOfferStepId = (typeof CUSTOM_OFFER_STEPS)[number]["id"];
+
+const FINAL_CUSTOM_OFFER_STEP_INDEX = CUSTOM_OFFER_STEPS.length - 1;
+
 const MakeOfferModal = ({
   isOpen,
   onClose,
@@ -129,13 +145,27 @@ const MakeOfferModal = ({
   const [isPreviewingOffer, setIsPreviewingOffer] = useState(false);
   const [allowExternalRemainingPayment, setAllowExternalRemainingPayment] =
     useState(false);
-  const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
-    useState("");
+  const [isRemainingPaymentHelpOpen, setIsRemainingPaymentHelpOpen] =
+    useState(false);
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
+  const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
+    useState(0);
+  const [hasTriedPricingContinue, setHasTriedPricingContinue] =
+    useState(false);
+  const [isDesktopOfferStepper, setIsDesktopOfferStepper] = useState(false);
+  const dateInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
+  const shouldUseCustomOfferStepper =
+    !isFlashRequest && isDesktopOfferStepper && !isPreviewingOffer;
+  const hasCompletedCustomOfferStepper =
+    !shouldUseCustomOfferStepper ||
+    furthestCustomOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
+  const isOfferActionLocked =
+    shouldUseCustomOfferStepper && !hasCompletedCustomOfferStepper;
   const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
   const effectiveOfferPrice = isFlashRequest
     ? flashListedPrice
@@ -155,6 +185,8 @@ const MakeOfferModal = ({
     artist?.paymentType === "internal" &&
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
+  const shouldShowRemainingPaymentChoice =
+    artist?.paymentType === "internal" && canAllowExternalRemainingPayment;
   const sessionEstimate =
     !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
@@ -166,6 +198,54 @@ const MakeOfferModal = ({
       }),
     [depositAmount, effectiveOfferPrice]
   );
+  const currentOfferPrice = Number(offerPrice || 0);
+  const currentDepositAmount = Number(depositAmount || 0);
+  const pricingStepInlineError =
+    !isFlashRequest && currentOfferPrice > 0 && currentDepositAmount <= 0
+      ? "Enter a deposit to book before continuing."
+      : !isFlashRequest && currentDepositAmount > currentOfferPrice
+      ? "Deposit cannot be greater than the offer price."
+      : "";
+  const currentCustomOfferStepId =
+    CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
+  const shouldShowPricingStepInlineError =
+    pricingStepInlineError &&
+    (pricingStepInlineError !== "Enter a deposit to book before continuing." ||
+      hasTriedPricingContinue);
+  const isCustomOfferStepContinueBlocked =
+    currentCustomOfferStepId === "appointment" &&
+    completedDateOptions.length === 0;
+  const isCustomOfferStepperFinalStep =
+    customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const query = window.matchMedia("(min-width: 1024px)");
+    const handleChange = () => setIsDesktopOfferStepper(query.matches);
+
+    handleChange();
+    query.addEventListener("change", handleChange);
+
+    return () => {
+      query.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setCustomOfferStepIndex(0);
+    setFurthestCustomOfferStepIndex(0);
+    setHasTriedPricingContinue(false);
+  }, [isOpen, selectedRequest?.id]);
+
+  useEffect(() => {
+    if (!canAllowExternalRemainingPayment) {
+      setAllowExternalRemainingPayment(false);
+      setIsRemainingPaymentHelpOpen(false);
+    }
+  }, [canAllowExternalRemainingPayment]);
 
   useEffect(() => {
     if (!isOpen || !selectedRequest) return;
@@ -196,10 +276,13 @@ const MakeOfferModal = ({
     setOfferImage(null);
     setPreviewUrl(null);
     setAllowExternalRemainingPayment(false);
-    setExternalRemainingPaymentNote("");
+    setIsRemainingPaymentHelpOpen(false);
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
     setIsPreviewingOffer(false);
+    setCustomOfferStepIndex(0);
+    setFurthestCustomOfferStepIndex(0);
+    setHasTriedPricingContinue(false);
   };
 
   const handleClose = () => {
@@ -225,8 +308,12 @@ const MakeOfferModal = ({
           : "Enter a valid offer price.";
     }
 
-    if (depositAmount < 0 || depositAmount > submissionOfferPrice) {
-      return "Deposit must be between $0 and the offer price.";
+    if (depositAmount <= 0) {
+      return "Enter a deposit to book before sending this offer.";
+    }
+
+    if (depositAmount > submissionOfferPrice) {
+      return "Deposit cannot be greater than the offer price.";
     }
 
     if (completedDateOptions.length === 0) {
@@ -254,6 +341,11 @@ const MakeOfferModal = ({
   };
 
   const handlePreviewOffer = () => {
+    if (isOfferActionLocked) {
+      toast.error("Review each offer section before previewing.");
+      return;
+    }
+
     const validationError = getDraftValidationError();
     if (validationError) {
       toast.error(validationError);
@@ -267,6 +359,11 @@ const MakeOfferModal = ({
     event.preventDefault();
 
     if (!selectedRequest || !uid) return;
+
+    if (isOfferActionLocked) {
+      toast.error("Review each offer section before sending.");
+      return;
+    }
 
     const validationError = getDraftValidationError();
     if (validationError) {
@@ -369,10 +466,7 @@ const MakeOfferModal = ({
         finalPaymentTiming: artist.finalPaymentTiming || "after",
         allowExternalRemainingPayment:
           canAllowExternalRemainingPayment && allowExternalRemainingPayment,
-        externalRemainingPaymentNote:
-          canAllowExternalRemainingPayment && allowExternalRemainingPayment
-            ? externalRemainingPaymentNote.trim()
-            : "",
+        externalRemainingPaymentNote: "",
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
@@ -409,13 +503,117 @@ const MakeOfferModal = ({
     }
   };
 
-  const offerModalShellClassName = isFlashRequest
-    ? "fixed inset-0 z-50 flex h-dvh items-start justify-center overflow-hidden bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+4.75rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5"
-    : "fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md";
+  const getCustomOfferStepValidationError = (stepId: CustomOfferStepId) => {
+    if (stepId === "appointment") {
+      if (completedDateOptions.length === 0) {
+        return "Add at least one appointment option before continuing.";
+      }
 
-  const offerModalPanelClassName = isFlashRequest
-    ? "relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-5.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]"
-    : "relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl";
+      if (
+        completedDateOptions.some((option) =>
+          isPastDateInputValue(option.date)
+        )
+      ) {
+        return "Appointment options must be today or later.";
+      }
+
+      return null;
+    }
+
+    if (stepId !== "pricing") return null;
+
+    if (currentOfferPrice <= 0) {
+      return "Enter a valid offer price before continuing.";
+    }
+
+    if (currentDepositAmount <= 0) {
+      return "Enter a deposit to book before continuing.";
+    }
+
+    if (currentDepositAmount > currentOfferPrice) {
+      return "Deposit cannot be greater than the offer price.";
+    }
+
+    return null;
+  };
+
+  const goToCustomOfferStep = (stepIndex: number) => {
+    const nextStepIndex = Math.min(
+      Math.max(stepIndex, 0),
+      FINAL_CUSTOM_OFFER_STEP_INDEX
+    );
+
+    if (nextStepIndex > customOfferStepIndex) {
+      const currentStep = CUSTOM_OFFER_STEPS[customOfferStepIndex];
+      if (currentStep.id === "pricing") {
+        setHasTriedPricingContinue(true);
+      }
+      const validationError = getCustomOfferStepValidationError(currentStep.id);
+
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+    }
+
+    setCustomOfferStepIndex(nextStepIndex);
+    if (nextStepIndex > 0) {
+      setHasTriedPricingContinue(false);
+    }
+    setFurthestCustomOfferStepIndex((currentStepIndex) =>
+      Math.max(currentStepIndex, nextStepIndex)
+    );
+  };
+
+  const openDatePicker = (optionIndex: number) => {
+    const input = dateInputRefs.current[optionIndex];
+    if (!input) return;
+
+    input.focus({ preventScroll: true });
+
+    const inputWithPicker = input as HTMLInputElement & {
+      showPicker?: () => void;
+    };
+
+    if (typeof inputWithPicker.showPicker === "function") {
+      try {
+        inputWithPicker.showPicker();
+        return;
+      } catch {
+        // Fall back to the native click path below when a browser blocks showPicker.
+      }
+    }
+
+    input.click();
+  };
+
+  const getCustomOfferStepClassName = (stepId: CustomOfferStepId) => {
+    if (isFlashRequest) return "";
+
+    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
+      (step) => step.id === stepId
+    );
+
+    return customOfferStepIndex === stepIndex
+      ? "lg:block lg:animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
+      : "lg:hidden";
+  };
+
+  const getCustomOfferPreviewStepClassName = () => {
+    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
+      (step) => step.id === "preview"
+    );
+
+    return customOfferStepIndex === stepIndex
+      ? "hidden lg:block lg:animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
+      : "hidden";
+  };
+
+  const offerModalShellClassName =
+    "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
+
+  const offerModalPanelClassName =
+    "relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]";
 
   return (
     <div className={offerModalShellClassName}>
@@ -533,7 +731,55 @@ const MakeOfferModal = ({
                   </aside>
 
                   <div className="space-y-5 p-5 sm:p-6">
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                    {!isFlashRequest && (
+                      <div className="hidden bg-[#111111] pb-3 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:sticky lg:top-0 lg:z-40 lg:-mx-5 lg:-mt-5 lg:block lg:px-5 lg:pt-5">
+                        <div className="rounded-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
+                          <div className="grid grid-cols-6 gap-1.5">
+                            {CUSTOM_OFFER_STEPS.map((step, index) => {
+                              const isActive = index === customOfferStepIndex;
+                              const isComplete =
+                                index < furthestCustomOfferStepIndex;
+                              const canVisit =
+                                index <= furthestCustomOfferStepIndex + 1;
+
+                              return (
+                                <button
+                                  key={step.id}
+                                  type="button"
+                                  disabled={!canVisit}
+                                  onClick={() => goToCustomOfferStep(index)}
+                                  className={`group flex min-w-0 items-center justify-center rounded-md border px-1.5! py-2.5! text-center transition ${
+                                    isActive
+                                      ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
+                                      : isComplete
+                                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
+                                      : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
+                                  }`}
+                                >
+                                  <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em]">
+                                    {step.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                            <div
+                              className="h-full rounded-full bg-white transition-all duration-300 ease-out"
+                              style={{
+                                width: `${
+                                  ((customOfferStepIndex + 1) /
+                                    CUSTOM_OFFER_STEPS.length) *
+                                  100
+                                }%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("pricing")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
                     <DollarSign size={19} />
@@ -573,7 +819,7 @@ const MakeOfferModal = ({
                     />
                   )}
                   <MoneyInput
-                    label="Deposit amount"
+                    label="Deposit to book"
                     value={depositAmount === 0 ? "" : depositAmount}
                     onChange={(value) =>
                       setDepositAmount(value ? Number(value) : 0)
@@ -581,61 +827,17 @@ const MakeOfferModal = ({
                     required
                   />
                 </div>
-
-                <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
-                  <div className="flex gap-2 text-sm text-neutral-300">
-                    <Info
-                      size={16}
-                      className="mt-0.5 shrink-0 text-[var(--color-primary)]"
-                    />
-                    <p>
-                      The client pays the deposit plus SATX Ink and Stripe fees
-                      today, so your deposit amount is protected. Any remaining
-                      artist balance is handled by the payment choice below.
-                    </p>
-                  </div>
-                </div>
-
-                {artist.paymentType === "internal" && paymentPreview.artistAmountCents > 0 && (
-                  <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-emerald-100/70">
-                          Client checkout preview
-                        </p>
-                        <p className="mt-1 text-sm text-emerald-50/80">
-                          Based on the deposit due today.
-                        </p>
-                      </div>
-                      <p className="text-xl font-semibold text-white">
-                        {formatMoneyFromCents(paymentPreview.clientTotalCents)}
-                      </p>
-                    </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-2">
-                      <PreviewRow
-                        label="You receive"
-                        value={formatMoneyFromCents(paymentPreview.artistAmountCents)}
-                      />
-                      <PreviewRow
-                        label="SATX Ink fee"
-                        value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
-                      />
-                      <PreviewRow
-                        label="Estimated Stripe fee"
-                        value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
-                      />
-                      <PreviewRow
-                        label="Client pays today"
-                        value={formatMoneyFromCents(paymentPreview.clientTotalCents)}
-                      />
-                    </div>
-                  </div>
+                {shouldShowPricingStepInlineError && (
+                  <p className="mt-3 rounded-md border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100/85">
+                    {pricingStepInlineError}
+                  </p>
                 )}
 
-                {artist.paymentType === "internal" && (
+                {shouldShowRemainingPaymentChoice && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
-                    <label className="flex cursor-pointer items-start gap-3">
+                    <div className="flex items-start gap-3">
                       <input
+                        id="allow-external-remaining-payment"
                         type="checkbox"
                         checked={allowExternalRemainingPayment}
                         disabled={!canAllowExternalRemainingPayment}
@@ -644,11 +846,57 @@ const MakeOfferModal = ({
                         }
                         className="mt-1 h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
                       />
-                      <span>
-                        <span className="block text-sm font-semibold text-white">
-                          Allow the remaining balance at the shop
-                        </span>
-                        <span className="mt-1 block text-sm leading-6 text-neutral-400">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <label
+                            htmlFor="allow-external-remaining-payment"
+                            className="cursor-pointer text-sm font-semibold text-white"
+                          >
+                            Allow the remaining balance at the shop
+                          </label>
+                          {canAllowExternalRemainingPayment && (
+                            <span
+                              className="relative inline-flex"
+                              onMouseEnter={() =>
+                                setIsRemainingPaymentHelpOpen(true)
+                              }
+                              onMouseLeave={() =>
+                                setIsRemainingPaymentHelpOpen(false)
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setIsRemainingPaymentHelpOpen(true)
+                                }
+                                onFocus={() =>
+                                  setIsRemainingPaymentHelpOpen(true)
+                                }
+                                onBlur={() =>
+                                  setIsRemainingPaymentHelpOpen(false)
+                                }
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] p-0! text-neutral-400 transition hover:border-white/30 hover:text-white"
+                                aria-label="How remaining balance payment works"
+                              >
+                                <Info size={12} />
+                              </button>
+                              {isRemainingPaymentHelpOpen && (
+                                <span className="absolute left-1/2 top-full z-[80] mt-5 block w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 rounded-md border border-white/10 bg-[#090909] p-3 text-xs leading-5 text-neutral-300 shadow-2xl sm:left-0 sm:translate-x-0">
+                                  If this is off, the client pays the remaining
+                                  balance later through Stripe and the payout
+                                  goes to your Stripe Connect account. If this
+                                  is on, the client can choose to settle the
+                                  remaining balance directly with you at the
+                                  shop.
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <label
+                          htmlFor="allow-external-remaining-payment"
+                          className="mt-1 block cursor-pointer text-sm leading-6 text-neutral-400"
+                        >
                           The client can pay the deposit through SATX Ink now and
                           choose to pay the remaining{" "}
                           <span className="font-semibold text-white">
@@ -656,55 +904,26 @@ const MakeOfferModal = ({
                               Math.round(remainingArtistBalance * 100)
                             )}
                           </span>{" "}
-                          directly with you after the session. SATX Ink's
-                          platform fee is still calculated from the full quote
-                          and collected during the deposit checkout.
-                        </span>
-                      </span>
-                    </label>
-                    {canAllowExternalRemainingPayment && (
-                      <p className="mt-3 rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-neutral-400">
-                        If this is off, the client pays the remaining balance
-                        later through Stripe and the payout goes to your Stripe
-                        Connect account. If this is on, the client can choose to
-                        settle the remaining balance directly with you at the
-                        shop.
-                      </p>
-                    )}
-                    {!canAllowExternalRemainingPayment && (
-                      <p className="mt-3 text-xs leading-5 text-neutral-500">
-                        Available once Stripe payments are enabled and the
-                        deposit is less than the total offer price.
-                      </p>
-                    )}
-                    {allowExternalRemainingPayment &&
-                      canAllowExternalRemainingPayment && (
-                        <textarea
-                          value={externalRemainingPaymentNote}
-                          onChange={(event) =>
-                            setExternalRemainingPaymentNote(event.target.value)
-                          }
-                          className="mt-4 min-h-20 w-full rounded-md border border-white/10 bg-[#101010] p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
-                          placeholder="Optional note about accepted in-shop payment methods or expectations..."
-                        />
-                      )}
+                          directly with you after the session.
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 )}
               </section>
 
               {!isFlashRequest && (
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sessions")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                     <Layers size={19} />
                   </span>
                   <div>
                     <h3 className="text-lg! font-semibold! text-white">
-                      Project sessions
+                      Sessions
                     </h3>
                     <p className="text-sm text-neutral-400">
-                      Keep small tattoos simple, or set expectations for a
-                      larger piece that needs multiple appointments.
+                      The number of sessions this piece will take.
                     </p>
                   </div>
                 </div>
@@ -713,39 +932,39 @@ const MakeOfferModal = ({
                   <button
                     type="button"
                     onClick={() => setIsMultiSessionProject(false)}
-                    className={`rounded-lg border p-4! text-left transition ${
+                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
                       !isMultiSessionProject
                         ? "border-white bg-white text-black"
                         : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
                     }`}
                   >
-                    <span className="text-sm font-semibold">Single session</span>
                     <span
-                      className={`mt-1 block text-xs leading-5 ${
+                      className={`text-sm font-semibold ${
                         !isMultiSessionProject
-                          ? "text-black/65"
-                          : "text-neutral-400"
+                          ? "text-neutral-950!"
+                          : "text-white"
                       }`}
                     >
-                      The current flow: deposit first, one appointment, then the
-                      remaining balance.
+                      Single session
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsMultiSessionProject(true)}
-                    className={`rounded-lg border p-4! text-left transition ${
+                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
                       isMultiSessionProject
                         ? "border-emerald-300/45 bg-emerald-300/10 text-white"
                         : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
                     }`}
                   >
-                    <span className="text-sm font-semibold">
+                    <span
+                      className={`text-sm font-semibold ${
+                        isMultiSessionProject
+                          ? "text-white"
+                          : "text-neutral-200"
+                      }`}
+                    >
                       Multi-session project
-                    </span>
-                    <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                      Client pays the initial deposit, then settles each session
-                      installment through Stripe or at the shop.
                     </span>
                   </button>
                 </div>
@@ -773,40 +992,23 @@ const MakeOfferModal = ({
                       <span className="text-sm font-medium text-neutral-200">
                         Estimated per session
                       </span>
-                      <div className="flex h-11 items-center rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white">
+                      <div className="flex min-h-11 items-center text-sm font-semibold text-white">
                         {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
                       </div>
-                      <p className="text-xs leading-5 text-neutral-500">
+                      <p className="text-[11px] leading-4 text-neutral-500">
                         Calculated from the remaining{" "}
                         {formatMoneyFromCents(
                           Math.round(remainingArtistBalance * 100)
                         )}{" "}
-                        balance divided by {estimatedSessionCount} sessions.
+                        balance.
                       </p>
-                    </div>
-                    <div className="md:col-span-2 rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3">
-                      <div className="flex gap-2 text-sm leading-6 text-emerald-50/80">
-                        <ReceiptText
-                          size={16}
-                          className="mt-0.5 shrink-0 text-emerald-100"
-                        />
-                        <p>
-                          First appointment is chosen from the options below.
-                          Later sessions can be scheduled after each visit. The
-                          client sees an estimated{" "}
-                          <span className="font-semibold text-white">
-                            {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
-                          </span>{" "}
-                          due per session against the remaining project balance.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 )}
               </section>
               )}
 
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("appointment")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                     <CalendarDays size={19} />
@@ -838,22 +1040,37 @@ const MakeOfferModal = ({
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-sm font-semibold text-neutral-300">
                         {index + 1}
                       </div>
-                      <input
-                        type="date"
-                        min={todayDateInput}
-                        value={option.date}
-                        onChange={(event) =>
-                          setDateOptions((prev) => {
-                            const updated = [...prev];
-                            updated[index] = {
-                              ...updated[index],
-                              date: event.target.value,
-                            };
-                            return updated;
-                          })
-                        }
-                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-                      />
+                      <div className="relative min-w-0">
+                        <input
+                          ref={(element) => {
+                            dateInputRefs.current[index] = element;
+                          }}
+                          type="date"
+                          min={todayDateInput}
+                          value={option.date}
+                          onChange={(event) =>
+                            setDateOptions((prev) => {
+                              const updated = [...prev];
+                              updated[index] = {
+                                ...updated[index],
+                                date: event.target.value,
+                              };
+                              return updated;
+                            })
+                          }
+                          className="offer-date-input h-10 w-full rounded-md border border-white/10 bg-[#101010] px-3 pr-10 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openDatePicker(index)}
+                          className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center rounded-r-md p-0! text-neutral-300 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/70"
+                          aria-label={`Open appointment date option ${
+                            index + 1
+                          } calendar`}
+                        >
+                          <CalendarDays size={15} />
+                        </button>
+                      </div>
                       <QuarterHourTimeSelect
                         value={option.time}
                         onChange={(value) =>
@@ -874,8 +1091,8 @@ const MakeOfferModal = ({
                 </div>
               </section>
 
-              <section className={`grid gap-5 ${isFlashRequest ? "" : "lg:grid-cols-2"}`}>
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <>
+                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("message")}`}>
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                       <MessageSquareText size={19} />
@@ -902,7 +1119,7 @@ const MakeOfferModal = ({
                 </div>
 
                 {!isFlashRequest && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sample")}`}>
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                       <Upload size={19} />
@@ -917,7 +1134,13 @@ const MakeOfferModal = ({
                     </div>
                   </div>
 
-                  <label className="group relative flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
+                  <label
+                    className={`group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04] ${
+                      previewUrl || retainedOfferSampleUrl
+                        ? "min-h-[18rem]"
+                        : "min-h-40"
+                    }`}
+                  >
                     <input
                       type="file"
                       accept="image/*"
@@ -937,7 +1160,7 @@ const MakeOfferModal = ({
                             ? "Offer sample preview"
                             : "Retained offer sample"
                         }
-                        className="absolute inset-0 h-full w-full object-cover opacity-80"
+                        className="absolute inset-0 h-full w-full object-contain opacity-90"
                       />
                     ) : (
                       <>
@@ -960,21 +1183,118 @@ const MakeOfferModal = ({
                   </label>
                 </div>
                 )}
-              </section>
+              </>
+
+                    {!isFlashRequest && (
+                      <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferPreviewStepClassName()}`}>
+                        <div className="mb-5 flex items-start gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
+                            <ReceiptText size={19} />
+                          </span>
+                          <div>
+                            <h3 className="text-lg! font-semibold! text-white">
+                              Preview
+                            </h3>
+                            <p className="text-sm text-neutral-400">
+                              Quick final check before the offer goes out.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <PreviewTile
+                            label="Offer price"
+                            value={formatMoneyFromCents(
+                              Math.round(effectiveOfferPrice * 100)
+                            )}
+                            tone="strong"
+                          />
+                          <PreviewTile
+                            label="Deposit to book"
+                            value={formatMoneyFromCents(
+                              Math.round(Number(depositAmount || 0) * 100)
+                            )}
+                          />
+                          <PreviewTile
+                            label="Remaining balance"
+                            value={formatMoneyFromCents(
+                              Math.round(remainingArtistBalance * 100)
+                            )}
+                          />
+                          <PreviewTile
+                            label="Project"
+                            value={
+                              isMultiSessionProject
+                                ? `${estimatedSessionCount} sessions`
+                                : "Single session"
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
+                          <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                            Appointment options
+                          </p>
+                          <div className="mt-3 grid gap-2">
+                            {completedDateOptions.length > 0 ? (
+                              completedDateOptions.map((option, index) => (
+                                <div
+                                  key={`${option.date}-${option.time}-${index}`}
+                                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm"
+                                >
+                                  <span className="font-semibold text-neutral-500">
+                                    Option {index + 1}
+                                  </span>
+                                  <span className="text-right font-medium text-white">
+                                    {formatOfferPreviewAppointment(option)}
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
+                                No complete appointment options yet.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+                            <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                              Message
+                            </p>
+                            <p className="mt-3 min-h-24 whitespace-pre-line text-sm leading-6 text-neutral-300">
+                              {offerMessage || "No message included."}
+                            </p>
+                          </div>
+                          <PreviewImage
+                            label="Offer sample"
+                            imageUrl={previewUrl || retainedOfferSampleUrl}
+                            emptyLabel="No sample included"
+                          />
+                        </div>
+                      </section>
+                    )}
                   </div>
                 </div>
               </>
             )}
           </div>
 
-          <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
-            <p className="text-sm text-neutral-500">
-              {isPreviewingOffer
-                ? "Review the offer summary before sending."
-                : `${completedDateOptions.length} appointment option${
-                    completedDateOptions.length === 1 ? "" : "s"
-                  } ready`}
-            </p>
+          <div
+            className={`z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:px-6 sm:py-4 ${
+              shouldUseCustomOfferStepper ? "sm:justify-end" : "sm:justify-between"
+            }`}
+          >
+            {!shouldUseCustomOfferStepper && (
+              <p className="text-sm text-neutral-500">
+                {isPreviewingOffer
+                  ? "Review the offer summary before sending."
+                  : `${completedDateOptions.length} appointment option${
+                      completedDateOptions.length === 1 ? "" : "s"
+                    } ready`}
+              </p>
+            )}
             <div
               className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
                 isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
@@ -991,24 +1311,56 @@ const MakeOfferModal = ({
               >
                 {isPreviewingOffer ? "Back to edit" : "Cancel"}
               </button>
-              {!isPreviewingOffer && (
+              {shouldUseCustomOfferStepper && !isPreviewingOffer && (
+                <button
+                  type="button"
+                  disabled={customOfferStepIndex === 0}
+                  onClick={() =>
+                    setCustomOfferStepIndex((currentStepIndex) =>
+                      Math.max(currentStepIndex - 1, 0)
+                    )
+                  }
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Back
+                </button>
+              )}
+              {shouldUseCustomOfferStepper &&
+                !isPreviewingOffer &&
+                !isCustomOfferStepperFinalStep && (
+                  <button
+                    type="button"
+                    disabled={isCustomOfferStepContinueBlocked}
+                    onClick={() =>
+                      goToCustomOfferStep(customOfferStepIndex + 1)
+                    }
+                    className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-black/55"
+                  >
+                    Continue
+                  </button>
+                )}
+              {!isPreviewingOffer && !shouldUseCustomOfferStepper && (
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2"
+                  disabled={isOfferActionLocked}
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-neutral-500 disabled:shadow-none sm:gap-2"
                 >
                   Preview offer
                   <ReceiptText size={16} className="text-amber-200" />
                 </button>
               )}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
-              >
-                {isSubmitting ? "Sending..." : "Send offer"}
-                <Send size={16} />
-              </button>
+              {(!shouldUseCustomOfferStepper ||
+                isCustomOfferStepperFinalStep) && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isOfferActionLocked}
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
+                >
+                  {isSubmitting ? "Sending..." : "Send offer"}
+                  <Send size={16} />
+                </button>
+              )}
             </div>
           </div>
         </form>
@@ -1295,44 +1647,47 @@ const FlashOfferSummaryCard = ({
   request: BookingRequest;
   previewUrl: string;
 }) => (
-  <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
-    <div className="relative aspect-[4/5] bg-black">
+  <div className="relative isolate mx-auto w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
+    <div
+      className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+      aria-hidden="true"
+    />
+    <span
+      className="spotlight-border-glint spotlight-border-glint--left"
+      aria-hidden="true"
+    />
+    <span
+      className="spotlight-border-glint spotlight-border-glint--right"
+      aria-hidden="true"
+    />
+    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
       {previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={request.flashTitle || "Requested flash"}
-          className="h-full w-full object-cover"
-        />
+        <Zoom>
+          <img
+            src={previewUrl}
+            alt={request.flashTitle || "Requested flash"}
+            className="h-full w-full object-cover"
+          />
+        </Zoom>
       ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-          <ImageIcon size={28} />
-          <span className="text-sm">No flash image</span>
+        <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+          <ImageIcon size={34} />
+          <span>No flash image</span>
         </div>
       )}
-      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3 py-1 text-xs uppercase tracking-[0.14em] text-white backdrop-blur">
+      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3! py-1.5! text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
         Flash item
       </span>
     </div>
-    <div className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg! font-semibold! text-white">
-            {request.flashTitle || "Untitled flash"}
-          </h3>
-          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
-            {request.isFromSheet ? "From flash sheet" : "Standalone flash"}
-          </p>
-        </div>
-        <p className="shrink-0 text-lg font-semibold text-white">
-          {typeof request.flashPrice === "number" && request.flashPrice > 0
-            ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
-            : "No price"}
-        </p>
-      </div>
-      <div className="rounded-md border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm leading-6 text-emerald-50/80">
-        This offer will reserve the listed flash design as a single-session
-        booking.
-      </div>
+    <div className="flex items-start justify-between gap-4 px-1 pt-4">
+      <h3 className="min-w-0 truncate text-lg! font-semibold! text-white">
+        {request.flashTitle || "Untitled flash"}
+      </h3>
+      <p className="shrink-0 text-base font-semibold text-white">
+        {typeof request.flashPrice === "number" && request.flashPrice > 0
+          ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
+          : "No price"}
+      </p>
     </div>
   </div>
 );
@@ -1398,15 +1753,6 @@ const SummaryRow = ({
       {label}
     </div>
     <p className="text-sm font-medium text-white">{value}</p>
-  </div>
-);
-
-const PreviewRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-emerald-200/10 bg-black/20 p-3">
-    <p className="text-xs uppercase tracking-[0.12em] text-emerald-100/50">
-      {label}
-    </p>
-    <p className="mt-1 font-semibold text-white">{value}</p>
   </div>
 );
 
