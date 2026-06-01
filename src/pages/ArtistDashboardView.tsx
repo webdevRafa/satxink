@@ -2309,7 +2309,7 @@ const SessionsTable = ({
     null
   );
   const columns =
-    "minmax(320px,1.2fr) minmax(190px,.72fr) minmax(260px,1fr) minmax(260px,.86fr)";
+    "minmax(280px,.86fr) minmax(140px,.42fr) minmax(300px,1fr) minmax(360px,.98fr)";
 
   const handleInlinePhotoUpload = async (
     booking: DashboardBooking,
@@ -2339,7 +2339,7 @@ const SessionsTable = ({
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1030px]">
+        <div className="min-w-[1080px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -2355,10 +2355,9 @@ const SessionsTable = ({
               const clientName = getDashboardClientName(booking);
               const clientAvatar = getDashboardClientAvatar(booking);
               const sessionStatus = booking.sessionStatus || "in_progress";
-              const isMultiSession = isDashboardMultiSessionBooking(booking);
               const activeSessionNumber = getActiveSessionNumber(booking);
               const sessionCount = getEstimatedSessionCount(booking);
-              const sessionLabel = `Session ${activeSessionNumber} of ${sessionCount}`;
+              const sessionLabel = `${activeSessionNumber} / ${sessionCount}`;
               const canStart = sessionStatus === "awaiting_next_session";
               const canComplete = sessionStatus === "in_progress";
               const isUploadingPhoto = uploadingBookingId === booking.id;
@@ -2411,9 +2410,6 @@ const SessionsTable = ({
                     <div className="mt-1">
                       <SessionStatusBadge status={sessionStatus} />
                     </div>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {isMultiSession ? "Multi-session project" : "Single appointment"}
-                    </p>
                   </div>
 
                   <div className="min-w-0 pr-3">
@@ -2428,7 +2424,7 @@ const SessionsTable = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex flex-nowrap items-center justify-end gap-2">
                     {canComplete && (
                       <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10">
                         <Camera size={14} />
