@@ -119,6 +119,7 @@ const CUSTOM_OFFER_STEPS = [
 type CustomOfferStepId = (typeof CUSTOM_OFFER_STEPS)[number]["id"];
 
 const FINAL_CUSTOM_OFFER_STEP_INDEX = CUSTOM_OFFER_STEPS.length - 1;
+const CUSTOM_OFFER_VISIBLE_STEP_COUNT = 5;
 
 const MakeOfferModal = ({
   isOpen,
@@ -204,6 +205,12 @@ const MakeOfferModal = ({
     customOfferStepIndex === 0 && Boolean(pricingStepInlineError);
   const isCustomOfferStepperFinalStep =
     customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
+  const customOfferStepWindowStart = Math.min(
+    customOfferStepIndex,
+    Math.max(CUSTOM_OFFER_STEPS.length - CUSTOM_OFFER_VISIBLE_STEP_COUNT, 0)
+  );
+  const customOfferStepTrackOffset = `calc(${customOfferStepWindowStart} * -1 * ((100% - 2rem) / ${CUSTOM_OFFER_VISIBLE_STEP_COUNT} + 0.5rem))`;
+  const customOfferStepPillBasis = `calc((100% - 2rem) / ${CUSTOM_OFFER_VISIBLE_STEP_COUNT})`;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -677,34 +684,40 @@ const MakeOfferModal = ({
                   <div className="space-y-5 p-5 sm:p-6">
                     {!isFlashRequest && (
                       <div className="hidden rounded-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:sticky lg:top-6 lg:z-30 lg:block">
-                        <div className="grid gap-2 lg:grid-cols-5">
-                          {CUSTOM_OFFER_STEPS.map((step, index) => {
-                            const isActive = index === customOfferStepIndex;
-                            const isComplete =
-                              index < furthestCustomOfferStepIndex;
-                            const canVisit =
-                              index <= furthestCustomOfferStepIndex + 1;
+                        <div className="overflow-hidden">
+                          <div
+                            className="flex flex-nowrap gap-2 transition-[margin-left] duration-300 ease-out"
+                            style={{ marginLeft: customOfferStepTrackOffset }}
+                          >
+                            {CUSTOM_OFFER_STEPS.map((step, index) => {
+                              const isActive = index === customOfferStepIndex;
+                              const isComplete =
+                                index < furthestCustomOfferStepIndex;
+                              const canVisit =
+                                index <= furthestCustomOfferStepIndex + 1;
 
-                            return (
-                              <button
-                                key={step.id}
-                                type="button"
-                                disabled={!canVisit}
-                                onClick={() => goToCustomOfferStep(index)}
-                                className={`group flex min-w-0 items-center justify-center rounded-md border px-2.5! py-2.5! text-center transition ${
-                                  isActive
-                                    ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
-                                    : isComplete
-                                    ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
-                                    : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
-                                }`}
-                              >
-                                <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">
-                                  {step.label}
-                                </span>
-                              </button>
-                            );
-                          })}
+                              return (
+                                <button
+                                  key={step.id}
+                                  type="button"
+                                  disabled={!canVisit}
+                                  onClick={() => goToCustomOfferStep(index)}
+                                  style={{ flexBasis: customOfferStepPillBasis }}
+                                  className={`group flex shrink-0 items-center justify-center rounded-md border px-2.5! py-2.5! text-center transition ${
+                                    isActive
+                                      ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
+                                      : isComplete
+                                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
+                                      : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
+                                  }`}
+                                >
+                                  <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">
+                                    {step.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                         <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
                           <div
