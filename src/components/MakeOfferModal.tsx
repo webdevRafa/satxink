@@ -908,7 +908,7 @@ const MakeOfferModal = ({
                   <button
                     type="button"
                     onClick={() => setIsMultiSessionProject(false)}
-                    className={`rounded-lg border p-4! text-left transition ${
+                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
                       !isMultiSessionProject
                         ? "border-white bg-white text-black"
                         : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
@@ -916,7 +916,9 @@ const MakeOfferModal = ({
                   >
                     <span
                       className={`text-sm font-semibold ${
-                        !isMultiSessionProject ? "text-black" : "text-white"
+                        !isMultiSessionProject
+                          ? "text-neutral-950!"
+                          : "text-white"
                       }`}
                     >
                       Single session
@@ -925,18 +927,20 @@ const MakeOfferModal = ({
                   <button
                     type="button"
                     onClick={() => setIsMultiSessionProject(true)}
-                    className={`rounded-lg border p-4! text-left transition ${
+                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
                       isMultiSessionProject
                         ? "border-emerald-300/45 bg-emerald-300/10 text-white"
                         : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
                     }`}
                   >
-                    <span className="text-sm font-semibold">
+                    <span
+                      className={`text-sm font-semibold ${
+                        isMultiSessionProject
+                          ? "text-white"
+                          : "text-neutral-200"
+                      }`}
+                    >
                       Multi-session project
-                    </span>
-                    <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                      Client pays the initial deposit, then settles each session
-                      installment through Stripe or at the shop.
                     </span>
                   </button>
                 </div>
