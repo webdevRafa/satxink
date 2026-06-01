@@ -119,6 +119,21 @@
   }
 }
 
+.offer-date-input {
+  color-scheme: dark;
+}
+
+.offer-date-input::-webkit-calendar-picker-indicator {
+  background-color: transparent;
+  cursor: pointer;
+  filter: invert(1) brightness(1.45) contrast(0.9) !important;
+  opacity: 0.78 !important;
+}
+
+.offer-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flash-upload-tag-pill {
     animation: none;

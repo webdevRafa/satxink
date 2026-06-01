@@ -146,8 +146,6 @@ const MakeOfferModal = ({
     useState(false);
   const [isRemainingPaymentHelpOpen, setIsRemainingPaymentHelpOpen] =
     useState(false);
-  const [externalRemainingPaymentNote, setExternalRemainingPaymentNote] =
-    useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
   const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
@@ -274,7 +272,6 @@ const MakeOfferModal = ({
     setPreviewUrl(null);
     setAllowExternalRemainingPayment(false);
     setIsRemainingPaymentHelpOpen(false);
-    setExternalRemainingPaymentNote("");
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
     setIsPreviewingOffer(false);
@@ -463,10 +460,7 @@ const MakeOfferModal = ({
         finalPaymentTiming: artist.finalPaymentTiming || "after",
         allowExternalRemainingPayment:
           canAllowExternalRemainingPayment && allowExternalRemainingPayment,
-        externalRemainingPaymentNote:
-          canAllowExternalRemainingPayment && allowExternalRemainingPayment
-            ? externalRemainingPaymentNote.trim()
-            : "",
+        externalRemainingPaymentNote: "",
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
@@ -704,47 +698,49 @@ const MakeOfferModal = ({
 
                   <div className="space-y-5 p-5 sm:p-6">
                     {!isFlashRequest && (
-                      <div className="hidden rounded-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:sticky lg:top-6 lg:z-30 lg:block">
-                        <div className="grid grid-cols-6 gap-1.5">
-                          {CUSTOM_OFFER_STEPS.map((step, index) => {
-                            const isActive = index === customOfferStepIndex;
-                            const isComplete =
-                              index < furthestCustomOfferStepIndex;
-                            const canVisit =
-                              index <= furthestCustomOfferStepIndex + 1;
+                      <div className="hidden bg-[#111111] pb-3 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:sticky lg:top-0 lg:z-40 lg:-mx-5 lg:-mt-5 lg:block lg:px-5 lg:pt-5">
+                        <div className="rounded-lg border border-white/10 bg-[#111111]/95 p-3 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur">
+                          <div className="grid grid-cols-6 gap-1.5">
+                            {CUSTOM_OFFER_STEPS.map((step, index) => {
+                              const isActive = index === customOfferStepIndex;
+                              const isComplete =
+                                index < furthestCustomOfferStepIndex;
+                              const canVisit =
+                                index <= furthestCustomOfferStepIndex + 1;
 
-                            return (
-                              <button
-                                key={step.id}
-                                type="button"
-                                disabled={!canVisit}
-                                onClick={() => goToCustomOfferStep(index)}
-                                className={`group flex min-w-0 items-center justify-center rounded-md border px-1.5! py-2.5! text-center transition ${
-                                  isActive
-                                    ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
-                                    : isComplete
-                                    ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
-                                    : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
-                                }`}
-                              >
-                                <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em]">
-                                  {step.label}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                          <div
-                            className="h-full rounded-full bg-white transition-all duration-300 ease-out"
-                            style={{
-                              width: `${
-                                ((customOfferStepIndex + 1) /
-                                  CUSTOM_OFFER_STEPS.length) *
-                                100
-                              }%`,
-                            }}
-                          />
+                              return (
+                                <button
+                                  key={step.id}
+                                  type="button"
+                                  disabled={!canVisit}
+                                  onClick={() => goToCustomOfferStep(index)}
+                                  className={`group flex min-w-0 items-center justify-center rounded-md border px-1.5! py-2.5! text-center transition ${
+                                    isActive
+                                      ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
+                                      : isComplete
+                                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
+                                      : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
+                                  }`}
+                                >
+                                  <span className="truncate whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em]">
+                                    {step.label}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                            <div
+                              className="h-full rounded-full bg-white transition-all duration-300 ease-out"
+                              style={{
+                                width: `${
+                                  ((customOfferStepIndex + 1) /
+                                    CUSTOM_OFFER_STEPS.length) *
+                                  100
+                                }%`,
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
@@ -880,17 +876,6 @@ const MakeOfferModal = ({
                         </label>
                       </div>
                     </div>
-                    {allowExternalRemainingPayment &&
-                      canAllowExternalRemainingPayment && (
-                        <textarea
-                          value={externalRemainingPaymentNote}
-                          onChange={(event) =>
-                            setExternalRemainingPaymentNote(event.target.value)
-                          }
-                          className="mt-4 min-h-20 w-full rounded-md border border-white/10 bg-[#101010] p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
-                          placeholder="Optional note about accepted in-shop payment methods or expectations..."
-                        />
-                      )}
                   </div>
                 )}
               </section>
@@ -1038,7 +1023,7 @@ const MakeOfferModal = ({
                             return updated;
                           })
                         }
-                        className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition [color-scheme:dark] focus:border-[var(--color-primary)] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:invert"
+                        className="offer-date-input h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
                       />
                       <QuarterHourTimeSelect
                         value={option.time}
