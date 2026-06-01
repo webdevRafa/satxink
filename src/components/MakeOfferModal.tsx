@@ -151,6 +151,8 @@ const MakeOfferModal = ({
   const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
   const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
     useState(0);
+  const [hasTriedPricingContinue, setHasTriedPricingContinue] =
+    useState(false);
   const [isDesktopOfferStepper, setIsDesktopOfferStepper] = useState(false);
   const todayDateInput = getTodayDateInputValue();
 
@@ -204,13 +206,13 @@ const MakeOfferModal = ({
       : "";
   const currentCustomOfferStepId =
     CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
+  const shouldShowPricingStepInlineError =
+    pricingStepInlineError &&
+    (pricingStepInlineError !== "Enter a deposit to book before continuing." ||
+      hasTriedPricingContinue);
   const isCustomOfferStepContinueBlocked =
-    (currentCustomOfferStepId === "pricing" &&
-      (!currentOfferPrice ||
-        currentDepositAmount <= 0 ||
-        Boolean(pricingStepInlineError))) ||
-    (currentCustomOfferStepId === "appointment" &&
-      completedDateOptions.length === 0);
+    currentCustomOfferStepId === "appointment" &&
+    completedDateOptions.length === 0;
   const isCustomOfferStepperFinalStep =
     customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
 
@@ -233,6 +235,7 @@ const MakeOfferModal = ({
 
     setCustomOfferStepIndex(0);
     setFurthestCustomOfferStepIndex(0);
+    setHasTriedPricingContinue(false);
   }, [isOpen, selectedRequest?.id]);
 
   useEffect(() => {
@@ -277,6 +280,7 @@ const MakeOfferModal = ({
     setIsPreviewingOffer(false);
     setCustomOfferStepIndex(0);
     setFurthestCustomOfferStepIndex(0);
+    setHasTriedPricingContinue(false);
   };
 
   const handleClose = () => {
@@ -539,6 +543,9 @@ const MakeOfferModal = ({
 
     if (nextStepIndex > customOfferStepIndex) {
       const currentStep = CUSTOM_OFFER_STEPS[customOfferStepIndex];
+      if (currentStep.id === "pricing") {
+        setHasTriedPricingContinue(true);
+      }
       const validationError = getCustomOfferStepValidationError(currentStep.id);
 
       if (validationError) {
@@ -548,6 +555,9 @@ const MakeOfferModal = ({
     }
 
     setCustomOfferStepIndex(nextStepIndex);
+    if (nextStepIndex > 0) {
+      setHasTriedPricingContinue(false);
+    }
     setFurthestCustomOfferStepIndex((currentStepIndex) =>
       Math.max(currentStepIndex, nextStepIndex)
     );
@@ -793,7 +803,7 @@ const MakeOfferModal = ({
                     required
                   />
                 </div>
-                {pricingStepInlineError && (
+                {shouldShowPricingStepInlineError && (
                   <p className="mt-3 rounded-md border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100/85">
                     {pricingStepInlineError}
                   </p>
@@ -870,9 +880,7 @@ const MakeOfferModal = ({
                               Math.round(remainingArtistBalance * 100)
                             )}
                           </span>{" "}
-                          directly with you after the session. SATX Ink's
-                          platform fee is still calculated from the full quote
-                          and collected during the deposit checkout.
+                          directly with you after the session.
                         </label>
                       </div>
                     </div>
@@ -888,11 +896,10 @@ const MakeOfferModal = ({
                   </span>
                   <div>
                     <h3 className="text-lg! font-semibold! text-white">
-                      Project sessions
+                      Sessions
                     </h3>
                     <p className="text-sm text-neutral-400">
-                      Keep small tattoos simple, or set expectations for a
-                      larger piece that needs multiple appointments.
+                      The number of sessions this piece will take.
                     </p>
                   </div>
                 </div>
@@ -907,16 +914,12 @@ const MakeOfferModal = ({
                         : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
                     }`}
                   >
-                    <span className="text-sm font-semibold">Single session</span>
                     <span
-                      className={`mt-1 block text-xs leading-5 ${
-                        !isMultiSessionProject
-                          ? "text-black/65"
-                          : "text-neutral-400"
+                      className={`text-sm font-semibold ${
+                        !isMultiSessionProject ? "text-black" : "text-white"
                       }`}
                     >
-                      The current flow: deposit first, one appointment, then the
-                      remaining balance.
+                      Single session
                     </span>
                   </button>
                   <button
@@ -1009,22 +1012,28 @@ const MakeOfferModal = ({
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-sm font-semibold text-neutral-300">
                         {index + 1}
                       </div>
-                      <input
-                        type="date"
-                        min={todayDateInput}
-                        value={option.date}
-                        onChange={(event) =>
-                          setDateOptions((prev) => {
-                            const updated = [...prev];
-                            updated[index] = {
-                              ...updated[index],
-                              date: event.target.value,
-                            };
-                            return updated;
-                          })
-                        }
-                        className="offer-date-input h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-                      />
+                      <div className="relative min-w-0">
+                        <input
+                          type="date"
+                          min={todayDateInput}
+                          value={option.date}
+                          onChange={(event) =>
+                            setDateOptions((prev) => {
+                              const updated = [...prev];
+                              updated[index] = {
+                                ...updated[index],
+                                date: event.target.value,
+                              };
+                              return updated;
+                            })
+                          }
+                          className="offer-date-input h-10 w-full rounded-md border border-white/10 bg-[#101010] px-3 pr-10 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                        />
+                        <CalendarDays
+                          size={15}
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300"
+                        />
+                      </div>
                       <QuarterHourTimeSelect
                         value={option.time}
                         onChange={(value) =>

@@ -126,12 +126,14 @@
 .offer-date-input::-webkit-calendar-picker-indicator {
   background-color: transparent;
   cursor: pointer;
-  filter: invert(1) brightness(1.45) contrast(0.9) !important;
-  opacity: 0.78 !important;
+  height: 100%;
+  margin-right: -0.5rem;
+  opacity: 0 !important;
+  width: 2.75rem;
 }
 
 .offer-date-input::-webkit-calendar-picker-indicator:hover {
-  opacity: 1 !important;
+  opacity: 0 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
