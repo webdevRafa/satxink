@@ -947,7 +947,7 @@ const RequestRow = ({
           <button
             type="button"
             onClick={onPrepareOffer}
-            className={`group relative inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white ${
+            className={`group relative z-10 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:z-[70] hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white focus-visible:z-[70] ${
               isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
             }`}
             aria-label={
@@ -958,7 +958,7 @@ const RequestRow = ({
           >
             <Send size={14} className="text-amber-200" />
             {isPreparingOffer ? "Timing" : "Prepare"}
-            <span className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] right-0 z-30 w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
+            <span className="pointer-events-none absolute right-0 top-[calc(100%+0.5rem)] z-[80] w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
               {isPreparingOffer
                 ? "Update when the client should expect your offer."
                 : "Let the client know you are preparing an offer."}
