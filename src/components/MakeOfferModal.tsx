@@ -10,7 +10,6 @@ import {
   CalendarDays,
   DollarSign,
   ImageIcon,
-  Info,
   Layers,
   MapPin,
   MessageSquareText,
@@ -718,56 +717,6 @@ const MakeOfferModal = ({
                     required
                   />
                 </div>
-
-                <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
-                  <div className="flex gap-2 text-sm text-neutral-300">
-                    <Info
-                      size={16}
-                      className="mt-0.5 shrink-0 text-[var(--color-primary)]"
-                    />
-                    <p>
-                      The client pays the deposit plus SATX Ink and Stripe fees
-                      today, so your deposit amount is protected. Any remaining
-                      artist balance is handled by the payment choice below.
-                    </p>
-                  </div>
-                </div>
-
-                {artist.paymentType === "internal" && paymentPreview.artistAmountCents > 0 && (
-                  <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-emerald-100/70">
-                          Client checkout preview
-                        </p>
-                        <p className="mt-1 text-sm text-emerald-50/80">
-                          Based on the deposit due today.
-                        </p>
-                      </div>
-                      <p className="text-xl font-semibold text-white">
-                        {formatMoneyFromCents(paymentPreview.clientTotalCents)}
-                      </p>
-                    </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-2">
-                      <PreviewRow
-                        label="You receive"
-                        value={formatMoneyFromCents(paymentPreview.artistAmountCents)}
-                      />
-                      <PreviewRow
-                        label="SATX Ink fee"
-                        value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
-                      />
-                      <PreviewRow
-                        label="Estimated Stripe fee"
-                        value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
-                      />
-                      <PreviewRow
-                        label="Client pays today"
-                        value={formatMoneyFromCents(paymentPreview.clientTotalCents)}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {artist.paymentType === "internal" && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
@@ -1574,15 +1523,6 @@ const SummaryRow = ({
       {label}
     </div>
     <p className="text-sm font-medium text-white">{value}</p>
-  </div>
-);
-
-const PreviewRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-emerald-200/10 bg-black/20 p-3">
-    <p className="text-xs uppercase tracking-[0.12em] text-emerald-100/50">
-      {label}
-    </p>
-    <p className="mt-1 font-semibold text-white">{value}</p>
   </div>
 );
 
