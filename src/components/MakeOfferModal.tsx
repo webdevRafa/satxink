@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -154,6 +155,7 @@ const MakeOfferModal = ({
   const [hasTriedPricingContinue, setHasTriedPricingContinue] =
     useState(false);
   const [isDesktopOfferStepper, setIsDesktopOfferStepper] = useState(false);
+  const dateInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
@@ -561,6 +563,28 @@ const MakeOfferModal = ({
     setFurthestCustomOfferStepIndex((currentStepIndex) =>
       Math.max(currentStepIndex, nextStepIndex)
     );
+  };
+
+  const openDatePicker = (optionIndex: number) => {
+    const input = dateInputRefs.current[optionIndex];
+    if (!input) return;
+
+    input.focus({ preventScroll: true });
+
+    const inputWithPicker = input as HTMLInputElement & {
+      showPicker?: () => void;
+    };
+
+    if (typeof inputWithPicker.showPicker === "function") {
+      try {
+        inputWithPicker.showPicker();
+        return;
+      } catch {
+        // Fall back to the native click path below when a browser blocks showPicker.
+      }
+    }
+
+    input.click();
   };
 
   const getCustomOfferStepClassName = (stepId: CustomOfferStepId) => {
@@ -1018,6 +1042,9 @@ const MakeOfferModal = ({
                       </div>
                       <div className="relative min-w-0">
                         <input
+                          ref={(element) => {
+                            dateInputRefs.current[index] = element;
+                          }}
                           type="date"
                           min={todayDateInput}
                           value={option.date}
@@ -1033,10 +1060,16 @@ const MakeOfferModal = ({
                           }
                           className="offer-date-input h-10 w-full rounded-md border border-white/10 bg-[#101010] px-3 pr-10 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
                         />
-                        <CalendarDays
-                          size={15}
-                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => openDatePicker(index)}
+                          className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center rounded-r-md p-0! text-neutral-300 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/70"
+                          aria-label={`Open appointment date option ${
+                            index + 1
+                          } calendar`}
+                        >
+                          <CalendarDays size={15} />
+                        </button>
                       </div>
                       <QuarterHourTimeSelect
                         value={option.time}
