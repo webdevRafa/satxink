@@ -992,15 +992,15 @@ const MakeOfferModal = ({
                       <span className="text-sm font-medium text-neutral-200">
                         Estimated per session
                       </span>
-                      <div className="flex h-11 items-center rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white">
+                      <div className="flex min-h-11 items-center text-sm font-semibold text-white">
                         {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
                       </div>
-                      <p className="text-xs leading-5 text-neutral-500">
+                      <p className="text-[11px] leading-4 text-neutral-500">
                         Calculated from the remaining{" "}
                         {formatMoneyFromCents(
                           Math.round(remainingArtistBalance * 100)
                         )}{" "}
-                        balance divided by {estimatedSessionCount} sessions.
+                        balance.
                       </p>
                     </div>
                   </div>
@@ -1281,18 +1281,20 @@ const MakeOfferModal = ({
             )}
           </div>
 
-          <div className="z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
-            <p className="text-sm text-neutral-500">
-              {shouldUseCustomOfferStepper
-                ? isCustomOfferStepperFinalStep
-                  ? "Review the preview, then send the offer."
-                  : "Continue through the offer steps before sending."
-                : isPreviewingOffer
-                ? "Review the offer summary before sending."
-                : `${completedDateOptions.length} appointment option${
-                    completedDateOptions.length === 1 ? "" : "s"
-                  } ready`}
-            </p>
+          <div
+            className={`z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:px-6 sm:py-4 ${
+              shouldUseCustomOfferStepper ? "sm:justify-end" : "sm:justify-between"
+            }`}
+          >
+            {!shouldUseCustomOfferStepper && (
+              <p className="text-sm text-neutral-500">
+                {isPreviewingOffer
+                  ? "Review the offer summary before sending."
+                  : `${completedDateOptions.length} appointment option${
+                      completedDateOptions.length === 1 ? "" : "s"
+                    } ready`}
+              </p>
+            )}
             <div
               className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
                 isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
