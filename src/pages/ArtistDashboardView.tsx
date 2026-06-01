@@ -1036,22 +1036,7 @@ const ArtistDashboardView = () => {
           getDashboardSessionInstallmentAmount(booking) * 100
         ),
       },
-      {
-        sessionStatus: "completed",
-        sessionCompletedAt: serverTimestamp(),
-        completedSessionCount: Math.max(
-          Number(booking.completedSessionCount || 0),
-          getActiveSessionNumber(booking)
-        ),
-        pendingSessionPaymentAmount: getDashboardSessionInstallmentAmount(booking),
-        pendingSessionPaymentAmountCents: Math.round(
-          getDashboardSessionInstallmentAmount(booking) * 100
-        ),
-        pendingSessionNumber: getActiveSessionNumber(booking),
-        remainingPaymentStatus: getDashboardRemainingBalance(booking) > 0
-          ? "due"
-          : "confirmed",
-      }
+      buildSessionCompletionBookingUpdate(booking)
     );
 
   const handleStartSessionFromRow = (booking: DashboardBooking) =>
@@ -1928,18 +1913,19 @@ const ArtistDashboardView = () => {
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onStart={handleStartSessionFromRow}
                     onComplete={handleCompleteSessionFromRow}
-                    onBalancePaid={handleBalancePaidFromRow}
                   />
                 ) : activeTab === "projects" ? (
                   <ProjectsTable
                     projects={visibleBookings as DashboardBooking[]}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onBalancePaid={handleBalancePaidFromRow}
                   />
                 ) : (
                   <ArtistBookingsTable
                     bookings={visibleBookings as DashboardBooking[]}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onStart={(booking) => setBookingToStart(booking)}
+                    onBalancePaid={handleBalancePaidFromRow}
                     hasActiveSession={hasActiveSessionInProgress}
                   />
                 )}
@@ -2039,20 +2025,22 @@ const ArtistBookingsTable = ({
   bookings,
   onOpenRecord,
   onStart,
+  onBalancePaid,
   hasActiveSession,
 }: {
   bookings: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
   onStart: (booking: DashboardBooking) => void;
+  onBalancePaid: (booking: DashboardBooking) => void;
   hasActiveSession: boolean;
 }) => {
   const columns =
-    "minmax(200px,1.02fr) 88px minmax(135px,.62fr) minmax(155px,.72fr) minmax(170px,.75fr) minmax(190px,.96fr) minmax(176px,.76fr)";
+    "minmax(200px,1fr) 84px minmax(128px,.58fr) minmax(150px,.68fr) minmax(165px,.72fr) minmax(180px,.86fr) minmax(220px,.9fr)";
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1210px]">
+        <div className="min-w-[1250px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -2073,6 +2061,7 @@ const ArtistBookingsTable = ({
                 columns={columns}
                 onOpenRecord={() => onOpenRecord(booking)}
                 onStart={() => onStart(booking)}
+                onBalancePaid={() => onBalancePaid(booking)}
                 hasActiveSession={hasActiveSession}
               />
             ))}
@@ -2088,12 +2077,14 @@ const ArtistBookingRow = ({
   columns,
   onOpenRecord,
   onStart,
+  onBalancePaid,
   hasActiveSession,
 }: {
   booking: DashboardBooking;
   columns: string;
   onOpenRecord: () => void;
   onStart: () => void;
+  onBalancePaid: () => void;
   hasActiveSession: boolean;
 }) => {
   const appointmentLabel =
@@ -2101,6 +2092,7 @@ const ArtistBookingRow = ({
       ? formatBookingAppointment(booking.selectedDate)
       : "No date set";
   const canStartSession = canStartBookingSession(booking) && !hasActiveSession;
+  const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
 
   return (
     <div
@@ -2178,6 +2170,16 @@ const ArtistBookingRow = ({
           >
             <CalendarDays size={14} />
             Start
+          </button>
+        )}
+        {canConfirmInShopPayment && (
+          <button
+            type="button"
+            onClick={onBalancePaid}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+          >
+            <DollarSign size={14} />
+            Confirm paid
           </button>
         )}
         <button
@@ -2297,21 +2299,47 @@ const SessionsTable = ({
   onOpenRecord,
   onStart,
   onComplete,
-  onBalancePaid,
 }: {
   sessions: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
   onStart: (booking: DashboardBooking) => void;
   onComplete: (booking: DashboardBooking) => void;
-  onBalancePaid: (booking: DashboardBooking) => void;
 }) => {
+  const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(
+    null
+  );
   const columns =
-    "minmax(290px,1.15fr) minmax(170px,.7fr) minmax(230px,.9fr) minmax(230px,.9fr) minmax(180px,.72fr)";
+    "minmax(320px,1.2fr) minmax(190px,.72fr) minmax(260px,1fr) minmax(260px,.86fr)";
+
+  const handleInlinePhotoUpload = async (
+    booking: DashboardBooking,
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Choose an image file.");
+      return;
+    }
+
+    setUploadingBookingId(booking.id);
+    try {
+      await uploadBookingSessionPhoto(booking, file);
+      toast.success("Session photo saved.");
+    } catch (error) {
+      console.error("Session photo upload failed:", error);
+      toast.error("Could not upload the session photo.");
+    } finally {
+      setUploadingBookingId(null);
+    }
+  };
 
   return (
     <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
       <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1100px]">
+        <div className="min-w-[1030px]">
           <div
             className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
             style={{ gridTemplateColumns: columns }}
@@ -2319,7 +2347,6 @@ const SessionsTable = ({
             <span>Client / Reference</span>
             <span>Session</span>
             <span>Appointment</span>
-            <span>Balance</span>
             <span className="text-right">Actions</span>
           </div>
 
@@ -2332,21 +2359,9 @@ const SessionsTable = ({
               const activeSessionNumber = getActiveSessionNumber(booking);
               const sessionCount = getEstimatedSessionCount(booking);
               const sessionLabel = `Session ${activeSessionNumber} of ${sessionCount}`;
-              const remainingPaymentStatus =
-                booking.remainingPaymentStatus || "due";
-              const remainingBalance = getDashboardRemainingBalance(booking);
-              const dueThisSession =
-                remainingPaymentStatus === "confirmed"
-                  ? 0
-                  : getDashboardSessionInstallmentAmount(booking);
               const canStart = sessionStatus === "awaiting_next_session";
               const canComplete = sessionStatus === "in_progress";
-              const canMarkBalancePaid =
-                sessionStatus === "completed" &&
-                booking.remainingPaymentMethod === "external" &&
-                !["artist_confirmed", "confirmed"].includes(
-                  remainingPaymentStatus
-                );
+              const isUploadingPhoto = uploadingBookingId === booking.id;
 
               return (
                 <div
@@ -2413,50 +2428,39 @@ const SessionsTable = ({
                     </p>
                   </div>
 
-                  <div className="min-w-0 pr-4">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {formatDashboardMoney(dueThisSession)}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {isMultiSession ? "Due this session" : "Balance due"}{" "}
-                      <span className="text-neutral-700">|</span>{" "}
-                      {formatDashboardMoney(remainingBalance)} remaining
-                    </p>
-                    <div className="mt-2">
-                      <RemainingPaymentBadge
-                        status={remainingPaymentStatus}
-                        viewer="artist"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-stretch justify-end gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {canComplete && (
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10">
+                        <Camera size={14} />
+                        {isUploadingPhoto ? "Uploading..." : "Add photo"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={isUploadingPhoto}
+                          onChange={(event) =>
+                            handleInlinePhotoUpload(booking, event)
+                          }
+                          className="sr-only"
+                        />
+                      </label>
+                    )}
                     {(canStart || canComplete) && (
                       <button
                         type="button"
+                        disabled={isUploadingPhoto}
                         onClick={() =>
                           canStart ? onStart(booking) : onComplete(booking)
                         }
-                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {canStart ? <CalendarDays size={14} /> : <Check size={14} />}
                         {canStart ? "Start session" : "Complete session"}
                       </button>
                     )}
-                    {canMarkBalancePaid && (
-                      <button
-                        type="button"
-                        onClick={() => onBalancePaid(booking)}
-                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2.5! py-2! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
-                      >
-                        <DollarSign size={14} />
-                        Balance paid
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
-                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                     >
                       <Eye size={14} />
                       Record
@@ -2475,9 +2479,11 @@ const SessionsTable = ({
 const ProjectsTable = ({
   projects,
   onOpenRecord,
+  onBalancePaid,
 }: {
   projects: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
+  onBalancePaid: (booking: DashboardBooking) => void;
 }) => (
   <div className="grid gap-4 lg:grid-cols-2">
     {projects.map((booking) => {
@@ -2489,6 +2495,7 @@ const ProjectsTable = ({
       const remainingBalance = getDashboardRemainingBalance(booking);
       const nextDue = getDashboardSessionInstallmentAmount(booking);
       const progress = Math.min((completedCount / sessionCount) * 100, 100);
+      const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
 
       return (
         <article
@@ -2555,14 +2562,28 @@ const ProjectsTable = ({
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => onOpenRecord(booking)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
-            >
-              <Eye size={16} />
-              Open project record
-            </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {canConfirmInShopPayment && (
+                <button
+                  type="button"
+                  onClick={() => onBalancePaid(booking)}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! py-2.5! text-sm! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                >
+                  <DollarSign size={16} />
+                  Confirm in-shop payment
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenRecord(booking)}
+                className={`inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 ${
+                  canConfirmInShopPayment ? "" : "sm:col-span-2"
+                }`}
+              >
+                <Eye size={16} />
+                Open project record
+              </button>
+            </div>
           </div>
         </article>
       );
@@ -2678,20 +2699,13 @@ const BookingRecordDialog = ({
 }) => {
   const [sessionStatus, setSessionStatus] =
     useState<Booking["sessionStatus"]>("not_started");
-  const [remainingPaymentStatus, setRemainingPaymentStatus] =
-    useState<Booking["remainingPaymentStatus"]>("not_due");
   const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
-  const [externalPaymentAmount, setExternalPaymentAmount] = useState("");
   const [isUpdatingSession, setIsUpdatingSession] = useState(false);
   const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
 
   useEffect(() => {
     setSessionStatus(booking?.sessionStatus || "not_started");
-    setRemainingPaymentStatus(booking?.remainingPaymentStatus || "not_due");
     setSessionPhotoUrls(booking?.sessionPhotoUrls || []);
-    setExternalPaymentAmount(
-      booking ? String(getDashboardSessionInstallmentAmount(booking)) : ""
-    );
   }, [booking]);
 
   const clientName =
@@ -2711,8 +2725,6 @@ const BookingRecordDialog = ({
             Number(booking?.totalArtistPaidAmount || booking?.depositAmount || 0),
           0
         );
-  const usesExternalRemaining =
-    booking?.remainingPaymentMethod === "external" && remainingBalance > 0;
   const isMultiSession = booking ? isDashboardMultiSessionBooking(booking) : false;
   const activeSessionNumber = booking ? getActiveSessionNumber(booking) : 1;
   const sessionCount = booking ? getEstimatedSessionCount(booking) : 1;
@@ -2792,65 +2804,10 @@ const BookingRecordDialog = ({
         completedAt: serverTimestamp(),
       },
       {
-        sessionStatus: "completed",
-        sessionCompletedAt: serverTimestamp(),
-        completedSessionCount: Math.max(
-          Number(booking?.completedSessionCount || 0),
-          activeSessionNumber
-        ),
-        pendingSessionPaymentAmount: sessionInstallment,
-        pendingSessionPaymentAmountCents: Math.round(sessionInstallment * 100),
-        pendingSessionNumber: activeSessionNumber,
-        remainingPaymentStatus: remainingBalance > 0 ? "due" : "confirmed",
+        ...(booking ? buildSessionCompletionBookingUpdate(booking) : {}),
       }
     );
     if (updated) setSessionStatus("completed");
-  };
-
-  const handleArtistConfirmExternalPayment = async () => {
-    const amountPaid = Number(externalPaymentAmount || 0);
-    const minimumDue = sessionInstallment;
-
-    if (!Number.isFinite(amountPaid) || amountPaid < minimumDue) {
-      toast.error(
-        `Enter at least ${formatDashboardMoney(minimumDue)} for this session.`
-      );
-      return;
-    }
-
-    if (amountPaid > remainingBalance) {
-      toast.error("Payment cannot exceed the remaining project balance.");
-      return;
-    }
-
-    const completion =
-      booking && remainingPaymentStatus === "client_confirmed"
-        ? buildExternalPaymentCompletionUpdates(booking, amountPaid)
-        : null;
-
-    const updated = await upsertSessionRecord(
-      completion?.sessionUpdate || {
-        remainingPaymentStatus: "artist_confirmed",
-        sessionNumber: activeSessionNumber,
-        pendingPaymentAmount: amountPaid,
-        pendingPaymentAmountCents: Math.round(amountPaid * 100),
-        artistConfirmedAt: serverTimestamp(),
-      },
-      completion?.bookingUpdate || {
-        remainingPaymentStatus: "artist_confirmed",
-        pendingSessionPaymentAmount: amountPaid,
-        pendingSessionPaymentAmountCents: Math.round(amountPaid * 100),
-        pendingSessionNumber: activeSessionNumber,
-        externalRemainingArtistConfirmedAt: serverTimestamp(),
-      }
-    );
-    if (updated) {
-      setRemainingPaymentStatus(
-        (completion?.bookingUpdate
-          .remainingPaymentStatus as Booking["remainingPaymentStatus"]) ||
-          "artist_confirmed"
-      );
-    }
   };
 
   const handleSessionPhotoUpload = async (
@@ -2867,27 +2824,7 @@ const BookingRecordDialog = ({
 
     setIsUploadingSessionPhoto(true);
     try {
-      const photoRef = ref(
-        storage,
-        `bookingSessions/${booking.id}/photos/${Date.now()}-${file.name}`
-      );
-      await uploadBytes(photoRef, file);
-      const url = await getDownloadURL(photoRef);
-      await setDoc(
-        doc(db, "bookingSessions", booking.id),
-        {
-          bookingId: booking.id,
-          artistId: booking.artistId,
-          clientId: booking.clientId,
-          photoUrls: arrayUnion(url),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      await updateDoc(doc(db, "bookings", booking.id), {
-        sessionPhotoUrls: arrayUnion(url),
-        updatedAt: serverTimestamp(),
-      });
+      const url = await uploadBookingSessionPhoto(booking, file);
       setSessionPhotoUrls((current) => [...current, url]);
       toast.success("Session photo saved.");
     } catch (error) {
@@ -3073,65 +3010,14 @@ const BookingRecordDialog = ({
                                 </p>
                                 <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                                   {isSessionView
-                                    ? "Track this session and collect "
-                                    : "The booking is confirmed. Start this session when the appointment begins, then manage completion and "}
-                                  <span className="font-semibold text-white">
-                                    {formatDashboardMoney(
-                                      isMultiSession
-                                        ? sessionInstallment
-                                        : remainingBalance
-                                    )}
-                                  </span>{" "}
-                                  {isSessionView
-                                    ? usesExternalRemaining
-                                      ? "after the client pays you directly."
-                                      : "through the client's Stripe balance checkout."
-                                    : "payment from the Session section."}
+                                    ? "Attach a photo if needed, then complete this active session. Any payment follow-up returns to Bookings or Projects."
+                                    : "The booking is confirmed. Start this appointment when the client arrives, then close it out from the Session workspace."}
                                 </p>
                               </div>
                               <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
                                 {sessionStatus?.replace("_", " ")}
                               </span>
                             </div>
-
-                            {isSessionView &&
-                              usesExternalRemaining &&
-                              sessionStatus === "completed" &&
-                              !["artist_confirmed", "confirmed"].includes(
-                                remainingPaymentStatus || ""
-                              ) && (
-                                <label className="mt-4 block space-y-2 rounded-md border border-white/10 bg-black/25 p-3">
-                                  <span className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
-                                    External amount paid
-                                  </span>
-                                  <div className="relative">
-                                    <DollarSign
-                                      size={16}
-                                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-50/45"
-                                    />
-                                    <input
-                                      type="number"
-                                      min={sessionInstallment}
-                                      max={remainingBalance}
-                                      step="1"
-                                      value={externalPaymentAmount}
-                                      onChange={(event) =>
-                                        setExternalPaymentAmount(
-                                          event.target.value
-                                        )
-                                      }
-                                      className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-emerald-300/70"
-                                    />
-                                  </div>
-                                  <p className="text-xs leading-5 text-emerald-50/65">
-                                    Minimum due is{" "}
-                                    {formatDashboardMoney(sessionInstallment)}.
-                                    If the client paid extra, enter the actual
-                                    amount so the remaining project balance is
-                                    recalculated across the sessions left.
-                                  </p>
-                                </label>
-                              )}
 
                             <div className={`mt-4 grid gap-3 ${isSessionView ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-1"}`}>
                               {!isSessionView && (
@@ -3153,69 +3039,38 @@ const BookingRecordDialog = ({
                               )}
                               {isSessionView && (
                                 <>
+                                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
+                                    <Camera size={16} />
+                                    {isUploadingSessionPhoto
+                                      ? "Uploading..."
+                                      : "Add photo"}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      disabled={isUploadingSessionPhoto}
+                                      onChange={handleSessionPhotoUpload}
+                                      className="sr-only"
+                                    />
+                                  </label>
                                   <button
                                     type="button"
                                     disabled={
                                       isUpdatingSession ||
+                                      isUploadingSessionPhoto ||
                                       sessionStatus !== "in_progress"
                                     }
                                     onClick={handleCompleteSession}
-                                    className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    <Check size={16} />
-                                    Complete
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={
-                                      isUpdatingSession ||
-                                      sessionStatus !== "completed" ||
-                                      !usesExternalRemaining ||
-                                      remainingPaymentStatus === "artist_confirmed" ||
-                                      remainingPaymentStatus === "confirmed"
-                                    }
-                                    onClick={handleArtistConfirmExternalPayment}
                                     className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
-                                    <DollarSign size={16} />
-                                    Balance paid
+                                    <Check size={16} />
+                                    Complete session
                                   </button>
                                 </>
                               )}
                             </div>
 
                             {isSessionView && (
-                              <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
-                                <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
-                                  Remaining payment
-                                </p>
-                                <p className="mt-1 text-sm font-semibold capitalize text-white">
-                                  {(remainingPaymentStatus || "due").replace("_", " ")}
-                                </p>
-                                {remainingPaymentStatus === "artist_confirmed" && (
-                                  <p className="mt-1 text-xs leading-5 text-emerald-50/70">
-                                    Waiting for the client to confirm the external
-                                    payment from their dashboard.
-                                  </p>
-                                )}
-                              </div>
-                            )}
-
-                            {isSessionView && (
                               <div className="mt-4">
-                              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
-                                <Camera size={16} />
-                                {isUploadingSessionPhoto
-                                  ? "Uploading..."
-                                  : "Add session photo"}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  disabled={isUploadingSessionPhoto}
-                                  onChange={handleSessionPhotoUpload}
-                                  className="sr-only"
-                                />
-                              </label>
                               {sessionPhotoUrls.length > 0 && (
                                 <div className="mt-3 grid grid-cols-3 gap-2">
                                   {sessionPhotoUrls.map((url) => (
@@ -3262,6 +3117,35 @@ const BookingDetailTile = ({
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
 );
+
+const uploadBookingSessionPhoto = async (
+  booking: DashboardBooking,
+  file: File
+) => {
+  const photoRef = ref(
+    storage,
+    `bookingSessions/${booking.id}/photos/${Date.now()}-${file.name}`
+  );
+  await uploadBytes(photoRef, file);
+  const url = await getDownloadURL(photoRef);
+  await setDoc(
+    doc(db, "bookingSessions", booking.id),
+    {
+      bookingId: booking.id,
+      artistId: booking.artistId,
+      clientId: booking.clientId,
+      photoUrls: arrayUnion(url),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  await updateDoc(doc(db, "bookings", booking.id), {
+    sessionPhotoUrls: arrayUnion(url),
+    updatedAt: serverTimestamp(),
+  });
+
+  return url;
+};
 
 const BookingStatusBadge = ({ status }: { status: string }) => {
   const className =
@@ -3324,47 +3208,6 @@ const SessionStatusBadge = ({
   );
 };
 
-const RemainingPaymentBadge = ({
-  status,
-  prefix,
-  viewer = "artist",
-}: {
-  status: string;
-  prefix?: string;
-  viewer?: "client" | "artist";
-}) => {
-  const className =
-    status === "confirmed"
-      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-      : status === "artist_confirmed" || status === "client_confirmed"
-      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
-      : status === "disputed"
-      ? "border-red-300/25 bg-red-300/10 text-red-100"
-      : "border-white/10 bg-white/[0.05] text-neutral-300";
-  const label =
-    status === "artist_confirmed"
-      ? viewer === "client"
-        ? "Confirm direct pay"
-        : "Awaiting client"
-      : status === "client_confirmed"
-      ? viewer === "client"
-        ? "Awaiting artist"
-        : "Confirm direct pay"
-      : status === "confirmed"
-      ? "Balance paid"
-      : status === "disputed"
-      ? "Disputed"
-      : status === "not_due"
-      ? "Not due"
-      : "Balance due";
-
-  return (
-    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
-      {prefix ? `${prefix}: ${label}` : label}
-    </span>
-  );
-};
-
 const getShortBookingId = (bookingId?: string) =>
   bookingId ? `#${bookingId.slice(0, 7)}` : "#";
 
@@ -3421,7 +3264,11 @@ const isBookingFullyCompleted = (booking: Partial<Booking>) => {
   const sessionCount = getEstimatedSessionCount(booking);
   const completedCount = getCompletedSessionCount(booking);
 
-  return booking.sessionStatus === "completed" || completedCount >= sessionCount;
+  return (
+    completedCount >= sessionCount ||
+    (!isDashboardMultiSessionBooking(booking) &&
+      booking.sessionStatus === "completed")
+  );
 };
 
 const getDisplaySessionNumber = (booking: Partial<Booking>) => {
@@ -3438,6 +3285,8 @@ const getDisplaySessionNumber = (booking: Partial<Booking>) => {
 
 const getBookingSessionDisplay = (booking: Partial<Booking>) => {
   const primary = `Session ${getDisplaySessionNumber(booking)} of ${getEstimatedSessionCount(booking)}`;
+  const remainingBalance = getDashboardRemainingBalance(booking);
+  const paymentStatus = booking.remainingPaymentStatus || "not_due";
 
   if (booking.status === "cancelled") {
     return { primary, secondary: "Cancelled", tone: "red" as const };
@@ -3449,6 +3298,42 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
 
   if (booking.sessionStatus === "in_progress") {
     return { primary, secondary: "In progress", tone: "sky" as const };
+  }
+
+  if (
+    booking.sessionStatus === "completed" &&
+    remainingBalance > 0 &&
+    paymentStatus !== "confirmed"
+  ) {
+    if (booking.remainingPaymentMethod === "external") {
+      if (paymentStatus === "artist_confirmed") {
+        return {
+          primary,
+          secondary: "Awaiting client confirm",
+          tone: "amber" as const,
+        };
+      }
+
+      if (paymentStatus === "client_confirmed") {
+        return {
+          primary,
+          secondary: "Confirm in-shop payment",
+          tone: "amber" as const,
+        };
+      }
+
+      return {
+        primary,
+        secondary: "Awaiting in-shop payment",
+        tone: "amber" as const,
+      };
+    }
+
+    return {
+      primary,
+      secondary: "Awaiting Stripe payment",
+      tone: "amber" as const,
+    };
   }
 
   if (isBookingFullyCompleted(booking)) {
@@ -3476,6 +3361,17 @@ const canStartBookingSession = (booking: Partial<Booking>) => {
   );
 };
 
+const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
+  const paymentStatus = booking.remainingPaymentStatus || "not_due";
+
+  return (
+    booking.sessionStatus === "completed" &&
+    booking.remainingPaymentMethod === "external" &&
+    getDashboardRemainingBalance(booking) > 0 &&
+    !["artist_confirmed", "confirmed"].includes(paymentStatus)
+  );
+};
+
 const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
   const remaining = getDashboardRemainingBalance(booking);
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
@@ -3486,6 +3382,36 @@ const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
     1
   );
   return Math.ceil(remaining / sessionsLeft);
+};
+
+const buildSessionCompletionBookingUpdate = (booking: Partial<Booking>) => {
+  const activeSessionNumber = getActiveSessionNumber(booking);
+  const sessionCount = getEstimatedSessionCount(booking);
+  const completedSessionCount = Math.max(
+    Number(booking.completedSessionCount || 0),
+    activeSessionNumber
+  );
+  const remainingBalance = getDashboardRemainingBalance(booking);
+  const sessionInstallment = getDashboardSessionInstallmentAmount(booking);
+  const hasNextSessionReady =
+    isDashboardMultiSessionBooking(booking) &&
+    activeSessionNumber < sessionCount &&
+    remainingBalance <= 0;
+
+  return {
+    sessionStatus: hasNextSessionReady ? "awaiting_next_session" : "completed",
+    sessionCompletedAt: serverTimestamp(),
+    completedSessionCount,
+    pendingSessionPaymentAmount: hasNextSessionReady ? 0 : sessionInstallment,
+    pendingSessionPaymentAmountCents: hasNextSessionReady
+      ? 0
+      : Math.round(sessionInstallment * 100),
+    pendingSessionNumber: hasNextSessionReady ? null : activeSessionNumber,
+    remainingPaymentStatus: remainingBalance > 0 ? "due" : "confirmed",
+    activeSessionNumber: hasNextSessionReady
+      ? activeSessionNumber + 1
+      : activeSessionNumber,
+  };
 };
 
 const buildExternalPaymentCompletionUpdates = (
@@ -3628,19 +3554,9 @@ const getBookingCreatedTime = (booking: Booking) => {
   return 0;
 };
 
-const isActiveSessionBooking = (booking: Partial<Booking> | Record<string, unknown>) => {
-  if (booking.sessionStatus === "in_progress") return true;
-
-  if (booking.sessionStatus !== "completed") return false;
-
-  const typedBooking = booking as Partial<Booking>;
-  const remainingPaymentStatus = String(typedBooking.remainingPaymentStatus || "");
-
-  return (
-    getDashboardRemainingBalance(typedBooking) > 0 &&
-    remainingPaymentStatus !== "confirmed"
-  );
-};
+const isActiveSessionBooking = (
+  booking: Partial<Booking> | Record<string, unknown>
+) => booking.sessionStatus === "in_progress";
 
 const isOngoingProjectBooking = (
   booking: Partial<Booking> | Record<string, unknown>
