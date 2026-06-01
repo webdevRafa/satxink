@@ -107,6 +107,18 @@ type Props = {
   additionalOfferData?: Record<string, unknown>;
 };
 
+const CUSTOM_OFFER_STEPS = [
+  { id: "pricing", label: "Pricing" },
+  { id: "sessions", label: "Sessions" },
+  { id: "appointment", label: "Appointment" },
+  { id: "message", label: "Message" },
+  { id: "sample", label: "Sample" },
+] as const;
+
+type CustomOfferStepId = (typeof CUSTOM_OFFER_STEPS)[number]["id"];
+
+const FINAL_CUSTOM_OFFER_STEP_INDEX = CUSTOM_OFFER_STEPS.length - 1;
+
 const MakeOfferModal = ({
   isOpen,
   onClose,
@@ -135,9 +147,20 @@ const MakeOfferModal = ({
     useState("");
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
+  const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
+    useState(0);
+  const [isDesktopOfferStepper, setIsDesktopOfferStepper] = useState(false);
   const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
+  const shouldUseCustomOfferStepper =
+    !isFlashRequest && isDesktopOfferStepper && !isPreviewingOffer;
+  const hasCompletedCustomOfferStepper =
+    !shouldUseCustomOfferStepper ||
+    furthestCustomOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
+  const isOfferActionLocked =
+    shouldUseCustomOfferStepper && !hasCompletedCustomOfferStepper;
   const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
   const effectiveOfferPrice = isFlashRequest
     ? flashListedPrice
@@ -168,6 +191,27 @@ const MakeOfferModal = ({
       }),
     [depositAmount, effectiveOfferPrice]
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const query = window.matchMedia("(min-width: 1024px)");
+    const handleChange = () => setIsDesktopOfferStepper(query.matches);
+
+    handleChange();
+    query.addEventListener("change", handleChange);
+
+    return () => {
+      query.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setCustomOfferStepIndex(0);
+    setFurthestCustomOfferStepIndex(0);
+  }, [isOpen, selectedRequest?.id]);
 
   useEffect(() => {
     if (!isOpen || !selectedRequest) return;
@@ -202,6 +246,8 @@ const MakeOfferModal = ({
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
     setIsPreviewingOffer(false);
+    setCustomOfferStepIndex(0);
+    setFurthestCustomOfferStepIndex(0);
   };
 
   const handleClose = () => {
@@ -256,6 +302,11 @@ const MakeOfferModal = ({
   };
 
   const handlePreviewOffer = () => {
+    if (isOfferActionLocked) {
+      toast.error("Review each offer section before previewing.");
+      return;
+    }
+
     const validationError = getDraftValidationError();
     if (validationError) {
       toast.error(validationError);
@@ -269,6 +320,11 @@ const MakeOfferModal = ({
     event.preventDefault();
 
     if (!selectedRequest || !uid) return;
+
+    if (isOfferActionLocked) {
+      toast.error("Review each offer section before sending.");
+      return;
+    }
 
     const validationError = getDraftValidationError();
     if (validationError) {
@@ -411,6 +467,30 @@ const MakeOfferModal = ({
     }
   };
 
+  const goToCustomOfferStep = (stepIndex: number) => {
+    const nextStepIndex = Math.min(
+      Math.max(stepIndex, 0),
+      FINAL_CUSTOM_OFFER_STEP_INDEX
+    );
+
+    setCustomOfferStepIndex(nextStepIndex);
+    setFurthestCustomOfferStepIndex((currentStepIndex) =>
+      Math.max(currentStepIndex, nextStepIndex)
+    );
+  };
+
+  const getCustomOfferStepClassName = (stepId: CustomOfferStepId) => {
+    if (isFlashRequest) return "";
+
+    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
+      (step) => step.id === stepId
+    );
+
+    return customOfferStepIndex === stepIndex
+      ? "lg:block lg:animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
+      : "lg:hidden";
+  };
+
   const offerModalShellClassName =
     "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
 
@@ -533,7 +613,64 @@ const MakeOfferModal = ({
                   </aside>
 
                   <div className="space-y-5 p-5 sm:p-6">
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                    {!isFlashRequest && (
+                      <div className="hidden rounded-lg border border-white/10 bg-black/25 p-3 lg:block">
+                        <div className="grid gap-2 lg:grid-cols-5">
+                          {CUSTOM_OFFER_STEPS.map((step, index) => {
+                            const isActive = index === customOfferStepIndex;
+                            const isComplete =
+                              index < furthestCustomOfferStepIndex;
+                            const canVisit =
+                              index <= furthestCustomOfferStepIndex + 1;
+
+                            return (
+                              <button
+                                key={step.id}
+                                type="button"
+                                disabled={!canVisit}
+                                onClick={() => goToCustomOfferStep(index)}
+                                className={`group flex min-w-0 items-center gap-2 rounded-md border px-2.5! py-2! text-left transition ${
+                                  isActive
+                                    ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
+                                    : isComplete
+                                    ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
+                                    : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
+                                }`}
+                              >
+                                <span
+                                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
+                                    isActive
+                                      ? "bg-white text-black"
+                                      : isComplete
+                                      ? "bg-emerald-300 text-black"
+                                      : "bg-white/10 text-white/70"
+                                  }`}
+                                >
+                                  {index + 1}
+                                </span>
+                                <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em]">
+                                  {step.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                          <div
+                            className="h-full rounded-full bg-white transition-all duration-300 ease-out"
+                            style={{
+                              width: `${
+                                ((customOfferStepIndex + 1) /
+                                  CUSTOM_OFFER_STEPS.length) *
+                                100
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("pricing")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
                     <DollarSign size={19} />
@@ -693,7 +830,7 @@ const MakeOfferModal = ({
               </section>
 
               {!isFlashRequest && (
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sessions")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                     <Layers size={19} />
@@ -806,7 +943,7 @@ const MakeOfferModal = ({
               </section>
               )}
 
-              <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("appointment")}`}>
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                     <CalendarDays size={19} />
@@ -874,8 +1011,8 @@ const MakeOfferModal = ({
                 </div>
               </section>
 
-              <section className={`grid gap-5 ${isFlashRequest ? "" : "lg:grid-cols-2"}`}>
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+              <>
+                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("message")}`}>
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                       <MessageSquareText size={19} />
@@ -902,7 +1039,7 @@ const MakeOfferModal = ({
                 </div>
 
                 {!isFlashRequest && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sample")}`}>
                   <div className="mb-4 flex items-start gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
                       <Upload size={19} />
@@ -960,7 +1097,42 @@ const MakeOfferModal = ({
                   </label>
                 </div>
                 )}
-              </section>
+              </>
+                    {!isFlashRequest && (
+                      <div className="hidden items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 p-3 lg:flex">
+                        <button
+                          type="button"
+                          disabled={customOfferStepIndex === 0}
+                          onClick={() =>
+                            setCustomOfferStepIndex((currentStepIndex) =>
+                              Math.max(currentStepIndex - 1, 0)
+                            )
+                          }
+                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Back
+                        </button>
+                        <p className="min-w-0 text-center text-xs font-medium text-neutral-500">
+                          Step {customOfferStepIndex + 1} of{" "}
+                          {CUSTOM_OFFER_STEPS.length}
+                        </p>
+                        {customOfferStepIndex < FINAL_CUSTOM_OFFER_STEP_INDEX ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              goToCustomOfferStep(customOfferStepIndex + 1)
+                            }
+                            className="modal-action-button inline-flex items-center justify-center rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                          >
+                            Continue
+                          </button>
+                        ) : (
+                          <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-50">
+                            Ready to preview
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -995,7 +1167,8 @@ const MakeOfferModal = ({
                 <button
                   type="button"
                   onClick={handlePreviewOffer}
-                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white sm:gap-2"
+                  disabled={isOfferActionLocked}
+                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-neutral-500 disabled:shadow-none sm:gap-2"
                 >
                   Preview offer
                   <ReceiptText size={16} className="text-amber-200" />
@@ -1003,7 +1176,7 @@ const MakeOfferModal = ({
               )}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isOfferActionLocked}
                 className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
               >
                 {isSubmitting ? "Sending..." : "Send offer"}
