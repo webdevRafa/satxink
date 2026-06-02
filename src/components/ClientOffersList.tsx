@@ -16,7 +16,13 @@ import { db } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
 import type { Offer } from "../types/Offer";
+import type { Flash } from "../types/Flash";
 import { applyOfferImageFallbacks } from "../utils/offerImageFallbacks";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -97,6 +103,26 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           remainingPaymentMethod === "external" &&
           depositAmount > 0 &&
           remainingAmount > 0;
+        let flashRepeatability = offerData.flashRepeatability;
+        let flashAvailabilityStatus = offerData.flashAvailabilityStatus;
+
+        if (offerData.sourceType === "flash" && offerData.flashId) {
+          const flashSnap = await getDoc(doc(db, "flashes", offerData.flashId));
+          if (flashSnap.exists()) {
+            const latestFlash = { id: flashSnap.id, ...flashSnap.data() } as Flash;
+            flashRepeatability = getFlashRepeatability(latestFlash);
+            flashAvailabilityStatus = getFlashAvailabilityStatus(latestFlash);
+
+            if (!isFlashAvailableForClients(latestFlash)) {
+              toast.error(
+                flashRepeatability === "one_of_one"
+                  ? "This one-of-one flash is no longer available."
+                  : "This flash is no longer available."
+              );
+              return;
+            }
+          }
+        }
 
         const bookingRef = await addDoc(collection(db, "bookings"), {
           artistId: offerData.artistId,
@@ -152,6 +178,14 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           flashTitle: offerData.flashTitle ?? null,
           flashPrice: offerData.flashPrice ?? null,
           flashSheetId: offerData.flashSheetId ?? null,
+          flashRepeatability:
+            offerData.sourceType === "flash"
+              ? flashRepeatability || "repeatable"
+              : null,
+          flashAvailabilityStatus:
+            offerData.sourceType === "flash"
+              ? flashAvailabilityStatus || "available"
+              : null,
           isFromSheet: offerData.isFromSheet ?? null,
           status: "pending_payment",
           createdAt: serverTimestamp(),

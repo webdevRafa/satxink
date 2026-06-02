@@ -23,6 +23,10 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import {
+  getFlashBadgeLabel,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 type PublicArtist = {
   id: string;
@@ -125,7 +129,7 @@ const PublicFlashSheetPage = () => {
             }))
             .filter((flash): flash is Flash => {
               const typedFlash = flash as Flash;
-              return typedFlash.isAvailable !== false;
+              return isFlashAvailableForClients(typedFlash);
             })
             .sort(sortByNewest)
         );
@@ -402,6 +406,7 @@ const PublicFlashCard = ({
   onRequest: () => void;
 }) => {
   const artistName = getArtistName(artist);
+  const badgeLabel = getFlashBadgeLabel(flash);
 
   return (
     <article
@@ -420,6 +425,11 @@ const PublicFlashCard = ({
           <div className="flex h-full w-full items-center justify-center">
             <ImageOff className="text-white/25" size={36} />
           </div>
+        )}
+        {badgeLabel && (
+          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
+            {badgeLabel}
+          </span>
         )}
       </div>
 

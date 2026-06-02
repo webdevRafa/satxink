@@ -26,10 +26,15 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
-import type { Flash } from "../types/Flash";
+import type { Flash, FlashRepeatability } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import EditFlashModal from "../components/EditFlashModal";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "../components/FlashRepeatabilityControl";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+} from "../utils/flashAvailability";
 
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (
@@ -104,6 +109,7 @@ const FlashSheetDetailPage = () => {
   const [showCropModal, setShowCropModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isApplyingSheetDefault, setIsApplyingSheetDefault] = useState(false);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -111,6 +117,8 @@ const FlashSheetDetailPage = () => {
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
   const [newFlashTags, setNewFlashTags] = useState<string[]>([]);
+  const [newFlashRepeatability, setNewFlashRepeatability] =
+    useState<FlashRepeatability>("repeatable");
 
   const sheetTags = useMemo(
     () => (Array.isArray(sheet?.tags) ? sheet.tags.slice(0, 5) : []),
@@ -166,12 +174,83 @@ const FlashSheetDetailPage = () => {
     flashId: string,
     title: string,
     price: number | null,
-    tags: string[]
+    tags: string[],
+    repeatability: FlashRepeatability
   ) => {
-    await updateDoc(doc(db, "flashes", flashId), { title, price, tags });
+    await updateDoc(doc(db, "flashes", flashId), {
+      title,
+      price,
+      tags,
+      repeatability,
+    });
     setEditingFlash(null);
     if (id) fetchFlashes(id);
     toast.success("Flash updated.");
+  };
+
+  const handleOpenCropModal = () => {
+    setNewFlashRepeatability(
+      sheet?.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
+    );
+    setShowCropModal(true);
+  };
+
+  const handleUpdateSheetRepeatabilityDefault = async (
+    repeatabilityDefault: FlashRepeatability
+  ) => {
+    if (!sheet) return;
+
+    await updateDoc(doc(db, "flashSheets", sheet.id), {
+      repeatabilityDefault,
+    });
+    setSheet({ ...sheet, repeatabilityDefault });
+    toast.success("Sheet default updated.");
+  };
+
+  const handleApplySheetDefaultToCurrentDesigns = async () => {
+    if (!sheet || isApplyingSheetDefault) return;
+
+    const repeatabilityDefault =
+      sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable";
+    const eligibleFlashes = flashes.filter((flash) => {
+      const status = getFlashAvailabilityStatus(flash);
+      return status !== "held" && status !== "sold";
+    });
+
+    if (eligibleFlashes.length === 0) {
+      toast("No available designs to update.");
+      return;
+    }
+
+    try {
+      setIsApplyingSheetDefault(true);
+      await Promise.all(
+        eligibleFlashes.map((flash) =>
+          updateDoc(doc(db, "flashes", flash.id), {
+            repeatability: repeatabilityDefault,
+            availabilityStatus: "available",
+            isAvailable: true,
+          })
+        )
+      );
+      setFlashes((current) =>
+        current.map((flash) =>
+          eligibleFlashes.some((eligible) => eligible.id === flash.id)
+            ? {
+                ...flash,
+                repeatability: repeatabilityDefault,
+                availabilityStatus: "available",
+                isAvailable: true,
+              }
+            : flash
+        )
+      );
+      toast.success("Current designs updated.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Could not update current designs."));
+    } finally {
+      setIsApplyingSheetDefault(false);
+    }
   };
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
@@ -200,12 +279,16 @@ const FlashSheetDetailPage = () => {
         title: newFlashTitle.trim() || "Untitled Flash",
         price: parseOptionalPrice(newFlashPrice),
         tags: newFlashTags,
+        repeatability: newFlashRepeatability,
       });
 
       setShowCropModal(false);
       setNewFlashTitle("");
       setNewFlashPrice("");
       setNewFlashTags([]);
+      setNewFlashRepeatability(
+        sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
+      );
       setCropArea(null);
       setZoom(1);
       if (id) fetchFlashes(id);
@@ -241,6 +324,9 @@ const FlashSheetDetailPage = () => {
       </div>
     );
   }
+
+  const sheetRepeatabilityDefault =
+    sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable";
 
   return (
     <div className="mx-auto mt-24 min-h-screen max-w-7xl px-5 pb-16 text-white md:px-8">
@@ -306,11 +392,30 @@ const FlashSheetDetailPage = () => {
 
             <button
               type="button"
-              onClick={() => setShowCropModal(true)}
+              onClick={handleOpenCropModal}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
             >
               <Scissors size={16} />
               Add flash from sheet
+            </button>
+
+            <FlashRepeatabilityControl
+              value={sheetRepeatabilityDefault}
+              onChange={handleUpdateSheetRepeatabilityDefault}
+              label="Sheet default"
+              description="New designs cropped from this sheet start with this setting."
+              disabled={isApplyingSheetDefault}
+            />
+
+            <button
+              type="button"
+              onClick={handleApplySheetDefaultToCurrentDesigns}
+              disabled={isApplyingSheetDefault || flashes.length === 0}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isApplyingSheetDefault
+                ? "Applying..."
+                : "Apply default to current designs"}
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -358,18 +463,34 @@ const FlashSheetDetailPage = () => {
           </div>
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {flashes.map((flash) => (
+            {flashes.map((flash) => {
+              const repeatability = getFlashRepeatability(flash);
+              const availabilityStatus = getFlashAvailabilityStatus(flash);
+
+              return (
               <article
                 key={flash.id}
                 className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]"
               >
-                <div className="aspect-square overflow-hidden bg-black">
+                <div className="relative aspect-square overflow-hidden bg-black">
                   <img
                     src={flash.thumbUrl || flash.webp90Url || flash.fullUrl}
                     alt={flash.title || "Flash"}
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
+                  <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+                    {repeatability === "one_of_one" && (
+                      <span className="rounded-full border border-red-300/30 bg-red-500/20 px-2.5! py-1! text-[11px] font-semibold text-red-100 backdrop-blur">
+                        One of one
+                      </span>
+                    )}
+                    {availabilityStatus !== "available" && (
+                      <span className="rounded-full border border-white/15 bg-black/55 px-2.5! py-1! text-[11px] font-semibold capitalize text-white/80 backdrop-blur">
+                        {availabilityStatus}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -404,7 +525,8 @@ const FlashSheetDetailPage = () => {
                   )}
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -426,6 +548,7 @@ const FlashSheetDetailPage = () => {
           title={newFlashTitle}
           price={newFlashPrice}
           tags={newFlashTags}
+          repeatability={newFlashRepeatability}
           isPublishing={isPublishing}
           onCropChange={setCrop}
           onZoomChange={setZoom}
@@ -433,6 +556,7 @@ const FlashSheetDetailPage = () => {
           onTitleChange={setNewFlashTitle}
           onPriceChange={setNewFlashPrice}
           onTagsChange={setNewFlashTags}
+          onRepeatabilityChange={setNewFlashRepeatability}
           onClose={() => setShowCropModal(false)}
           onPublish={handleSaveNewFlash}
         />
@@ -514,6 +638,7 @@ const CropFlashModal = ({
   title,
   price,
   tags,
+  repeatability,
   isPublishing,
   onCropChange,
   onZoomChange,
@@ -521,6 +646,7 @@ const CropFlashModal = ({
   onTitleChange,
   onPriceChange,
   onTagsChange,
+  onRepeatabilityChange,
   onClose,
   onPublish,
 }: {
@@ -531,6 +657,7 @@ const CropFlashModal = ({
   title: string;
   price: string;
   tags: string[];
+  repeatability: FlashRepeatability;
   isPublishing: boolean;
   onCropChange: (value: { x: number; y: number }) => void;
   onZoomChange: (value: number) => void;
@@ -538,6 +665,7 @@ const CropFlashModal = ({
   onTitleChange: (value: string) => void;
   onPriceChange: (value: string) => void;
   onTagsChange: (value: string[]) => void;
+  onRepeatabilityChange: (value: FlashRepeatability) => void;
   onClose: () => void;
   onPublish: () => void;
 }) => {
@@ -646,6 +774,14 @@ const CropFlashModal = ({
           </>
         }
         emptyPlaceholder="anime, color, dragon"
+      />
+
+      <FlashRepeatabilityControl
+        value={repeatability}
+        onChange={onRepeatabilityChange}
+        label="Availability"
+        description="Use one of one for designs that should disappear once a client starts checkout."
+        disabled={isPublishing}
       />
     </>
   );

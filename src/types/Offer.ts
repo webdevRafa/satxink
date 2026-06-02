@@ -1,3 +1,5 @@
+import type { FlashAvailabilityStatus, FlashRepeatability } from "./Flash";
+
 export type Offer = {
     id: string;
     artistId: string;
@@ -24,6 +26,8 @@ clientAvatar?: string;
     flashTitle?: string | null;
     flashPrice?: number | null;
     flashSheetId?: string | null;
+    flashRepeatability?: FlashRepeatability;
+    flashAvailabilityStatus?: FlashAvailabilityStatus;
     isFromSheet?: boolean | null;
     shopName?: string;
     shopAddress?: string;

@@ -40,6 +40,7 @@ const STRIPE_PERCENT_FEE = 0.029;
 const STRIPE_FIXED_FEE_CENTS = 30;
 const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
+const FLASH_CHECKOUT_HOLD_SECONDS = 60 * 60;
 
 const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
   user.role === "artist";
@@ -58,12 +59,238 @@ const estimateStripeFeeCents = (clientTotalCents: number) =>
   Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
 
 type CheckoutPaymentMode = "deposit" | "full" | "remaining";
+type FlashRepeatability = "repeatable" | "one_of_one";
+type FlashAvailabilityStatus = "available" | "held" | "sold";
 
 type CropAreaInput = {
   x?: unknown;
   y?: unknown;
   width?: unknown;
   height?: unknown;
+};
+
+const getFlashRepeatability = (
+  data: admin.firestore.DocumentData | undefined
+): FlashRepeatability =>
+  data?.repeatability === "one_of_one" ? "one_of_one" : "repeatable";
+
+const getFlashAvailabilityStatus = (
+  data: admin.firestore.DocumentData | undefined
+): FlashAvailabilityStatus =>
+  data?.availabilityStatus === "held" || data?.availabilityStatus === "sold"
+    ? data.availabilityStatus
+    : "available";
+
+const toMillis = (value: unknown) => {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (
+    typeof value === "object" &&
+    "toMillis" in value &&
+    typeof (value as { toMillis?: unknown }).toMillis === "function"
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  if (
+    typeof value === "object" &&
+    "seconds" in value &&
+    typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    return (value as { seconds: number }).seconds * 1000;
+  }
+  return 0;
+};
+
+const isHeldUntilExpired = (value: unknown) => {
+  const heldUntilMillis = toMillis(value);
+  return heldUntilMillis > 0 && heldUntilMillis <= Date.now();
+};
+
+const getFlashHoldReleaseUpdate = () => ({
+  availabilityStatus: "available",
+  isAvailable: true,
+  heldByBookingId: admin.firestore.FieldValue.delete(),
+  heldByClientId: admin.firestore.FieldValue.delete(),
+  heldByCheckoutSessionId: admin.firestore.FieldValue.delete(),
+  heldUntil: admin.firestore.FieldValue.delete(),
+  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+});
+
+const reserveOneOfOneFlashForCheckout = async ({
+  bookingRef,
+  bookingId,
+  booking,
+  clientId,
+  holdUntil,
+}: {
+  bookingRef: admin.firestore.DocumentReference;
+  bookingId: string;
+  booking: admin.firestore.DocumentData;
+  clientId: string;
+  holdUntil: Date;
+}) => {
+  const flashId = typeof booking.flashId === "string" ? booking.flashId : "";
+  if (booking.sourceType !== "flash" || !flashId) return false;
+
+  const flashRef = db.collection("flashes").doc(flashId);
+  const holdUntilTimestamp = admin.firestore.Timestamp.fromDate(holdUntil);
+
+  return db.runTransaction(async (transaction) => {
+    const flashSnap = await transaction.get(flashRef);
+    if (!flashSnap.exists) {
+      throw new HttpsError("not-found", "Flash design not found.");
+    }
+
+    const flash = flashSnap.data() || {};
+    const repeatability = getFlashRepeatability(flash);
+    if (repeatability !== "one_of_one") {
+      transaction.set(
+        bookingRef,
+        {
+          flashRepeatability: repeatability,
+          flashAvailabilityStatus: getFlashAvailabilityStatus(flash),
+        },
+        { merge: true }
+      );
+      return false;
+    }
+
+    const status = getFlashAvailabilityStatus(flash);
+    const heldByBookingId = flash.heldByBookingId as string | undefined;
+    const heldByClientId = flash.heldByClientId as string | undefined;
+    const sameHold =
+      heldByBookingId === bookingId ||
+      (heldByClientId === clientId && isHeldUntilExpired(flash.heldUntil));
+    const canReclaimExpiredHold =
+      status === "held" && isHeldUntilExpired(flash.heldUntil);
+
+    if (status === "sold") {
+      throw new HttpsError(
+        "failed-precondition",
+        "This one-of-one flash has already been purchased."
+      );
+    }
+
+    if (status === "held" && !sameHold && !canReclaimExpiredHold) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This one-of-one flash is currently held for another checkout."
+      );
+    }
+
+    if (flash.isAvailable === false && status !== "held") {
+      throw new HttpsError(
+        "failed-precondition",
+        "This one-of-one flash is no longer available."
+      );
+    }
+
+    transaction.update(flashRef, {
+      repeatability: "one_of_one",
+      availabilityStatus: "held",
+      isAvailable: false,
+      heldByBookingId: bookingId,
+      heldByClientId: clientId,
+      heldByCheckoutSessionId: admin.firestore.FieldValue.delete(),
+      heldUntil: holdUntilTimestamp,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.set(
+      bookingRef,
+      {
+        flashRepeatability: "one_of_one",
+        flashAvailabilityStatus: "held",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return true;
+  });
+};
+
+const setOneOfOneFlashCheckoutSession = async ({
+  flashId,
+  bookingId,
+  sessionId,
+  holdUntil,
+}: {
+  flashId?: string | null;
+  bookingId: string;
+  sessionId: string;
+  holdUntil: Date;
+}) => {
+  if (!flashId) return;
+
+  await db.runTransaction(async (transaction) => {
+    const flashRef = db.collection("flashes").doc(flashId);
+    const flashSnap = await transaction.get(flashRef);
+    if (!flashSnap.exists) return;
+
+    const flash = flashSnap.data() || {};
+    if (
+      getFlashRepeatability(flash) !== "one_of_one" ||
+      getFlashAvailabilityStatus(flash) !== "held" ||
+      flash.heldByBookingId !== bookingId
+    ) {
+      return;
+    }
+
+    transaction.update(flashRef, {
+      heldByCheckoutSessionId: sessionId,
+      heldUntil: admin.firestore.Timestamp.fromDate(holdUntil),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+};
+
+const releaseOneOfOneFlashHold = async ({
+  flashId,
+  bookingId,
+  sessionId,
+}: {
+  flashId?: string | null;
+  bookingId?: string | null;
+  sessionId?: string | null;
+}) => {
+  if (!flashId) return false;
+
+  return db.runTransaction(async (transaction) => {
+    const flashRef = db.collection("flashes").doc(flashId);
+    const flashSnap = await transaction.get(flashRef);
+    if (!flashSnap.exists) return false;
+
+    const flash = flashSnap.data() || {};
+    if (
+      getFlashRepeatability(flash) !== "one_of_one" ||
+      getFlashAvailabilityStatus(flash) !== "held"
+    ) {
+      return false;
+    }
+
+    if (bookingId && flash.heldByBookingId !== bookingId) return false;
+    if (
+      sessionId &&
+      flash.heldByCheckoutSessionId &&
+      flash.heldByCheckoutSessionId !== sessionId
+    ) {
+      return false;
+    }
+
+    transaction.update(flashRef, getFlashHoldReleaseUpdate());
+    if (bookingId) {
+      transaction.set(
+        db.collection("bookings").doc(bookingId),
+        {
+          flashAvailabilityStatus: "available",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    return true;
+  });
 };
 
 const parseStoragePathFromDownloadUrl = (url: string) => {
@@ -256,6 +483,127 @@ const getCompletedBookingUpdate = (
       : {}),
     updatedAt: timestamp,
   };
+};
+
+const expirePendingFlashWorkflows = async (
+  flashId?: string | null,
+  paidOfferId?: string | null
+) => {
+  if (!flashId) return;
+
+  const firestore = admin.firestore();
+  const [offersSnap, requestsSnap] = await Promise.all([
+    firestore
+      .collection("offers")
+      .where("flashId", "==", flashId)
+      .where("status", "==", "pending")
+      .get(),
+    firestore
+      .collection("bookingRequests")
+      .where("flashId", "==", flashId)
+      .where("status", "==", "pending")
+      .get(),
+  ]);
+
+  const batch = firestore.batch();
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+  offersSnap.docs.forEach((docSnap) => {
+    if (docSnap.id === paidOfferId) return;
+    batch.update(docSnap.ref, {
+      status: "expired",
+      expiredAt: timestamp,
+      unavailableReason: "one_of_one_flash_purchased",
+    });
+  });
+
+  requestsSnap.docs.forEach((docSnap) => {
+    batch.update(docSnap.ref, {
+      status: "expired",
+      expiredAt: timestamp,
+      unavailableReason: "one_of_one_flash_purchased",
+    });
+  });
+
+  if (!offersSnap.empty || !requestsSnap.empty) {
+    await batch.commit();
+  }
+};
+
+const finalizeBookingPaymentAndFlash = async (
+  bookingRef: admin.firestore.DocumentReference,
+  session: Stripe.Checkout.Session,
+  connectedAccountId?: string | null
+) => {
+  let resultStatus = "paid";
+  let flashToExpire: string | null = null;
+  let paidOfferId: string | null = null;
+
+  await db.runTransaction(async (transaction) => {
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists) {
+      throw new HttpsError("not-found", "Booking not found.");
+    }
+
+    const booking = bookingSnap.data() || {};
+    const flashId = typeof booking.flashId === "string" ? booking.flashId : "";
+    let flashSnap: admin.firestore.DocumentSnapshot | null = null;
+    let flash: admin.firestore.DocumentData = {};
+    let repeatability = booking.flashRepeatability as FlashRepeatability | undefined;
+
+    if (booking.sourceType === "flash" && flashId) {
+      const flashRef = db.collection("flashes").doc(flashId);
+      flashSnap = await transaction.get(flashRef);
+      flash = flashSnap.exists ? flashSnap.data() || {} : {};
+      repeatability = getFlashRepeatability(flash);
+    }
+
+    const update = getCompletedBookingUpdate(
+      booking,
+      session,
+      connectedAccountId
+    );
+    resultStatus = update.status;
+    paidOfferId = typeof booking.offerId === "string" ? booking.offerId : null;
+
+    transaction.update(bookingRef, {
+      ...update,
+      ...(booking.sourceType === "flash" && repeatability
+        ? {
+            flashRepeatability: repeatability,
+            flashAvailabilityStatus:
+              repeatability === "one_of_one" ? "sold" : "available",
+          }
+        : {}),
+    });
+
+    if (
+      booking.sourceType === "flash" &&
+      flashId &&
+      flashSnap?.exists &&
+      repeatability === "one_of_one"
+    ) {
+      const flashRef = db.collection("flashes").doc(flashId);
+      transaction.update(flashRef, {
+        repeatability: "one_of_one",
+        availabilityStatus: "sold",
+        isAvailable: false,
+        soldAt: admin.firestore.FieldValue.serverTimestamp(),
+        soldBookingId: bookingRef.id,
+        soldCheckoutSessionId: session.id,
+        heldByBookingId: admin.firestore.FieldValue.delete(),
+        heldByClientId: admin.firestore.FieldValue.delete(),
+        heldByCheckoutSessionId: admin.firestore.FieldValue.delete(),
+        heldUntil: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      flashToExpire = flashId;
+    }
+  });
+
+  await expirePendingFlashWorkflows(flashToExpire, paidOfferId);
+
+  return { status: resultStatus, flashId: flashToExpire };
 };
 
 
@@ -721,6 +1069,11 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     }
 
   const stripe = getStripeClient();
+  let reservedOneOfOneFlash = false;
+  let reservedFlashId: string | null = null;
+  let reservedBookingId: string | null = null;
+  let createdCheckoutSessionId: string | null = null;
+  let reservedConnectedAccountId: string | null = null;
 
   try {
     const data = req.data as CheckoutRequestData;
@@ -868,6 +1221,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     const artistSnap = await db.collection("users").doc(booking.artistId).get();
     const artist = artistSnap.data() || {};
     const connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
+    reservedConnectedAccountId = connectedAccountId ?? null;
 
     if (!connectedAccountId) {
       throw new HttpsError(
@@ -888,6 +1242,23 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         "This artist needs to finish Stripe onboarding before accepting payments."
       );
     }
+
+    const flashHoldUntil = new Date(
+      Date.now() + FLASH_CHECKOUT_HOLD_SECONDS * 1000
+    );
+    reservedFlashId =
+      typeof booking.flashId === "string" ? booking.flashId : null;
+    reservedBookingId = bookingId;
+    reservedOneOfOneFlash = await reserveOneOfOneFlashForCheckout({
+      bookingRef,
+      bookingId,
+      booking,
+      clientId: uid,
+      holdUntil: flashHoldUntil,
+    });
+    const checkoutFlashRepeatability = reservedOneOfOneFlash
+      ? "one_of_one"
+      : booking.flashRepeatability || "";
     
     let formattedDateTime = '';
 
@@ -916,6 +1287,8 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         paymentMode,
         priceCents: String(priceCents),
         depositCents: String(depositCents),
+        flashId: reservedFlashId ?? '',
+        flashRepeatability: checkoutFlashRepeatability,
       },
     };
 
@@ -957,17 +1330,31 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         paymentMode,
         priceCents: String(priceCents),
         depositCents: String(depositCents),
+        flashId: reservedFlashId ?? '',
+        flashRepeatability: checkoutFlashRepeatability,
         stripeConnectedAccountId: connectedAccountId,
       },
+      expires_at: Math.floor(flashHoldUntil.getTime() / 1000),
       success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
       cancel_url: data.cancelUrl || `${DEFAULT_APP_URL}/payment/${bookingId}`,
     }, {
       stripeAccount: connectedAccountId,
     });
+    createdCheckoutSessionId = session.id;
+
+    if (reservedOneOfOneFlash) {
+      await setOneOfOneFlashCheckoutSession({
+        flashId: reservedFlashId,
+        bookingId,
+        sessionId: session.id,
+        holdUntil: flashHoldUntil,
+      });
+    }
 
     await bookingRef.set(
       {
         stripeCheckoutSessionId: session.id,
+        stripeCheckoutExpiresAt: admin.firestore.Timestamp.fromDate(flashHoldUntil),
         stripeConnectedAccountId: connectedAccountId,
         artistQuotedAmount: artistAmountCents / 100,
         artistQuotedAmountCents: artistAmountCents,
@@ -980,6 +1367,12 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         artistPayoutAmount: artistAmountCents / 100,
         artistPayoutCents: artistAmountCents,
         checkoutPaymentMode: paymentMode,
+        ...(reservedOneOfOneFlash
+          ? {
+              flashRepeatability: "one_of_one",
+              flashAvailabilityStatus: "held",
+            }
+          : {}),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -987,6 +1380,23 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
 
     return { sessionUrl: session.url };
   } catch (error) {
+    if (reservedOneOfOneFlash) {
+      try {
+        if (createdCheckoutSessionId && reservedConnectedAccountId) {
+          await stripe.checkout.sessions.expire(
+            createdCheckoutSessionId,
+            {},
+            { stripeAccount: reservedConnectedAccountId }
+          );
+        }
+        await releaseOneOfOneFlashHold({
+          flashId: reservedFlashId,
+          bookingId: reservedBookingId,
+        });
+      } catch (releaseError) {
+        logger.error("Failed to release one-of-one flash hold", releaseError);
+      }
+    }
     if (error instanceof HttpsError) throw error;
     logger.error('Stripe checkout error', error);
     throw new HttpsError('internal', 'Unable to create checkout session');
@@ -1063,8 +1473,8 @@ const syncBookingPaymentStatus = onCall(
         : session.payment_intent?.id ?? null;
 
     if (session.payment_status === "paid" || session.status === "complete") {
-      const update = getCompletedBookingUpdate(
-        booking,
+      const result = await finalizeBookingPaymentAndFlash(
+        bookingRef,
         {
           ...session,
           payment_intent: paymentIntent,
@@ -1072,9 +1482,7 @@ const syncBookingPaymentStatus = onCall(
         connectedAccountId
       );
 
-      await bookingRef.update(update);
-
-      return { paid: true, status: update.status };
+      return { paid: true, status: result.status };
     }
 
     return {
@@ -1150,19 +1558,52 @@ const stripeWebhook = onRequest(
           return;
         }
 
-        const update = getCompletedBookingUpdate(
-          bookingSnap.data() || {},
+        const result = await finalizeBookingPaymentAndFlash(
+          bookingRef,
           session,
           event.account ?? session.metadata?.stripeConnectedAccountId ?? null
         );
 
-        await bookingRef.update(update);
-
-        console.log(`Booking ${bookingId} updated to ${update.status}.`);
+        console.log(`Booking ${bookingId} updated to ${result.status}.`);
         res.status(200).send("Booking updated.");
       } catch (err) {
         console.error("Error updating booking:", err);
         res.status(500).send("Failed to update booking.");
+      }
+    } else if (event.type === 'checkout.session.expired') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const bookingId = session.metadata?.bookingId;
+      const flashId = session.metadata?.flashId;
+
+      if (!bookingId) {
+        console.warn("Missing bookingId in expired session metadata.");
+        res.status(400).send("Missing bookingId.");
+        return;
+      }
+
+      try {
+        const released = await releaseOneOfOneFlashHold({
+          flashId,
+          bookingId,
+          sessionId: session.id,
+        });
+
+        if (released) {
+          await firestore.collection("bookings").doc(bookingId).set(
+            {
+              flashAvailabilityStatus: "available",
+              checkoutExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+
+        console.log(`Checkout session ${session.id} expired. Flash hold released: ${released}.`);
+        res.status(200).send("Checkout expiration handled.");
+      } catch (err) {
+        console.error("Error handling checkout expiration:", err);
+        res.status(500).send("Failed to handle checkout expiration.");
       }
     } else {
       console.log(`Unhandled event type: ${event.type}`);
@@ -1315,12 +1756,14 @@ const cropFlashFromSheet = onCall(
       title,
       price,
       tags,
+      repeatability,
     } = (req.data || {}) as {
       sheetId?: string;
       crop?: CropAreaInput;
       title?: string;
       price?: number | null;
       tags?: string[];
+      repeatability?: FlashRepeatability;
     };
 
     if (!sheetId || !crop) {
@@ -1406,6 +1849,12 @@ const cropFlashFromSheet = onCall(
       price === null || price === undefined || !Number.isFinite(parsedPrice)
         ? null
         : parsedPrice;
+    const normalizedRepeatability =
+      repeatability === "one_of_one" || repeatability === "repeatable"
+        ? repeatability
+        : sheet.repeatabilityDefault === "one_of_one"
+        ? "one_of_one"
+        : "repeatable";
 
     const flashRef = await db.collection("flashes").add({
       artistId: uid,
@@ -1422,6 +1871,8 @@ const cropFlashFromSheet = onCall(
       fullPath,
       isFromSheet: true,
       isAvailable: true,
+      repeatability: normalizedRepeatability,
+      availabilityStatus: "available",
       artistStripeConnectReady: true,
       marketplaceVisible: true,
       status: "ready",
@@ -1460,6 +1911,47 @@ const cleanupProcessedEvents = onSchedule("every 24 hours", async () => {
   console.log(`Deleted ${snapshot.size} old processed events.`);
 });
 
+const cleanupExpiredFlashHolds = onSchedule("every 15 minutes", async () => {
+  const firestore = admin.firestore();
+  const snapshot = await firestore
+    .collection("flashes")
+    .where("availabilityStatus", "==", "held")
+    .get();
+
+  if (snapshot.empty) {
+    console.log("No expired flash holds to release.");
+    return;
+  }
+
+  const batches: FirebaseFirestore.WriteBatch[] = [];
+  let batch = firestore.batch();
+  let writeCount = 0;
+  let releasedCount = 0;
+
+  snapshot.docs.forEach((docSnap) => {
+    const flash = docSnap.data() || {};
+    if (getFlashRepeatability(flash) !== "one_of_one") return;
+    if (!isHeldUntilExpired(flash.heldUntil)) return;
+
+    if (writeCount >= 450) {
+      batches.push(batch);
+      batch = firestore.batch();
+      writeCount = 0;
+    }
+
+    batch.update(docSnap.ref, getFlashHoldReleaseUpdate());
+    writeCount += 1;
+    releasedCount += 1;
+  });
+
+  if (releasedCount > 0) {
+    batches.push(batch);
+    await Promise.all(batches.map((batchToCommit) => batchToCommit.commit()));
+  }
+
+  console.log(`Released ${releasedCount} expired one-of-one flash holds.`);
+});
+
 
 
 
@@ -1478,5 +1970,6 @@ module.exports = {
   processArtistMedia,
   cropFlashFromSheet,
   cleanupProcessedEvents,
+  cleanupExpiredFlashHolds,
 };
  

@@ -1,4 +1,5 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
+import type { FlashRepeatability } from "./Flash";
 
 export type FlashSheet = {
   id: string;
@@ -9,6 +10,7 @@ export type FlashSheet = {
   tags?: string[];
   artistStripeConnectReady?: boolean;
   marketplaceVisible?: boolean;
+  repeatabilityDefault?: FlashRepeatability;
   title?: string;
   createdAt?: Timestamp | Date | FieldValue | null;
 };

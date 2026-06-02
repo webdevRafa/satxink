@@ -1,5 +1,8 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
 
+export type FlashRepeatability = "repeatable" | "one_of_one";
+export type FlashAvailabilityStatus = "available" | "held" | "sold";
+
 export type Flash = {
   id: string;                      // Firestore document ID
   artistId: string;                // Linked artist
@@ -18,6 +21,15 @@ export type Flash = {
   title?: string;                  // Optional artist-provided title
   caption?: string | null;         // Legacy upload modal title field
   isAvailable?: boolean;           // Optional: mark flash as available or sold
+  repeatability?: FlashRepeatability;
+  availabilityStatus?: FlashAvailabilityStatus;
+  heldByBookingId?: string | null;
+  heldByClientId?: string | null;
+  heldByCheckoutSessionId?: string | null;
+  heldUntil?: Timestamp | Date | FieldValue | null;
+  soldBookingId?: string | null;
+  soldCheckoutSessionId?: string | null;
+  soldAt?: Timestamp | Date | FieldValue | null;
   price?: number | null;           // Optional: for marketplace support
   tags?: string[];                 // Optional: for search/filter
   artistStripeConnectReady?: boolean;

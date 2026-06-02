@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import type { FlashAvailabilityStatus, FlashRepeatability } from "./Flash";
 
 export type RemainingPaymentMethod = "stripe" | "external";
 export type RemainingPaymentStatus =
@@ -94,6 +95,8 @@ export type Booking = {
     flashTitle?: string | null;
     flashPrice?: number | null;
     flashSheetId?: string | null;
+    flashRepeatability?: FlashRepeatability;
+    flashAvailabilityStatus?: FlashAvailabilityStatus;
     isFromSheet?: boolean | null;
   
     status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";

@@ -33,6 +33,10 @@ import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
+import {
+  getFlashBadgeLabel,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 type PublicArtist = {
   id: string;
@@ -121,7 +125,7 @@ export const HomePage: FC = () => {
             const typedFlash = flash as Flash;
             return Boolean(
               typedFlash.artistId &&
-                typedFlash.isAvailable !== false &&
+                isFlashAvailableForClients(typedFlash) &&
                 (typedFlash.thumbUrl ||
                   typedFlash.webp90Url ||
                   typedFlash.fullUrl)
@@ -505,6 +509,7 @@ const PreviewRail = <T,>({
 
 const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
   const artistName = getArtistName(flash.artist);
+  const badgeLabel = getFlashBadgeLabel(flash);
 
   return (
     <Link
@@ -521,6 +526,11 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
           />
         ) : (
           <MissingImage />
+        )}
+        {badgeLabel && (
+          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
+            {badgeLabel}
+          </span>
         )}
       </div>
       <div className="flex min-h-[132px] flex-1 flex-col p-3">

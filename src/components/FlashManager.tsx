@@ -28,13 +28,14 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
-import type { Flash } from "../types/Flash";
+import type { Flash, FlashRepeatability } from "../types/Flash";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
 import UploadModal from "./UploadModal";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
 
 type FlashManagerProps = {
   uid: string;
@@ -64,6 +65,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
   const [sheetTags, setSheetTags] = useState<string[]>([]);
+  const [sheetRepeatabilityDefault, setSheetRepeatabilityDefault] =
+    useState<FlashRepeatability>("repeatable");
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
   const linkedFlashCount = useMemo(
@@ -179,6 +182,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     setShowSheetTitleModal(false);
     setSheetTitleInput("");
     setSheetTags([]);
+    setSheetRepeatabilityDefault("repeatable");
     setPendingSheetFile(null);
     setSheetImage(null);
   };
@@ -216,6 +220,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         artistId: uid,
         title: sheetTitleInput.trim(),
         tags: sheetTags,
+        repeatabilityDefault: sheetRepeatabilityDefault,
         artistStripeConnectReady: true,
         marketplaceVisible: true,
         fileName: baseName,
@@ -227,6 +232,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
 
       setSheetTitleInput("");
       setSheetTags([]);
+      setSheetRepeatabilityDefault("repeatable");
       setPendingSheetFile(null);
       setSheetImage(null);
       setShowSheetTitleModal(false);
@@ -424,6 +430,16 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     }
                     emptyPlaceholder="anime, color, dragon"
                   />
+
+                  <div className="mt-4">
+                    <FlashRepeatabilityControl
+                      value={sheetRepeatabilityDefault}
+                      onChange={setSheetRepeatabilityDefault}
+                      label="Default for this sheet"
+                      description="New flash cropped from this sheet starts with this setting, and each design can still be changed later."
+                      disabled={isUploadingSheet}
+                    />
+                  </div>
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <div className="flex gap-3">

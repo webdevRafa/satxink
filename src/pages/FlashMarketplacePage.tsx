@@ -31,6 +31,10 @@ import FlashRequestModal, {
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  getFlashBadgeLabel,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
@@ -164,7 +168,7 @@ const FlashMarketplacePage = () => {
             const typedFlash = flash as Flash;
             return Boolean(
               typedFlash.artistId &&
-                typedFlash.isAvailable !== false &&
+                isFlashAvailableForClients(typedFlash) &&
                 (typedFlash.thumbUrl ||
                   typedFlash.webp90Url ||
                   typedFlash.fullUrl ||
@@ -782,6 +786,7 @@ const FlashCard = ({
 }) => {
   const previewUrl = getFlashPreviewUrl(flash);
   const artistName = getArtistName(flash.artist);
+  const badgeLabel = getFlashBadgeLabel(flash);
 
   return (
     <article
@@ -800,6 +805,11 @@ const FlashCard = ({
           <div className="flex h-full w-full items-center justify-center">
             <ImageOff className="text-white/25" size={36} />
           </div>
+        )}
+        {badgeLabel && (
+          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
+            {badgeLabel}
+          </span>
         )}
       </div>
 

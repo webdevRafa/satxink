@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
@@ -12,6 +12,11 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 export type FlashRequestArtist = {
   id: string;
@@ -82,6 +87,20 @@ const FlashRequestModal = ({
     try {
       setIsSubmitting(true);
 
+      const flashSnap = await getDoc(doc(db, "flashes", flash.id));
+      const latestFlash = flashSnap.exists()
+        ? ({ id: flashSnap.id, ...flashSnap.data() } as Flash)
+        : flash;
+
+      if (!isFlashAvailableForClients(latestFlash)) {
+        toast.error(
+          getFlashRepeatability(latestFlash) === "one_of_one"
+            ? "This one-of-one flash is no longer available."
+            : "This flash is no longer available."
+        );
+        return;
+      }
+
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
         artistName: getArtistName(artist),
@@ -98,14 +117,18 @@ const FlashRequestModal = ({
         status: "pending",
         createdAt: serverTimestamp(),
 
-        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl,
-        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+        fullUrl:
+          latestFlash.fullUrl || latestFlash.webp90Url || latestFlash.thumbUrl,
+        thumbUrl:
+          latestFlash.thumbUrl || latestFlash.webp90Url || latestFlash.fullUrl,
         sourceType: "flash",
-        flashId: flash.id,
-        flashTitle: getFlashTitle(flash),
-        flashPrice: flash.price ?? null,
-        flashSheetId: flash.sheetId || null,
-        isFromSheet: flash.isFromSheet,
+        flashId: latestFlash.id,
+        flashTitle: getFlashTitle(latestFlash),
+        flashPrice: latestFlash.price ?? null,
+        flashSheetId: latestFlash.sheetId || null,
+        flashRepeatability: getFlashRepeatability(latestFlash),
+        flashAvailabilityStatus: getFlashAvailabilityStatus(latestFlash),
+        isFromSheet: latestFlash.isFromSheet,
       });
 
       toast.success("Flash request sent!");

@@ -1,7 +1,12 @@
 import { useState } from "react";
-import type { Flash } from "../types/Flash";
+import type { Flash, FlashRepeatability } from "../types/Flash";
 import { DollarSign, Save, Tag, Trash2, X } from "lucide-react";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+} from "../utils/flashAvailability";
 
 type Props = {
   flash: Flash;
@@ -10,7 +15,8 @@ type Props = {
     id: string,
     title: string,
     price: number | null,
-    tags: string[]
+    tags: string[],
+    repeatability: FlashRepeatability
   ) => void;
   onDelete?: (flash: Flash) => void;
 };
@@ -19,6 +25,9 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
   const [tags, setTags] = useState<string[]>(flash.tags || []);
+  const [repeatability, setRepeatability] = useState(getFlashRepeatability(flash));
+  const availabilityStatus = getFlashAvailabilityStatus(flash);
+  const isSold = availabilityStatus === "sold";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
@@ -87,6 +96,27 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               }
               emptyPlaceholder="traditional, rose, blackwork"
             />
+
+            <FlashRepeatabilityControl
+              value={repeatability}
+              onChange={setRepeatability}
+              label="Availability"
+              description={
+                isSold
+                  ? "This design has already been purchased and can no longer be changed."
+                  : "Use one of one for designs that should disappear once a client starts checkout."
+              }
+              disabled={isSold}
+            />
+
+            {availabilityStatus !== "available" && (
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-zinc-300">
+                Status:{" "}
+                <span className="font-semibold capitalize text-white">
+                  {availabilityStatus}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -117,7 +147,8 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                     flash.id,
                     title,
                     price ? parseFloat(price) : null,
-                    tags
+                    tags,
+                    repeatability
                   )
                 }
                 className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"

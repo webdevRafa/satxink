@@ -46,6 +46,16 @@ import {
   getTodayDateInputValue,
   isPastDateInputValue,
 } from "../utils/dateInputGuards";
+import type {
+  Flash,
+  FlashAvailabilityStatus,
+  FlashRepeatability,
+} from "../types/Flash";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
 
 type BookingRequest = {
   id: string;
@@ -72,6 +82,8 @@ type BookingRequest = {
   flashTitle?: string;
   flashPrice?: number | null;
   flashSheetId?: string | null;
+  flashRepeatability?: FlashRepeatability;
+  flashAvailabilityStatus?: FlashAvailabilityStatus;
   isFromSheet?: boolean;
 };
 
@@ -426,6 +438,29 @@ const MakeOfferModal = ({
         }
       }
 
+      let flashRepeatability = selectedRequest.flashRepeatability;
+      let flashAvailabilityStatus = selectedRequest.flashAvailabilityStatus;
+      if (selectedRequest.sourceType === "flash" && selectedRequest.flashId) {
+        const flashSnap = await getDoc(doc(db, "flashes", selectedRequest.flashId));
+        if (flashSnap.exists()) {
+          const latestFlash = {
+            id: flashSnap.id,
+            ...flashSnap.data(),
+          } as Flash;
+          flashRepeatability = getFlashRepeatability(latestFlash);
+          flashAvailabilityStatus = getFlashAvailabilityStatus(latestFlash);
+
+          if (!isFlashAvailableForClients(latestFlash)) {
+            toast.error(
+              flashRepeatability === "one_of_one"
+                ? "This one-of-one flash is no longer available."
+                : "This flash is no longer available."
+            );
+            return;
+          }
+        }
+      }
+
       const offerData = {
         artistId: uid,
         displayName: artist.displayName,
@@ -460,6 +495,14 @@ const MakeOfferModal = ({
         flashSheetId:
           selectedRequest.sourceType === "flash"
             ? selectedRequest.flashSheetId || null
+            : null,
+        flashRepeatability:
+          selectedRequest.sourceType === "flash"
+            ? flashRepeatability || "repeatable"
+            : null,
+        flashAvailabilityStatus:
+          selectedRequest.sourceType === "flash"
+            ? flashAvailabilityStatus || "available"
             : null,
         isFromSheet:
           selectedRequest.sourceType === "flash"
