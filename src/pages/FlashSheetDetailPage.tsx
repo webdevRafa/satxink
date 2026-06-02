@@ -515,11 +515,11 @@ const FlashSheetDetailPage = () => {
 
         <aside className="border-t border-white/10 bg-black/25 p-5 lg:border-l lg:border-t-0 md:p-6">
           <div className="sticky top-24 space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="border-b border-white/10 pb-4">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
                 Status
               </p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <MiniStat label="Published" value={publishedFlashes.length} />
                 <MiniStat label="Drafts" value={draftFlashes.length} />
               </div>
@@ -728,11 +728,13 @@ const FlashSheetDetailPage = () => {
 };
 
 const MiniStat = ({ label, value }: { label: string; value: string | number }) => (
-  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-2 text-lg! font-bold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
