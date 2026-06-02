@@ -705,12 +705,12 @@ const MakeOfferModal = ({
                           </div>
                         </div>
 
-                        <div className="hidden h-[38rem] overflow-hidden lg:block">
+                        <div className="relative hidden h-[38rem] overflow-hidden lg:block">
                           <div
-                            className={`space-y-4 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                            className={`absolute inset-x-0 top-0 space-y-4 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
                               shouldShowDesktopTimingContext
-                                ? "-translate-y-[17rem]"
-                                : "translate-y-0"
+                                ? "pointer-events-none -translate-y-10 opacity-0"
+                                : "translate-y-0 opacity-100"
                             }`}
                           >
                             <ClientRequestImageCard
@@ -720,13 +720,19 @@ const MakeOfferModal = ({
                             <ClientRequestSummaryCard
                               request={selectedRequest}
                             />
-                            <div
-                              className={`transition-opacity duration-300 ease-out motion-reduce:transition-none ${
-                                shouldShowDesktopTimingContext
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              }`}
-                            >
+                          </div>
+
+                          <div
+                            className={`absolute inset-0 overflow-y-auto pr-1 request-modal-scrollbar transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                              shouldShowDesktopTimingContext
+                                ? "translate-y-0 opacity-100"
+                                : "pointer-events-none translate-y-12 opacity-0"
+                            }`}
+                          >
+                            <div className="space-y-4 pb-4">
+                              <ClientRequestSummaryCard
+                                request={selectedRequest}
+                              />
                               <ClientTimingWindowCard
                                 request={selectedRequest}
                               />
