@@ -977,15 +977,6 @@ const CropFlashModal = ({
             <Plus size={16} />
             Create flash
           </button>
-          <button
-            type="button"
-            onClick={onPublishDrafts}
-            disabled={draftFlashes.length === 0 || isPublishingDrafts || isPublishing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4! py-2.5! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <CheckCircle2 size={16} />
-            {isPublishingDrafts ? "Publishing..." : "Publish added flash"}
-          </button>
         </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black lg:min-h-[420px]">
@@ -1261,6 +1252,18 @@ const CropFlashModal = ({
                 })}
               </div>
             )}
+          </div>
+
+          <div className="border-t border-white/10 bg-[#0d0d0d]/95 p-4 shadow-[0_-18px_40px_rgba(0,0,0,0.32)]">
+            <button
+              type="button"
+              onClick={onPublishDrafts}
+              disabled={draftFlashes.length === 0 || isPublishingDrafts || isPublishing}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <CheckCircle2 size={16} />
+              {isPublishingDrafts ? "Publishing..." : "Publish added flash"}
+            </button>
           </div>
         </aside>
 
