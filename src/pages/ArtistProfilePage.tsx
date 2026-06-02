@@ -22,7 +22,6 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  DollarSign,
   Expand,
   Globe2,
   Heart,
@@ -39,10 +38,14 @@ import type { Flash } from "../types/Flash";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
 import {
   getFlashAvailabilityStatus,
-  getFlashBadgeLabel,
   getFlashRepeatability,
   isFlashAvailableForClients,
 } from "../utils/flashAvailability";
+import {
+  FlashPreviewImage,
+  FlashPreviewMeta,
+} from "../components/FlashPreviewCard";
+import { flashPreviewCardClassName } from "../utils/flashPreview";
 import RequestTattooModal from "../components/RequestTattooModal";
 import CustomSelect from "../components/ui/CustomSelect";
 import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
@@ -1152,56 +1155,21 @@ const FlashItemCard = ({
   flash: Flash;
   onClick: () => void;
 }) => {
-  const badgeLabel = getFlashBadgeLabel(flash);
-
   return (
     <button
       type="button"
       data-aos="fade-up"
       onClick={onClick}
-      className="group overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_14px_40px_rgba(0,0,0,0.25)] transition duration-300 hover:border-white/25 hover:shadow-[0_18px_54px_rgba(0,0,0,0.36)]"
+      className={`${flashPreviewCardClassName} p-0! text-left hover:shadow-[0_18px_54px_rgba(0,0,0,0.36)]`}
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-black">
-        <img
-          src={getFlashPreviewUrl(flash)}
-          alt={flash.title || "Flash tattoo design"}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          loading="lazy"
-        />
+      <FlashPreviewImage flash={flash}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-        {badgeLabel && (
-          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
-            {badgeLabel}
-          </span>
-        )}
         <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 opacity-0 backdrop-blur-md transition duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
           Request
         </div>
-      </div>
+      </FlashPreviewImage>
       <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <h4 className="line-clamp-2 text-base! font-semibold! text-white my-0!">
-            {flash.title || "Untitled flash"}
-          </h4>
-          {typeof flash.price === "number" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-xs text-white/75">
-              <DollarSign size={12} />
-              {flash.price}
-            </span>
-          )}
-        </div>
-        {Array.isArray(flash.tags) && flash.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {flash.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs text-white/60"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <FlashPreviewMeta flash={flash} showArtist={false} />
       </div>
     </button>
   );

@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Filter,
   Image as ImageIcon,
-  ImageOff,
   Layers,
   Search,
   SlidersHorizontal,
@@ -31,10 +30,15 @@ import FlashRequestModal, {
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
-  getFlashBadgeLabel,
-  isFlashAvailableForClients,
-} from "../utils/flashAvailability";
+  flashPreviewCardClassName,
+  getFlashTitle,
+} from "../utils/flashPreview";
+import {
+  FlashPreviewImage,
+  FlashPreviewMeta,
+} from "../components/FlashPreviewCard";
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
@@ -784,58 +788,15 @@ const FlashCard = ({
   flash: MarketFlash;
   onRequest: () => void;
 }) => {
-  const previewUrl = getFlashPreviewUrl(flash);
-  const artistName = getArtistName(flash.artist);
-  const badgeLabel = getFlashBadgeLabel(flash);
-
   return (
     <article
       tabIndex={0}
-      className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-white/20"
+      className={`${flashPreviewCardClassName} focus:outline-none focus:ring-2 focus:ring-white/20`}
     >
-      <div className="relative aspect-[3/2] bg-black/30">
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt={getFlashTitle(flash)}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImageOff className="text-white/25" size={36} />
-          </div>
-        )}
-        {badgeLabel && (
-          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
-            {badgeLabel}
-          </span>
-        )}
-      </div>
+      <FlashPreviewImage flash={flash} />
 
       <div className="p-3">
-        <div className="flex min-h-[42px] items-start gap-2">
-          <img
-            src={flash.artist?.avatarUrl || "/default-avatar.png"}
-            alt={artistName}
-            className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <h3 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-                {getFlashTitle(flash)}
-              </h3>
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
-                {formatFlashPrice(flash.price)}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-white/50">
-              by {artistName}
-            </p>
-          </div>
-        </div>
-
-        <TagList tags={flash.tags} />
+        <FlashPreviewMeta flash={flash} artist={flash.artist} />
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
@@ -1009,15 +970,6 @@ const getRequestArtist = (flash: MarketFlash): FlashRequestArtist => ({
   displayName: flash.artist?.displayName,
   avatarUrl: flash.artist?.avatarUrl,
 });
-
-const getFlashTitle = (flash: Flash) =>
-  flash.title || flash.caption || "Untitled flash";
-
-const formatFlashPrice = (price?: number | null) =>
-  typeof price === "number" ? `$${price}` : "Price TBD";
-
-const getFlashPreviewUrl = (flash: Flash) =>
-  flash.thumbUrl || flash.webp90Url || flash.fullUrl || "";
 
 const getCreatedTime = (item: Flash | FlashSheet) => {
   const createdAt = item.createdAt;

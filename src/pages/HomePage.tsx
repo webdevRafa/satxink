@@ -33,10 +33,12 @@ import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
+import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
-  getFlashBadgeLabel,
-  isFlashAvailableForClients,
-} from "../utils/flashAvailability";
+  FlashPreviewImage,
+  FlashPreviewMeta,
+} from "../components/FlashPreviewCard";
+import { flashPreviewCardClassName } from "../utils/flashPreview";
 
 type PublicArtist = {
   id: string;
@@ -508,49 +510,14 @@ const PreviewRail = <T,>({
 };
 
 const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
-  const artistName = getArtistName(flash.artist);
-  const badgeLabel = getFlashBadgeLabel(flash);
-
   return (
     <Link
       to={flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash"}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
+      className={`${flashPreviewCardClassName} flex h-full w-full flex-col`}
     >
-      <div className="relative aspect-[3/2] shrink-0 bg-black/30">
-        {getFlashPreviewUrl(flash) ? (
-          <img
-            src={getFlashPreviewUrl(flash)}
-            alt={getFlashTitle(flash)}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <MissingImage />
-        )}
-        {badgeLabel && (
-          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
-            {badgeLabel}
-          </span>
-        )}
-      </div>
-      <div className="flex min-h-[132px] flex-1 flex-col p-3">
-        <div className="flex min-h-[46px] items-start gap-2">
-          <ArtistAvatar artist={flash.artist} name={artistName} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <h4 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-                {getFlashTitle(flash)}
-              </h4>
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
-                {formatFlashPrice(flash.price)}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-white/50">
-              by {artistName}
-            </p>
-          </div>
-        </div>
-        <TagList tags={flash.tags} />
+      <FlashPreviewImage flash={flash} />
+      <div className="flex min-h-[118px] flex-1 flex-col p-3">
+        <FlashPreviewMeta flash={flash} artist={flash.artist} />
       </div>
     </Link>
   );
@@ -710,12 +677,3 @@ const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
 
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "SATX Ink artist";
-
-const getFlashTitle = (flash: Flash) =>
-  flash.title || flash.caption || "Untitled flash";
-
-const getFlashPreviewUrl = (flash: Flash) =>
-  flash.thumbUrl || flash.webp90Url || flash.fullUrl || "";
-
-const formatFlashPrice = (price?: number | null) =>
-  typeof price === "number" ? `$${price}` : "Price TBD";

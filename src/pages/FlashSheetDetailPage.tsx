@@ -35,6 +35,14 @@ import EditFlashModal from "../components/EditFlashModal";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 import FlashRepeatabilityControl from "../components/FlashRepeatabilityControl";
 import {
+  FlashPreviewImage,
+  FlashTinyTag,
+} from "../components/FlashPreviewCard";
+import {
+  formatFlashPrice,
+  getFlashTitle,
+} from "../utils/flashPreview";
+import {
   getFlashAvailabilityStatus,
   getFlashPublicationStatus,
   getFlashRepeatability,
@@ -739,13 +747,7 @@ const FlashItemCard = ({
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]">
-      <div className="relative aspect-square overflow-hidden bg-black">
-        <img
-          src={flash.thumbUrl || flash.webp90Url || flash.fullUrl}
-          alt={flash.title || "Flash"}
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
+      <FlashPreviewImage flash={flash} showBadge={false}>
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           {isDraft && (
             <span className="rounded-full border border-emerald-300/30 bg-emerald-500/20 px-2.5! py-1! text-[11px] font-semibold text-emerald-100 backdrop-blur">
@@ -763,15 +765,15 @@ const FlashItemCard = ({
             </span>
           )}
         </div>
-      </div>
+      </FlashPreviewImage>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-base! font-bold text-white">
-              {flash.title || "Untitled Flash"}
+              {getFlashTitle(flash)}
             </h3>
             <p className="mt-1 text-sm text-zinc-500">
-              {flash.price ? `$${flash.price}` : "Price not set"}
+              {formatFlashPrice(flash.price)}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -797,15 +799,8 @@ const FlashItemCard = ({
           </div>
         </div>
         {Array.isArray(flash.tags) && flash.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {flash.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-300"
-              >
-                {tag}
-              </span>
-            ))}
+          <div className="mt-3 flex min-w-0">
+            <FlashTinyTag tags={flash.tags} className="text-zinc-300" />
           </div>
         )}
       </div>
@@ -1213,45 +1208,52 @@ const CropFlashModal = ({
                   return (
                     <article
                       key={flash.id}
-                      className="overflow-hidden rounded-xl border border-white/10 bg-[#151515]"
+                      className="overflow-hidden rounded-xl border border-white/10 bg-[#151515] shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
                     >
-                      <div className="relative aspect-square overflow-hidden bg-black">
-                        <img
-                          src={flash.thumbUrl || flash.webp90Url || flash.fullUrl}
-                          alt={flash.title || "Flash draft"}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
+                      <FlashPreviewImage flash={flash} showBadge={false}>
                         {repeatability === "one_of_one" && (
-                          <span className="absolute left-2 top-2 rounded-full border border-red-300/30 bg-red-500/20 px-2! py-1! text-[10px] font-semibold text-red-100 backdrop-blur">
+                          <span className="absolute left-2 top-2 rounded-full border border-red-300/30 bg-red-500/20 px-2! py-0.5! text-[9px] font-bold uppercase tracking-[0.08em] text-red-100 backdrop-blur">
                             One of one
                           </span>
                         )}
-                      </div>
-                      <div className="p-3">
-                        <h4 className="truncate text-sm! font-bold text-white">
-                          {flash.title || "Untitled Flash"}
-                        </h4>
-                        <p className="mt-1 text-xs text-zinc-500">
-                          {flash.price ? `$${flash.price}` : "Price not set"} ·{" "}
-                          {Array.isArray(flash.tags) ? flash.tags.length : 0} tags
-                        </p>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onEditDraft(flash)}
-                            className="rounded-lg border border-white/10 bg-white/5 px-2! py-2! text-xs font-semibold text-zinc-300 transition hover:bg-white hover:text-black"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDiscardDraft(flash)}
-                            disabled={discardingDraftId === flash.id}
-                            className="rounded-lg border border-red-400/20 bg-red-500/10 px-2! py-2! text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-                          >
-                            {discardingDraftId === flash.id ? "..." : "Discard"}
-                          </button>
+                      </FlashPreviewImage>
+                      <div className="p-2.5">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="truncate text-xs! font-bold text-white sm:text-sm!">
+                              {getFlashTitle(flash)}
+                            </h4>
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">
+                              {formatFlashPrice(flash.price)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onEditDraft(flash)}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 p-0! text-zinc-300 transition hover:bg-white hover:text-black"
+                              aria-label={`Edit ${getFlashTitle(flash)} draft`}
+                              title="Edit draft"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDiscardDraft(flash)}
+                              disabled={discardingDraftId === flash.id}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/20 bg-red-500/10 p-0! text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+                              aria-label={`Discard ${getFlashTitle(flash)} draft`}
+                              title="Discard draft"
+                            >
+                              {discardingDraftId === flash.id ? (
+                                <span className="text-[11px] font-bold">
+                                  ...
+                                </span>
+                              ) : (
+                                <Trash2 size={13} />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </article>

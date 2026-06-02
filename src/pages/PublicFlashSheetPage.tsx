@@ -24,9 +24,16 @@ import FlashRequestModal, {
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import {
-  getFlashBadgeLabel,
   isFlashAvailableForClients,
 } from "../utils/flashAvailability";
+import {
+  FlashPreviewImage,
+  FlashPreviewMeta,
+} from "../components/FlashPreviewCard";
+import {
+  flashPreviewCardClassName,
+  getFlashTitle,
+} from "../utils/flashPreview";
 
 type PublicArtist = {
   id: string;
@@ -405,69 +412,15 @@ const PublicFlashCard = ({
   flash: Flash;
   onRequest: () => void;
 }) => {
-  const artistName = getArtistName(artist);
-  const badgeLabel = getFlashBadgeLabel(flash);
-
   return (
     <article
       tabIndex={0}
-      className="group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-white/20"
+      className={`${flashPreviewCardClassName} focus:outline-none focus:ring-2 focus:ring-white/20`}
     >
-      <div className="relative aspect-[3/2] bg-black/30">
-        {getFlashPreviewUrl(flash) ? (
-          <img
-            src={getFlashPreviewUrl(flash)}
-            alt={getFlashTitle(flash)}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImageOff className="text-white/25" size={36} />
-          </div>
-        )}
-        {badgeLabel && (
-          <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
-            {badgeLabel}
-          </span>
-        )}
-      </div>
+      <FlashPreviewImage flash={flash} />
 
       <div className="p-3">
-        <div className="flex min-h-[42px] items-start gap-2">
-          <img
-            src={artist?.avatarUrl || "/default-avatar.png"}
-            alt={artistName}
-            className="mt-0.5 h-7 w-7 shrink-0 rounded-full border border-white/15 object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <h3 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-                {getFlashTitle(flash)}
-              </h3>
-              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
-                {formatFlashPrice(flash.price)}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-white/50">
-              by {artistName}
-            </p>
-          </div>
-        </div>
-
-        {flash.tags && flash.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {flash.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/50"
-              >
-                <Tag size={11} />
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <FlashPreviewMeta flash={flash} artist={artist} />
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
             to={`/artists/${artistId}`}
@@ -501,15 +454,6 @@ const getRequestArtist = (
   displayName: artist?.displayName,
   avatarUrl: artist?.avatarUrl,
 });
-
-const getFlashTitle = (flash: Flash) =>
-  flash.title || flash.caption || "Untitled flash";
-
-const formatFlashPrice = (price?: number | null) =>
-  typeof price === "number" ? `$${price}` : "Price TBD";
-
-const getFlashPreviewUrl = (flash: Flash) =>
-  flash.thumbUrl || flash.webp90Url || flash.fullUrl || "";
 
 const getCreatedTime = (flash: Flash) => {
   const createdAt = flash.createdAt;
