@@ -516,10 +516,7 @@ const FlashSheetDetailPage = () => {
         <aside className="border-t border-white/10 bg-black/25 p-5 lg:border-l lg:border-t-0 md:p-6">
           <div className="sticky top-24 space-y-4">
             <div className="border-b border-white/10 pb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-                Status
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <MiniStat label="Published" value={publishedFlashes.length} />
                 <MiniStat label="Drafts" value={draftFlashes.length} />
               </div>
