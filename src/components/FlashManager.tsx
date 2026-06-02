@@ -396,7 +396,23 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         createPortal(
           <div className="request-modal-scrollbar fixed bottom-0 left-0 right-0 top-0 z-[120] h-dvh min-h-screen w-screen overflow-y-auto bg-black text-white backdrop-blur-xl md:px-4 md:py-8">
             <div className="mx-auto flex min-h-full w-full items-stretch justify-center md:items-center">
-              <div className="relative grid min-h-full w-full max-w-4xl overflow-y-auto border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-0 md:overflow-hidden md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
+              <div className="relative isolate grid min-h-full w-full max-w-4xl overflow-hidden border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-0 md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
+                {isUploadingSheet && (
+                  <>
+                    <div
+                      className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="spotlight-border-glint spotlight-border-glint--left"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="spotlight-border-glint spotlight-border-glint--right"
+                      aria-hidden="true"
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={closeSheetTitleModal}
@@ -419,7 +435,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     sheet editor where you crop individual flash.
                   </p>
                   {sheetImage && (
-                    <div className="mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
+                    <div className="flash-sheet-preview-enter mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
                       <img
                         src={sheetImage}
                         alt="Flash sheet preview"
