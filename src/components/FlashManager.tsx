@@ -36,9 +36,6 @@ import {
 import {
   formatFileSize,
   getImageMegapixels,
-  getQualityClassName,
-  getQualityLabel,
-  getSheetQualityLevel,
   type ImageSourceMetadata,
 } from "../utils/flashSourceQuality";
 import UploadModal from "./UploadModal";
@@ -88,7 +85,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
-  const sheetQualityLevel = getSheetQualityLevel(sheetSourceMetadata);
   const sheetMegapixels = getImageMegapixels(
     sheetSourceMetadata?.width,
     sheetSourceMetadata?.height
@@ -433,19 +429,13 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   )}
                   {sheetSourceMetadata && (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">
-                          Source quality
-                        </p>
-                        <span
-                          className={`rounded-full border px-2.5! py-1! text-[11px] font-bold uppercase tracking-[0.12em] ${getQualityClassName(
-                            sheetQualityLevel
-                          )}`}
-                        >
-                          {getQualityLabel(sheetQualityLevel)}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-zinc-400">
+                      <p className="text-sm font-semibold text-white">
+                        Source quality
+                      </p>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                        Resolution
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">
                         {sheetSourceMetadata.width} x {sheetSourceMetadata.height}
                         {sheetMegapixels ? ` - ${sheetMegapixels} MP` : ""}
                         {formatFileSize(sheetSourceMetadata.fileSizeBytes)

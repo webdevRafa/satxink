@@ -44,9 +44,6 @@ import {
 } from "../utils/flashPreview";
 import {
   FLASH_DESCRIPTION_MAX_LENGTH,
-  getCropQualityLabel,
-  getCropQualityLevel,
-  getQualityClassName,
   normalizeFlashDescription,
 } from "../utils/flashSourceQuality";
 import {
@@ -934,10 +931,6 @@ const CropFlashModal = ({
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
-  const cropQualityLevel = getCropQualityLevel(
-    validCropArea?.width,
-    validCropArea?.height
-  );
   const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
   const cropperStyle = isDesktopCropper
     ? undefined
@@ -1021,17 +1014,8 @@ const CropFlashModal = ({
           <span className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-semibold text-zinc-300">Zoom</span>
             {validCropArea && (
-              <span className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-400">
-                <span>
-                  Crop source: {validCropArea.width} x {validCropArea.height}
-                </span>
-                <span
-                  className={`rounded-full border px-2! py-0.5! text-[10px] font-bold uppercase tracking-[0.1em] ${getQualityClassName(
-                    cropQualityLevel
-                  )}`}
-                >
-                  {getCropQualityLabel(cropQualityLevel)}
-                </span>
+              <span className="text-xs font-medium text-zinc-400">
+                Crop source: {validCropArea.width} x {validCropArea.height}
               </span>
             )}
           </span>
