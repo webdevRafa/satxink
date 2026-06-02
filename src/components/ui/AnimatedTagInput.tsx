@@ -7,6 +7,7 @@ type AnimatedTagInputProps = {
   onChange: (nextTags: string[]) => void;
   label?: ReactNode;
   helperText?: string;
+  helperTextClassName?: string;
   emptyPlaceholder?: string;
   addPlaceholder?: string;
   displayPrefix?: string;
@@ -60,6 +61,7 @@ const AnimatedTagInput = ({
   onChange,
   label,
   helperText = "Press space or comma to create a tag.",
+  helperTextClassName,
   emptyPlaceholder = "dragon, color, anime",
   addPlaceholder = "Add another",
   displayPrefix = "#",
@@ -159,7 +161,12 @@ const AnimatedTagInput = ({
         />
       </div>
       {helperText && (
-        <p className="flash-sheet-tag-helper mt-1.5 text-[11px]! leading-4! text-zinc-600!">
+        <p
+          className={
+            helperTextClassName ||
+            "flash-sheet-tag-helper mt-1.5 text-[11px]! leading-4! text-zinc-600!"
+          }
+        >
           {helperText}
         </p>
       )}

@@ -442,7 +442,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                           ? ` - ${formatFileSize(sheetSourceMetadata.fileSizeBytes)}`
                           : ""}
                       </p>
-                      <p className="mt-3 text-xs leading-5 text-zinc-500">
+                      <p className="mt-3 text-sm leading-6 text-zinc-400">
                         Original camera photos or scans crop best. Avoid
                         screenshots or social downloads, photograph the sheet flat
                         in even light, and leave breathing room between designs.
@@ -475,6 +475,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         Sheet tags
                       </>
                     }
+                    helperTextClassName="mt-1.5 text-sm leading-6 text-zinc-400"
                     emptyPlaceholder="anime, color, dragon"
                   />
 
@@ -484,24 +485,24 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                       onChange={setSheetRepeatabilityDefault}
                       label="Default for this sheet"
                       description="New flash cropped from this sheet starts with this setting, and each design can still be changed later."
+                      labelClassName="text-2xl! font-bold text-white"
+                      descriptionClassName="mt-2 text-sm leading-6 text-zinc-400"
                       disabled={isUploadingSheet}
                     />
                   </div>
 
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
-                        <Scissors size={18} />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          Continue in sheet editor
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-zinc-500">
-                          Once the sheet is saved, the full editor opens so you can
-                          crop designs and review itemized flash beneath it.
-                        </p>
-                      </div>
+                  <div className="mt-6 flex gap-3 px-1">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
+                      <Scissors size={18} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Continue in sheet editor
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-zinc-400">
+                        Once the sheet is saved, the full editor opens so you can
+                        crop designs and review itemized flash beneath it.
+                      </p>
                     </div>
                   </div>
 
