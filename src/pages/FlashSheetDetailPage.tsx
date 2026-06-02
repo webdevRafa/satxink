@@ -1122,7 +1122,7 @@ const CropFlashModal = ({
             </h2>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <div className="request-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-4">
                 {validCropArea ? (
@@ -1178,7 +1178,7 @@ const CropFlashModal = ({
             </span>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
             {draftFlashes.length === 0 ? (
               <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] p-5 text-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
