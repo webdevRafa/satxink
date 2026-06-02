@@ -2,6 +2,7 @@ import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type FlashRepeatability = "repeatable" | "one_of_one";
 export type FlashAvailabilityStatus = "available" | "held" | "sold";
+export type FlashPublicationStatus = "draft" | "published";
 
 export type Flash = {
   id: string;                      // Firestore document ID
@@ -34,6 +35,8 @@ export type Flash = {
   tags?: string[];                 // Optional: for search/filter
   artistStripeConnectReady?: boolean;
   marketplaceVisible?: boolean;
+  publicationStatus?: FlashPublicationStatus;
+  publishedAt?: Timestamp | Date | FieldValue | null;
   status?: string;                 // Optional processing status for uploaded files
   isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp

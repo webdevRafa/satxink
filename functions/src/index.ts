@@ -61,6 +61,7 @@ const estimateStripeFeeCents = (clientTotalCents: number) =>
 type CheckoutPaymentMode = "deposit" | "full" | "remaining";
 type FlashRepeatability = "repeatable" | "one_of_one";
 type FlashAvailabilityStatus = "available" | "held" | "sold";
+type FlashPublicationStatus = "draft" | "published";
 
 type CropAreaInput = {
   x?: unknown;
@@ -80,6 +81,11 @@ const getFlashAvailabilityStatus = (
   data?.availabilityStatus === "held" || data?.availabilityStatus === "sold"
     ? data.availabilityStatus
     : "available";
+
+const getFlashPublicationStatus = (
+  data: admin.firestore.DocumentData | undefined
+): FlashPublicationStatus =>
+  data?.publicationStatus === "draft" ? "draft" : "published";
 
 const toMillis = (value: unknown) => {
   if (!value) return 0;
@@ -1757,6 +1763,7 @@ const cropFlashFromSheet = onCall(
       price,
       tags,
       repeatability,
+      publicationStatus,
     } = (req.data || {}) as {
       sheetId?: string;
       crop?: CropAreaInput;
@@ -1764,6 +1771,7 @@ const cropFlashFromSheet = onCall(
       price?: number | null;
       tags?: string[];
       repeatability?: FlashRepeatability;
+      publicationStatus?: FlashPublicationStatus;
     };
 
     if (!sheetId || !crop) {
@@ -1855,14 +1863,22 @@ const cropFlashFromSheet = onCall(
         : sheet.repeatabilityDefault === "one_of_one"
         ? "one_of_one"
         : "repeatable";
+    const normalizedPublicationStatus =
+      publicationStatus === "draft" ? "draft" : "published";
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const titleValue =
+      typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash";
+    const tagsValue = Array.isArray(tags)
+      ? tags.filter((tag) => typeof tag === "string")
+      : [];
 
     const flashRef = await db.collection("flashes").add({
       artistId: uid,
       fileName: baseName,
       sheetId,
-      title: typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash",
+      title: titleValue,
       price: normalizedPrice,
-      tags: Array.isArray(tags) ? tags.filter((tag) => typeof tag === "string") : [],
+      tags: tagsValue,
       fullUrl,
       thumbUrl,
       webp90Url,
@@ -1874,17 +1890,209 @@ const cropFlashFromSheet = onCall(
       repeatability: normalizedRepeatability,
       availabilityStatus: "available",
       artistStripeConnectReady: true,
-      marketplaceVisible: true,
+      marketplaceVisible: normalizedPublicationStatus === "published",
+      publicationStatus: normalizedPublicationStatus,
       status: "ready",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: now,
+      ...(normalizedPublicationStatus === "published" ? { publishedAt: now } : {}),
     });
 
     return {
       id: flashRef.id,
+      artistId: uid,
+      fileName: baseName,
+      sheetId,
+      title: titleValue,
+      price: normalizedPrice,
+      tags: tagsValue,
       fullUrl,
       thumbUrl,
       webp90Url,
+      thumbPath,
+      previewPath,
+      fullPath,
+      isFromSheet: true,
+      isAvailable: true,
+      repeatability: normalizedRepeatability,
+      availabilityStatus: "available",
+      artistStripeConnectReady: true,
+      marketplaceVisible: normalizedPublicationStatus === "published",
+      publicationStatus: normalizedPublicationStatus,
+      status: "ready",
     };
+  }
+);
+
+const publishFlashDrafts = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to publish flash drafts.");
+    }
+
+    const { sheetId, flashIds } = (req.data || {}) as {
+      sheetId?: string;
+      flashIds?: unknown;
+    };
+
+    if (!sheetId || !Array.isArray(flashIds) || flashIds.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A sheet and at least one flash draft are required."
+      );
+    }
+
+    const uniqueFlashIds = Array.from(
+      new Set(
+        flashIds.filter(
+          (id): id is string => typeof id === "string" && Boolean(id)
+        )
+      )
+    );
+
+    if (uniqueFlashIds.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "At least one valid flash draft is required."
+      );
+    }
+
+    if (uniqueFlashIds.length > 100) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Publish up to 100 flash drafts at a time."
+      );
+    }
+
+    const sheetRef = db.collection("flashSheets").doc(sheetId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    await db.runTransaction(async (transaction) => {
+      const sheetSnap = await transaction.get(sheetRef);
+      if (!sheetSnap.exists) {
+        throw new HttpsError("not-found", "Flash sheet not found.");
+      }
+
+      const sheet = sheetSnap.data() || {};
+      if (sheet.artistId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "You can only publish drafts from your sheets."
+        );
+      }
+
+      const flashRefs = uniqueFlashIds.map((flashId) =>
+        db.collection("flashes").doc(flashId)
+      );
+      const flashSnaps = await Promise.all(
+        flashRefs.map((flashRef) => transaction.get(flashRef))
+      );
+
+      flashSnaps.forEach((flashSnap, index) => {
+        if (!flashSnap.exists) {
+          throw new HttpsError("not-found", "Flash draft not found.");
+        }
+
+        const flash = flashSnap.data() || {};
+        if (flash.artistId !== uid || flash.sheetId !== sheetId) {
+          throw new HttpsError(
+            "permission-denied",
+            "You can only publish your own flash drafts."
+          );
+        }
+
+        if (getFlashPublicationStatus(flash) !== "draft") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Only unpublished draft flash can be published."
+          );
+        }
+
+        if (getFlashAvailabilityStatus(flash) !== "available") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Held or sold flash cannot be published as a draft."
+          );
+        }
+
+        transaction.update(flashRefs[index], {
+          publicationStatus: "published",
+          marketplaceVisible: true,
+          isAvailable: true,
+          availabilityStatus: "available",
+          publishedAt: timestamp,
+          updatedAt: timestamp,
+        });
+      });
+    });
+
+    return { publishedCount: uniqueFlashIds.length };
+  }
+);
+
+const discardFlashDraft = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to discard flash drafts.");
+    }
+
+    const { flashId, sheetId } = (req.data || {}) as {
+      flashId?: string;
+      sheetId?: string;
+    };
+
+    if (!flashId) {
+      throw new HttpsError("invalid-argument", "A flash draft is required.");
+    }
+
+    const flashRef = db.collection("flashes").doc(flashId);
+    let storagePaths: string[] = [];
+
+    await db.runTransaction(async (transaction) => {
+      const flashSnap = await transaction.get(flashRef);
+      if (!flashSnap.exists) {
+        throw new HttpsError("not-found", "Flash draft not found.");
+      }
+
+      const flash = flashSnap.data() || {};
+      if (flash.artistId !== uid || (sheetId && flash.sheetId !== sheetId)) {
+        throw new HttpsError(
+          "permission-denied",
+          "You can only discard your own flash drafts."
+        );
+      }
+
+      if (getFlashPublicationStatus(flash) !== "draft") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only unpublished draft flash can be discarded."
+        );
+      }
+
+      if (getFlashAvailabilityStatus(flash) !== "available") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Held or sold flash cannot be discarded as a draft."
+        );
+      }
+
+      storagePaths = [flash.thumbPath, flash.previewPath, flash.fullPath].filter(
+        (path): path is string => typeof path === "string" && Boolean(path)
+      );
+
+      transaction.delete(flashRef);
+    });
+
+    await Promise.all(
+      storagePaths.map((storagePath) =>
+        bucket.file(storagePath).delete({ ignoreNotFound: true })
+      )
+    );
+
+    return { discarded: true };
   }
 );
 
@@ -1969,6 +2177,8 @@ module.exports = {
   stripeWebhook,
   processArtistMedia,
   cropFlashFromSheet,
+  publishFlashDrafts,
+  discardFlashDraft,
   cleanupProcessedEvents,
   cleanupExpiredFlashHolds,
 };
