@@ -21,6 +21,17 @@
     transform: translateX(-50%);
   }
 }
+
+button.bg-white,
+a.bg-white {
+  color: #0b0b0b !important;
+}
+
+button.bg-white svg,
+a.bg-white svg {
+  color: #0b0b0b !important;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

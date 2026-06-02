@@ -433,7 +433,7 @@ const FlashSheetDetailPage = () => {
           <button
             type="button"
             onClick={() => navigate("/dashboard?tab=flashes")}
-            className="mt-5 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black"
+            className="mt-5 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]!"
           >
             Back to flashes
           </button>
@@ -510,7 +510,7 @@ const FlashSheetDetailPage = () => {
             <button
               type="button"
               onClick={handleOpenCropModal}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200"
             >
               <Scissors size={16} />
               Add flash from sheet
@@ -609,7 +609,7 @@ const FlashSheetDetailPage = () => {
                       handlePublishDrafts(draftFlashes.map((flash) => flash.id))
                     }
                     disabled={isPublishingDrafts}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                   >
                     <CheckCircle2 size={16} />
                     {isPublishingDrafts ? "Publishing..." : "Publish all drafts"}
@@ -977,7 +977,7 @@ const CropFlashModal = ({
             type="button"
             onClick={handleOpenDesktopDetails}
             disabled={!validCropArea || isPublishing || isPublishingDrafts}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
           >
             <Plus size={16} />
             Create flash
@@ -1027,7 +1027,7 @@ const CropFlashModal = ({
           <button
             type="button"
             onClick={handleContinueToDetails}
-            className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+            className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
             disabled={!validCropArea || isPublishing}
           >
             Continue
@@ -1080,8 +1080,8 @@ const CropFlashModal = ({
         value={repeatability}
         onChange={onRepeatabilityChange}
         label="Availability"
-        description="Use one of one for designs that should disappear once a client starts checkout."
         disabled={isPublishing}
+        compact
       />
     </>
   );
@@ -1099,7 +1099,7 @@ const CropFlashModal = ({
       <button
         type="button"
         onClick={onPublish}
-        className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+        className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
         disabled={isPublishing || !validCropArea}
       >
         {isPublishing ? "Publishing..." : "Publish flash"}
@@ -1285,7 +1285,7 @@ const CropFlashModal = ({
                 </button>
               </div>
 
-              <div className="max-h-[70vh] space-y-5 overflow-y-auto p-5">
+              <div className="request-modal-scrollbar max-h-[70vh] space-y-5 overflow-y-auto p-5">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-center gap-4">
                     {validCropArea ? (
@@ -1324,7 +1324,7 @@ const CropFlashModal = ({
                   type="button"
                   onClick={handleSubmitDesktopDetails}
                   disabled={!validCropArea || isPublishing}
-                  className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                 >
                   {isPublishing ? "Creating..." : "Submit draft"}
                 </button>
