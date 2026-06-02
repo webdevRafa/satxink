@@ -49,6 +49,7 @@ type BookingRequest = {
   sourceType?: string;
   flashId?: string;
   flashTitle?: string;
+  flashDescription?: string | null;
   flashPrice?: number | null;
   flashSheetId?: string | null;
   isFromSheet?: boolean;
@@ -1885,6 +1886,11 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
         <h3 className="truncate text-lg! font-semibold! text-white">
           {request.flashTitle || "Untitled flash"}
         </h3>
+        {request.flashDescription && (
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-neutral-400">
+            {request.flashDescription}
+          </p>
+        )}
       </div>
     </div>
   );

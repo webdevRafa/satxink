@@ -7,6 +7,10 @@ export type FlashSheet = {
   imageUrl: string;
   thumbUrl?: string;
   fullPath?: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
+  sourceMegapixels?: number;
+  sourceFileSizeBytes?: number;
   tags?: string[];
   artistStripeConnectReady?: boolean;
   marketplaceVisible?: boolean;

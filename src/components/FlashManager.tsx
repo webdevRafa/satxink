@@ -33,6 +33,14 @@ import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
+import {
+  formatFileSize,
+  getImageMegapixels,
+  getQualityClassName,
+  getQualityLabel,
+  getSheetQualityLevel,
+  type ImageSourceMetadata,
+} from "../utils/flashSourceQuality";
 import UploadModal from "./UploadModal";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
 import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
@@ -61,6 +69,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [sheetImage, setSheetImage] = useState<string | null>(null);
+  const [sheetSourceMetadata, setSheetSourceMetadata] =
+    useState<ImageSourceMetadata | null>(null);
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
@@ -78,6 +88,11 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
+  const sheetQualityLevel = getSheetQualityLevel(sheetSourceMetadata);
+  const sheetMegapixels = getImageMegapixels(
+    sheetSourceMetadata?.width,
+    sheetSourceMetadata?.height
+  );
 
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -163,6 +178,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     if (!file) return;
 
     setPendingSheetFile(file);
+    setSheetSourceMetadata(null);
     setShowSheetTitleModal(true);
 
     const reader = new FileReader();
@@ -170,7 +186,14 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       const base64 = reader.result as string;
       const testImg = new Image();
       testImg.crossOrigin = "anonymous";
-      testImg.onload = () => setSheetImage(base64);
+      testImg.onload = () => {
+        setSheetSourceMetadata({
+          width: testImg.naturalWidth,
+          height: testImg.naturalHeight,
+          fileSizeBytes: file.size,
+        });
+        setSheetImage(base64);
+      };
       testImg.onerror = () =>
         toast.error("This image could not be previewed. Try another file.");
       testImg.src = base64;
@@ -185,6 +208,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     setSheetRepeatabilityDefault("repeatable");
     setPendingSheetFile(null);
     setSheetImage(null);
+    setSheetSourceMetadata(null);
   };
 
   const handleSubmitFlashSheet = async () => {
@@ -227,6 +251,10 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         imageUrl,
         thumbUrl,
         fullPath: `${storageBase}_full.jpg`,
+        sourceWidth: sheetSourceMetadata?.width || null,
+        sourceHeight: sheetSourceMetadata?.height || null,
+        sourceMegapixels: sheetMegapixels,
+        sourceFileSizeBytes: sheetSourceMetadata?.fileSizeBytes || null,
         createdAt: serverTimestamp(),
       });
 
@@ -235,6 +263,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       setSheetRepeatabilityDefault("repeatable");
       setPendingSheetFile(null);
       setSheetImage(null);
+      setSheetSourceMetadata(null);
       setShowSheetTitleModal(false);
       toast.success("Flash sheet uploaded. Opening editor.");
       void fetchFlashData();
@@ -400,6 +429,34 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         alt="Flash sheet preview"
                         className="h-full w-full object-contain md:object-cover"
                       />
+                    </div>
+                  )}
+                  {sheetSourceMetadata && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">
+                          Source quality
+                        </p>
+                        <span
+                          className={`rounded-full border px-2.5! py-1! text-[11px] font-bold uppercase tracking-[0.12em] ${getQualityClassName(
+                            sheetQualityLevel
+                          )}`}
+                        >
+                          {getQualityLabel(sheetQualityLevel)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-zinc-400">
+                        {sheetSourceMetadata.width} x {sheetSourceMetadata.height}
+                        {sheetMegapixels ? ` - ${sheetMegapixels} MP` : ""}
+                        {formatFileSize(sheetSourceMetadata.fileSizeBytes)
+                          ? ` - ${formatFileSize(sheetSourceMetadata.fileSizeBytes)}`
+                          : ""}
+                      </p>
+                      <p className="mt-3 text-xs leading-5 text-zinc-500">
+                        Original camera photos or scans crop best. Avoid
+                        screenshots or social downloads, photograph the sheet flat
+                        in even light, and leave breathing room between designs.
+                      </p>
                     </div>
                   )}
                 </div>

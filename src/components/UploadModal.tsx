@@ -18,6 +18,10 @@ import CustomSelect from "./ui/CustomSelect";
 import type { SelectOption } from "../utils/timeOptions";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
 import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
+import {
+  FLASH_DESCRIPTION_MAX_LENGTH,
+  normalizeFlashDescription,
+} from "../utils/flashSourceQuality";
 
 type Props = {
   uid: string;
@@ -46,6 +50,7 @@ const UploadModal: React.FC<Props> = ({
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [repeatability, setRepeatability] =
@@ -100,6 +105,7 @@ const UploadModal: React.FC<Props> = ({
     setCroppedFile(null);
     setPreviewUrl(null);
     setCaptionOrTitle("");
+    setDescription("");
     setPriceInput("");
     setTags([]);
     setRepeatability("repeatable");
@@ -143,6 +149,7 @@ const UploadModal: React.FC<Props> = ({
         artistId: uid,
         caption: captionOrTitle || null,
         title: isFlashUpload ? captionOrTitle || "Untitled Flash" : null,
+        description: isFlashUpload ? normalizeFlashDescription(description) : null,
         price,
         tags,
         artistStripeConnectReady: isFlashUpload
@@ -285,6 +292,27 @@ const UploadModal: React.FC<Props> = ({
                   onChange={(e) => setPriceInput(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
                 />
+              </label>
+            )}
+
+            {isFlashUpload && (
+              <label className="block">
+                <span className="text-sm font-semibold text-zinc-300">
+                  Short public note
+                </span>
+                <textarea
+                  value={description}
+                  onChange={(e) =>
+                    setDescription(
+                      e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
+                    )
+                  }
+                  placeholder="Optional context, placement idea, or what clients should focus on."
+                  className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                />
+                <span className="mt-1 block text-right text-[11px] text-zinc-600">
+                  {description.length}/{FLASH_DESCRIPTION_MAX_LENGTH}
+                </span>
               </label>
             )}
 

@@ -93,6 +93,7 @@ export type Booking = {
     sourceType?: "custom" | "flash" | string;
     flashId?: string | null;
     flashTitle?: string | null;
+    flashDescription?: string | null;
     flashPrice?: number | null;
     flashSheetId?: string | null;
     flashRepeatability?: FlashRepeatability;

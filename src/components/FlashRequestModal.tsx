@@ -124,6 +124,7 @@ const FlashRequestModal = ({
         sourceType: "flash",
         flashId: latestFlash.id,
         flashTitle: getFlashTitle(latestFlash),
+        flashDescription: latestFlash.description || null,
         flashPrice: latestFlash.price ?? null,
         flashSheetId: latestFlash.sheetId || null,
         flashRepeatability: getFlashRepeatability(latestFlash),
@@ -191,6 +192,11 @@ const FlashRequestModal = ({
                   )}
                 </div>
               </div>
+              {flash.description && (
+                <p className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3 text-sm leading-6 text-white/70">
+                  {flash.description}
+                </p>
+              )}
             </div>
           </div>
 

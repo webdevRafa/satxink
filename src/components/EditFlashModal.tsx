@@ -4,6 +4,10 @@ import { DollarSign, Save, Tag, Trash2, X } from "lucide-react";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
 import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
 import {
+  FLASH_DESCRIPTION_MAX_LENGTH,
+  normalizeFlashDescription,
+} from "../utils/flashSourceQuality";
+import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
 } from "../utils/flashAvailability";
@@ -15,6 +19,7 @@ type Props = {
     id: string,
     title: string,
     price: number | null,
+    description: string | null,
     tags: string[],
     repeatability: FlashRepeatability
   ) => void;
@@ -24,6 +29,7 @@ type Props = {
 const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
+  const [description, setDescription] = useState(flash.description || "");
   const [tags, setTags] = useState<string[]>(flash.tags || []);
   const [repeatability, setRepeatability] = useState(getFlashRepeatability(flash));
   const availabilityStatus = getFlashAvailabilityStatus(flash);
@@ -97,6 +103,25 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               emptyPlaceholder="traditional, rose, blackwork"
             />
 
+            <label className="block">
+              <span className="text-sm font-semibold text-zinc-300">
+                Short public note
+              </span>
+              <textarea
+                value={description}
+                onChange={(e) =>
+                  setDescription(
+                    e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
+                  )
+                }
+                className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                placeholder="Optional context clients should know."
+              />
+              <span className="mt-1 block text-right text-[11px] text-zinc-600">
+                {description.length}/{FLASH_DESCRIPTION_MAX_LENGTH}
+              </span>
+            </label>
+
             <FlashRepeatabilityControl
               value={repeatability}
               onChange={setRepeatability}
@@ -147,6 +172,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                     flash.id,
                     title,
                     price ? parseFloat(price) : null,
+                    normalizeFlashDescription(description),
                     tags,
                     repeatability
                   )

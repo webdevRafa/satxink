@@ -1290,6 +1290,7 @@ const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => 
   sourceType: offer.sourceType,
   flashId: offer.flashId || undefined,
   flashTitle: offer.flashTitle || undefined,
+  flashDescription: offer.flashDescription || null,
   flashPrice: offer.flashPrice ?? undefined,
   flashSheetId: offer.flashSheetId || undefined,
   isFromSheet: Boolean(offer.isFromSheet),

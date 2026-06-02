@@ -243,6 +243,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     . Pricing is based on the artist's published flash price and
                     this booking is handled as a single-session appointment.
                   </p>
+                  {offer.flashDescription && (
+                    <p className="mt-3 rounded-md border border-emerald-100/10 bg-black/20 p-3 text-sm leading-6 text-emerald-50/75">
+                      {offer.flashDescription}
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -70,6 +70,29 @@ type CropAreaInput = {
   height?: unknown;
 };
 
+const FLASH_DESCRIPTION_MAX_LENGTH = 180;
+
+const getImageMegapixels = (width?: number, height?: number) =>
+  width && height ? Number(((width * height) / 1000000).toFixed(1)) : null;
+
+const getStorageObjectSizeBytes = (value: unknown) => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+      ? Number(value)
+      : null;
+
+  return parsed && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeFlashDescription = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return null;
+  return trimmedValue.slice(0, FLASH_DESCRIPTION_MAX_LENGTH);
+};
+
 const getFlashRepeatability = (
   data: admin.firestore.DocumentData | undefined
 ): FlashRepeatability =>
@@ -1659,10 +1682,24 @@ const processArtistMedia = onObjectFinalized(
     try {
       // Download the uploaded original to a temp directory
       await bucket.file(filePath).download({ destination: tempOriginal });
+      const sourceMetadata = await sharp(tempOriginal).metadata();
+      const sourceWidth = sourceMetadata.width || null;
+      const sourceHeight = sourceMetadata.height || null;
+      const sourceMegapixels =
+        sourceWidth && sourceHeight
+          ? getImageMegapixels(sourceWidth, sourceHeight)
+          : null;
+      const sourceFileSizeBytes = getStorageObjectSizeBytes(event.data.size);
 
       // Process three image sizes: 300px thumb, 1080px webp, full JPEG
-      await sharp(tempOriginal).resize({ width: 300 }).webp({ quality: 70 }).toFile(tempThumb);
-      await sharp(tempOriginal).resize({ width: 1080 }).webp({ quality: 90 }).toFile(tempWebp90);
+      await sharp(tempOriginal)
+        .resize({ width: 300, withoutEnlargement: true })
+        .webp({ quality: 70 })
+        .toFile(tempThumb);
+      await sharp(tempOriginal)
+        .resize({ width: 1080, withoutEnlargement: true })
+        .webp({ quality: 90 })
+        .toFile(tempWebp90);
       await sharp(tempOriginal).jpeg({ quality: 95 }).toFile(tempFull);
 
       // Destination paths for processed files
@@ -1718,6 +1755,14 @@ const processArtistMedia = onObjectFinalized(
           thumbPath,
           previewPath,
           fullPath,
+          ...(mediaType === "flashSheets"
+            ? {
+                sourceWidth,
+                sourceHeight,
+                sourceMegapixels,
+                sourceFileSizeBytes,
+              }
+            : {}),
           status: "ready",
         });
 
@@ -1761,6 +1806,7 @@ const cropFlashFromSheet = onCall(
       crop,
       title,
       price,
+      description,
       tags,
       repeatability,
       publicationStatus,
@@ -1769,6 +1815,7 @@ const cropFlashFromSheet = onCall(
       crop?: CropAreaInput;
       title?: string;
       price?: number | null;
+      description?: string | null;
       tags?: string[];
       repeatability?: FlashRepeatability;
       publicationStatus?: FlashPublicationStatus;
@@ -1818,8 +1865,14 @@ const cropFlashFromSheet = onCall(
     const fullPath = `${bucketDir}/${baseName}_full.jpg`;
 
     const [thumbBuffer, webp90Buffer, fullBuffer] = await Promise.all([
-      sharp(cropped).resize({ width: 300 }).webp({ quality: 70 }).toBuffer(),
-      sharp(cropped).resize({ width: 1080 }).webp({ quality: 90 }).toBuffer(),
+      sharp(cropped)
+        .resize({ width: 300, withoutEnlargement: true })
+        .webp({ quality: 70 })
+        .toBuffer(),
+      sharp(cropped)
+        .resize({ width: 1080, withoutEnlargement: true })
+        .webp({ quality: 90 })
+        .toBuffer(),
       sharp(cropped).jpeg({ quality: 95 }).toBuffer(),
     ]);
 
@@ -1868,6 +1921,7 @@ const cropFlashFromSheet = onCall(
     const now = admin.firestore.FieldValue.serverTimestamp();
     const titleValue =
       typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash";
+    const descriptionValue = normalizeFlashDescription(description);
     const tagsValue = Array.isArray(tags)
       ? tags.filter((tag) => typeof tag === "string")
       : [];
@@ -1877,6 +1931,7 @@ const cropFlashFromSheet = onCall(
       fileName: baseName,
       sheetId,
       title: titleValue,
+      description: descriptionValue,
       price: normalizedPrice,
       tags: tagsValue,
       fullUrl,
@@ -1903,6 +1958,7 @@ const cropFlashFromSheet = onCall(
       fileName: baseName,
       sheetId,
       title: titleValue,
+      description: descriptionValue,
       price: normalizedPrice,
       tags: tagsValue,
       fullUrl,

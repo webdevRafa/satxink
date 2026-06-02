@@ -21,6 +21,7 @@ export type Flash = {
 
   title?: string;                  // Optional artist-provided title
   caption?: string | null;         // Legacy upload modal title field
+  description?: string | null;      // Optional short public note
   isAvailable?: boolean;           // Optional: mark flash as available or sold
   repeatability?: FlashRepeatability;
   availabilityStatus?: FlashAvailabilityStatus;

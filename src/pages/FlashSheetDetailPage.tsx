@@ -43,6 +43,13 @@ import {
   getFlashTitle,
 } from "../utils/flashPreview";
 import {
+  FLASH_DESCRIPTION_MAX_LENGTH,
+  getCropQualityLabel,
+  getCropQualityLevel,
+  getQualityClassName,
+  normalizeFlashDescription,
+} from "../utils/flashSourceQuality";
+import {
   getFlashAvailabilityStatus,
   getFlashPublicationStatus,
   getFlashRepeatability,
@@ -131,6 +138,7 @@ const FlashSheetDetailPage = () => {
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
+  const [newFlashDescription, setNewFlashDescription] = useState("");
   const [newFlashTags, setNewFlashTags] = useState<string[]>([]);
   const [newFlashRepeatability, setNewFlashRepeatability] =
     useState<FlashRepeatability>("repeatable");
@@ -205,12 +213,14 @@ const FlashSheetDetailPage = () => {
     flashId: string,
     title: string,
     price: number | null,
+    description: string | null,
     tags: string[],
     repeatability: FlashRepeatability
   ) => {
     await updateDoc(doc(db, "flashes", flashId), {
       title,
       price,
+      description,
       tags,
       repeatability,
     });
@@ -223,6 +233,7 @@ const FlashSheetDetailPage = () => {
     setCreatedDraftIds([]);
     setNewFlashTitle("");
     setNewFlashPrice("");
+    setNewFlashDescription("");
     setNewFlashTags([]);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
@@ -318,6 +329,7 @@ const FlashSheetDetailPage = () => {
         crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
         price: parseOptionalPrice(newFlashPrice),
+        description: normalizeFlashDescription(newFlashDescription),
         tags: newFlashTags,
         repeatability: newFlashRepeatability,
         publicationStatus,
@@ -338,6 +350,7 @@ const FlashSheetDetailPage = () => {
       }
       setNewFlashTitle("");
       setNewFlashPrice("");
+      setNewFlashDescription("");
       setNewFlashTags([]);
       setNewFlashRepeatability(
         sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
@@ -683,6 +696,7 @@ const FlashSheetDetailPage = () => {
           cropArea={cropArea}
           title={newFlashTitle}
           price={newFlashPrice}
+          description={newFlashDescription}
           tags={newFlashTags}
           repeatability={newFlashRepeatability}
           draftFlashes={createdDraftFlashes}
@@ -694,6 +708,7 @@ const FlashSheetDetailPage = () => {
           onCropComplete={handleCropComplete}
           onTitleChange={setNewFlashTitle}
           onPriceChange={setNewFlashPrice}
+          onDescriptionChange={setNewFlashDescription}
           onTagsChange={setNewFlashTags}
           onRepeatabilityChange={setNewFlashRepeatability}
           onClose={() => {
@@ -865,6 +880,7 @@ const CropFlashModal = ({
   cropArea,
   title,
   price,
+  description,
   tags,
   repeatability,
   draftFlashes,
@@ -876,6 +892,7 @@ const CropFlashModal = ({
   onCropComplete,
   onTitleChange,
   onPriceChange,
+  onDescriptionChange,
   onTagsChange,
   onRepeatabilityChange,
   onClose,
@@ -891,6 +908,7 @@ const CropFlashModal = ({
   cropArea: Area | null;
   title: string;
   price: string;
+  description: string;
   tags: string[];
   repeatability: FlashRepeatability;
   draftFlashes: Flash[];
@@ -902,6 +920,7 @@ const CropFlashModal = ({
   onCropComplete: (croppedArea: Area, croppedAreaPixels: Area) => void;
   onTitleChange: (value: string) => void;
   onPriceChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
   onTagsChange: (value: string[]) => void;
   onRepeatabilityChange: (value: FlashRepeatability) => void;
   onClose: () => void;
@@ -915,6 +934,10 @@ const CropFlashModal = ({
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
+  const cropQualityLevel = getCropQualityLevel(
+    validCropArea?.width,
+    validCropArea?.height
+  );
   const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
   const cropperStyle = isDesktopCropper
     ? undefined
@@ -995,7 +1018,23 @@ const CropFlashModal = ({
       </div>
       <div className="hidden border-t border-white/10 bg-black/40 p-4 lg:block">
         <label className="block">
-          <span className="text-sm font-semibold text-zinc-300">Zoom</span>
+          <span className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-zinc-300">Zoom</span>
+            {validCropArea && (
+              <span className="flex flex-wrap items-center justify-end gap-2 text-xs text-zinc-400">
+                <span>
+                  Crop source: {validCropArea.width} x {validCropArea.height}
+                </span>
+                <span
+                  className={`rounded-full border px-2! py-0.5! text-[10px] font-bold uppercase tracking-[0.1em] ${getQualityClassName(
+                    cropQualityLevel
+                  )}`}
+                >
+                  {getCropQualityLabel(cropQualityLevel)}
+                </span>
+              </span>
+            )}
+          </span>
           <input
             aria-label="Zoom"
             type="range"
@@ -1048,6 +1087,25 @@ const CropFlashModal = ({
           placeholder="Optional"
           className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
         />
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-semibold text-zinc-300">
+          Short public note
+        </span>
+        <textarea
+          value={description}
+          onChange={(e) =>
+            onDescriptionChange(
+              e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
+            )
+          }
+          placeholder="Optional context, placement idea, or what clients should focus on."
+          className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+        <span className="mt-1 block text-right text-[11px] text-zinc-600">
+          {description.length}/{FLASH_DESCRIPTION_MAX_LENGTH}
+        </span>
       </label>
 
       <AnimatedTagInput

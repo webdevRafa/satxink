@@ -80,6 +80,7 @@ type BookingRequest = {
   sourceType?: string;
   flashId?: string;
   flashTitle?: string;
+  flashDescription?: string | null;
   flashPrice?: number | null;
   flashSheetId?: string | null;
   flashRepeatability?: FlashRepeatability;
@@ -487,6 +488,10 @@ const MakeOfferModal = ({
         flashTitle:
           selectedRequest.sourceType === "flash"
             ? selectedRequest.flashTitle || "Untitled flash"
+            : null,
+        flashDescription:
+          selectedRequest.sourceType === "flash"
+            ? selectedRequest.flashDescription || null
             : null,
         flashPrice:
           selectedRequest.sourceType === "flash"
@@ -1745,6 +1750,11 @@ const FlashOfferSummaryCard = ({
           : "No price"}
       </p>
     </div>
+    {request.flashDescription && (
+      <p className="px-1 pt-2 line-clamp-3 text-sm leading-6 text-neutral-400">
+        {request.flashDescription}
+      </p>
+    )}
   </div>
 );
 

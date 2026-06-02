@@ -176,6 +176,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           sourceType: offerData.sourceType || "custom",
           flashId: offerData.flashId ?? null,
           flashTitle: offerData.flashTitle ?? null,
+          flashDescription: offerData.flashDescription ?? null,
           flashPrice: offerData.flashPrice ?? null,
           flashSheetId: offerData.flashSheetId ?? null,
           flashRepeatability:
