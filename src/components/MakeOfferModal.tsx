@@ -9,6 +9,8 @@ import {
 } from "react";
 import {
   CalendarDays,
+  CheckCircle2,
+  Clock,
   DollarSign,
   ImageIcon,
   Info,
@@ -52,6 +54,11 @@ type BookingRequest = {
   clientAvatar: string;
   description: string;
   preferredDateRange?: string[];
+  availableDays?: string[];
+  availableTime?: {
+    from?: string;
+    to?: string;
+  };
   bodyPlacement: string;
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
@@ -208,6 +215,8 @@ const MakeOfferModal = ({
       : "";
   const currentCustomOfferStepId =
     CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
+  const shouldShowDesktopTimingContext =
+    !isFlashRequest && currentCustomOfferStepId === "appointment";
   const shouldShowPricingStepInlineError =
     pricingStepInlineError &&
     (pricingStepInlineError !== "Enter a deposit to book before continuing." ||
@@ -696,38 +705,29 @@ const MakeOfferModal = ({
                       </div>
                     )}
 
-              <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={selectedRequest.clientAvatar || "/default-avatar.png"}
-                    alt={selectedRequest.clientName}
-                    className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                  />
-                  <div>
-                    <p className="font-semibold text-white">
-                      {selectedRequest.clientName}
-                    </p>
-                    <p className="text-sm text-neutral-500">Client request</p>
-                  </div>
-                </div>
+                    <div className="relative mt-4 overflow-hidden">
+                      <div
+                        className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
+                          shouldShowDesktopTimingContext
+                            ? "lg:pointer-events-none lg:absolute lg:inset-0 lg:-translate-x-5 lg:opacity-0"
+                            : "relative translate-x-0 opacity-100"
+                        }`}
+                      >
+                        <ClientRequestSummaryCard request={selectedRequest} />
+                      </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                  <SummaryRow
-                    icon={<MapPin size={15} />}
-                    label="Placement"
-                    value={selectedRequest.bodyPlacement || "Not specified"}
-                  />
-                  <SummaryRow
-                    icon={<Ruler size={15} />}
-                    label="Size"
-                    value={selectedRequest.size || "Not specified"}
-                  />
-                </div>
-
-                <p className="mt-4 line-clamp-5 text-sm leading-6 text-neutral-300">
-                  {selectedRequest.description || "No description provided."}
-                </p>
-              </div>
+                      {!isFlashRequest && (
+                        <div
+                          className={`hidden transition-all duration-300 ease-out motion-reduce:transition-none lg:block ${
+                            shouldShowDesktopTimingContext
+                              ? "relative translate-x-0 opacity-100"
+                              : "pointer-events-none absolute inset-0 translate-x-5 opacity-0"
+                          }`}
+                        >
+                          <ClientTimingWindowCard request={selectedRequest} />
+                        </div>
+                      )}
+                    </div>
                   </aside>
 
                   <div className="space-y-5 p-5 sm:p-6">
@@ -1738,6 +1738,116 @@ const MoneyInput = ({
   </label>
 );
 
+const ClientRequestSummaryCard = ({ request }: { request: BookingRequest }) => (
+  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <div className="flex items-center gap-3">
+      <img
+        src={request.clientAvatar || "/default-avatar.png"}
+        alt={request.clientName}
+        className="h-11 w-11 rounded-full border border-white/10 object-cover"
+      />
+      <div>
+        <p className="font-semibold text-white">{request.clientName}</p>
+        <p className="text-sm text-neutral-500">Client request</p>
+      </div>
+    </div>
+
+    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+      <SummaryRow
+        icon={<MapPin size={15} />}
+        label="Placement"
+        value={request.bodyPlacement || "Not specified"}
+      />
+      <SummaryRow
+        icon={<Ruler size={15} />}
+        label="Size"
+        value={request.size || "Not specified"}
+      />
+    </div>
+
+    <p className="mt-4 line-clamp-5 text-sm leading-6 text-neutral-300">
+      {request.description || "No description provided."}
+    </p>
+  </div>
+);
+
+const ClientTimingWindowCard = ({ request }: { request: BookingRequest }) => {
+  const days = request.availableDays || [];
+
+  return (
+    <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.055] p-4 shadow-[0_18px_40px_rgba(16,185,129,0.08)]">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
+          <CalendarDays size={18} />
+        </span>
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-emerald-100/60">
+            Client timing
+          </p>
+          <h3 className="mt-1 text-lg! font-semibold! text-white">
+            Ideal appointment window
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-neutral-400">
+            Use these preferences when choosing the appointment options.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <TimingInfoTile
+          icon={<CalendarDays size={15} />}
+          label="Date window"
+          value={formatOfferDateRange(request.preferredDateRange || [])}
+        />
+        <TimingInfoTile
+          icon={<Clock size={15} />}
+          label="Preferred time"
+          value={formatOfferTimeWindow(request.availableTime)}
+        />
+      </div>
+
+      <div className="mt-4 rounded-md border border-white/10 bg-black/20 p-3">
+        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+          <CheckCircle2 size={15} />
+          Days that usually work
+        </div>
+        {days.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {getSortedAvailableDays(days).map((day) => (
+              <span
+                key={day}
+                className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-50"
+              >
+                {formatOfferDay(day)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-white">Flexible days</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const TimingInfoTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-md border border-white/10 bg-black/20 p-3">
+    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
+      {icon}
+      {label}
+    </div>
+    <p className="text-sm font-semibold text-white">{value}</p>
+  </div>
+);
+
 const SummaryRow = ({
   icon,
   label,
@@ -1866,6 +1976,87 @@ const formatOfferPreviewAppointment = (option: {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const formatOfferDateRange = (dates: string[]) => {
+  const [start, end] = dates;
+
+  if (start && end) {
+    return `${formatOfferDate(start)} - ${formatOfferDate(end)}`;
+  }
+
+  if (start) return `Starting ${formatOfferDate(start)}`;
+  if (end) return `By ${formatOfferDate(end)}`;
+  return "Flexible dates";
+};
+
+const formatOfferDate = (dateValue: string) => {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (Number.isNaN(date.getTime())) return dateValue;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const formatOfferTimeWindow = (
+  availableTime?: BookingRequest["availableTime"]
+) => {
+  const from = availableTime?.from;
+  const to = availableTime?.to;
+
+  if (from && to) return `${formatOfferTime(from)} - ${formatOfferTime(to)}`;
+  if (from) return `${formatOfferTime(from)} - Any time`;
+  if (to) return `Any time - ${formatOfferTime(to)}`;
+  return "Flexible time";
+};
+
+const formatOfferTime = (time: string) => {
+  const [rawHour, rawMinute] = time.split(":").map(Number);
+
+  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return time;
+
+  const suffix = rawHour >= 12 ? "PM" : "AM";
+  const hour = rawHour % 12 || 12;
+  const minute = String(rawMinute).padStart(2, "0");
+  return `${hour}:${minute} ${suffix}`;
+};
+
+const getSortedAvailableDays = (days: string[]) => {
+  const dayOrder = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+
+  return [...days].sort((a, b) => {
+    const aIndex = dayOrder.indexOf(a);
+    const bIndex = dayOrder.indexOf(b);
+
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+  });
+};
+
+const formatOfferDay = (day: string) => {
+  const abbreviations: Record<string, string> = {
+    Sunday: "Sun",
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+  };
+
+  return abbreviations[day] || day;
 };
 
 export default MakeOfferModal;
