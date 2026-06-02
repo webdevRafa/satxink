@@ -962,13 +962,36 @@ const CropFlashModal = ({
         mobileStep === "details" ? "hidden lg:flex" : "flex"
       } min-h-0 flex-col`}
     >
-      <div className="border-b border-white/10 p-5 pr-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-          Crop from sheet
-        </p>
-        <h2 className="mt-2 text-2xl! font-bold text-white">
-          {sheet.title || "Untitled sheet"}
-        </h2>
+      <div className="border-b border-white/10 p-5 pr-16 lg:flex lg:items-center lg:justify-between lg:gap-5 lg:pr-5">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+            Crop from sheet
+          </p>
+          <h2 className="mt-2 truncate text-2xl! font-bold text-white">
+            {sheet.title || "Untitled sheet"}
+          </h2>
+        </div>
+
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+          <button
+            type="button"
+            onClick={handleOpenDesktopDetails}
+            disabled={!validCropArea || isPublishing || isPublishingDrafts}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Plus size={16} />
+            Create flash
+          </button>
+          <button
+            type="button"
+            onClick={onPublishDrafts}
+            disabled={draftFlashes.length === 0 || isPublishingDrafts || isPublishing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4! py-2.5! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <CheckCircle2 size={16} />
+            {isPublishingDrafts ? "Publishing..." : "Publish added flash"}
+          </button>
+        </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black lg:min-h-[420px]">
         <Cropper
@@ -1155,39 +1178,18 @@ const CropFlashModal = ({
         </div>
 
         <aside className="hidden min-h-0 flex-col border-t border-white/10 bg-black/30 lg:flex lg:border-l lg:border-t-0">
-          <div className="border-b border-white/10 p-5 pr-14">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-              Draft queue
-            </p>
-            <h3 className="mt-2 text-xl! font-bold text-white">
-              Added flash
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Create each cropped item as a hidden draft, then publish the batch
-              when the sheet is ready.
-            </p>
-            <div className="mt-4 grid gap-3">
-              <button
-                type="button"
-                onClick={handleOpenDesktopDetails}
-                disabled={!validCropArea || isPublishing || isPublishingDrafts}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <Plus size={16} />
-                Create flash
-              </button>
-              <button
-                type="button"
-                onClick={onPublishDrafts}
-                disabled={
-                  draftFlashes.length === 0 || isPublishingDrafts || isPublishing
-                }
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-5! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <CheckCircle2 size={16} />
-                {isPublishingDrafts ? "Publishing..." : "Publish added flash"}
-              </button>
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4 pr-14">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-red-300">
+                Draft queue
+              </p>
+              <h3 className="mt-1 truncate text-base! font-bold text-white">
+                Added flash
+              </h3>
             </div>
+            <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs font-semibold text-zinc-300">
+              {draftFlashes.length}
+            </span>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
