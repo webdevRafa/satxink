@@ -215,8 +215,11 @@ const MakeOfferModal = ({
       : "";
   const currentCustomOfferStepId =
     CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
+  const appointmentStepIndex = CUSTOM_OFFER_STEPS.findIndex(
+    (step) => step.id === "appointment"
+  );
   const shouldShowDesktopTimingContext =
-    !isFlashRequest && currentCustomOfferStepId === "appointment";
+    !isFlashRequest && customOfferStepIndex >= appointmentStepIndex;
   const shouldShowPricingStepInlineError =
     pricingStepInlineError &&
     (pricingStepInlineError !== "Enter a deposit to book before continuing." ||
@@ -689,45 +692,49 @@ const MakeOfferModal = ({
                         previewUrl={requestImageUrl}
                       />
                     ) : (
-                      <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
-                        {requestImageUrl ? (
-                          <img
-                            src={requestImageUrl}
-                            alt="Client request reference"
-                            className="h-64 w-full object-cover"
+                      <div>
+                        <div className="lg:hidden">
+                          <ClientRequestImageCard
+                            imageUrl={requestImageUrl}
+                            emptyLabel="No request image"
                           />
-                        ) : (
-                          <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                            <ImageIcon size={28} />
-                            <span className="text-sm">No request image</span>
+                          <div className="mt-4">
+                            <ClientRequestSummaryCard
+                              request={selectedRequest}
+                            />
                           </div>
-                        )}
+                        </div>
+
+                        <div className="hidden h-[38rem] overflow-hidden lg:block">
+                          <div
+                            className={`space-y-4 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                              shouldShowDesktopTimingContext
+                                ? "-translate-y-[17rem]"
+                                : "translate-y-0"
+                            }`}
+                          >
+                            <ClientRequestImageCard
+                              imageUrl={requestImageUrl}
+                              emptyLabel="No request image"
+                            />
+                            <ClientRequestSummaryCard
+                              request={selectedRequest}
+                            />
+                            <div
+                              className={`transition-opacity duration-300 ease-out motion-reduce:transition-none ${
+                                shouldShowDesktopTimingContext
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              }`}
+                            >
+                              <ClientTimingWindowCard
+                                request={selectedRequest}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
-
-                    <div className="relative mt-4 overflow-hidden">
-                      <div
-                        className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
-                          shouldShowDesktopTimingContext
-                            ? "lg:pointer-events-none lg:absolute lg:inset-0 lg:-translate-x-5 lg:opacity-0"
-                            : "relative translate-x-0 opacity-100"
-                        }`}
-                      >
-                        <ClientRequestSummaryCard request={selectedRequest} />
-                      </div>
-
-                      {!isFlashRequest && (
-                        <div
-                          className={`hidden transition-all duration-300 ease-out motion-reduce:transition-none lg:block ${
-                            shouldShowDesktopTimingContext
-                              ? "relative translate-x-0 opacity-100"
-                              : "pointer-events-none absolute inset-0 translate-x-5 opacity-0"
-                          }`}
-                        >
-                          <ClientTimingWindowCard request={selectedRequest} />
-                        </div>
-                      )}
-                    </div>
                   </aside>
 
                   <div className="space-y-5 p-5 sm:p-6">
@@ -1736,6 +1743,29 @@ const MoneyInput = ({
       />
     </div>
   </label>
+);
+
+const ClientRequestImageCard = ({
+  imageUrl,
+  emptyLabel,
+}: {
+  imageUrl: string;
+  emptyLabel: string;
+}) => (
+  <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
+    {imageUrl ? (
+      <img
+        src={imageUrl}
+        alt="Client request reference"
+        className="h-64 w-full object-cover"
+      />
+    ) : (
+      <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+        <ImageIcon size={28} />
+        <span className="text-sm">{emptyLabel}</span>
+      </div>
+    )}
+  </div>
 );
 
 const ClientRequestSummaryCard = ({ request }: { request: BookingRequest }) => (
