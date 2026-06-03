@@ -486,7 +486,7 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(210px,1.05fr) 96px minmax(150px,.68fr) minmax(170px,.76fr) minmax(220px,1.02fr) minmax(170px,.72fr) minmax(270px,1fr)";
+    "minmax(200px,1.04fr) 88px minmax(140px,.66fr) minmax(150px,.7fr) minmax(190px,.9fr) 96px minmax(230px,.82fr)";
 
   return (
     <>
@@ -504,7 +504,7 @@ const OffersTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1320px]">
+          <div className="min-w-[1120px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
@@ -513,7 +513,7 @@ const OffersTable = ({
               <span>Reference</span>
               <span>Scope</span>
               <span>Price | Deposit</span>
-              <span>Schedule</span>
+              <span>Earliest option</span>
               <span>Status</span>
               <span className="text-right">Actions</span>
             </div>
@@ -633,11 +633,10 @@ const OfferRow = ({
   onDismiss: () => void;
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
-  const firstDateOption = offer.dateOptions?.find(
-    (option) => option.date && option.time
-  );
+  const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
   const isFlashOffer = offer.sourceType === "flash";
   const scopeLabel = getOfferScopeLabel(offer);
+  const statusTitle = getOfferStatusTitle(offer);
 
   return (
     <div
@@ -701,30 +700,29 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-medium text-white">
-          {firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date set"}
+          {earliestDateOption
+            ? formatAppointment(earliestDateOption, "compact")
+            : "No date set"}
         </p>
         <p className="mt-1 truncate text-xs text-neutral-500">
           {offer.shopName || (isFlashOffer ? "Flash item" : "Shop not set")}
         </p>
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 pr-3">
         <StatusBadge
           status={offer.status}
-          label={
-            offer.status === "declined"
-              ? `Declined: ${getDeclineReasonLabel(offer)}`
-              : undefined
-          }
+          label={getOfferTableStatusLabel(offer)}
+          title={statusTitle}
         />
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex min-w-0 items-center justify-end gap-1.5">
         {offer.status === "declined" && (
           <button
             type="button"
             onClick={onRevise}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-white/85"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
           >
             <Send size={14} />
             Send new
@@ -733,7 +731,7 @@ const OfferRow = ({
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
         >
           <Eye size={14} />
           Details
@@ -769,9 +767,7 @@ const OfferMobileCard = ({
   onDismiss: () => void;
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
-  const firstDateOption = offer.dateOptions?.find(
-    (option) => option.date && option.time
-  );
+  const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
   const isDeclined = offer.status === "declined";
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
@@ -837,10 +833,10 @@ const OfferMobileCard = ({
       <div className="space-y-2 border-t border-white/10 px-3 py-2.5">
         <div className="grid grid-cols-2 gap-1.5">
           <MobileSummaryTile
-            label="Schedule"
+            label="Earliest"
             value={
-              firstDateOption
-                ? formatAppointment(firstDateOption, "compact")
+              earliestDateOption
+                ? formatAppointment(earliestDateOption, "compact")
                 : "No date set"
             }
           />
@@ -1203,9 +1199,11 @@ const MetricCard = ({
 const StatusBadge = ({
   status,
   label,
+  title,
 }: {
   status: string;
   label?: string;
+  title?: string;
 }) => {
   const normalized = status || "pending";
   const className =
@@ -1217,7 +1215,8 @@ const StatusBadge = ({
 
   return (
     <span
-      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium normal-case tracking-normal ${className}`}
+      title={title || label || getOfferStatusLabel(normalized)}
+      className={`inline-flex max-w-full justify-self-start overflow-hidden text-ellipsis whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium normal-case tracking-normal ${className}`}
     >
       {label || getOfferStatusLabel(normalized)}
     </span>
@@ -1269,6 +1268,20 @@ const getOfferStatusLabel = (status: string) => {
   return status.replace("_", " ");
 };
 
+const getOfferTableStatusLabel = (offer: DashboardOffer) => {
+  if (offer.status === "pending") return "Waiting";
+  if (offer.status === "declined") return "Declined";
+  return getOfferStatusLabel(offer.status || "pending");
+};
+
+const getOfferStatusTitle = (offer: DashboardOffer) => {
+  if (offer.status === "declined") {
+    return `Declined: ${getDeclineReasonLabel(offer)}`;
+  }
+
+  return getOfferStatusLabel(offer.status || "pending");
+};
+
 const getDeclineReasonLabel = (offer: DashboardOffer) => {
   if (offer.declinedReasonLabel) return offer.declinedReasonLabel;
   if (offer.declinedReason === "appointment_timing") {
@@ -1296,9 +1309,10 @@ const getOfferScopeLabel = (offer: DashboardOffer) => {
 
     return {
       primary: `${count} sessions`,
-      secondary: offer.estimatedSessionPrice
-        ? `${formatOfferMoney(Number(offer.estimatedSessionPrice))} est. each`
-        : "Multi-session",
+      secondary:
+        offer.sessionScheduling === "first_session_now_rest_later"
+          ? "Rest scheduled later"
+          : "Multi-session project",
     };
   }
 
@@ -1307,12 +1321,6 @@ const getOfferScopeLabel = (offer: DashboardOffer) => {
     secondary: offer.shopName || "Custom tattoo",
   };
 };
-
-const formatOfferMoney = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number(amount || 0));
 
 const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
   id: offer.requestId || offer.id,
@@ -1345,6 +1353,20 @@ const normalizeDateOptions = (
 
   while (next.length < 3) next.push({ date: "", time: "" });
   return next;
+};
+
+const getEarliestAppointmentOption = (
+  options?: { date: string; time: string }[]
+) =>
+  [...(options || [])]
+    .filter((option) => option.date && option.time)
+    .sort((a, b) => getAppointmentTime(a) - getAppointmentTime(b))[0];
+
+const getAppointmentTime = (option: { date: string; time: string }) => {
+  const [year, month, day] = option.date.split("-").map(Number);
+  const [hours, minutes] = option.time.split(":").map(Number);
+  const time = new Date(year, month - 1, day, hours, minutes).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 };
 
 const getPaginationItems = (
