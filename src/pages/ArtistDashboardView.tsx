@@ -137,6 +137,13 @@ const SESSION_READINESS_FILTERS: {
   { label: "Paused", value: "paused" },
 ];
 
+const PROJECT_PAYMENT_FOLLOW_UP_STATUSES = [
+  "due",
+  "disputed",
+  "artist_confirmed",
+  "client_confirmed",
+];
+
 const isBookingRouteFilter = (
   tab: string | null
 ): tab is Exclude<BookingStatusFilter, "all"> =>
@@ -1812,7 +1819,7 @@ const ArtistDashboardView = () => {
                     : activeTab === "sessions"
                     ? "Start upcoming appointments, manage the active session, and close out work cleanly."
                     : activeTab === "projects"
-                    ? "Track multi-session projects, progress, next-session balances, and payment status."
+                    ? "Track multi-session progress, scheduling needs, and project health."
                     : "Review client appointments, payment status, studio details, and selected tattoo references."}
                 </p>
               </div>
@@ -1861,7 +1868,7 @@ const ArtistDashboardView = () => {
                     : activeTab === "sessions"
                     ? "Upcoming and active session work will appear here once a booking is paid or confirmed."
                     : activeTab === "projects"
-                    ? "When an accepted booking is marked as a multi-session project, it will appear here with progress and balance details."
+                    ? "When an accepted booking is marked as a multi-session project, it will appear here for progress and scheduling follow-up."
                     : "When a client reaches this booking stage, their appointment details will appear here."}
                 </p>
               </div>
@@ -2873,181 +2880,183 @@ const ProjectsTable = ({
   onAddSessions: (booking: DashboardBooking) => void;
 }) => {
   const columns =
-    "minmax(210px,1fr) minmax(160px,.62fr) minmax(190px,.72fr) minmax(210px,.86fr) minmax(150px,.58fr) minmax(180px,.72fr) minmax(140px,.5fr) minmax(360px,1.1fr)";
+    "minmax(260px,1.1fr) minmax(230px,.9fr) minmax(230px,.9fr) minmax(170px,.62fr) minmax(380px,1.25fr)";
+  const totalOpenBalance = projects.reduce(
+    (total, booking) => total + getDashboardRemainingBalance(booking),
+    0
+  );
+  const projectedNextInstallmentTotal = projects.reduce(
+    (total, booking) => total + getDashboardSessionInstallmentAmount(booking),
+    0
+  );
+  const paymentFollowUpCount = projects.filter(hasProjectPaymentFollowUp).length;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto">
-        <div className="min-w-[1500px]">
-          <div
-            className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
-            style={{ gridTemplateColumns: columns }}
-          >
-            <span>Client</span>
-            <span>Project</span>
-            <span>Progress</span>
-            <span>Next session</span>
-            <span>Balance</span>
-            <span>Payment / Fees</span>
-            <span>Status</span>
-            <span className="text-right">Actions</span>
-          </div>
+    <div className="space-y-4">
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-4">
+        <div className="grid gap-4 md:grid-cols-3 md:divide-x md:divide-white/10">
+          <ProjectBalanceStat
+            label="Open artist balance"
+            value={formatDashboardMoney(totalOpenBalance)}
+          />
+          <ProjectBalanceStat
+            label="Projected next due"
+            value={formatDashboardMoney(projectedNextInstallmentTotal)}
+          />
+          <ProjectBalanceStat
+            label="Payment follow-up"
+            value={paymentFollowUpCount}
+          />
+        </div>
+      </div>
 
-          <div className="divide-y divide-white/10">
-            {projects.map((booking) => {
-              const clientName = getDashboardClientName(booking);
-              const clientAvatar = getDashboardClientAvatar(booking);
-              const completedCount = Number(booking.completedSessionCount || 0);
-              const sessionCount = getEstimatedSessionCount(booking);
-              const activeSessionNumber = getActiveSessionNumber(booking);
-              const remainingBalance = getDashboardRemainingBalance(booking);
-              const progress = Math.min((completedCount / sessionCount) * 100, 100);
-              const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
-              const canAddSessions = canProposeProjectScopeChange(booking);
-              const projectQuickAction = getProjectQuickAction(booking);
+      <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
+        <div className="request-modal-scrollbar overflow-x-auto">
+          <div className="min-w-[1270px]">
+            <div
+              className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
+              style={{ gridTemplateColumns: columns }}
+            >
+              <span>Client</span>
+              <span>Progress</span>
+              <span>Schedule</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+            </div>
 
-              return (
-                <div
-                  key={booking.id}
-                  className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
-                  style={{ gridTemplateColumns: columns }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onOpenRecord(booking)}
-                    className="flex min-w-0 items-center gap-3 p-0! pr-4 text-left"
+            <div className="divide-y divide-white/10">
+              {projects.map((booking) => {
+                const clientName = getDashboardClientName(booking);
+                const clientAvatar = getDashboardClientAvatar(booking);
+                const completedCount = Number(booking.completedSessionCount || 0);
+                const sessionCount = getEstimatedSessionCount(booking);
+                const activeSessionNumber = getActiveSessionNumber(booking);
+                const progress = Math.min((completedCount / sessionCount) * 100, 100);
+                const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
+                const canAddSessions = canProposeProjectScopeChange(booking);
+                const projectQuickAction = getProjectQuickAction(booking);
+
+                return (
+                  <div
+                    key={booking.id}
+                    className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
+                    style={{ gridTemplateColumns: columns }}
                   >
-                    <img
-                      src={clientAvatar}
-                      alt={clientName}
-                      className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-white">
-                        {clientName}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-neutral-500">
-                        {booking.shopName || "Studio not listed"}
-                      </span>
-                    </span>
-                  </button>
-
-                  <div className="min-w-0 pr-4">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {isDashboardMultiSessionBooking(booking)
-                        ? "Multi-session"
-                        : "Single session"}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {booking.sourceType === "flash"
-                        ? booking.flashTitle || "Flash"
-                        : booking.sourceType || "Custom"}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0 pr-4">
-                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
-                      <span>
-                        {completedCount}/{sessionCount} sessions
-                      </span>
-                      <span className="font-medium text-white">
-                        {Math.round(progress)}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-emerald-300"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 pr-4">
-                    <p className="truncate text-sm font-semibold text-white">
-                      Session {activeSessionNumber}/{sessionCount}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {hasScheduledAppointment(booking)
-                        ? formatBookingAppointment(booking.selectedDate)
-                        : "Needs scheduling"}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0 pr-4">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {formatDashboardMoney(remainingBalance)}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      Due next {formatDashboardMoney(getDashboardSessionInstallmentAmount(booking))}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0 pr-4">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {booking.remainingPaymentMethod === "external"
-                        ? "In shop"
-                        : "Stripe"}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {Number(booking.pendingPlatformFeeCents || 0) > 0
-                        ? `Fee ${formatDashboardMoney(
-                            Number(booking.pendingPlatformFeeCents || 0) / 100
-                          )}`
-                        : (booking.remainingPaymentStatus || "not_due").replace(/_/g, " ")}
-                    </p>
-                  </div>
-
-                  <ProjectLedgerStatusBadge booking={booking} />
-
-                  <div className="flex flex-nowrap items-center justify-end gap-2">
-                    {canConfirmInShopPayment ? (
-                      <button
-                        type="button"
-                        onClick={() => onBalancePaid(booking)}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
-                      >
-                        <DollarSign size={14} />
-                        Confirm paid
-                      </button>
-                    ) : projectQuickAction ? (
-                      <button
-                        type="button"
-                        onClick={() => onOpenRecord(booking)}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-100 transition hover:bg-amber-300/15"
-                      >
-                        <CalendarDays size={14} />
-                        {projectQuickAction}
-                      </button>
-                    ) : null}
-
-                    {canAddSessions && (
-                      <button
-                        type="button"
-                        onClick={() => onAddSessions(booking)}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-                      >
-                        <CalendarDays size={14} />
-                        Add sessions
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      className="flex min-w-0 items-center gap-3 p-0! pr-4 text-left"
                     >
-                      <Eye size={14} />
-                      Open project record
+                      <img
+                        src={clientAvatar}
+                        alt={clientName}
+                        className="h-11 w-11 rounded-full border border-white/10 object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-white">
+                          {clientName}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-neutral-500">
+                          {getProjectStartLabel(booking)}
+                        </span>
+                      </span>
                     </button>
+
+                    <div className="min-w-0 pr-4">
+                      <div className="mb-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
+                        <span>
+                          {completedCount}/{sessionCount} sessions
+                        </span>
+                        <span className="font-medium text-white">
+                          {Math.round(progress)}%
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-emerald-300"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 pr-4">
+                      <p className="truncate text-sm font-semibold text-white">
+                        Session {activeSessionNumber}/{sessionCount}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-neutral-500">
+                        {hasScheduledAppointment(booking)
+                          ? formatBookingAppointment(booking.selectedDate)
+                          : "Needs scheduling"}
+                      </p>
+                    </div>
+
+                    <ProjectLedgerStatusBadge booking={booking} />
+
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {canConfirmInShopPayment ? (
+                        <button
+                          type="button"
+                          onClick={() => onBalancePaid(booking)}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                        >
+                          <DollarSign size={14} />
+                          Confirm paid
+                        </button>
+                      ) : projectQuickAction ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenRecord(booking)}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-100 transition hover:bg-amber-300/15"
+                        >
+                          <CalendarDays size={14} />
+                          {projectQuickAction}
+                        </button>
+                      ) : null}
+
+                      {canAddSessions && (
+                        <button
+                          type="button"
+                          onClick={() => onAddSessions(booking)}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+                        >
+                          <CalendarDays size={14} />
+                          Add sessions
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onOpenRecord(booking)}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
+                      >
+                        <Eye size={14} />
+                        Open project record
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+const ProjectBalanceStat = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) => (
+  <div className="min-w-0 md:px-4 md:first:pl-0 md:last:pr-0">
+    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-1 truncate text-xl! font-semibold text-white">{value}</p>
+  </div>
+);
 
 const ProjectLedgerStatusBadge = ({ booking }: { booking: DashboardBooking }) => {
   const status = booking.projectStatus || "active";
@@ -3797,6 +3806,23 @@ const formatDashboardMoney = (amount?: number) =>
     currency: "USD",
   }).format(Number(amount || 0));
 
+const getProjectStartLabel = (booking: Partial<Booking>) => {
+  const createdAt = booking.createdAt;
+  const date =
+    createdAt && typeof createdAt.toDate === "function"
+      ? createdAt.toDate()
+      : createdAt && typeof createdAt.seconds === "number"
+      ? new Date(createdAt.seconds * 1000)
+      : null;
+
+  if (!date || Number.isNaN(date.getTime())) return "Started recently";
+
+  return `Started ${date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
+};
+
 const getBookingStatusFilterValue = (
   booking: Partial<Booking>
 ): BookingStatusFilter => {
@@ -4018,6 +4044,13 @@ const getSessionReadinessDisplay = (booking: Partial<Booking>) => {
     className: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
   };
 };
+
+const hasProjectPaymentFollowUp = (booking: Partial<Booking>) =>
+  Number(booking.pendingPlatformFeeCents || 0) > 0 ||
+  (getDashboardRemainingBalance(booking) > 0 &&
+    PROJECT_PAYMENT_FOLLOW_UP_STATUSES.includes(
+      booking.remainingPaymentStatus || ""
+    ));
 
 const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
   const paymentStatus = booking.remainingPaymentStatus || "not_due";
