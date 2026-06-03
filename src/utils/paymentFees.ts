@@ -43,9 +43,20 @@ export const calculateClientPaymentBreakdown = (
   artistAmount: number,
   options: PaymentFeeOptions = {}
 ): PaymentFeeBreakdown => {
-  const artistAmountCents = dollarsToCents(artistAmount);
+  const parsedArtistAmountCents = dollarsToCents(artistAmount);
+  const artistAmountCents = Number.isFinite(parsedArtistAmountCents)
+    ? Math.max(parsedArtistAmountCents, 0)
+    : 0;
+  const hasPlatformFeeOverride =
+    typeof options.platformFeeCentsOverride === "number";
+  const platformFeeOverrideCents = hasPlatformFeeOverride
+    ? Math.max(Math.round(options.platformFeeCentsOverride || 0), 0)
+    : 0;
 
-  if (!Number.isFinite(artistAmountCents) || artistAmountCents <= 0) {
+  if (
+    artistAmountCents <= 0 &&
+    platformFeeOverrideCents <= 0
+  ) {
     return {
       artistAmountCents: 0,
       platformFeeCents: 0,
@@ -55,8 +66,8 @@ export const calculateClientPaymentBreakdown = (
   }
 
   const platformFeeCents =
-    typeof options.platformFeeCentsOverride === "number"
-      ? Math.max(Math.round(options.platformFeeCentsOverride), 0)
+    hasPlatformFeeOverride
+      ? platformFeeOverrideCents
       : calculatePlatformFeeCents(
           dollarsToCents(options.platformFeeBaseAmount ?? artistAmount)
         );

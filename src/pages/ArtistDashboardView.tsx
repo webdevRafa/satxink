@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
@@ -31,7 +32,7 @@ import {
   X,
 } from "lucide-react";
 
-import { db, auth, storage } from "../firebase/firebaseConfig";
+import { db, auth, storage, functions } from "../firebase/firebaseConfig";
 import {
   doc,
   getDoc,
@@ -1024,31 +1025,27 @@ const ArtistDashboardView = () => {
     }
   };
 
-  const handleCompleteSessionFromRow = (booking: DashboardBooking) =>
-    updateSessionRecord(
-      booking,
-      {
-        status: "completed",
-        sessionNumber: getActiveSessionNumber(booking),
-        completedAt: serverTimestamp(),
-        pendingPaymentAmount: getDashboardSessionInstallmentAmount(booking),
-        pendingPaymentAmountCents: Math.round(
-          getDashboardSessionInstallmentAmount(booking) * 100
-        ),
-      },
-      buildSessionCompletionBookingUpdate(booking)
-    );
+  const handleCompleteSessionFromRow = async (booking: DashboardBooking) => {
+    try {
+      const completeSession = httpsCallable(functions, "completeProjectSession");
+      await completeSession({ bookingId: booking.id });
+      toast.success("Session completed.");
+    } catch (error) {
+      console.error("Session completion failed:", error);
+      toast.error("Could not complete this session.");
+    }
+  };
 
-  const handleStartSessionFromRow = (booking: DashboardBooking) =>
-    updateSessionRecord(
-      booking,
-      {
-        status: "in_progress",
-        sessionNumber: getActiveSessionNumber(booking),
-        startedAt: serverTimestamp(),
-      },
-      { sessionStatus: "in_progress", sessionStartedAt: serverTimestamp() }
-    );
+  const handleStartSessionFromRow = async (booking: DashboardBooking) => {
+    try {
+      const startSession = httpsCallable(functions, "startProjectSession");
+      await startSession({ bookingId: booking.id });
+      toast.success("Session started.");
+    } catch (error) {
+      console.error("Session start failed:", error);
+      toast.error("Could not start this session.");
+    }
+  };
 
   const handleConfirmStartSession = async () => {
     if (!bookingToStart) return;
@@ -1081,6 +1078,45 @@ const ArtistDashboardView = () => {
         externalRemainingArtistConfirmedAt: serverTimestamp(),
       }
     );
+  };
+
+  const handleProposeAddedSessions = async (booking: DashboardBooking) => {
+    const additionalSessionCount = Number(
+      window.prompt("How many additional sessions?", "1") || 0
+    );
+    if (!Number.isFinite(additionalSessionCount) || additionalSessionCount <= 0) {
+      toast.error("Enter a valid session count.");
+      return;
+    }
+
+    const addedArtistAmount = Number(
+      window.prompt("Additional artist amount in dollars?", "0") || 0
+    );
+    if (!Number.isFinite(addedArtistAmount) || addedArtistAmount <= 0) {
+      toast.error("Enter a valid amount.");
+      return;
+    }
+
+    const message =
+      window.prompt("Optional note for the client", "")?.trim() || "";
+
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: booking.id,
+        type: "add_sessions",
+        additionalSessionCount: Math.floor(additionalSessionCount),
+        addedArtistAmountCents: Math.round(addedArtistAmount * 100),
+        message,
+      });
+      toast.success("Added-session amendment sent to the client.");
+    } catch (error) {
+      console.error("Project amendment proposal failed:", error);
+      toast.error("Could not send the amendment.");
+    }
   };
 
   const bookingStatusMetrics = [
@@ -1919,6 +1955,7 @@ const ArtistDashboardView = () => {
                     projects={visibleBookings as DashboardBooking[]}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onBalancePaid={handleBalancePaidFromRow}
+                    onAddSessions={handleProposeAddedSessions}
                   />
                 ) : (
                   <ArtistBookingsTable
@@ -2476,10 +2513,12 @@ const ProjectsTable = ({
   projects,
   onOpenRecord,
   onBalancePaid,
+  onAddSessions,
 }: {
   projects: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
   onBalancePaid: (booking: DashboardBooking) => void;
+  onAddSessions: (booking: DashboardBooking) => void;
 }) => (
   <div className="grid gap-4 lg:grid-cols-2">
     {projects.map((booking) => {
@@ -2571,10 +2610,16 @@ const ProjectsTable = ({
               )}
               <button
                 type="button"
+                onClick={() => onAddSessions(booking)}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+              >
+                <CalendarDays size={16} />
+                Add sessions
+              </button>
+              <button
+                type="button"
                 onClick={() => onOpenRecord(booking)}
-                className={`inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 ${
-                  canConfirmInShopPayment ? "" : "sm:col-span-2"
-                }`}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 sm:col-span-2"
               >
                 <Eye size={16} />
                 Open project record
@@ -2736,74 +2781,42 @@ const BookingRecordDialog = ({
     booking?.status !== "pending_payment" &&
     (isSessionView || canStartSession);
 
-  const upsertSessionRecord = async (
-    sessionUpdate: Record<string, unknown>,
-    bookingUpdate: Record<string, unknown>
-  ) => {
-    if (!booking) return false;
+  const handleStartSession = async () => {
+    if (!booking) return;
 
     setIsUpdatingSession(true);
     try {
-      const sessionRef = doc(db, "bookingSessions", booking.id);
-      await setDoc(
-        sessionRef,
-        {
-          bookingId: booking.id,
-          artistId: booking.artistId,
-          clientId: booking.clientId,
-          offerId: booking.offerId,
-          remainingAmount: remainingBalance,
-          remainingAmountCents: Math.round(remainingBalance * 100),
-          updatedAt: serverTimestamp(),
-          ...sessionUpdate,
-        },
-        { merge: true }
-      );
-      await updateDoc(doc(db, "bookings", booking.id), {
-        sessionId: booking.id,
-        updatedAt: serverTimestamp(),
-        ...bookingUpdate,
-      });
-      toast.success("Session record updated.");
-      return true;
+      const startSession = httpsCallable(functions, "startProjectSession");
+      await startSession({ bookingId: booking.id });
+      setSessionStatus("in_progress");
+      onSessionStarted();
+      toast.success("Session started.");
     } catch (error) {
-      console.error("Session update failed:", error);
-      toast.error("Could not update the session record.");
-      return false;
+      console.error("Session start failed:", error);
+      toast.error("Could not start the session.");
     } finally {
       setIsUpdatingSession(false);
     }
   };
 
-  const handleStartSession = async () => {
-    const updated = await upsertSessionRecord(
-      {
-        status: "in_progress",
-        sessionNumber: activeSessionNumber,
-        startedAt: serverTimestamp(),
-      },
-      { sessionStatus: "in_progress", sessionStartedAt: serverTimestamp() }
-    );
-    if (updated) {
-      setSessionStatus("in_progress");
-      onSessionStarted();
-    }
-  };
-
   const handleCompleteSession = async () => {
-    const updated = await upsertSessionRecord(
-      {
-        status: "completed",
-        sessionNumber: activeSessionNumber,
-        pendingPaymentAmount: sessionInstallment,
-        pendingPaymentAmountCents: Math.round(sessionInstallment * 100),
-        completedAt: serverTimestamp(),
-      },
-      {
-        ...(booking ? buildSessionCompletionBookingUpdate(booking) : {}),
-      }
-    );
-    if (updated) setSessionStatus("completed");
+    if (!booking) return;
+
+    setIsUpdatingSession(true);
+    try {
+      const completeSession = httpsCallable(functions, "completeProjectSession");
+      await completeSession({
+        bookingId: booking.id,
+        photoUrls: sessionPhotoUrls,
+      });
+      setSessionStatus("completed");
+      toast.success("Session completed.");
+    } catch (error) {
+      console.error("Session completion failed:", error);
+      toast.error("Could not complete the session.");
+    } finally {
+      setIsUpdatingSession(false);
+    }
   };
 
   const handleSessionPhotoUpload = async (
@@ -3378,36 +3391,6 @@ const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
     1
   );
   return Math.ceil(remaining / sessionsLeft);
-};
-
-const buildSessionCompletionBookingUpdate = (booking: Partial<Booking>) => {
-  const activeSessionNumber = getActiveSessionNumber(booking);
-  const sessionCount = getEstimatedSessionCount(booking);
-  const completedSessionCount = Math.max(
-    Number(booking.completedSessionCount || 0),
-    activeSessionNumber
-  );
-  const remainingBalance = getDashboardRemainingBalance(booking);
-  const sessionInstallment = getDashboardSessionInstallmentAmount(booking);
-  const hasNextSessionReady =
-    isDashboardMultiSessionBooking(booking) &&
-    activeSessionNumber < sessionCount &&
-    remainingBalance <= 0;
-
-  return {
-    sessionStatus: hasNextSessionReady ? "awaiting_next_session" : "completed",
-    sessionCompletedAt: serverTimestamp(),
-    completedSessionCount,
-    pendingSessionPaymentAmount: hasNextSessionReady ? 0 : sessionInstallment,
-    pendingSessionPaymentAmountCents: hasNextSessionReady
-      ? 0
-      : Math.round(sessionInstallment * 100),
-    pendingSessionNumber: hasNextSessionReady ? null : activeSessionNumber,
-    remainingPaymentStatus: remainingBalance > 0 ? "due" : "confirmed",
-    activeSessionNumber: hasNextSessionReady
-      ? activeSessionNumber + 1
-      : activeSessionNumber,
-  };
 };
 
 const buildExternalPaymentCompletionUpdates = (

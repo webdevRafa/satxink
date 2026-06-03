@@ -58,10 +58,21 @@ const calculatePlatformFeeCents = (artistAmountCents: number) => {
 const estimateStripeFeeCents = (clientTotalCents: number) =>
   Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
 
-type CheckoutPaymentMode = "deposit" | "full" | "remaining";
+type CheckoutPaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 type FlashRepeatability = "repeatable" | "one_of_one";
 type FlashAvailabilityStatus = "available" | "held" | "sold";
 type FlashPublicationStatus = "draft" | "published";
+type ProjectStatus = "active" | "paused" | "completed";
+type ProjectAmendmentType =
+  | "add_sessions"
+  | "schedule_next_session"
+  | "pause_project"
+  | "resume_project";
+type ProjectAmendmentStatus =
+  | "proposed"
+  | "accepted"
+  | "declined"
+  | "cancelled";
 
 type CropAreaInput = {
   x?: unknown;
@@ -410,6 +421,151 @@ const parseMetadataCents = (
   return Number.isFinite(value) ? value : fallback;
 };
 
+const centsToDollars = (amountCents: number) => amountCents / 100;
+
+const getNonNegativeCents = (value: unknown, fallback = 0) => {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const getPositiveInteger = (value: unknown, fallback = 1) => {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getOptionalString = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const getBookingPriceCents = (booking: admin.firestore.DocumentData) =>
+  getNonNegativeCents(booking.priceCents, dollarsToCents(booking.price));
+
+const getEstimatedSessionCount = (booking: admin.firestore.DocumentData) =>
+  Math.max(getPositiveInteger(booking.estimatedSessionCount, 1), 1);
+
+const getActiveSessionNumber = (booking: admin.firestore.DocumentData) =>
+  Math.max(getPositiveInteger(booking.activeSessionNumber, 1), 1);
+
+const getCompletedSessionCount = (booking: admin.firestore.DocumentData) =>
+  getNonNegativeCents(booking.completedSessionCount, 0);
+
+const isMultiSessionBooking = (booking: admin.firestore.DocumentData) =>
+  booking.projectType === "multi_session" || getEstimatedSessionCount(booking) > 1;
+
+const getTotalArtistPaidCents = (booking: admin.firestore.DocumentData) =>
+  getNonNegativeCents(
+    booking.totalArtistPaidCents,
+    getNonNegativeCents(
+      booking.depositPaidAmountCents,
+      booking.status === "deposit_paid" || booking.status === "paid"
+        ? dollarsToCents(booking.depositAmount || 0)
+        : 0
+    )
+  );
+
+const getRemainingBalanceCents = (booking: admin.firestore.DocumentData) =>
+  getNonNegativeCents(
+    booking.remainingBalanceCents,
+    Math.max(getBookingPriceCents(booking) - getTotalArtistPaidCents(booking), 0)
+  );
+
+const getPlatformFeeCollectedCents = (
+  booking: admin.firestore.DocumentData,
+  includeLegacyPlatformFee = true
+) => {
+  const explicit = Number(booking.platformFeeCollectedCents);
+  if (Number.isFinite(explicit) && explicit >= 0) return Math.round(explicit);
+
+  return includeLegacyPlatformFee
+    ? getNonNegativeCents(booking.platformFeeCents, 0)
+    : 0;
+};
+
+const getPendingPlatformFeeCents = (booking: admin.firestore.DocumentData) =>
+  getNonNegativeCents(booking.pendingPlatformFeeCents, 0);
+
+const getSessionInstallmentCents = (booking: admin.firestore.DocumentData) => {
+  const remainingBalanceCents = getRemainingBalanceCents(booking);
+  const pendingCents = getNonNegativeCents(
+    booking.pendingSessionPaymentAmountCents,
+    dollarsToCents(booking.pendingSessionPaymentAmount || 0)
+  );
+
+  if (pendingCents > 0) {
+    return Math.min(pendingCents, remainingBalanceCents);
+  }
+
+  const sessionsLeft = Math.max(
+    getEstimatedSessionCount(booking) - getCompletedSessionCount(booking),
+    1
+  );
+
+  return Math.ceil(remainingBalanceCents / sessionsLeft);
+};
+
+const getBookingSessionRefs = (bookingId: string, sessionNumber: number) => {
+  const summaryRef = db.collection("bookingSessions").doc(bookingId);
+  const sessionRef = summaryRef
+    .collection("sessions")
+    .doc(`session-${sessionNumber}`);
+
+  return { summaryRef, sessionRef };
+};
+
+const getParticipantRole = (
+  booking: admin.firestore.DocumentData,
+  uid: string
+) => {
+  if (booking.artistId === uid) return "artist" as const;
+  if (booking.clientId === uid) return "client" as const;
+  throw new HttpsError(
+    "permission-denied",
+    "Only the booking client or artist can update this project."
+  );
+};
+
+const getProjectStatus = (
+  booking: admin.firestore.DocumentData
+): ProjectStatus => {
+  if (booking.projectStatus === "paused") return "paused";
+  if (booking.projectStatus === "completed") return "completed";
+  return "active";
+};
+
+const createSessionSummaryUpdate = (
+  bookingId: string,
+  booking: admin.firestore.DocumentData,
+  sessionNumber: number,
+  update: admin.firestore.DocumentData
+) => ({
+  bookingId,
+  artistId: booking.artistId,
+  clientId: booking.clientId,
+  offerId: booking.offerId ?? null,
+  activeSessionNumber: sessionNumber,
+  estimatedSessionCount: getEstimatedSessionCount(booking),
+  remainingAmount: centsToDollars(getRemainingBalanceCents(booking)),
+  remainingAmountCents: getRemainingBalanceCents(booking),
+  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  ...update,
+});
+
+const createSessionRecordUpdate = (
+  bookingId: string,
+  booking: admin.firestore.DocumentData,
+  sessionNumber: number,
+  update: admin.firestore.DocumentData
+) => ({
+  bookingId,
+  artistId: booking.artistId,
+  clientId: booking.clientId,
+  sessionNumber,
+  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  ...update,
+});
+
 const getCompletedBookingUpdate = (
   booking: admin.firestore.DocumentData,
   session: Stripe.Checkout.Session,
@@ -430,16 +586,34 @@ const getCompletedBookingUpdate = (
     "clientTotalCents",
     session.amount_total ?? 0
   );
+  const metadataConnectedAccountId = getOptionalString(
+    metadata.stripeConnectedAccountId
+  );
   const currentPaidCents = Number(booking.totalArtistPaidCents || 0);
   const sessionAlreadyApplied = booking.lastCompletedCheckoutSessionId === session.id;
+  const isPlatformFeeOnlyPayment = paymentMode === "platform_fee";
   const nextPaidCents =
-    sessionAlreadyApplied
+    sessionAlreadyApplied || isPlatformFeeOnlyPayment
       ? currentPaidCents
       : paymentMode === "full"
       ? priceCents
       : Math.min(priceCents, currentPaidCents + artistAmountCents);
-  const remainingBalanceCents = Math.max(priceCents - nextPaidCents, 0);
-  const nextStatus = remainingBalanceCents > 0 ? "deposit_paid" : "paid";
+  const remainingBalanceCents = isPlatformFeeOnlyPayment
+    ? getRemainingBalanceCents(booking)
+    : Math.max(priceCents - nextPaidCents, 0);
+  const nextStatus = isPlatformFeeOnlyPayment
+    ? booking.status || "deposit_paid"
+    : remainingBalanceCents > 0
+    ? "deposit_paid"
+    : "paid";
+  const currentPlatformFeeCollectedCents =
+    getPlatformFeeCollectedCents(booking, false);
+  const nextPlatformFeeCollectedCents = sessionAlreadyApplied
+    ? currentPlatformFeeCollectedCents
+    : currentPlatformFeeCollectedCents + platformFeeCents;
+  const nextPendingPlatformFeeCents = sessionAlreadyApplied
+    ? getPendingPlatformFeeCents(booking)
+    : Math.max(getPendingPlatformFeeCents(booking) - platformFeeCents, 0);
   const timestamp = admin.firestore.FieldValue.serverTimestamp();
   const isMultiSession =
     booking.projectType === "multi_session" ||
@@ -470,11 +644,24 @@ const getCompletedBookingUpdate = (
     lastCompletedCheckoutSessionId: session.id,
     stripePaymentIntentId: session.payment_intent,
     stripeConnectedAccountId:
-      connectedAccountId ?? metadata.stripeConnectedAccountId ?? null,
-    artistQuotedAmountCents: artistAmountCents,
-    artistPayoutCents: artistAmountCents,
+      connectedAccountId ??
+      metadataConnectedAccountId ??
+      booking.stripeConnectedAccountId ??
+      null,
     clientPaymentAmountCents: clientTotalCents,
     platformFeeCents,
+    platformFeeCollectedCents: nextPlatformFeeCollectedCents,
+    platformFeeCollectedAmount: centsToDollars(nextPlatformFeeCollectedCents),
+    pendingPlatformFeeCents: nextPendingPlatformFeeCents,
+    pendingPlatformFeeAmount: centsToDollars(nextPendingPlatformFeeCents),
+    ...(isPlatformFeeOnlyPayment
+      ? {
+          platformFeeOnlyPaidAt: timestamp,
+        }
+      : {
+          artistQuotedAmountCents: artistAmountCents,
+          artistPayoutCents: artistAmountCents,
+        }),
     estimatedStripeFeeCents: stripeFeeCents,
     depositPaidAmountCents:
       paymentMode === "deposit"
@@ -1126,7 +1313,18 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       throw new HttpsError("permission-denied", "Only the booking client can pay this booking.");
     }
 
-    if (booking.status === "paid" || booking.status === "confirmed") {
+    let paymentMode = (data.paymentMode || "deposit") as CheckoutPaymentMode;
+
+    if (!["deposit", "full", "remaining", "platform_fee"].includes(paymentMode)) {
+      paymentMode = "deposit";
+    }
+
+    const isPlatformFeeOnlyPayment = paymentMode === "platform_fee";
+
+    if (
+      (booking.status === "paid" || booking.status === "confirmed") &&
+      !isPlatformFeeOnlyPayment
+    ) {
       throw new HttpsError("failed-precondition", "This booking has already been paid.");
     }
 
@@ -1137,13 +1335,8 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         booking.depositPaidAmountCents ||
         (booking.status === "deposit_paid" ? depositCents : 0)
     );
-    let paymentMode = (data.paymentMode || "deposit") as CheckoutPaymentMode;
 
-    if (!["deposit", "full", "remaining"].includes(paymentMode)) {
-      paymentMode = "deposit";
-    }
-
-    if (booking.status === "deposit_paid") {
+    if (booking.status === "deposit_paid" && !isPlatformFeeOnlyPayment) {
       paymentMode = "remaining";
     }
 
@@ -1162,6 +1355,24 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         "failed-precondition",
         "The remaining balance is not ready to be paid yet."
       );
+    }
+
+    const pendingPlatformFeeCents = getPendingPlatformFeeCents(booking);
+
+    if (isPlatformFeeOnlyPayment) {
+      if (booking.remainingPaymentMethod !== "external") {
+        throw new HttpsError(
+          "failed-precondition",
+          "A platform fee checkout is only needed for in-person balance projects."
+        );
+      }
+
+      if (pendingPlatformFeeCents <= 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "There is no pending platform fee to collect."
+        );
+      }
     }
 
     const requestedSessionPaymentCents =
@@ -1212,7 +1423,9 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     }
 
     const artistAmountCents =
-      paymentMode === "full"
+      paymentMode === "platform_fee"
+        ? 0
+        : paymentMode === "full"
         ? priceCents
         : paymentMode === "remaining"
         ? requestedSessionPaymentCents > 0
@@ -1223,7 +1436,11 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
           : Math.max(priceCents - totalArtistPaidCents, 0)
         : Math.min(depositCents, priceCents);
 
-    if (!Number.isFinite(artistAmountCents) || artistAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
+    if (
+      !isPlatformFeeOnlyPayment &&
+      (!Number.isFinite(artistAmountCents) ||
+        artistAmountCents < MIN_ARTIST_PAYOUT_CENTS)
+    ) {
       throw new HttpsError(
         "failed-precondition",
         "The artist payout amount is too small to process."
@@ -1231,8 +1448,8 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     }
 
     const platformFeeCents =
-      paymentMode === "remaining"
-        ? 0
+      isPlatformFeeOnlyPayment || paymentMode === "remaining"
+        ? pendingPlatformFeeCents
         : calculatePlatformFeeCents(priceCents || artistAmountCents);
 
     const {
@@ -1249,23 +1466,28 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
 
     const artistSnap = await db.collection("users").doc(booking.artistId).get();
     const artist = artistSnap.data() || {};
-    const connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
+    const connectedAccountId = isPlatformFeeOnlyPayment
+      ? undefined
+      : (artist.stripeConnect?.accountId as string | undefined);
     reservedConnectedAccountId = connectedAccountId ?? null;
 
-    if (!connectedAccountId) {
+    if (!isPlatformFeeOnlyPayment && !connectedAccountId) {
       throw new HttpsError(
         "failed-precondition",
         "This artist has not connected Stripe payouts yet."
       );
     }
 
-    const connectStatus = await syncArtistStripeAccount(
-      booking.artistId,
-      stripe,
-      connectedAccountId
-    );
+    const connectStatus =
+      !isPlatformFeeOnlyPayment && connectedAccountId
+        ? await syncArtistStripeAccount(
+            booking.artistId,
+            stripe,
+            connectedAccountId
+          )
+        : null;
 
-    if (!connectStatus.chargesEnabled) {
+    if (connectStatus && !connectStatus.chargesEnabled) {
       throw new HttpsError(
         "failed-precondition",
         "This artist needs to finish Stripe onboarding before accepting payments."
@@ -1278,13 +1500,15 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     reservedFlashId =
       typeof booking.flashId === "string" ? booking.flashId : null;
     reservedBookingId = bookingId;
-    reservedOneOfOneFlash = await reserveOneOfOneFlashForCheckout({
-      bookingRef,
-      bookingId,
-      booking,
-      clientId: uid,
-      holdUntil: flashHoldUntil,
-    });
+    reservedOneOfOneFlash = isPlatformFeeOnlyPayment
+      ? false
+      : await reserveOneOfOneFlashForCheckout({
+          bookingRef,
+          bookingId,
+          booking,
+          clientId: uid,
+          holdUntil: flashHoldUntil,
+        });
     const checkoutFlashRepeatability = reservedOneOfOneFlash
       ? "one_of_one"
       : booking.flashRepeatability || "";
@@ -1321,11 +1545,11 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       },
     };
 
-    if (platformFeeCents > 0) {
+    if (platformFeeCents > 0 && !isPlatformFeeOnlyPayment) {
       paymentIntentData.application_fee_amount = platformFeeCents;
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       mode: 'payment',
       line_items: [
@@ -1361,14 +1585,18 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         depositCents: String(depositCents),
         flashId: reservedFlashId ?? '',
         flashRepeatability: checkoutFlashRepeatability,
-        stripeConnectedAccountId: connectedAccountId,
+        stripeConnectedAccountId: connectedAccountId ?? "",
       },
       expires_at: Math.floor(flashHoldUntil.getTime() / 1000),
       success_url: data.successUrl || `${DEFAULT_APP_URL}/payment-success?bookingId=${bookingId}`,
       cancel_url: data.cancelUrl || `${DEFAULT_APP_URL}/payment/${bookingId}`,
-    }, {
-      stripeAccount: connectedAccountId,
-    });
+    };
+
+    const session = isPlatformFeeOnlyPayment
+      ? await stripe.checkout.sessions.create(sessionParams)
+      : await stripe.checkout.sessions.create(sessionParams, {
+          stripeAccount: connectedAccountId,
+        });
     createdCheckoutSessionId = session.id;
 
     if (reservedOneOfOneFlash) {
@@ -1384,17 +1612,22 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       {
         stripeCheckoutSessionId: session.id,
         stripeCheckoutExpiresAt: admin.firestore.Timestamp.fromDate(flashHoldUntil),
-        stripeConnectedAccountId: connectedAccountId,
-        artistQuotedAmount: artistAmountCents / 100,
-        artistQuotedAmountCents: artistAmountCents,
+        stripeConnectedAccountId:
+          connectedAccountId ?? booking.stripeConnectedAccountId ?? null,
         clientPaymentAmount: clientTotalCents / 100,
         clientPaymentAmountCents: clientTotalCents,
         platformFeeAmount: platformFeeCents / 100,
         platformFeeCents,
         estimatedStripeFeeAmount: stripeFeeCents / 100,
         estimatedStripeFeeCents: stripeFeeCents,
-        artistPayoutAmount: artistAmountCents / 100,
-        artistPayoutCents: artistAmountCents,
+        ...(isPlatformFeeOnlyPayment
+          ? {}
+          : {
+              artistQuotedAmount: artistAmountCents / 100,
+              artistQuotedAmountCents: artistAmountCents,
+              artistPayoutAmount: artistAmountCents / 100,
+              artistPayoutCents: artistAmountCents,
+            }),
         checkoutPaymentMode: paymentMode,
         ...(reservedOneOfOneFlash
           ? {
@@ -1431,6 +1664,828 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     throw new HttpsError('internal', 'Unable to create checkout session');
   }
 });
+
+const proposeProjectAmendment = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to propose a project change.");
+    }
+
+    const data = (req.data || {}) as {
+      bookingId?: string;
+      type?: ProjectAmendmentType;
+      additionalSessionCount?: unknown;
+      addedArtistAmountCents?: unknown;
+      addedArtistAmount?: unknown;
+      message?: unknown;
+      reason?: unknown;
+      pausedUntil?: unknown;
+      selectedDate?: { date?: unknown; time?: unknown };
+      date?: unknown;
+      time?: unknown;
+      sessionNumber?: unknown;
+    };
+    const bookingId = getOptionalString(data.bookingId);
+    const amendmentType = data.type;
+
+    if (!bookingId || !amendmentType) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A booking and amendment type are required."
+      );
+    }
+
+    if (
+      ![
+        "add_sessions",
+        "schedule_next_session",
+        "pause_project",
+        "resume_project",
+      ].includes(amendmentType)
+    ) {
+      throw new HttpsError("invalid-argument", "Unsupported amendment type.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const amendmentRef = bookingRef.collection("amendments").doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    let createdAmendment: admin.firestore.DocumentData = {};
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+
+      if (getProjectStatus(booking) === "completed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Completed projects cannot be amended."
+        );
+      }
+
+      if (amendmentType === "add_sessions" && role !== "artist") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the artist can propose added sessions."
+        );
+      }
+
+      const currentPriceCents = getBookingPriceCents(booking);
+      const currentEstimatedSessionCount = getEstimatedSessionCount(booking);
+      const baseAmendment = {
+        bookingId,
+        type: amendmentType,
+        status: "proposed" as ProjectAmendmentStatus,
+        proposedById: uid,
+        proposedByRole: role,
+        message: getOptionalString(data.message),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        projectRevision: getPositiveInteger(booking.projectRevision, 0),
+      };
+
+      if (amendmentType === "add_sessions") {
+        const additionalSessionCount = getPositiveInteger(
+          data.additionalSessionCount,
+          0
+        );
+        const addedArtistAmountCents = getNonNegativeCents(
+          data.addedArtistAmountCents,
+          dollarsToCents(data.addedArtistAmount || 0)
+        );
+
+        if (additionalSessionCount <= 0 || additionalSessionCount > 24) {
+          throw new HttpsError(
+            "invalid-argument",
+            "Added sessions must be between 1 and 24."
+          );
+        }
+
+        if (addedArtistAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
+          throw new HttpsError(
+            "invalid-argument",
+            "Added artist amount is too small."
+          );
+        }
+
+        const proposedPriceCents = currentPriceCents + addedArtistAmountCents;
+        const proposedEstimatedSessionCount =
+          currentEstimatedSessionCount + additionalSessionCount;
+        const proposedRemainingBalanceCents = Math.max(
+          proposedPriceCents - getTotalArtistPaidCents(booking),
+          0
+        );
+        const platformFeeCollectedCents = getPlatformFeeCollectedCents(booking);
+        const platformFeeDeltaCents = Math.max(
+          calculatePlatformFeeCents(proposedPriceCents) -
+            platformFeeCollectedCents,
+          0
+        );
+
+        createdAmendment = {
+          ...baseAmendment,
+          additionalSessionCount,
+          addedArtistAmountCents,
+          addedArtistAmount: centsToDollars(addedArtistAmountCents),
+          currentPriceCents,
+          currentEstimatedSessionCount,
+          proposedPriceCents,
+          proposedPrice: centsToDollars(proposedPriceCents),
+          proposedEstimatedSessionCount,
+          proposedRemainingBalanceCents,
+          proposedRemainingBalanceAmount: centsToDollars(
+            proposedRemainingBalanceCents
+          ),
+          platformFeeCollectedCents,
+          platformFeeDeltaCents,
+          platformFeeDeltaAmount: centsToDollars(platformFeeDeltaCents),
+        };
+      } else if (amendmentType === "schedule_next_session") {
+        const date = getOptionalString(data.date ?? data.selectedDate?.date);
+        const time = getOptionalString(data.time ?? data.selectedDate?.time);
+        const sessionNumber = getPositiveInteger(
+          data.sessionNumber,
+          getActiveSessionNumber(booking)
+        );
+
+        if (!date || !time) {
+          throw new HttpsError(
+            "invalid-argument",
+            "A proposed date and time are required."
+          );
+        }
+
+        createdAmendment = {
+          ...baseAmendment,
+          sessionNumber,
+          proposedSelectedDate: { date, time },
+        };
+      } else if (amendmentType === "pause_project") {
+        createdAmendment = {
+          ...baseAmendment,
+          reason: getOptionalString(data.reason),
+          pausedUntil: getOptionalString(data.pausedUntil),
+        };
+      } else {
+        createdAmendment = {
+          ...baseAmendment,
+          reason: getOptionalString(data.reason),
+        };
+      }
+
+      transaction.create(amendmentRef, createdAmendment);
+      transaction.update(bookingRef, {
+        lastProjectAmendmentProposedAt: timestamp,
+        updatedAt: timestamp,
+      });
+    });
+
+    return { amendmentId: amendmentRef.id };
+  }
+);
+
+const respondToProjectAmendment = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to respond to changes.");
+    }
+
+    const data = (req.data || {}) as {
+      bookingId?: string;
+      amendmentId?: string;
+      response?: ProjectAmendmentStatus;
+    };
+    const bookingId = getOptionalString(data.bookingId);
+    const amendmentId = getOptionalString(data.amendmentId);
+    const response = data.response;
+
+    if (!bookingId || !amendmentId || !response) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A booking, amendment, and response are required."
+      );
+    }
+
+    if (!["accepted", "declined", "cancelled"].includes(response)) {
+      throw new HttpsError("invalid-argument", "Unsupported amendment response.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const amendmentRef = bookingRef.collection("amendments").doc(amendmentId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    let finalStatus: ProjectAmendmentStatus = response;
+
+    await db.runTransaction(async (transaction) => {
+      const [bookingSnap, amendmentSnap] = await Promise.all([
+        transaction.get(bookingRef),
+        transaction.get(amendmentRef),
+      ]);
+
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      if (!amendmentSnap.exists) {
+        throw new HttpsError("not-found", "Amendment not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const amendment = amendmentSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+      const type = amendment.type as ProjectAmendmentType;
+      const currentStatus = amendment.status as ProjectAmendmentStatus;
+
+      if (currentStatus !== "proposed") {
+        finalStatus = currentStatus;
+        return;
+      }
+
+      if (response === "cancelled") {
+        if (amendment.proposedById !== uid && role !== "artist") {
+          throw new HttpsError(
+            "permission-denied",
+            "Only the proposer or artist can cancel this amendment."
+          );
+        }
+      } else if (type === "add_sessions" && role !== "client") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the client can accept or decline added sessions."
+        );
+      } else if (amendment.proposedById === uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "The other project participant needs to respond."
+        );
+      }
+
+      transaction.update(amendmentRef, {
+        status: response,
+        respondedAt: timestamp,
+        respondedById: uid,
+        respondedByRole: role,
+        updatedAt: timestamp,
+      });
+
+      if (response !== "accepted") {
+        return;
+      }
+
+      const bookingUpdate: admin.firestore.DocumentData = {
+        projectRevision: admin.firestore.FieldValue.increment(1),
+        lastAcceptedAmendmentId: amendmentId,
+        lastProjectAmendmentAcceptedAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      if (type === "add_sessions") {
+        const currentPriceCents = getBookingPriceCents(booking);
+        const currentEstimatedSessionCount = getEstimatedSessionCount(booking);
+        const addedArtistAmountCents = getNonNegativeCents(
+          amendment.addedArtistAmountCents,
+          0
+        );
+        const additionalSessionCount = getPositiveInteger(
+          amendment.additionalSessionCount,
+          0
+        );
+
+        if (addedArtistAmountCents <= 0 || additionalSessionCount <= 0) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This added-session amendment is missing pricing details."
+          );
+        }
+
+        const nextPriceCents = currentPriceCents + addedArtistAmountCents;
+        const nextEstimatedSessionCount =
+          currentEstimatedSessionCount + additionalSessionCount;
+        const nextRemainingBalanceCents = Math.max(
+          nextPriceCents - getTotalArtistPaidCents(booking),
+          0
+        );
+        const platformFeeCollectedCents = getPlatformFeeCollectedCents(booking);
+        const platformFeeDeltaCents = Math.max(
+          calculatePlatformFeeCents(nextPriceCents) - platformFeeCollectedCents,
+          0
+        );
+        const pendingPlatformFeeCents =
+          getPendingPlatformFeeCents(booking) + platformFeeDeltaCents;
+
+        Object.assign(bookingUpdate, {
+          projectStatus: "active",
+          projectType:
+            nextEstimatedSessionCount > 1 ? "multi_session" : booking.projectType,
+          originalPriceCents:
+            booking.originalPriceCents ?? currentPriceCents,
+          originalPrice:
+            booking.originalPrice ?? centsToDollars(currentPriceCents),
+          originalEstimatedSessionCount:
+            booking.originalEstimatedSessionCount ??
+            currentEstimatedSessionCount,
+          price: centsToDollars(nextPriceCents),
+          priceCents: nextPriceCents,
+          estimatedSessionCount: nextEstimatedSessionCount,
+          remainingBalanceCents: nextRemainingBalanceCents,
+          remainingBalanceAmount: centsToDollars(nextRemainingBalanceCents),
+          platformFeeCollectedCents,
+          platformFeeCollectedAmount: centsToDollars(
+            platformFeeCollectedCents
+          ),
+          pendingPlatformFeeCents,
+          pendingPlatformFeeAmount: centsToDollars(pendingPlatformFeeCents),
+        });
+
+        transaction.update(amendmentRef, {
+          acceptedPriceCents: nextPriceCents,
+          acceptedEstimatedSessionCount: nextEstimatedSessionCount,
+          acceptedRemainingBalanceCents: nextRemainingBalanceCents,
+          acceptedPlatformFeeDeltaCents: platformFeeDeltaCents,
+        });
+      } else if (type === "schedule_next_session") {
+        const selectedDate = amendment.proposedSelectedDate || {};
+        const date = getOptionalString(selectedDate.date);
+        const time = getOptionalString(selectedDate.time);
+        const sessionNumber = getPositiveInteger(
+          amendment.sessionNumber,
+          getActiveSessionNumber(booking)
+        );
+
+        if (!date || !time) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This scheduling amendment is missing a date or time."
+          );
+        }
+
+        Object.assign(bookingUpdate, {
+          selectedDate: { date, time },
+          nextSessionScheduledBy: uid,
+          nextSessionScheduledAt: timestamp,
+          sessionStatus: booking.sessionStatus || "not_started",
+        });
+
+        const { summaryRef, sessionRef } = getBookingSessionRefs(
+          bookingId,
+          sessionNumber
+        );
+        transaction.set(
+          summaryRef,
+          createSessionSummaryUpdate(bookingId, booking, sessionNumber, {
+            status: "scheduled",
+            sessionNumber,
+            scheduledDate: date,
+            scheduledTime: time,
+            scheduledBy: uid,
+          }),
+          { merge: true }
+        );
+        transaction.set(
+          sessionRef,
+          createSessionRecordUpdate(bookingId, booking, sessionNumber, {
+            status: "scheduled",
+            scheduledDate: date,
+            scheduledTime: time,
+            scheduledBy: uid,
+            scheduledAt: timestamp,
+          }),
+          { merge: true }
+        );
+      } else if (type === "pause_project") {
+        Object.assign(bookingUpdate, {
+          projectStatus: "paused",
+          pausedAt: timestamp,
+          pausedBy: uid,
+          pausedReason: getOptionalString(amendment.reason),
+          pausedUntil: getOptionalString(amendment.pausedUntil),
+        });
+      } else if (type === "resume_project") {
+        Object.assign(bookingUpdate, {
+          projectStatus: "active",
+          resumedAt: timestamp,
+          resumedBy: uid,
+          pausedUntil: admin.firestore.FieldValue.delete(),
+        });
+      }
+
+      transaction.update(bookingRef, bookingUpdate);
+    });
+
+    return { status: finalStatus };
+  }
+);
+
+const scheduleProjectSession = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to schedule a session.");
+    }
+
+    const data = (req.data || {}) as {
+      bookingId?: string;
+      sessionNumber?: unknown;
+      selectedDate?: { date?: unknown; time?: unknown };
+      date?: unknown;
+      time?: unknown;
+      note?: unknown;
+    };
+    const bookingId = getOptionalString(data.bookingId);
+    const date = getOptionalString(data.date ?? data.selectedDate?.date);
+    const time = getOptionalString(data.time ?? data.selectedDate?.time);
+
+    if (!bookingId || !date || !time) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A booking, date, and time are required."
+      );
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    let scheduledSessionNumber = 1;
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      getParticipantRole(booking, uid);
+
+      if (getProjectStatus(booking) === "completed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Completed projects cannot be scheduled."
+        );
+      }
+
+      scheduledSessionNumber = getPositiveInteger(
+        data.sessionNumber,
+        getActiveSessionNumber(booking)
+      );
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        scheduledSessionNumber
+      );
+      const sessionUpdate = {
+        status: "scheduled",
+        sessionNumber: scheduledSessionNumber,
+        scheduledDate: date,
+        scheduledTime: time,
+        scheduledBy: uid,
+        scheduledAt: timestamp,
+        note: getOptionalString(data.note),
+      };
+
+      transaction.update(bookingRef, {
+        projectStatus: "active",
+        selectedDate: { date, time },
+        nextSessionScheduledBy: uid,
+        nextSessionScheduledAt: timestamp,
+        sessionStatus: booking.sessionStatus || "not_started",
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        summaryRef,
+        createSessionSummaryUpdate(
+          bookingId,
+          booking,
+          scheduledSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+      transaction.set(
+        sessionRef,
+        createSessionRecordUpdate(
+          bookingId,
+          booking,
+          scheduledSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+    });
+
+    return { sessionNumber: scheduledSessionNumber };
+  }
+);
+
+const setProjectPaused = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to update the project.");
+    }
+
+    const data = (req.data || {}) as {
+      bookingId?: string;
+      paused?: unknown;
+      reason?: unknown;
+      pausedUntil?: unknown;
+    };
+    const bookingId = getOptionalString(data.bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A booking is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const shouldPause = data.paused !== false;
+    let projectStatus: ProjectStatus = shouldPause ? "paused" : "active";
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      getParticipantRole(booking, uid);
+
+      if (getProjectStatus(booking) === "completed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Completed projects cannot be paused or resumed."
+        );
+      }
+
+      const update = shouldPause
+        ? {
+            projectStatus: "paused" as ProjectStatus,
+            pausedAt: timestamp,
+            pausedBy: uid,
+            pausedReason: getOptionalString(data.reason),
+            pausedUntil: getOptionalString(data.pausedUntil),
+            updatedAt: timestamp,
+          }
+        : {
+            projectStatus: "active" as ProjectStatus,
+            resumedAt: timestamp,
+            resumedBy: uid,
+            pausedUntil: admin.firestore.FieldValue.delete(),
+            updatedAt: timestamp,
+          };
+
+      projectStatus = update.projectStatus;
+      transaction.update(bookingRef, update);
+    });
+
+    return { projectStatus };
+  }
+);
+
+const startProjectSession = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to start a session.");
+    }
+
+    const bookingId = getOptionalString((req.data || {}).bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A booking is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    let startedSessionNumber = 1;
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+      if (role !== "artist") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the artist can start a session."
+        );
+      }
+
+      if (!["confirmed", "deposit_paid", "paid"].includes(String(booking.status))) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This booking is not ready to start."
+        );
+      }
+
+      if (getProjectStatus(booking) === "paused") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Resume this project before starting a session."
+        );
+      }
+
+      if (booking.sessionStatus === "in_progress") {
+        throw new HttpsError(
+          "failed-precondition",
+          "This session is already in progress."
+        );
+      }
+
+      if (
+        booking.sessionStatus === "completed" &&
+        getNonNegativeCents(booking.pendingSessionPaymentAmountCents, 0) > 0
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Settle the completed session before starting the next one."
+        );
+      }
+
+      if (getPendingPlatformFeeCents(booking) > 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Collect the pending SATX Ink platform fee before starting the next session."
+        );
+      }
+
+      startedSessionNumber = getActiveSessionNumber(booking);
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        startedSessionNumber
+      );
+      const sessionUpdate = {
+        status: "in_progress",
+        sessionNumber: startedSessionNumber,
+        startedAt: timestamp,
+        startedBy: uid,
+      };
+
+      transaction.update(bookingRef, {
+        projectStatus: "active",
+        sessionId: bookingId,
+        sessionStatus: "in_progress",
+        sessionStartedAt: timestamp,
+        activeSessionNumber: startedSessionNumber,
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        summaryRef,
+        createSessionSummaryUpdate(
+          bookingId,
+          booking,
+          startedSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+      transaction.set(
+        sessionRef,
+        createSessionRecordUpdate(
+          bookingId,
+          booking,
+          startedSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+    });
+
+    return { sessionNumber: startedSessionNumber };
+  }
+);
+
+const completeProjectSession = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to complete a session.");
+    }
+
+    const data = (req.data || {}) as {
+      bookingId?: string;
+      notes?: unknown;
+      photoUrls?: unknown;
+    };
+    const bookingId = getOptionalString(data.bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A booking is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    let completedSessionNumber = 1;
+    let amountDueCents = 0;
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+      if (role !== "artist") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the artist can complete a session."
+        );
+      }
+
+      if (!["confirmed", "deposit_paid", "paid"].includes(String(booking.status))) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This booking is not ready to complete."
+        );
+      }
+
+      completedSessionNumber = getActiveSessionNumber(booking);
+      const sessionCount = getEstimatedSessionCount(booking);
+      const completedSessionCount = Math.max(
+        getCompletedSessionCount(booking),
+        completedSessionNumber
+      );
+      const remainingBalanceCents = getRemainingBalanceCents(booking);
+      amountDueCents = remainingBalanceCents > 0 ? getSessionInstallmentCents(booking) : 0;
+      const hasNextSessionReady =
+        isMultiSessionBooking(booking) &&
+        completedSessionNumber < sessionCount &&
+        remainingBalanceCents <= 0;
+      const nextSessionStatus = hasNextSessionReady
+        ? "awaiting_next_session"
+        : "completed";
+      const photoUrls = Array.isArray(data.photoUrls)
+        ? data.photoUrls.filter((url): url is string => typeof url === "string")
+        : [];
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        completedSessionNumber
+      );
+      const sessionUpdate = {
+        status: "completed",
+        sessionNumber: completedSessionNumber,
+        completedAt: timestamp,
+        completedBy: uid,
+        notes: getOptionalString(data.notes),
+        photoUrls,
+        amountDueCents,
+        amountDue: centsToDollars(amountDueCents),
+        paymentStatus: amountDueCents > 0 ? "due" : "confirmed",
+        pendingPlatformFeeCents: getPendingPlatformFeeCents(booking),
+      };
+
+      transaction.update(bookingRef, {
+        sessionStatus: nextSessionStatus,
+        sessionCompletedAt: timestamp,
+        completedSessionCount,
+        pendingSessionPaymentAmount: centsToDollars(amountDueCents),
+        pendingSessionPaymentAmountCents: amountDueCents,
+        pendingSessionNumber: amountDueCents > 0 ? completedSessionNumber : null,
+        remainingPaymentStatus:
+          remainingBalanceCents > 0 ? "due" : "confirmed",
+        activeSessionNumber: hasNextSessionReady
+          ? completedSessionNumber + 1
+          : completedSessionNumber,
+        sessionPhotoUrls: photoUrls.length > 0 ? photoUrls : booking.sessionPhotoUrls ?? [],
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        summaryRef,
+        createSessionSummaryUpdate(
+          bookingId,
+          booking,
+          completedSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+      transaction.set(
+        sessionRef,
+        createSessionRecordUpdate(
+          bookingId,
+          booking,
+          completedSessionNumber,
+          sessionUpdate
+        ),
+        { merge: true }
+      );
+    });
+
+    return {
+      sessionNumber: completedSessionNumber,
+      amountDueCents,
+    };
+  }
+);
  
 const syncBookingPaymentStatus = onCall(
   { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
@@ -1476,25 +2531,30 @@ const syncBookingPaymentStatus = onCall(
       return { paid: false, status: booking.status || "pending_payment" };
     }
 
+    const isPlatformFeeCheckout = booking.checkoutPaymentMode === "platform_fee";
     let connectedAccountId =
       (booking.stripeConnectedAccountId as string | undefined) || undefined;
 
-    if (!connectedAccountId && booking.artistId) {
+    if (!connectedAccountId && booking.artistId && !isPlatformFeeCheckout) {
       const artistSnap = await db.collection("users").doc(booking.artistId).get();
       const artist = artistSnap.data() || {};
       connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
     }
 
-    if (!connectedAccountId) {
+    if (!connectedAccountId && !isPlatformFeeCheckout) {
       return { paid: false, status: booking.status || "pending_payment" };
     }
 
     const stripe = getStripeClient();
-    const session = await stripe.checkout.sessions.retrieve(
-      sessionId,
-      { expand: ["payment_intent"] },
-      { stripeAccount: connectedAccountId }
-    );
+    const session = isPlatformFeeCheckout
+      ? await stripe.checkout.sessions.retrieve(sessionId, {
+          expand: ["payment_intent"],
+        })
+      : await stripe.checkout.sessions.retrieve(
+          sessionId,
+          { expand: ["payment_intent"] },
+          { stripeAccount: connectedAccountId }
+        );
 
     const paymentIntent =
       typeof session.payment_intent === "string"
@@ -2229,6 +3289,12 @@ module.exports = {
   getStripeConnectStatus,
   createStripeDashboardLoginLink,
   createCheckoutSession,
+  proposeProjectAmendment,
+  respondToProjectAmendment,
+  scheduleProjectSession,
+  setProjectPaused,
+  startProjectSession,
+  completeProjectSession,
   syncBookingPaymentStatus,
   stripeWebhook,
   processArtistMedia,

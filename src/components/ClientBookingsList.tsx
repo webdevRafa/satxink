@@ -15,7 +15,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { toast } from "react-hot-toast";
 import { db, functions } from "../firebase/firebaseConfig";
-import type { Booking } from "../types/Booking";
+import type { Booking, ProjectAmendment } from "../types/Booking";
 
 interface Props {
   clientId: string;
@@ -25,6 +25,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [pendingAmendments, setPendingAmendments] = useState<ProjectAmendment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +59,34 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       unsubscribe();
     };
   }, [clientId]);
+
+  useEffect(() => {
+    if (!selectedBooking) {
+      setPendingAmendments([]);
+      return;
+    }
+
+    const amendmentsQuery = query(
+      collection(db, "bookings", selectedBooking.id, "amendments"),
+      where("status", "==", "proposed")
+    );
+
+    return onSnapshot(
+      amendmentsQuery,
+      (snap) => {
+        setPendingAmendments(
+          snap.docs.map((amendmentDoc) => ({
+            id: amendmentDoc.id,
+            ...amendmentDoc.data(),
+          })) as ProjectAmendment[]
+        );
+      },
+      (error) => {
+        console.error("Error listening to project amendments:", error);
+        setPendingAmendments([]);
+      }
+    );
+  }, [selectedBooking]);
 
   const sortedBookings = useMemo(
     () => [...bookings].sort((a, b) => getBookingTime(b) - getBookingTime(a)),
@@ -198,6 +227,33 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
     }
   };
 
+  const handleRespondToAmendment = async (
+    amendmentId: string,
+    response: "accepted" | "declined"
+  ) => {
+    if (!selectedBooking) return;
+
+    try {
+      const respondToAmendment = httpsCallable(
+        functions,
+        "respondToProjectAmendment"
+      );
+      await respondToAmendment({
+        bookingId: selectedBooking.id,
+        amendmentId,
+        response,
+      });
+      toast.success(
+        response === "accepted"
+          ? "Project amendment accepted."
+          : "Project amendment declined."
+      );
+    } catch (error) {
+      console.error("Project amendment response failed:", error);
+      toast.error("Could not update the amendment.");
+    }
+  };
+
   if (loading) return <SectionSkeleton />;
 
   return (
@@ -231,10 +287,12 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
 
       <BookingDetailsDialog
         booking={selectedBooking}
+        amendments={pendingAmendments}
         onClose={() => setSelectedBooking(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
         onConfirmExternalPayment={handleConfirmExternalPayment}
         onDisputeExternalPayment={handleDisputeExternalPayment}
+        onRespondToAmendment={handleRespondToAmendment}
       />
     </section>
   );
@@ -297,15 +355,19 @@ const BookingRow = ({
 }) => {
   const remainingBalance = getRemainingBalance(booking);
   const isMultiSession = isMultiSessionBooking(booking);
+  const hasPendingPlatformFee =
+    booking.remainingPaymentMethod === "external" &&
+    Number(booking.pendingPlatformFeeCents || 0) > 0;
   const hasPendingSessionPayment =
     !isMultiSession || Number(booking.pendingSessionPaymentAmount || 0) > 0;
   const isPayable =
     booking.paymentType === "internal" &&
-    booking.remainingPaymentMethod !== "external" &&
     (booking.status === "pending_payment" ||
       (booking.status === "deposit_paid" &&
-        remainingBalance > 0 &&
-        hasPendingSessionPayment));
+        ((booking.remainingPaymentMethod !== "external" &&
+          remainingBalance > 0 &&
+          hasPendingSessionPayment) ||
+          hasPendingPlatformFee)));
   return (
     <div
       className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
@@ -375,16 +437,23 @@ const BookingRow = ({
 
 const BookingDetailsDialog = ({
   booking,
+  amendments,
   onClose,
   onPay,
   onConfirmExternalPayment,
   onDisputeExternalPayment,
+  onRespondToAmendment,
 }: {
   booking: Booking | null;
+  amendments: ProjectAmendment[];
   onClose: () => void;
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: Booking) => void;
   onDisputeExternalPayment: (booking: Booking) => void;
+  onRespondToAmendment: (
+    amendmentId: string,
+    response: "accepted" | "declined"
+  ) => void;
 }) => {
   const showExternalPaymentConfirmation =
     booking?.remainingPaymentMethod === "external" &&
@@ -464,6 +533,51 @@ const BookingDetailsDialog = ({
                           {booking.shopAddress}
                         </a>
                       )}
+                      {amendments.length > 0 && (
+                        <div className="mt-5 space-y-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
+                          <p className="text-sm font-semibold text-white">
+                            Project amendment
+                          </p>
+                          {amendments.map((amendment) => (
+                            <div
+                              key={amendment.id}
+                              className="rounded-md border border-white/10 bg-black/25 p-3"
+                            >
+                              <p className="text-sm font-semibold text-white">
+                                {getAmendmentTitle(amendment)}
+                              </p>
+                              <p className="mt-1 text-sm leading-6 text-amber-50/75">
+                                {getAmendmentDescription(amendment)}
+                              </p>
+                              {amendment.message && (
+                                <p className="mt-2 text-sm leading-6 text-neutral-300">
+                                  {amendment.message}
+                                </p>
+                              )}
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onRespondToAmendment(amendment.id, "accepted")
+                                  }
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onRespondToAmendment(amendment.id, "declined")
+                                  }
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-4! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {booking.remainingPaymentMethod === "external" &&
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
@@ -536,17 +650,20 @@ const BookingDetailsDialog = ({
                           </div>
                         )}
                       {booking.paymentType === "internal" &&
-                        booking.remainingPaymentMethod !== "external" &&
                         (booking.status === "pending_payment" ||
                           (booking.status === "deposit_paid" &&
-                            getRemainingBalance(booking) > 0)) && (
+                            ((booking.remainingPaymentMethod !== "external" &&
+                              getRemainingBalance(booking) > 0) ||
+                              Number(booking.pendingPlatformFeeCents || 0) > 0))) && (
                           <button
                             type="button"
                             onClick={() => onPay(booking.id)}
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                           >
                             <CreditCard size={16} />
-                            {booking.status === "deposit_paid"
+                            {Number(booking.pendingPlatformFeeCents || 0) > 0
+                              ? "Pay platform fee"
+                              : booking.status === "deposit_paid"
                               ? isMultiSessionBooking(booking)
                                 ? `Pay ${getSessionOrdinal(
                                     getPayableSessionNumber(booking)
@@ -683,6 +800,44 @@ const getSessionInstallmentAmount = (booking: Booking) => {
   return Math.ceil(remaining / sessionsLeft);
 };
 
+const formatCents = (amountCents?: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(amountCents || 0) / 100);
+
+const getAmendmentTitle = (amendment: ProjectAmendment) => {
+  if (amendment.type === "add_sessions") return "Add sessions";
+  if (amendment.type === "schedule_next_session") return "Schedule next session";
+  if (amendment.type === "pause_project") return "Pause project";
+  return "Resume project";
+};
+
+const getAmendmentDescription = (amendment: ProjectAmendment) => {
+  if (amendment.type === "add_sessions") {
+    return `${amendment.additionalSessionCount || 0} additional session${
+      amendment.additionalSessionCount === 1 ? "" : "s"
+    } for ${formatCents(amendment.addedArtistAmountCents)}. New project total: ${formatCents(
+      amendment.proposedPriceCents
+    )}.`;
+  }
+
+  if (amendment.type === "schedule_next_session") {
+    const date = amendment.proposedSelectedDate;
+    return date?.date && date?.time
+      ? `Proposed appointment: ${date.date} at ${date.time}.`
+      : "The artist proposed a new appointment time.";
+  }
+
+  if (amendment.type === "pause_project") {
+    return amendment.pausedUntil
+      ? `Pause this project until ${amendment.pausedUntil}.`
+      : "Pause this project for now.";
+  }
+
+  return "Resume this project.";
+};
+
 type SyncPaymentResponse = {
   paid?: boolean;
   status?: Booking["status"];
@@ -694,7 +849,8 @@ const reconcilePendingPayments = async (bookings: Booking[]) => {
       booking.paymentType === "internal" &&
       (booking.status === "pending_payment" ||
         (booking.status === "deposit_paid" &&
-          booking.checkoutPaymentMode === "remaining")) &&
+          (booking.checkoutPaymentMode === "remaining" ||
+            booking.checkoutPaymentMode === "platform_fee"))) &&
       booking.stripeCheckoutSessionId
   );
 

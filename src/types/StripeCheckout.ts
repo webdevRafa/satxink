@@ -2,7 +2,7 @@ export interface CheckoutRequestData {
   bookingId: string;
   successUrl?: string;
   cancelUrl?: string;
-  paymentMode?: "deposit" | "full" | "remaining";
+  paymentMode?: "deposit" | "full" | "remaining" | "platform_fee";
   sessionPaymentAmountCents?: number;
 
   // Legacy fields are still accepted by older callers, but the function now

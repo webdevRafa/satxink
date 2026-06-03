@@ -21,7 +21,7 @@ import {
   formatMoneyFromCents,
 } from "../../utils/paymentFees";
 
-type PaymentMode = "deposit" | "full" | "remaining";
+type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
@@ -62,9 +62,14 @@ const PaymentPage = () => {
     if (!booking) return;
     const price = Number(booking.price || 0);
     const deposit = Number(booking.depositAmount || price);
+    const hasPendingPlatformFee =
+      booking.remainingPaymentMethod === "external" &&
+      Number(booking.pendingPlatformFeeCents || 0) > 0;
     setPaymentMode(
-      booking.status === "deposit_paid" &&
-        booking.remainingPaymentMethod !== "external"
+      hasPendingPlatformFee
+        ? "platform_fee"
+        : booking.status === "deposit_paid" &&
+          booking.remainingPaymentMethod !== "external"
         ? "remaining"
         : deposit >= price
         ? "full"
@@ -82,18 +87,28 @@ const PaymentPage = () => {
   const handleCheckout = async () => {
     if (!booking) return;
 
+    const hasPendingPlatformFee =
+      booking.remainingPaymentMethod === "external" &&
+      Number(booking.pendingPlatformFeeCents || 0) > 0;
+    const checkoutPaymentMode: PaymentMode = hasPendingPlatformFee
+      ? "platform_fee"
+      : paymentMode;
+
     if (
       booking.status === "paid" ||
       booking.status === "confirmed" ||
       booking.status === "cancelled"
     ) {
-      navigate("/dashboard");
-      return;
+      if (checkoutPaymentMode !== "platform_fee" || booking.status === "cancelled") {
+        navigate("/dashboard");
+        return;
+      }
     }
 
     if (
       booking.status === "deposit_paid" &&
-      booking.remainingPaymentMethod === "external"
+      booking.remainingPaymentMethod === "external" &&
+      checkoutPaymentMode !== "platform_fee"
     ) {
       toast.success("Your remaining balance will be settled with the artist.");
       navigate("/dashboard");
@@ -103,6 +118,7 @@ const PaymentPage = () => {
     if (
       booking.status === "deposit_paid" &&
       isMultiSessionBooking(booking) &&
+      checkoutPaymentMode === "remaining" &&
       Number(booking.pendingSessionPaymentAmount || 0) <= 0
     ) {
       toast.error("The next session payment is not ready yet.");
@@ -112,11 +128,11 @@ const PaymentPage = () => {
 
     try {
       const sessionMinimum =
-        paymentMode === "remaining" && isMultiSessionBooking(booking)
+        checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
           ? getSessionInstallmentAmount(booking)
           : 0;
       const sessionAmount =
-        paymentMode === "remaining" && isMultiSessionBooking(booking)
+        checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
           ? Number(sessionPaymentAmount || 0)
           : 0;
 
@@ -140,9 +156,9 @@ const PaymentPage = () => {
       const createSession = httpsCallable(functions, "createCheckoutSession");
       const response = await createSession({
         bookingId: booking.id,
-        paymentMode,
+        paymentMode: checkoutPaymentMode,
         sessionPaymentAmountCents:
-          paymentMode === "remaining" && isMultiSessionBooking(booking)
+          checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
             ? Math.round(sessionAmount * 100)
             : undefined,
         successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
@@ -189,8 +205,16 @@ const PaymentPage = () => {
     typeof booking.externalRemainingAmount === "number"
       ? Math.max(booking.externalRemainingAmount, 0)
       : Math.max(price - deposit, 0);
+  const pendingPlatformFeeCents = Math.max(
+    Number(booking.pendingPlatformFeeCents || 0),
+    0
+  );
   const usesExternalRemaining =
     booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
+  const isPlatformFeeCheckout =
+    usesExternalRemaining &&
+    pendingPlatformFeeCents > 0 &&
+    paymentMode === "platform_fee";
   const isMultiSession = isMultiSessionBooking(booking);
   const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
   const sessionPaymentLabel = isMultiSession
@@ -206,7 +230,7 @@ const PaymentPage = () => {
   const externalBalanceDue =
     usesExternalRemaining && booking.status === "deposit_paid";
   const artistAmountDue =
-    externalBalanceDue
+    isPlatformFeeCheckout || externalBalanceDue
       ? 0
       : paymentMode === "full"
       ? price
@@ -217,7 +241,10 @@ const PaymentPage = () => {
       : deposit;
   const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
     platformFeeBaseAmount: price,
-    platformFeeCentsOverride: paymentMode === "remaining" ? 0 : undefined,
+    platformFeeCentsOverride:
+      paymentMode === "platform_fee" || paymentMode === "remaining"
+        ? pendingPlatformFeeCents
+        : undefined,
   });
   const remainingAfterPayment =
     paymentMode === "deposit" ? Math.max(price - deposit, 0) : 0;
@@ -315,7 +342,9 @@ const PaymentPage = () => {
                 </p>
                 <h2 className="mt-1 text-lg! font-semibold text-white">
                   {booking.status === "deposit_paid"
-                    ? usesExternalRemaining
+                    ? isPlatformFeeCheckout
+                      ? "Platform fee due"
+                      : usesExternalRemaining
                       ? "Balance due at the shop"
                       : isMultiSession
                       ? `Pay ${sessionPaymentLabel}`
@@ -324,7 +353,9 @@ const PaymentPage = () => {
                 </h2>
                 <p className="mt-1 text-sm text-neutral-400">
                   {booking.status === "deposit_paid"
-                    ? usesExternalRemaining
+                    ? isPlatformFeeCheckout
+                      ? "This fee covers the SATX Ink platform difference from your accepted project amendment."
+                      : usesExternalRemaining
                       ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist after the session."
                       : isMultiSession
                       ? `Your appointment is confirmed. This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
@@ -361,7 +392,9 @@ const PaymentPage = () => {
               ) : (
                 <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                   <p className="text-sm text-emerald-50/85">
-                    {usesExternalRemaining
+                    {isPlatformFeeCheckout
+                      ? "SATX Ink platform fee due today: "
+                      : usesExternalRemaining
                       ? "Remaining balance to settle with the artist: "
                       : isMultiSession
                       ? "Next session installment: "
@@ -369,14 +402,22 @@ const PaymentPage = () => {
                     <span className="font-semibold text-white">
                       {formatMoneyFromCents(
                         Math.round(
-                          (usesExternalRemaining
+                          (isPlatformFeeCheckout
+                            ? pendingPlatformFeeCents / 100
+                            : usesExternalRemaining
                             ? externalRemainingAmount
                             : paymentBreakdown.artistAmountCents / 100) * 100
                         )
                       )}
                     </span>
                   </p>
-                  {usesExternalRemaining && (
+                  {isPlatformFeeCheckout ? (
+                    <p className="mt-2 text-sm leading-6 text-emerald-50/75">
+                      This covers the SATX Ink fee from the accepted project
+                      amendment. Your artist balance is still settled directly
+                      with the artist.
+                    </p>
+                  ) : usesExternalRemaining && (
                     <p className="mt-2 text-sm leading-6 text-emerald-50/75">
                       Both you and the artist will be able to confirm the
                       external payment after the session is completed.
@@ -511,7 +552,9 @@ const PaymentPage = () => {
             <div className="space-y-2 text-sm">
               <BreakdownRow
                 label={
-                  externalBalanceDue
+                  isPlatformFeeCheckout
+                    ? "Artist amount"
+                    : externalBalanceDue
                     ? "Due at the shop"
                     :
                   paymentMode === "full"
@@ -521,7 +564,9 @@ const PaymentPage = () => {
                     : "Deposit to artist"
                 }
                 value={formatMoneyFromCents(
-                  externalBalanceDue
+                  isPlatformFeeCheckout
+                    ? 0
+                    : externalBalanceDue
                     ? Math.round(externalRemainingAmount * 100)
                     : paymentBreakdown.artistAmountCents
                 )}
@@ -529,7 +574,9 @@ const PaymentPage = () => {
               <BreakdownRow
                 label="SATX Ink platform fee"
                 value={
-                  externalBalanceDue
+                  isPlatformFeeCheckout
+                    ? formatMoneyFromCents(pendingPlatformFeeCents)
+                    : externalBalanceDue
                     ? "Collected with deposit"
                     : formatMoneyFromCents(paymentBreakdown.platformFeeCents)
                 }
@@ -537,7 +584,7 @@ const PaymentPage = () => {
               <BreakdownRow
                 label="Estimated Stripe processing"
                 value={
-                  externalBalanceDue
+                  externalBalanceDue && !isPlatformFeeCheckout
                     ? "$0.00"
                     : formatMoneyFromCents(paymentBreakdown.stripeFeeCents)
                 }
@@ -546,7 +593,9 @@ const PaymentPage = () => {
                 <BreakdownRow
                   label="Total due today"
                   value={formatMoneyFromCents(
-                    externalBalanceDue ? 0 : paymentBreakdown.clientTotalCents
+                    externalBalanceDue && !isPlatformFeeCheckout
+                      ? 0
+                      : paymentBreakdown.clientTotalCents
                   )}
                   strong
                 />
@@ -604,7 +653,9 @@ const PaymentPage = () => {
                 : isStartingCheckout
                 ? "Redirecting..."
                 : booking.status === "deposit_paid"
-                ? usesExternalRemaining
+                ? isPlatformFeeCheckout
+                  ? "Pay platform fee"
+                  : usesExternalRemaining
                   ? "Return to dashboard"
                   : isMultiSession
                   ? `Pay ${sessionPaymentLabel} installment`
