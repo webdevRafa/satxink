@@ -35,8 +35,11 @@ import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
 import ClientRequestsList from "../components/ClientRequestsList";
 import ImageCropperModal from "../components/ImageCropperModal";
+import ProjectControlsPanel from "../components/ProjectControlsPanel";
+import ProjectPauseDialog from "../components/ProjectPauseDialog";
+import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
-import { db, auth, storage } from "../firebase/firebaseConfig";
+import { db, auth, storage, functions } from "../firebase/firebaseConfig";
 import {
   collection,
   doc,
@@ -47,8 +50,9 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import type { Booking } from "../types/Booking";
+import type { Booking, ProjectAmendment } from "../types/Booking";
 import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
 
 const STYLE_OPTIONS = TATTOO_STYLES;
@@ -200,6 +204,11 @@ const ClientDashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(null);
   const [selectedSession, setSelectedSession] = useState<ClientDashboardBooking | null>(null);
+  const [sessionAmendments, setSessionAmendments] = useState<ProjectAmendment[]>([]);
+  const [scheduleProposalSession, setScheduleProposalSession] =
+    useState<ClientDashboardBooking | null>(null);
+  const [pauseSessionMode, setPauseSessionMode] =
+    useState<"pause" | "resume" | null>(null);
   const [activeView, setActiveView] = useState<ClientView>(() =>
     getClientDashboardView(searchParams.get("tab"))
   );
@@ -337,6 +346,34 @@ const ClientDashboardView = () => {
       unsubs.forEach((unsub) => unsub());
     };
   }, [client?.id]);
+
+  useEffect(() => {
+    if (!selectedSession?.id) {
+      setSessionAmendments([]);
+      return;
+    }
+
+    const amendmentsQuery = query(
+      collection(db, "bookings", selectedSession.id, "amendments"),
+      where("status", "==", "proposed")
+    );
+
+    return onSnapshot(
+      amendmentsQuery,
+      (snap) => {
+        setSessionAmendments(
+          snap.docs.map((amendmentDoc) => ({
+            id: amendmentDoc.id,
+            ...amendmentDoc.data(),
+          })) as ProjectAmendment[]
+        );
+      },
+      (error) => {
+        console.error("Client session amendment listener failed:", error);
+        setSessionAmendments([]);
+      }
+    );
+  }, [selectedSession?.id]);
 
   const updateProfileForm = (
     updater:
@@ -640,6 +677,82 @@ const ClientDashboardView = () => {
     }
   };
 
+  const handleRespondToSessionAmendment = async (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => {
+    if (!selectedSession) return;
+
+    try {
+      const respondToAmendment = httpsCallable(
+        functions,
+        "respondToProjectAmendment"
+      );
+      await respondToAmendment({
+        bookingId: selectedSession.id,
+        amendmentId,
+        response,
+      });
+      toast.success(
+        response === "accepted"
+          ? "Project amendment accepted."
+          : response === "declined"
+          ? "Project amendment declined."
+          : "Project amendment cancelled."
+      );
+    } catch (error) {
+      console.error("Client session amendment response failed:", error);
+      toast.error("Could not update the amendment.");
+    }
+  };
+
+  const handleRequestSessionProposal = async (
+    booking: Booking,
+    input: { date: string; time: string; message: string }
+  ) => {
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: booking.id,
+        type: "schedule_next_session",
+        date: input.date,
+        time: input.time,
+        sessionNumber: Math.max(Number(booking.activeSessionNumber || 1), 1),
+        message: input.message,
+      });
+      toast.success("Next-session request sent to the artist.");
+    } catch (error) {
+      console.error("Client next-session request failed:", error);
+      toast.error("Could not send the session request.");
+      throw error;
+    }
+  };
+
+  const handleSetSessionProjectPaused = async (
+    booking: Booking,
+    input: { reason: string; pausedUntil: string }
+  ) => {
+    const paused = pauseSessionMode === "pause";
+
+    try {
+      const setPaused = httpsCallable(functions, "setProjectPaused");
+      await setPaused({
+        bookingId: booking.id,
+        paused,
+        reason: input.reason,
+        pausedUntil: input.pausedUntil,
+      });
+      toast.success(paused ? "Project paused." : "Project resumed.");
+    } catch (error) {
+      console.error("Client project pause update failed:", error);
+      toast.error("Could not update project status.");
+      throw error;
+    }
+  };
+
   const profileCompletionItems = [
     Boolean(profileForm.displayName.trim()),
     Boolean(profileForm.email.trim()),
@@ -771,10 +884,29 @@ const ClientDashboardView = () => {
 
       <ClientSessionRecordDialog
         booking={selectedSession}
+        clientId={client?.id || null}
+        amendments={sessionAmendments}
         onClose={() => setSelectedSession(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
         onConfirmExternalPayment={handleConfirmExternalPayment}
         onDisputeExternalPayment={handleDisputeExternalPayment}
+        onRespondToAmendment={handleRespondToSessionAmendment}
+        onRequestNextSession={(booking) => setScheduleProposalSession(booking)}
+        onPauseProject={() => setPauseSessionMode("pause")}
+        onResumeProject={() => setPauseSessionMode("resume")}
+      />
+      <ProjectScheduleProposalDialog
+        booking={scheduleProposalSession}
+        viewerRole="client"
+        onClose={() => setScheduleProposalSession(null)}
+        onSubmit={handleRequestSessionProposal}
+      />
+      <ProjectPauseDialog
+        booking={pauseSessionMode ? selectedSession : null}
+        mode={pauseSessionMode || "pause"}
+        viewerRole="client"
+        onClose={() => setPauseSessionMode(null)}
+        onSubmit={handleSetSessionProjectPaused}
       />
     </div>
   );
@@ -1490,16 +1622,31 @@ const ClientSessionsTable = ({
 
 const ClientSessionRecordDialog = ({
   booking,
+  clientId,
+  amendments,
   onClose,
   onPay,
   onConfirmExternalPayment,
   onDisputeExternalPayment,
+  onRespondToAmendment,
+  onRequestNextSession,
+  onPauseProject,
+  onResumeProject,
 }: {
   booking: ClientDashboardBooking | null;
+  clientId: string | null;
+  amendments: ProjectAmendment[];
   onClose: () => void;
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
   onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
+  onRespondToAmendment: (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => void;
+  onRequestNextSession: (booking: ClientDashboardBooking) => void;
+  onPauseProject: () => void;
+  onResumeProject: () => void;
 }) => {
   const remainingBalance = booking ? getRemainingBalance(booking) : 0;
   const showExternalConfirmation =
@@ -1624,6 +1771,18 @@ const ClientSessionRecordDialog = ({
                             {booking.shopAddress}
                           </a>
                         )}
+
+                        <ProjectControlsPanel
+                          booking={booking}
+                          viewerRole="client"
+                          currentUserId={clientId}
+                          amendments={amendments}
+                          onRespondToAmendment={onRespondToAmendment}
+                          onPlanNextSession={() => onRequestNextSession(booking)}
+                          onPauseProject={onPauseProject}
+                          onResumeProject={onResumeProject}
+                          onPayPlatformFee={() => onPay(booking.id)}
+                        />
 
                         <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                           <div className="flex items-start justify-between gap-3">

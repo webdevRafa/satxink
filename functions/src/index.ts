@@ -1722,6 +1722,16 @@ const proposeProjectAmendment = onCall(
       const booking = bookingSnap.data() || {};
       const role = getParticipantRole(booking, uid);
 
+      if (
+        booking.status === "cancelled" ||
+        booking.status === "pending_payment"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only active paid projects can be amended."
+        );
+      }
+
       if (getProjectStatus(booking) === "completed") {
         throw new HttpsError(
           "failed-precondition",
@@ -2214,6 +2224,16 @@ const setProjectPaused = onCall(
 
       const booking = bookingSnap.data() || {};
       getParticipantRole(booking, uid);
+
+      if (
+        booking.status === "cancelled" ||
+        booking.status === "pending_payment"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only active paid projects can be paused or resumed."
+        );
+      }
 
       if (getProjectStatus(booking) === "completed") {
         throw new HttpsError(

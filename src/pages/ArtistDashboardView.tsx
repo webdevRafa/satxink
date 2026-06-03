@@ -62,7 +62,11 @@ import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
-import type { Booking } from "../types/Booking";
+import AddSessionsAmendmentDialog from "../components/AddSessionsAmendmentDialog";
+import ProjectControlsPanel from "../components/ProjectControlsPanel";
+import ProjectPauseDialog from "../components/ProjectPauseDialog";
+import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
+import type { Booking, ProjectAmendment } from "../types/Booking";
 import type { Artist } from "../types/Artist";
 import {
   TATTOO_STYLES,
@@ -322,6 +326,8 @@ const ArtistDashboardView = () => {
   const [selectedBookingRecord, setSelectedBookingRecord] =
     useState<DashboardBooking | null>(null);
   const [bookingToStart, setBookingToStart] =
+    useState<DashboardBooking | null>(null);
+  const [addSessionsBooking, setAddSessionsBooking] =
     useState<DashboardBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
@@ -1080,26 +1086,18 @@ const ArtistDashboardView = () => {
     );
   };
 
-  const handleProposeAddedSessions = async (booking: DashboardBooking) => {
-    const additionalSessionCount = Number(
-      window.prompt("How many additional sessions?", "1") || 0
-    );
-    if (!Number.isFinite(additionalSessionCount) || additionalSessionCount <= 0) {
-      toast.error("Enter a valid session count.");
-      return;
+  const handleOpenAddedSessionsModal = (booking: DashboardBooking) => {
+    setAddSessionsBooking(booking);
+  };
+
+  const handleSubmitAddedSessions = async (
+    booking: Booking,
+    input: {
+      additionalSessionCount: number;
+      addedArtistAmountCents: number;
+      message: string;
     }
-
-    const addedArtistAmount = Number(
-      window.prompt("Additional artist amount in dollars?", "0") || 0
-    );
-    if (!Number.isFinite(addedArtistAmount) || addedArtistAmount <= 0) {
-      toast.error("Enter a valid amount.");
-      return;
-    }
-
-    const message =
-      window.prompt("Optional note for the client", "")?.trim() || "";
-
+  ) => {
     try {
       const proposeAmendment = httpsCallable(
         functions,
@@ -1108,14 +1106,15 @@ const ArtistDashboardView = () => {
       await proposeAmendment({
         bookingId: booking.id,
         type: "add_sessions",
-        additionalSessionCount: Math.floor(additionalSessionCount),
-        addedArtistAmountCents: Math.round(addedArtistAmount * 100),
-        message,
+        additionalSessionCount: input.additionalSessionCount,
+        addedArtistAmountCents: input.addedArtistAmountCents,
+        message: input.message,
       });
       toast.success("Added-session amendment sent to the client.");
     } catch (error) {
       console.error("Project amendment proposal failed:", error);
       toast.error("Could not send the amendment.");
+      throw error;
     }
   };
 
@@ -1139,6 +1138,12 @@ const ArtistDashboardView = () => {
           onSave={handleAvatarCropSave}
         />
       )}
+
+      <AddSessionsAmendmentDialog
+        booking={addSessionsBooking}
+        onClose={() => setAddSessionsBooking(null)}
+        onSubmit={handleSubmitAddedSessions}
+      />
 
       <SidebarNavigation
         activeTab={activeTab}
@@ -1955,7 +1960,7 @@ const ArtistDashboardView = () => {
                     projects={visibleBookings as DashboardBooking[]}
                     onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
                     onBalancePaid={handleBalancePaidFromRow}
-                    onAddSessions={handleProposeAddedSessions}
+                    onAddSessions={handleOpenAddedSessionsModal}
                   />
                 ) : (
                   <ArtistBookingsTable
@@ -2018,6 +2023,8 @@ const ArtistDashboardView = () => {
           onClose={() => setSelectedBookingRecord(null)}
           isSessionView={activeTab === "sessions"}
           hasActiveSession={hasActiveSessionInProgress}
+          currentUserId={uid}
+          onAddSessions={handleOpenAddedSessionsModal}
           onSessionStarted={() => {
             setSelectedBookingRecord(null);
             setActiveTab("sessions");
@@ -2730,12 +2737,16 @@ const BookingRecordDialog = ({
   onClose,
   isSessionView,
   hasActiveSession,
+  currentUserId,
+  onAddSessions,
   onSessionStarted,
 }: {
   booking: DashboardBooking | null;
   onClose: () => void;
   isSessionView: boolean;
   hasActiveSession: boolean;
+  currentUserId: string | null;
+  onAddSessions: (booking: DashboardBooking) => void;
   onSessionStarted: () => void;
 }) => {
   const [sessionStatus, setSessionStatus] =
@@ -2743,11 +2754,44 @@ const BookingRecordDialog = ({
   const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
   const [isUpdatingSession, setIsUpdatingSession] = useState(false);
   const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
+  const [pendingAmendments, setPendingAmendments] = useState<ProjectAmendment[]>([]);
+  const [scheduleProposalBooking, setScheduleProposalBooking] =
+    useState<DashboardBooking | null>(null);
+  const [pauseDialogMode, setPauseDialogMode] =
+    useState<"pause" | "resume" | null>(null);
 
   useEffect(() => {
     setSessionStatus(booking?.sessionStatus || "not_started");
     setSessionPhotoUrls(booking?.sessionPhotoUrls || []);
   }, [booking]);
+
+  useEffect(() => {
+    if (!booking?.id) {
+      setPendingAmendments([]);
+      return;
+    }
+
+    const amendmentsQuery = query(
+      collection(db, "bookings", booking.id, "amendments"),
+      where("status", "==", "proposed")
+    );
+
+    return onSnapshot(
+      amendmentsQuery,
+      (snap) => {
+        setPendingAmendments(
+          snap.docs.map((amendmentDoc) => ({
+            id: amendmentDoc.id,
+            ...amendmentDoc.data(),
+          })) as ProjectAmendment[]
+        );
+      },
+      (error) => {
+        console.error("Artist project amendment listener failed:", error);
+        setPendingAmendments([]);
+      }
+    );
+  }, [booking?.id]);
 
   const clientName =
     booking?.user?.name ||
@@ -2844,8 +2888,98 @@ const BookingRecordDialog = ({
     }
   };
 
+  const handleRespondToAmendment = async (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => {
+    if (!booking) return;
+
+    try {
+      const respondToAmendment = httpsCallable(
+        functions,
+        "respondToProjectAmendment"
+      );
+      await respondToAmendment({
+        bookingId: booking.id,
+        amendmentId,
+        response,
+      });
+      toast.success(
+        response === "accepted"
+          ? "Project amendment accepted."
+          : response === "declined"
+          ? "Project amendment declined."
+          : "Project amendment cancelled."
+      );
+    } catch (error) {
+      console.error("Artist project amendment response failed:", error);
+      toast.error("Could not update the amendment.");
+    }
+  };
+
+  const handleProposeNextSession = async (
+    targetBooking: Booking,
+    input: { date: string; time: string; message: string }
+  ) => {
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: targetBooking.id,
+        type: "schedule_next_session",
+        date: input.date,
+        time: input.time,
+        sessionNumber: getActiveSessionNumber(targetBooking),
+        message: input.message,
+      });
+      toast.success("Next-session proposal sent to the client.");
+    } catch (error) {
+      console.error("Next-session proposal failed:", error);
+      toast.error("Could not send the schedule proposal.");
+      throw error;
+    }
+  };
+
+  const handleSetProjectPaused = async (
+    targetBooking: Booking,
+    input: { reason: string; pausedUntil: string }
+  ) => {
+    const paused = pauseDialogMode === "pause";
+
+    try {
+      const setPaused = httpsCallable(functions, "setProjectPaused");
+      await setPaused({
+        bookingId: targetBooking.id,
+        paused,
+        reason: input.reason,
+        pausedUntil: input.pausedUntil,
+      });
+      toast.success(paused ? "Project paused." : "Project resumed.");
+    } catch (error) {
+      console.error("Project pause update failed:", error);
+      toast.error("Could not update project status.");
+      throw error;
+    }
+  };
+
   return (
-    <Transition appear show={!!booking} as={Fragment}>
+    <>
+      <ProjectScheduleProposalDialog
+        booking={scheduleProposalBooking}
+        viewerRole="artist"
+        onClose={() => setScheduleProposalBooking(null)}
+        onSubmit={handleProposeNextSession}
+      />
+      <ProjectPauseDialog
+        booking={pauseDialogMode ? booking : null}
+        mode={pauseDialogMode || "pause"}
+        viewerRole="artist"
+        onClose={() => setPauseDialogMode(null)}
+        onSubmit={handleSetProjectPaused}
+      />
+      <Transition appear show={!!booking} as={Fragment}>
       <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
@@ -3006,6 +3140,18 @@ const BookingRecordDialog = ({
                           </p>
                         </div>
 
+                        <ProjectControlsPanel
+                          booking={booking}
+                          viewerRole="artist"
+                          currentUserId={currentUserId}
+                          amendments={pendingAmendments}
+                          onRespondToAmendment={handleRespondToAmendment}
+                          onAddSessions={() => onAddSessions(booking)}
+                          onPlanNextSession={() => setScheduleProposalBooking(booking)}
+                          onPauseProject={() => setPauseDialogMode("pause")}
+                          onResumeProject={() => setPauseDialogMode("resume")}
+                        />
+
                         {showSessionWorkspace && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <div className="flex items-start justify-between gap-3">
@@ -3106,6 +3252,7 @@ const BookingRecordDialog = ({
         </div>
       </Dialog>
     </Transition>
+    </>
   );
 };
 

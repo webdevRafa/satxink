@@ -16,6 +16,9 @@ import { httpsCallable } from "firebase/functions";
 import { toast } from "react-hot-toast";
 import { db, functions } from "../firebase/firebaseConfig";
 import type { Booking, ProjectAmendment } from "../types/Booking";
+import ProjectControlsPanel from "./ProjectControlsPanel";
+import ProjectPauseDialog from "./ProjectPauseDialog";
+import ProjectScheduleProposalDialog from "./ProjectScheduleProposalDialog";
 
 interface Props {
   clientId: string;
@@ -25,6 +28,10 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [scheduleProposalBooking, setScheduleProposalBooking] =
+    useState<Booking | null>(null);
+  const [pauseDialogMode, setPauseDialogMode] =
+    useState<"pause" | "resume" | null>(null);
   const [pendingAmendments, setPendingAmendments] = useState<ProjectAmendment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -229,7 +236,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
 
   const handleRespondToAmendment = async (
     amendmentId: string,
-    response: "accepted" | "declined"
+    response: "accepted" | "declined" | "cancelled"
   ) => {
     if (!selectedBooking) return;
 
@@ -246,11 +253,60 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       toast.success(
         response === "accepted"
           ? "Project amendment accepted."
-          : "Project amendment declined."
+          : response === "declined"
+          ? "Project amendment declined."
+          : "Project amendment cancelled."
       );
     } catch (error) {
       console.error("Project amendment response failed:", error);
       toast.error("Could not update the amendment.");
+    }
+  };
+
+  const handleRequestNextSession = async (
+    booking: Booking,
+    input: { date: string; time: string; message: string }
+  ) => {
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: booking.id,
+        type: "schedule_next_session",
+        date: input.date,
+        time: input.time,
+        sessionNumber: Math.max(Number(booking.activeSessionNumber || 1), 1),
+        message: input.message,
+      });
+      toast.success("Next-session request sent to the artist.");
+    } catch (error) {
+      console.error("Next-session request failed:", error);
+      toast.error("Could not send the session request.");
+      throw error;
+    }
+  };
+
+  const handleSetProjectPaused = async (
+    booking: Booking,
+    input: { reason: string; pausedUntil: string }
+  ) => {
+    const paused = pauseDialogMode === "pause";
+
+    try {
+      const setPaused = httpsCallable(functions, "setProjectPaused");
+      await setPaused({
+        bookingId: booking.id,
+        paused,
+        reason: input.reason,
+        pausedUntil: input.pausedUntil,
+      });
+      toast.success(paused ? "Project paused." : "Project resumed.");
+    } catch (error) {
+      console.error("Project pause update failed:", error);
+      toast.error("Could not update project status.");
+      throw error;
     }
   };
 
@@ -288,11 +344,28 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       <BookingDetailsDialog
         booking={selectedBooking}
         amendments={pendingAmendments}
+        clientId={clientId}
         onClose={() => setSelectedBooking(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
         onConfirmExternalPayment={handleConfirmExternalPayment}
         onDisputeExternalPayment={handleDisputeExternalPayment}
         onRespondToAmendment={handleRespondToAmendment}
+        onRequestNextSession={(booking) => setScheduleProposalBooking(booking)}
+        onPauseProject={() => setPauseDialogMode("pause")}
+        onResumeProject={() => setPauseDialogMode("resume")}
+      />
+      <ProjectScheduleProposalDialog
+        booking={scheduleProposalBooking}
+        viewerRole="client"
+        onClose={() => setScheduleProposalBooking(null)}
+        onSubmit={handleRequestNextSession}
+      />
+      <ProjectPauseDialog
+        booking={pauseDialogMode ? selectedBooking : null}
+        mode={pauseDialogMode || "pause"}
+        viewerRole="client"
+        onClose={() => setPauseDialogMode(null)}
+        onSubmit={handleSetProjectPaused}
       />
     </section>
   );
@@ -438,22 +511,30 @@ const BookingRow = ({
 const BookingDetailsDialog = ({
   booking,
   amendments,
+  clientId,
   onClose,
   onPay,
   onConfirmExternalPayment,
   onDisputeExternalPayment,
   onRespondToAmendment,
+  onRequestNextSession,
+  onPauseProject,
+  onResumeProject,
 }: {
   booking: Booking | null;
   amendments: ProjectAmendment[];
+  clientId: string;
   onClose: () => void;
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: Booking) => void;
   onDisputeExternalPayment: (booking: Booking) => void;
   onRespondToAmendment: (
     amendmentId: string,
-    response: "accepted" | "declined"
+    response: "accepted" | "declined" | "cancelled"
   ) => void;
+  onRequestNextSession: (booking: Booking) => void;
+  onPauseProject: () => void;
+  onResumeProject: () => void;
 }) => {
   const showExternalPaymentConfirmation =
     booking?.remainingPaymentMethod === "external" &&
@@ -533,51 +614,17 @@ const BookingDetailsDialog = ({
                           {booking.shopAddress}
                         </a>
                       )}
-                      {amendments.length > 0 && (
-                        <div className="mt-5 space-y-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
-                          <p className="text-sm font-semibold text-white">
-                            Project amendment
-                          </p>
-                          {amendments.map((amendment) => (
-                            <div
-                              key={amendment.id}
-                              className="rounded-md border border-white/10 bg-black/25 p-3"
-                            >
-                              <p className="text-sm font-semibold text-white">
-                                {getAmendmentTitle(amendment)}
-                              </p>
-                              <p className="mt-1 text-sm leading-6 text-amber-50/75">
-                                {getAmendmentDescription(amendment)}
-                              </p>
-                              {amendment.message && (
-                                <p className="mt-2 text-sm leading-6 text-neutral-300">
-                                  {amendment.message}
-                                </p>
-                              )}
-                              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onRespondToAmendment(amendment.id, "accepted")
-                                  }
-                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
-                                >
-                                  Accept
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onRespondToAmendment(amendment.id, "declined")
-                                  }
-                                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-4! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
-                                >
-                                  Decline
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <ProjectControlsPanel
+                        booking={booking}
+                        viewerRole="client"
+                        currentUserId={clientId}
+                        amendments={amendments}
+                        onRespondToAmendment={onRespondToAmendment}
+                        onPlanNextSession={() => onRequestNextSession(booking)}
+                        onPauseProject={onPauseProject}
+                        onResumeProject={onResumeProject}
+                        onPayPlatformFee={() => onPay(booking.id)}
+                      />
                       {booking.remainingPaymentMethod === "external" &&
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
@@ -798,44 +845,6 @@ const getSessionInstallmentAmount = (booking: Booking) => {
     1
   );
   return Math.ceil(remaining / sessionsLeft);
-};
-
-const formatCents = (amountCents?: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(Number(amountCents || 0) / 100);
-
-const getAmendmentTitle = (amendment: ProjectAmendment) => {
-  if (amendment.type === "add_sessions") return "Add sessions";
-  if (amendment.type === "schedule_next_session") return "Schedule next session";
-  if (amendment.type === "pause_project") return "Pause project";
-  return "Resume project";
-};
-
-const getAmendmentDescription = (amendment: ProjectAmendment) => {
-  if (amendment.type === "add_sessions") {
-    return `${amendment.additionalSessionCount || 0} additional session${
-      amendment.additionalSessionCount === 1 ? "" : "s"
-    } for ${formatCents(amendment.addedArtistAmountCents)}. New project total: ${formatCents(
-      amendment.proposedPriceCents
-    )}.`;
-  }
-
-  if (amendment.type === "schedule_next_session") {
-    const date = amendment.proposedSelectedDate;
-    return date?.date && date?.time
-      ? `Proposed appointment: ${date.date} at ${date.time}.`
-      : "The artist proposed a new appointment time.";
-  }
-
-  if (amendment.type === "pause_project") {
-    return amendment.pausedUntil
-      ? `Pause this project until ${amendment.pausedUntil}.`
-      : "Pause this project for now.";
-  }
-
-  return "Resume this project.";
 };
 
 type SyncPaymentResponse = {
