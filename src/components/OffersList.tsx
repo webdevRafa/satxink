@@ -486,7 +486,7 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(210px,1.1fr) 96px minmax(180px,.88fr) minmax(220px,1.08fr) minmax(170px,.72fr) minmax(270px,1fr)";
+    "minmax(210px,1.05fr) 96px minmax(150px,.68fr) minmax(170px,.76fr) minmax(220px,1.02fr) minmax(170px,.72fr) minmax(270px,1fr)";
 
   return (
     <>
@@ -504,13 +504,14 @@ const OffersTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1200px]">
+          <div className="min-w-[1320px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Client</span>
-              <span>Sample</span>
+              <span>Reference</span>
+              <span>Scope</span>
               <span>Price | Deposit</span>
               <span>Schedule</span>
               <span>Status</span>
@@ -636,7 +637,7 @@ const OfferRow = ({
     (option) => option.date && option.time
   );
   const isFlashOffer = offer.sourceType === "flash";
-  const isMultiSessionOffer = offer.projectType === "multi_session";
+  const scopeLabel = getOfferScopeLabel(offer);
 
   return (
     <div
@@ -684,6 +685,15 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
+          {scopeLabel.primary}
+        </p>
+        <p className="mt-1 truncate text-xs text-neutral-500">
+          {scopeLabel.secondary}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">
           ${offer.price} <span className="text-neutral-600">|</span>{" "}
           {formatDeposit(offer)}
         </p>
@@ -694,11 +704,7 @@ const OfferRow = ({
           {firstDateOption ? formatAppointment(firstDateOption, "compact") : "No date set"}
         </p>
         <p className="mt-1 truncate text-xs text-neutral-500">
-          {isFlashOffer
-            ? offer.flashTitle || "Flash item"
-            : isMultiSessionOffer
-            ? `${offer.estimatedSessionCount || 2} sessions`
-            : offer.shopName || "Shop not set"}
+          {offer.shopName || (isFlashOffer ? "Flash item" : "Shop not set")}
         </p>
       </div>
 
@@ -1273,6 +1279,40 @@ const getDeclineReasonLabel = (offer: DashboardOffer) => {
   if (offer.declinedReason === "other") return "Other";
   return "Reason not provided";
 };
+
+const getOfferScopeLabel = (offer: DashboardOffer) => {
+  if (offer.sourceType === "flash") {
+    return {
+      primary: "Flash",
+      secondary: offer.flashTitle || "Flash item",
+    };
+  }
+
+  if (
+    offer.projectType === "multi_session" ||
+    Number(offer.estimatedSessionCount || 1) > 1
+  ) {
+    const count = Math.max(Number(offer.estimatedSessionCount || 2), 2);
+
+    return {
+      primary: `${count} sessions`,
+      secondary: offer.estimatedSessionPrice
+        ? `${formatOfferMoney(Number(offer.estimatedSessionPrice))} est. each`
+        : "Multi-session",
+    };
+  }
+
+  return {
+    primary: "Single session",
+    secondary: offer.shopName || "Custom tattoo",
+  };
+};
+
+const formatOfferMoney = (amount: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(amount || 0));
 
 const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
   id: offer.requestId || offer.id,

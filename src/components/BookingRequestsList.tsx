@@ -703,11 +703,11 @@ const RequestTable = ({
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
-              <span>Created</span>
+              <span>Received</span>
               <span>Client</span>
               <span>Type</span>
               <span>Reference</span>
-              <span>Idea</span>
+              <span>Scope</span>
               <span>Availability</span>
               <span>Budget</span>
               <span className="text-right">Actions</span>
