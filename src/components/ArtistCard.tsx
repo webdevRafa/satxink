@@ -148,9 +148,7 @@ const ArtistCard = ({
               }`}
             />
             {isPreviewLoading && !previewUrl && (
-              <div className="skeleton-sheen absolute inset-0 flex items-center justify-center px-2 text-center text-[10px] font-semibold leading-tight text-neutral-400">
-                Loading preview
-              </div>
+              <div className="preview-loading-sheen absolute inset-0" />
             )}
             {(previewFailed || previewUnavailable) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-white/[0.055] via-white/[0.025] to-black/30 px-2 text-center text-[10px] font-semibold leading-tight text-neutral-500">

@@ -286,6 +286,53 @@ a.bg-white svg {
   pointer-events: none;
 }
 
+@keyframes preview-loading-flow {
+  0% {
+    opacity: 0.12;
+    transform: translateY(-120%);
+  }
+  45% {
+    opacity: 0.42;
+  }
+  100% {
+    opacity: 0.12;
+    transform: translateY(120%);
+  }
+}
+
+.preview-loading-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.09), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+}
+
+.preview-loading-sheen::before {
+  content: "";
+  position: absolute;
+  inset: -55% 0;
+  background: linear-gradient(
+    180deg,
+    transparent 18%,
+    rgba(255, 255, 255, 0.045) 38%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.045) 62%,
+    transparent 82%
+  );
+  animation: preview-loading-flow 1.35s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-loading-sheen::before {
+    animation: none;
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+}
+
 @keyframes flash-sheet-preview-in {
   from {
     opacity: 0;

@@ -1060,15 +1060,7 @@ const ArtistSpotlightCard = ({
                 className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
               />
             ) : isPreviewLoading && previewIntent.hasPreviewIntent ? (
-              <div className="skeleton-sheen flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
-                <ImageIcon
-                  className="h-9 w-9 text-[var(--color-primary-hover)]/80"
-                  aria-hidden="true"
-                />
-                <span className="max-w-44 text-sm font-medium">
-                  Loading portfolio preview
-                </span>
-              </div>
+              <div className="preview-loading-sheen h-full w-full" />
             ) : previewUnavailable && previewIntent.hasPreviewIntent ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
                 <ImageIcon
