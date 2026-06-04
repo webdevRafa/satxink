@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Brush, UserRound } from "lucide-react";
 
+import { ViewportReveal } from "../components/ViewportReveal";
 import ClientSignupPage from "./ClientSignupPage";
 import ArtistSignupPage from "./ArtistSignupPage";
 
@@ -25,83 +26,6 @@ const roleCards = [
     highlights: ["Get discovered", "Connect with clients"],
   },
 ];
-
-type RevealDirection = "up" | "left" | "right";
-
-type SignupRevealProps = {
-  children: React.ReactNode;
-  className?: string;
-  delay?: number;
-  direction?: RevealDirection;
-};
-
-const getHiddenTransform = (direction: RevealDirection) => {
-  if (direction === "left") return "translate3d(-18px, 18px, 0) scale(0.985)";
-  if (direction === "right") return "translate3d(18px, 18px, 0) scale(0.985)";
-  return "translate3d(0, 24px, 0) scale(0.99)";
-};
-
-const SignupReveal = ({
-  children,
-  className = "",
-  delay = 0,
-  direction = "up",
-}: SignupRevealProps) => {
-  const revealRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const element = revealRef.current;
-    if (!element) return;
-
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
-    if (prefersReducedMotion) {
-      setIsVisible(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      {
-        rootMargin: "0px 0px -8% 0px",
-        threshold: 0.2,
-      }
-    );
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={revealRef}
-      className={className}
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible
-          ? "translate3d(0, 0, 0) scale(1)"
-          : getHiddenTransform(direction),
-        filter: isVisible ? "blur(0px)" : "blur(10px)",
-        transitionProperty: "opacity, transform, filter",
-        transitionDuration: "850ms",
-        transitionDelay: `${delay}ms`,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-        willChange: isVisible ? "auto" : "opacity, transform, filter",
-      }}
-    >
-      {children}
-    </div>
-  );
-};
 
 export default function SignupSelection() {
   const [selectedRole, setSelectedRole] = useState<"client" | "artist" | null>(
@@ -136,7 +60,7 @@ export default function SignupSelection() {
       <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center">
         {!selectedRole && (
           <section className="w-full max-w-5xl mt-25">
-            <SignupReveal
+            <ViewportReveal
               className="mx-auto max-w-2xl lg:mb-20"
               delay={80}
               direction="up"
@@ -149,12 +73,12 @@ export default function SignupSelection() {
                 tailored discovery setup, while artists build the profile people
                 browse before they book.
               </p>
-            </SignupReveal>
+            </ViewportReveal>
 
             <div className="mt-9 grid gap-4 text-left md:grid-cols-2 px-2 md:px-5">
               {roleCards.map((card, index) => {
                 return (
-                  <SignupReveal
+                  <ViewportReveal
                     key={card.role}
                     delay={240 + index * 140}
                     direction={index === 0 ? "left" : "right"}
@@ -190,7 +114,7 @@ export default function SignupSelection() {
                         </span>
                       </div>
                     </button>
-                  </SignupReveal>
+                  </ViewportReveal>
                 );
               })}
             </div>

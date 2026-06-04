@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
+import { ViewportReveal } from "../components/ViewportReveal";
 import logo from "../assets/satx-short-sep.svg";
 import { auth, db } from "../firebase/firebaseConfig";
 import { TATTOO_STYLES } from "../types/TattooStyle";
@@ -84,39 +85,14 @@ const ArtistSignupRevealSection = ({
   benefit: ArtistSignupBenefit;
   index: number;
 }) => {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
   const BenefitIcon = benefit.icon;
-
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      {
-        rootMargin: "0px 0px -12% 0px",
-        threshold: 0.25,
-      }
-    );
-
-    observer.observe(section);
-
-    return () => observer.disconnect();
-  }, []);
+  const directions = ["left", "right", "up"] as const;
 
   return (
-    <div
-      ref={sectionRef}
-      className={`group relative grid gap-4 border-t border-white/10 py-8 text-left transition-all duration-700 ease-out sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10 ${
-        isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
-      }`}
-      style={{ transitionDelay: `${index * 90}ms` }}
+    <ViewportReveal
+      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10"
+      delay={260 + index * 140}
+      direction={directions[index] ?? "up"}
     >
       <div className="flex items-center gap-3 sm:block">
         <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-5">
@@ -134,13 +110,10 @@ const ArtistSignupRevealSection = ({
       </div>
 
       <span
-        className={`pointer-events-none absolute left-0 top-0 h-px bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent transition-all duration-700 ${
-          isVisible ? "w-36 opacity-100" : "w-0 opacity-0"
-        }`}
-        style={{ transitionDelay: `${index * 90 + 180}ms` }}
+        className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700"
         aria-hidden="true"
       />
-    </div>
+    </ViewportReveal>
   );
 };
 
@@ -424,16 +397,22 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       <div className="mx-auto w-full max-w-6xl">
         {!user && (
           <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
-            <button
-              type="button"
-              onClick={() => (onBack ? onBack() : navigate("/signup"))}
-              className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              Back
-            </button>
+            <ViewportReveal delay={40} direction="up">
+              <button
+                type="button"
+                onClick={() => (onBack ? onBack() : navigate("/signup"))}
+                className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
+              >
+                <ArrowLeft size={16} aria-hidden="true" />
+                Back
+              </button>
+            </ViewportReveal>
 
-            <div className="mt-0 max-w-3xl md:mt-5">
+            <ViewportReveal
+              className="mt-0 max-w-3xl md:mt-5"
+              delay={120}
+              direction="up"
+            >
               <h1 className="font-termina text-4xl! font-bold leading-[0.95] text-white ">
                 Make your work easier to find.
               </h1>
@@ -443,7 +422,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 specialties, and make it easier for local clients connect and
                 book.
               </p>
-            </div>
+            </ViewportReveal>
 
             <div className="mt-12 w-full max-w-3xl md:mt-16">
               {artistSignupBenefits.map((benefit, index) => (
@@ -455,7 +434,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               ))}
             </div>
 
-            <div className="mt-12 w-full max-w-2xl border-t border-white/10 pt-10 md:mt-16 md:pt-12">
+            <ViewportReveal
+              className="mt-12 w-full max-w-2xl border-t border-white/10 pt-10 md:mt-16 md:pt-12"
+              delay={720}
+              direction="up"
+            >
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
                 Get listed
               </p>
@@ -490,7 +473,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 </Link>
                 .
               </p>
-            </div>
+            </ViewportReveal>
           </section>
         )}
 
