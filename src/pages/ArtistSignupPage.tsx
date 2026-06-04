@@ -599,7 +599,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 />
                               </span>
                             </Listbox.Button>
-                            <Listbox.Options className="shop-picker-scrollbar max-h-48 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
+                            <Listbox.Options className="w-full rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
                               <div className="mb-2 border-b border-white/10 px-2 pb-2">
                                 <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
                                   Available shops

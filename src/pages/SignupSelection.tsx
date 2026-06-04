@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { ArrowRight, Brush, UserRound } from "lucide-react";
 
 import { ViewportReveal } from "../components/ViewportReveal";
@@ -43,15 +43,33 @@ export default function SignupSelection() {
   }, []);
 
   const scrollSignupToTop = () => {
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    });
+    const scrollingElement =
+      document.scrollingElement || document.documentElement;
+
+    scrollingElement.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    scrollingElement.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 
   const handleRoleSelect = (role: "client" | "artist") => {
-    setSelectedRole(role);
     scrollSignupToTop();
+    setSelectedRole(role);
   };
+
+  useLayoutEffect(() => {
+    if (!selectedRole) return undefined;
+
+    scrollSignupToTop();
+    const animationFrame = window.requestAnimationFrame(scrollSignupToTop);
+    const timeout = window.setTimeout(scrollSignupToTop, 80);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeout);
+    };
+  }, [selectedRole]);
 
   const handleBack = () => {
     setSelectedRole(null);
