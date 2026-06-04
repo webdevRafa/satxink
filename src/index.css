@@ -104,6 +104,10 @@ a.bg-white svg {
   will-change: transform;
 }
 
+.font-termina {
+  font-family: "termina", "Space Grotesk", sans-serif;
+}
+
 @keyframes flash-upload-tag-pill-in {
   from {
     opacity: 0;
