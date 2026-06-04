@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import { ArrowRight, Brush, UserRound } from "lucide-react";
 
 import { ViewportReveal } from "../components/ViewportReveal";
@@ -31,6 +38,7 @@ export default function SignupSelection() {
   const [selectedRole, setSelectedRole] = useState<"client" | "artist" | null>(
     null
   );
+  const selectedRoleTopRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const setVh = () => {
@@ -42,7 +50,7 @@ export default function SignupSelection() {
     return () => window.removeEventListener("resize", setVh);
   }, []);
 
-  const scrollSignupToTop = () => {
+  const scrollSignupToTop = useCallback(() => {
     const scrollingElement =
       document.scrollingElement || document.documentElement;
 
@@ -51,11 +59,18 @@ export default function SignupSelection() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  };
+    selectedRoleTopRef.current?.scrollIntoView({
+      block: "start",
+      inline: "nearest",
+      behavior: "auto",
+    });
+  }, []);
 
   const handleRoleSelect = (role: "client" | "artist") => {
+    flushSync(() => {
+      setSelectedRole(role);
+    });
     scrollSignupToTop();
-    setSelectedRole(role);
   };
 
   useLayoutEffect(() => {
@@ -69,7 +84,7 @@ export default function SignupSelection() {
       window.cancelAnimationFrame(animationFrame);
       window.clearTimeout(timeout);
     };
-  }, [selectedRole]);
+  }, [scrollSignupToTop, selectedRole]);
 
   const handleBack = () => {
     setSelectedRole(null);
@@ -77,8 +92,8 @@ export default function SignupSelection() {
   };
 
   const signupShellClass = selectedRole
-    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-10 text-center md:pt-12"
-    : "relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center";
+    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-10 text-center [overflow-anchor:none] md:pt-12"
+    : "relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center [overflow-anchor:none]";
 
   return (
     <div className="relative flex min-h-screen w-screen items-center justify-center overflow-x-hidden text-white">
@@ -158,13 +173,19 @@ export default function SignupSelection() {
         )}
 
         {selectedRole === "client" && (
-          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
+          <div
+            ref={selectedRoleTopRef}
+            className="relative z-20 w-full max-w-7xl scroll-mt-0 rounded-lg p-4"
+          >
             <ClientSignupPage onBack={handleBack} />
           </div>
         )}
 
         {selectedRole === "artist" && (
-          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
+          <div
+            ref={selectedRoleTopRef}
+            className="relative z-20 w-full max-w-7xl scroll-mt-0 rounded-lg p-4"
+          >
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}
