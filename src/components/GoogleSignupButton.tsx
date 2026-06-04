@@ -259,7 +259,7 @@ export const AuthProviderSignupButtons = ({
         type="button"
         onClick={() => handleProviderSignup("apple")}
         disabled={activeProvider !== null}
-        className="inline-flex h-10! min-w-[191px] items-center justify-center gap-2 rounded-[4px] border border-white/15 bg-black px-4! py-0! text-sm! font-semibold text-white shadow-sm shadow-black/20 transition duration-300 ease-in-out hover:scale-105 hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-white/30 disabled:pointer-events-none disabled:opacity-60"
+        className="inline-flex h-10! min-w-[191px] items-center justify-center gap-2 rounded-[4px] border border-white/80 bg-white px-4! py-0! text-sm! font-semibold text-[#0b0b0b] shadow-sm shadow-black/20 transition duration-300 ease-in-out hover:scale-105 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:pointer-events-none disabled:opacity-60"
         aria-label={isAppleLoading ? "Signing up with Apple" : "Sign up with Apple"}
       >
         <FaApple size={19} aria-hidden="true" />
