@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 
 // @ts-expect-error aos does not ship the type shape used by this app.
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import {
   ArrowRight,
   ChevronLeft,
@@ -75,11 +82,6 @@ const getGalleryItemTime = (item: GalleryItem) => {
 
 const getGalleryPreviewUrl = (item: GalleryItem) =>
   item.thumbUrl || item.webp90Url || item.fullUrl;
-
-const chunkArray = <T,>(items: T[], size: number) =>
-  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
-    items.slice(index * size, index * size + size)
-  );
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -359,6 +361,10 @@ export const ArtistsPage = () => {
   const [galleryPreviewByArtist, setGalleryPreviewByArtist] = useState<
     Record<string, ArtistPreview | null>
   >({});
+  const [previewLoadingByArtist, setPreviewLoadingByArtist] = useState<
+    Record<string, boolean>
+  >({});
+  const previewRequestsRef = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showInitialSkeleton, setShowInitialSkeleton] = useState(true);
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
@@ -464,16 +470,8 @@ export const ArtistsPage = () => {
     [visibleArtists]
   );
   const hasMore = visibleCount < filteredArtists.length;
-  const visibleArtistIdKey = useMemo(
-    () => visibleArtists.map((artist) => artist.id).join("|"),
-    [visibleArtists]
-  );
   const isInitialLoading = loading && artists.length === 0;
-  const previewLookupsPending =
-    visibleArtists.length > 0 &&
-    visibleArtists.some((artist) => !(artist.id in galleryPreviewByArtist));
-  const shouldHoldInitialSkeleton =
-    isInitialLoading || (showInitialSkeleton && previewLookupsPending);
+  const shouldHoldInitialSkeleton = isInitialLoading;
   const activeStyleLabel = specialtyFilter || "All styles";
   const filteredArtistLabel =
     loading && artists.length === 0
@@ -531,78 +529,61 @@ export const ArtistsPage = () => {
     return () => clearTimeout(timeout);
   }, [shouldHoldInitialSkeleton, showInitialSkeleton]);
 
-  useEffect(() => {
-    const artistIds = visibleArtistIdKey.split("|").filter(Boolean);
-    const missingArtistIds = artistIds.filter(
-      (artistId) => !(artistId in galleryPreviewByArtist)
-    );
+  const requestGalleryPreview = useCallback(
+    async (artistId: string) => {
+      if (
+        artistId in galleryPreviewByArtist ||
+        previewRequestsRef.current.has(artistId)
+      ) {
+        return;
+      }
 
-    if (missingArtistIds.length === 0) return;
+      previewRequestsRef.current.add(artistId);
+      setPreviewLoadingByArtist((current) => ({
+        ...current,
+        [artistId]: true,
+      }));
 
-    let ignore = false;
-
-    const fetchGalleryPreviews = async () => {
       try {
-        const previewByArtist: Record<string, ArtistPreview | null> = {};
-        missingArtistIds.forEach((artistId) => {
-          previewByArtist[artistId] = null;
-        });
-
-        const chunks = chunkArray(missingArtistIds, 10);
-        const snapshots = await Promise.all(
-          chunks.map((artistIdChunk) =>
-            getDocs(
-              query(
-                collection(db, "gallery"),
-                where("artistId", "in", artistIdChunk)
-              )
-            )
+        const snapshot = await getDocs(
+          query(
+            collection(db, "gallery"),
+            where("artistId", "==", artistId),
+            limit(8)
           )
         );
-
-        snapshots
-          .flatMap((snapshot) =>
-            snapshot.docs.map(
-              (doc) => ({ id: doc.id, ...doc.data() } as GalleryItem)
-            )
-          )
+        const previewItem = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
           .filter((item) => item.status !== "processing")
           .sort((a, b) => getGalleryItemTime(b) - getGalleryItemTime(a))
-          .forEach((item) => {
-            const previewUrl = getGalleryPreviewUrl(item);
-            if (!previewUrl || previewByArtist[item.artistId]) return;
+          .find((item) => getGalleryPreviewUrl(item));
+        const previewUrl = previewItem ? getGalleryPreviewUrl(previewItem) : "";
 
-            previewByArtist[item.artistId] = {
-              url: previewUrl,
-              alt: item.caption,
-            };
-          });
-
-        if (!ignore) {
-          setGalleryPreviewByArtist((current) => ({
-            ...current,
-            ...previewByArtist,
-          }));
-        }
+        setGalleryPreviewByArtist((current) => ({
+          ...current,
+          [artistId]: previewUrl
+            ? {
+                url: previewUrl,
+                alt: previewItem?.caption,
+              }
+            : null,
+        }));
       } catch (err) {
-        console.error("Failed to fetch artist gallery previews:", err);
-        if (!ignore) {
-          setGalleryPreviewByArtist((current) => ({
-            ...current,
-            ...Object.fromEntries(
-              missingArtistIds.map((artistId) => [artistId, null])
-            ),
-          }));
-        }
+        console.error("Failed to fetch artist gallery preview:", err);
+        setGalleryPreviewByArtist((current) => ({
+          ...current,
+          [artistId]: null,
+        }));
+      } finally {
+        previewRequestsRef.current.delete(artistId);
+        setPreviewLoadingByArtist((current) => ({
+          ...current,
+          [artistId]: false,
+        }));
       }
-    };
-
-    fetchGalleryPreviews();
-
-    return () => {
-      ignore = true;
-    };
-  }, [galleryPreviewByArtist, visibleArtistIdKey]);
+    },
+    [galleryPreviewByArtist]
+  );
 
   const fetchMore = useCallback(() => {
     if (loading || !hasMore) return;
@@ -804,6 +785,9 @@ export const ArtistsPage = () => {
                   if (item.type === "spotlight") {
                     const galleryPreview =
                       galleryPreviewByArtist[item.artist.id] || undefined;
+                    const previewUnavailable =
+                      item.artist.id in galleryPreviewByArtist &&
+                      !galleryPreviewByArtist[item.artist.id];
 
                     return (
                       <div
@@ -814,6 +798,11 @@ export const ArtistsPage = () => {
                         <ArtistSpotlightCard
                           artist={item.artist}
                           preview={galleryPreview}
+                          previewUnavailable={previewUnavailable}
+                          isPreviewLoading={Boolean(
+                            previewLoadingByArtist[item.artist.id]
+                          )}
+                          onPreviewIntent={requestGalleryPreview}
                         />
                       </div>
                     );
@@ -822,12 +811,20 @@ export const ArtistsPage = () => {
                   const { artist } = item;
                   const galleryPreview =
                     galleryPreviewByArtist[artist.id] || undefined;
+                  const previewUnavailable =
+                    artist.id in galleryPreviewByArtist &&
+                    !galleryPreviewByArtist[artist.id];
 
                   return (
                     <div data-aos="fade-in" key={artist.id}>
                       <ArtistPreviewCard
                         artist={artist}
                         preview={galleryPreview}
+                        previewUnavailable={previewUnavailable}
+                        isPreviewLoading={Boolean(
+                          previewLoadingByArtist[artist.id]
+                        )}
+                        onPreviewIntent={requestGalleryPreview}
                       />
                     </div>
                   );
@@ -868,36 +865,120 @@ export const ArtistsPage = () => {
 type ArtistSpotlightCardProps = {
   artist: Artist;
   preview?: ArtistPreview;
+  previewUnavailable?: boolean;
+  isPreviewLoading?: boolean;
+  onPreviewIntent: (artistId: string) => void;
 };
 
-const ArtistPreviewCard = ({ artist, preview }: ArtistSpotlightCardProps) => (
-  <Link to={`/artists/${artist.id}`}>
-    <ArtistCard
-      name={getArtistDisplayName(artist)}
-      avatarUrl={artist.avatarUrl}
-      specialties={artist.specialties}
-      likedBy={artist.likedBy || []}
-      previewUrl={preview?.url}
-      previewAlt={preview?.alt}
-    />
-  </Link>
-);
+function useArtistPreviewIntent(
+  artistId: string,
+  onPreviewIntent: (artistId: string) => void
+) {
+  const hoverIntentTimeoutRef = useRef<number | null>(null);
+  const [hasPreviewIntent, setHasPreviewIntent] = useState(false);
+  const [isPreviewActive, setIsPreviewActive] = useState(false);
 
-const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
+  const clearHoverIntentTimeout = useCallback(() => {
+    if (hoverIntentTimeoutRef.current === null) return;
+    window.clearTimeout(hoverIntentTimeoutRef.current);
+    hoverIntentTimeoutRef.current = null;
+  }, []);
+
+  const activatePreview = useCallback(() => {
+    clearHoverIntentTimeout();
+    setIsPreviewActive(true);
+    setHasPreviewIntent(true);
+    onPreviewIntent(artistId);
+  }, [artistId, clearHoverIntentTimeout, onPreviewIntent]);
+
+  const handlePointerEnter = useCallback(
+    (event: PointerEvent<HTMLAnchorElement>) => {
+      if (event.pointerType === "touch") return;
+      clearHoverIntentTimeout();
+      hoverIntentTimeoutRef.current = window.setTimeout(activatePreview, 140);
+    },
+    [activatePreview, clearHoverIntentTimeout]
+  );
+
+  const deactivatePreview = useCallback(() => {
+    clearHoverIntentTimeout();
+    setIsPreviewActive(false);
+  }, [clearHoverIntentTimeout]);
+
+  useEffect(() => clearHoverIntentTimeout, [clearHoverIntentTimeout]);
+
+  return {
+    activatePreview,
+    deactivatePreview,
+    handlePointerEnter,
+    hasPreviewIntent,
+    isPreviewActive,
+  };
+}
+
+const ArtistPreviewCard = ({
+  artist,
+  preview,
+  previewUnavailable,
+  isPreviewLoading,
+  onPreviewIntent,
+}: ArtistSpotlightCardProps) => {
+  const previewIntent = useArtistPreviewIntent(artist.id, onPreviewIntent);
+
+  return (
+    <Link
+      to={`/artists/${artist.id}`}
+      onPointerEnter={previewIntent.handlePointerEnter}
+      onPointerLeave={previewIntent.deactivatePreview}
+      onFocus={previewIntent.activatePreview}
+      onBlur={previewIntent.deactivatePreview}
+    >
+      <ArtistCard
+        name={getArtistDisplayName(artist)}
+        avatarUrl={artist.avatarUrl}
+        specialties={artist.specialties}
+        likedBy={artist.likedBy || []}
+        previewUrl={preview?.url}
+        previewAlt={preview?.alt}
+        hasPreviewIntent={previewIntent.hasPreviewIntent}
+        isPreviewActive={previewIntent.isPreviewActive}
+        isPreviewLoading={isPreviewLoading}
+        previewUnavailable={previewUnavailable}
+      />
+    </Link>
+  );
+};
+
+const ArtistSpotlightCard = ({
+  artist,
+  preview,
+  previewUnavailable,
+  isPreviewLoading,
+  onPreviewIntent,
+}: ArtistSpotlightCardProps) => {
   const { targetRef, offset } = useScrollParallax(80);
+  const previewIntent = useArtistPreviewIntent(artist.id, onPreviewIntent);
   const displayName = getArtistDisplayName(artist);
+  const shouldRenderPreview = previewIntent.hasPreviewIntent && preview?.url;
   const visibleSpecialties = getCanonicalTattooStyles(artist.specialties).slice(
     0,
     5
   );
 
   return (
-    <Link to={`/artists/${artist.id}`} className="group block">
+    <Link
+      to={`/artists/${artist.id}`}
+      className="group block"
+      onPointerEnter={previewIntent.handlePointerEnter}
+      onPointerLeave={previewIntent.deactivatePreview}
+      onFocus={previewIntent.activatePreview}
+      onBlur={previewIntent.deactivatePreview}
+    >
       <article
         ref={targetRef}
         className="relative isolate min-h-[440px] overflow-hidden rounded-lg border border-white/[0.08] bg-[#111] shadow-[0_24px_90px_rgba(0,0,0,0.45)] transition duration-500 hover:border-white/20 sm:min-h-[480px] lg:min-h-[360px]"
       >
-        {preview?.url ? (
+        {shouldRenderPreview ? (
           <img
             src={preview.url}
             alt=""
@@ -970,7 +1051,7 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
           </div>
 
           <div className="relative mx-auto h-[210px] w-full max-w-[420px] overflow-hidden rounded-lg border border-white/[0.1] bg-white/[0.045] shadow-[0_22px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.06)] sm:h-[260px] lg:mx-0">
-            {preview?.url ? (
+            {shouldRenderPreview ? (
               <img
                 src={preview.url}
                 alt={preview.alt || `${displayName} portfolio preview`}
@@ -978,6 +1059,26 @@ const ArtistSpotlightCard = ({ artist, preview }: ArtistSpotlightCardProps) => {
                 decoding="async"
                 className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
               />
+            ) : isPreviewLoading && previewIntent.hasPreviewIntent ? (
+              <div className="skeleton-sheen flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
+                <ImageIcon
+                  className="h-9 w-9 text-[var(--color-primary-hover)]/80"
+                  aria-hidden="true"
+                />
+                <span className="max-w-44 text-sm font-medium">
+                  Loading portfolio preview
+                </span>
+              </div>
+            ) : previewUnavailable && previewIntent.hasPreviewIntent ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
+                <ImageIcon
+                  className="h-9 w-9 text-[var(--color-primary-hover)]/80"
+                  aria-hidden="true"
+                />
+                <span className="max-w-44 text-sm font-medium">
+                  Portfolio preview unavailable
+                </span>
+              </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-neutral-400">
                 <ImageIcon
