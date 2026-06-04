@@ -42,7 +42,21 @@ export default function SignupSelection() {
     return () => window.removeEventListener("resize", setVh);
   }, []);
 
-  const handleBack = () => setSelectedRole(null);
+  const scrollSignupToTop = () => {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  };
+
+  const handleRoleSelect = (role: "client" | "artist") => {
+    setSelectedRole(role);
+    scrollSignupToTop();
+  };
+
+  const handleBack = () => {
+    setSelectedRole(null);
+    scrollSignupToTop();
+  };
 
   return (
     <div className="relative flex min-h-screen w-screen items-center justify-center overflow-x-hidden text-white">
@@ -57,7 +71,11 @@ export default function SignupSelection() {
       />
       <div className="fixed inset-0 bg-black/75 backdrop-blur-xs" />
 
-      <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center">
+      <div
+        className={`relative z-10 flex min-h-screen w-full flex-col items-center px-4 py-24 text-center ${
+          selectedRole ? "justify-start" : "justify-center"
+        }`}
+      >
         {!selectedRole && (
           <section className="w-full max-w-5xl mt-25">
             <ViewportReveal
@@ -86,7 +104,7 @@ export default function SignupSelection() {
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedRole(card.role)}
+                      onClick={() => handleRoleSelect(card.role)}
                       className="group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:-translate-y-1 hover:border-white/25 hover:bg-[#171717]/95 hover:shadow-black/35"
                     >
                       <span
