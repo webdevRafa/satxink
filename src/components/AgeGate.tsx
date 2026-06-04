@@ -41,7 +41,7 @@ export default function AgeGate() {
       className="fixed inset-0 z-[90] flex min-h-dvh items-center justify-center bg-black/90 px-4 py-8 text-white backdrop-blur"
     >
       <div className="w-full max-w-md rounded-lg border border-white/12 bg-[#121212] p-6 shadow-2xl shadow-black/50">
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-white/7 text-[var(--color-primary)]">
             <ShieldCheck size={22} aria-hidden="true" />
           </span>
@@ -49,15 +49,14 @@ export default function AgeGate() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
               Age confirmation
             </p>
-            <h2
-              id="age-gate-title"
-              className="mt-2 text-2xl! font-semibold leading-tight text-white"
-            >
-              SATX Ink is for visitors 18 and older.
-            </h2>
           </div>
         </div>
-
+        <h2
+          id="age-gate-title"
+          className="mt-5 text-xl! font-semibold leading-tight text-white"
+        >
+          SATX Ink is for visitors 18 and older.
+        </h2>
         <p className="mt-5 text-sm leading-6 text-neutral-300">
           This site may include tattoo and body-art imagery with mature themes.
           Please confirm that you are 18 or older before continuing.
