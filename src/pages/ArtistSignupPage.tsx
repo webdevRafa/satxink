@@ -49,26 +49,20 @@ const SPECIALTIES = TATTOO_STYLES;
 
 const artistSignupBenefits = [
   {
-    title: "Portfolio-first discovery",
-    body: "Put your work, shop, specialties, and social links in one clean profile clients can browse before they reach out.",
+    title: "Style-based discovery",
+    body: "Clients can find you by the tattoo styles you specialize in, from fine line and realism to traditional, blackwork, anime, lettering, and more.",
     icon: Images,
   },
   {
-    title: "Built around local intent",
-    body: "SATX Ink is designed for people looking for San Antonio artists, flash, and booking paths.",
+    title: "Made for San Antonio artists",
+    body: "SATX Ink is built specifically around the San Antonio tattoo scene, helping local clients discover artists nearby instead of scrolling through random social feeds.",
     icon: MapPin,
   },
   {
-    title: "A sharper booking path",
-    body: "Help clients understand your style, payment flow, and profile details before the conversation starts.",
+    title: "Turn your profile into a booking path",
+    body: "Show your portfolio, flash, shop, payment preferences, and social links in one place so clients understand your work before reaching out.",
     icon: BadgeCheck,
   },
-];
-
-const artistSignupStats = [
-  { value: "4", label: "setup steps" },
-  { value: "SATX", label: "local focus" },
-  { value: "1", label: "public profile" },
 ];
 
 const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
@@ -211,7 +205,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       Boolean(
         paymentType === "external" && selectedMethod && externalHandle.trim()
       ),
-    Boolean(displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName),
+    Boolean(
+      displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
+    ),
   ];
   const allStepsComplete = stepCompletion.every(Boolean);
   const progress = Math.round(
@@ -356,58 +352,30 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   };
 
   return (
-    <div
-      data-aos="fade-up"
-      className="w-full px-4 pb-24 pt-4 text-white"
-    >
+    <div data-aos="fade-up" className="w-full px-4 pb-24 pt-4 text-white">
       <div className="mx-auto w-full max-w-6xl">
-        <button
-          type="button"
-          onClick={() => (onBack ? onBack() : navigate("/signup"))}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          Back
-        </button>
-
         {!user && (
           <section className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-6">
             <div className="flex min-h-[440px] flex-col justify-center text-left">
               <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs uppercase tracking-[0.18em] text-neutral-300 backdrop-blur">
-                  <Sparkles
-                    size={14}
-                    className="text-[var(--color-primary)]"
-                    aria-hidden="true"
-                  />
-                  Artist signup
-                </div>
+                <button
+                  type="button"
+                  onClick={() => (onBack ? onBack() : navigate("/signup"))}
+                  className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
+                >
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  Back
+                </button>
 
-                <h1 className="font-termina mt-5 max-w-2xl text-4xl! font-bold leading-[0.95] text-white sm:text-5xl! lg:text-6xl!">
-                  Build the profile clients see before they book.
+                <h1 className="font-termina mt-5 max-w-2xl text-4xl! font-bold leading-[0.95] text-white ">
+                  Make your work easier to find.
                 </h1>
 
                 <p className="mt-5 max-w-xl text-base leading-7 text-neutral-300">
                   Join SATX Ink as an artist, connect your shop, show your
-                  specialties, and make it easier for local clients to decide
-                  you are the right fit.
+                  specialties, and make it easier for local clients connect and
+                  book.
                 </p>
-
-                <div className="mt-7 grid max-w-xl grid-cols-3 gap-2 sm:gap-3">
-                  {artistSignupStats.map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="rounded-lg border border-white/10 bg-white/[0.045] px-3 py-3 backdrop-blur"
-                    >
-                      <p className="font-termina text-xl font-bold leading-none text-white">
-                        {stat.value}
-                      </p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.13em] text-neutral-500">
-                        {stat.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -515,8 +483,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   <span>as an Artist</span>
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  Build the profile clients will see before they request,
-                  book, or follow your work.
+                  Build the profile clients will see before they request, book,
+                  or follow your work.
                 </p>
               </div>
 
@@ -602,9 +570,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                       >
                         {({ open }) => (
                           <div className="space-y-3">
-                            <Listbox.Button
-                              className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]"
-                            >
+                            <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]">
                               <span className="block truncate">
                                 {selectedShop
                                   ? selectedShop.name
@@ -689,7 +655,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           );
                         })}
                       </div>
-
                     </div>
                   )}
 
@@ -742,7 +707,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             <select
                               name="externalMethod"
                               value={selectedMethod}
-                              onChange={(e) => setSelectedMethod(e.target.value)}
+                              onChange={(e) =>
+                                setSelectedMethod(e.target.value)
+                              }
                               className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
                             >
                               <option value="">Select a method</option>
@@ -759,7 +726,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                               type="text"
                               name="externalHandle"
                               value={externalHandle}
-                              onChange={(e) => setExternalHandle(e.target.value)}
+                              onChange={(e) =>
+                                setExternalHandle(e.target.value)
+                              }
                               placeholder={
                                 selectedMethod === "zelle"
                                   ? "Email or phone number"
@@ -772,7 +741,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           </label>
                         </div>
                       )}
-
                     </div>
                   )}
 
