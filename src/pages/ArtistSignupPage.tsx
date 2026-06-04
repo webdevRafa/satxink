@@ -119,9 +119,6 @@ const ArtistSignupRevealSection = ({
       style={{ transitionDelay: `${index * 90}ms` }}
     >
       <div className="flex items-center gap-3 sm:block">
-        <span className="font-termina block text-sm font-bold text-[var(--color-primary)]">
-          0{index + 1}
-        </span>
         <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-5">
           <BenefitIcon size={21} aria-hidden="true" />
         </span>
@@ -131,7 +128,7 @@ const ArtistSignupRevealSection = ({
         <h2 className="font-termina text-xl! font-bold leading-tight text-white sm:text-2xl!">
           {benefit.title}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-400 sm:text-base">
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300! sm:text-base">
           {benefit.body}
         </p>
       </div>
@@ -437,7 +434,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             </button>
 
             <div className="mt-12 max-w-3xl md:mt-16">
-              <h1 className="font-termina text-4xl! font-bold leading-[0.95] text-white sm:text-5xl! lg:text-6xl!">
+              <h1 className="font-termina text-4xl! font-bold leading-[0.95] text-white ">
                 Make your work easier to find.
               </h1>
 
