@@ -33,6 +33,10 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import {
+  formatClientFullName,
+  getClientNameParts,
+} from "../utils/clientDisplayName";
 
 interface Props {
   isOpen: boolean;
@@ -40,6 +44,8 @@ interface Props {
   client: {
     id: string;
     name: string;
+    firstName?: string;
+    lastName?: string;
     avatarUrl: string;
   };
   artist: {
@@ -100,7 +106,12 @@ const RequestTattooModal: React.FC<Props> = ({
     () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
     [referenceImage]
   );
-  const clientName = client.name || "Client";
+  const clientNameParts = getClientNameParts(client);
+  const clientName = formatClientFullName(
+    clientNameParts.firstName,
+    clientNameParts.lastName,
+    client.name || "Client"
+  );
   const clientAvatar = client.avatarUrl || "/default-avatar.png";
   const artistName = artist.name || "Artist";
   const todayDateInput = getTodayDateInputValue();
@@ -295,6 +306,8 @@ const RequestTattooModal: React.FC<Props> = ({
         artistName,
         artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
+        clientFirstName: clientNameParts.firstName,
+        clientLastName: clientNameParts.lastName,
         clientName,
         clientAvatar,
         description,

@@ -55,6 +55,7 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import { getClientNameParts } from "../utils/clientDisplayName";
 
 const flashSizeOptions = [
   { value: "Small", label: "Small" },
@@ -87,6 +88,8 @@ interface SocialLinks {
 type ClientProfile = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   avatarUrl: string;
   likedArtists: string[];
 };
@@ -132,14 +135,13 @@ export const ArtistProfilePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
+        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
 
         setClient({
           id: user.uid,
-          name:
-            (data.name as string) ||
-            (data.displayName as string) ||
-            user.displayName ||
-            "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl:
             (data.avatarUrl as string) ||
             user.photoURL ||
@@ -150,9 +152,15 @@ export const ArtistProfilePage = () => {
         });
       } catch (err) {
         console.error("Failed to fetch client profile:", err);
+        const clientNameParts = getClientNameParts(
+          { displayName: user.displayName },
+          "Client"
+        );
         setClient({
           id: user.uid,
-          name: user.displayName || "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl: user.photoURL || "/default-avatar.png",
           likedArtists: [],
         });
@@ -1562,6 +1570,8 @@ const FlashRequestModal = ({
         artistName: getArtistDisplayName(artist),
         artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
+        clientFirstName: client.firstName || "",
+        clientLastName: client.lastName || "",
         clientName: client.name,
         clientAvatar: client.avatarUrl,
         description,

@@ -23,6 +23,7 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import logo from "../assets/satx-short-sep.svg";
 import { TATTOO_STYLES } from "../types/TattooStyle";
+import { formatClientFullName, splitFullName } from "../utils/clientDisplayName";
 
 type InterestGroup = {
   id: string;
@@ -111,9 +112,11 @@ const ClientProfileSetupPage = () => {
   const auth = getAuth();
   const user = auth.currentUser;
   const navigate = useNavigate();
+  const googleName = splitFullName(user?.displayName || "");
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [firstName, setFirstName] = useState(googleName.firstName);
+  const [lastName, setLastName] = useState(googleName.lastName);
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [preferredStyles, setPreferredStyles] = useState<string[]>([]);
@@ -135,13 +138,14 @@ const ClientProfileSetupPage = () => {
   );
 
   const stepCompletion = [
-    Boolean(displayName.trim()),
+    Boolean(firstName.trim() && lastName.trim()),
     preferredStyles.length > 0,
     selectedInterestTags.length > 0,
     selectedGoals.length > 0,
   ];
 
-  const hasRequiredBasics = Boolean(displayName.trim());
+  const hasRequiredBasics = Boolean(firstName.trim() && lastName.trim());
+  const fullName = formatClientFullName(firstName, lastName, "");
   const progress = hasRequiredBasics ? 100 : 0;
   const canContinue = currentStep === 0 ? hasRequiredBasics : true;
   const ActiveStepIcon = stepIcons[currentStep];
@@ -164,7 +168,7 @@ const ClientProfileSetupPage = () => {
   };
 
   const getStepWarning = (step: number) => {
-    if (step === 0) return "Add your display name before continuing.";
+    if (step === 0) return "Add your first and last name before continuing.";
     return "This step is optional. You can finish now or add more detail.";
   };
 
@@ -204,8 +208,10 @@ const ClientProfileSetupPage = () => {
       await setDoc(
         userRef,
         {
-          name: displayName.trim(),
-          displayName: displayName.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          name: fullName,
+          displayName: fullName,
           email: currentUser.email || "",
           avatarUrl: currentUser.photoURL || "",
           bio: bio.trim(),
@@ -352,13 +358,25 @@ const ClientProfileSetupPage = () => {
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-neutral-200">
-                        Display name
+                        First name
                       </span>
                       <input
                         type="text"
-                        value={displayName}
-                        onChange={(event) => setDisplayName(event.target.value)}
+                        value={firstName}
+                        onChange={(event) => setFirstName(event.target.value)}
                         placeholder="Ralph"
+                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Last name
+                      </span>
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(event) => setLastName(event.target.value)}
+                        placeholder="Garcia"
                         className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
                       />
                     </label>
@@ -626,12 +644,12 @@ const ClientProfileSetupPage = () => {
             <div className="flex items-center gap-4">
               <img
                 src={user?.photoURL || "/fallback-avatar.jpg"}
-                alt={displayName || user?.displayName || "Client avatar"}
+                alt={fullName || user?.displayName || "Client avatar"}
                 className="h-20 w-20 rounded-full border border-white/10 object-cover"
               />
               <div className="min-w-0">
                 <p className="truncate text-lg font-semibold text-white">
-                  {displayName || user?.displayName || "Client name"}
+                  {fullName || user?.displayName || "Client name"}
                 </p>
                 <p className="truncate text-sm text-neutral-400">
                   {user?.email || "Signed in with Google"}

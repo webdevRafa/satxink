@@ -54,6 +54,10 @@ import { httpsCallable } from "firebase/functions";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { Booking, ProjectAmendment } from "../types/Booking";
 import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
+import {
+  formatClientFullName,
+  getClientNameParts,
+} from "../utils/clientDisplayName";
 
 const STYLE_OPTIONS = TATTOO_STYLES;
 
@@ -117,6 +121,8 @@ type ClientView =
   | "sessions";
 
 type ClientProfileFormState = {
+  firstName: string;
+  lastName: string;
   displayName: string;
   email: string;
   avatarUrl: string;
@@ -182,21 +188,27 @@ const isClientDashboardView = (view: string | null): view is ClientView =>
 
 const createProfileFormState = (
   client: Partial<ClientProfile> | null
-): ClientProfileFormState => ({
-  displayName: client?.displayName || client?.name || "",
-  email: client?.email || "",
-  avatarUrl: client?.avatarUrl || "",
-  bio: client?.bio || "",
-  location: client?.location || "",
-  preferredStyles: getCanonicalTattooStyles(client?.preferredStyles),
-  interestCategories: Array.isArray(client?.interestCategories)
-    ? client.interestCategories
-    : [],
-  interestTags: Array.isArray(client?.interestTags) ? client.interestTags : [],
-  tattooGoals: Array.isArray(client?.tattooGoals) ? client.tattooGoals : [],
-  budgetRange: client?.budgetRange || "",
-  timeframe: client?.timeframe || "",
-});
+): ClientProfileFormState => {
+  const nameParts = getClientNameParts(client || {}, "");
+
+  return {
+    firstName: nameParts.firstName,
+    lastName: nameParts.lastName,
+    displayName: nameParts.fullName,
+    email: client?.email || "",
+    avatarUrl: client?.avatarUrl || "",
+    bio: client?.bio || "",
+    location: client?.location || "",
+    preferredStyles: getCanonicalTattooStyles(client?.preferredStyles),
+    interestCategories: Array.isArray(client?.interestCategories)
+      ? client.interestCategories
+      : [],
+    interestTags: Array.isArray(client?.interestTags) ? client.interestTags : [],
+    tattooGoals: Array.isArray(client?.tattooGoals) ? client.tattooGoals : [],
+    budgetRange: client?.budgetRange || "",
+    timeframe: client?.timeframe || "",
+  };
+};
 
 const ClientDashboardView = () => {
   const navigate = useNavigate();
@@ -257,11 +269,14 @@ const ClientDashboardView = () => {
       const userRef = doc(db, "users", user.uid);
       unsubscribeProfile = onSnapshot(userRef, (snap) => {
         const data = snap.exists() ? snap.data() : {};
+        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
         const nextClient = {
           id: user.uid,
           ...data,
-          name: data.name || data.displayName || user.displayName || "Client",
-          displayName: data.displayName || data.name || user.displayName || "Client",
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
+          name: clientNameParts.fullName,
+          displayName: clientNameParts.fullName,
           email: data.email || user.email || "",
           avatarUrl: data.avatarUrl || user.photoURL || "/default-avatar.png",
           bio: data.bio || "",
@@ -483,11 +498,13 @@ const ClientDashboardView = () => {
   const handleSaveProfile = async () => {
     if (!client?.id) return;
 
-    const displayName = profileForm.displayName.trim();
+    const firstName = profileForm.firstName.trim();
+    const lastName = profileForm.lastName.trim();
+    const displayName = formatClientFullName(firstName, lastName, "");
     const email = profileForm.email.trim();
 
-    if (!displayName) {
-      toast.error("Display name is required.");
+    if (!firstName || !lastName) {
+      toast.error("First and last name are required.");
       return;
     }
 
@@ -499,6 +516,8 @@ const ClientDashboardView = () => {
     setIsSavingProfile(true);
 
     const profileUpdate = {
+      firstName,
+      lastName,
       name: displayName,
       displayName,
       email,
@@ -754,7 +773,7 @@ const ClientDashboardView = () => {
   };
 
   const profileCompletionItems = [
-    Boolean(profileForm.displayName.trim()),
+    Boolean(profileForm.firstName.trim() && profileForm.lastName.trim()),
     Boolean(profileForm.email.trim()),
     Boolean(profileForm.avatarUrl.trim()),
     Boolean(profileForm.bio.trim()),
@@ -773,7 +792,11 @@ const ClientDashboardView = () => {
       ? "bg-amber-400"
       : "bg-[var(--color-primary)]";
   const isSaveDisabled =
-    !isProfileDirty || isSavingProfile || isUploadingAvatar || !profileForm.displayName.trim();
+    !isProfileDirty ||
+    isSavingProfile ||
+    isUploadingAvatar ||
+    !profileForm.firstName.trim() ||
+    !profileForm.lastName.trim();
 
   const sessions = useMemo(
     () =>
@@ -1014,17 +1037,33 @@ const ClientProfileSettings = ({
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-sm font-medium text-neutral-200">
-                Display name
+                First name
               </span>
               <input
                 type="text"
-                value={profileForm.displayName}
-                onChange={(event) => onUpdate({ displayName: event.target.value })}
+                value={profileForm.firstName}
+                onChange={(event) => onUpdate({ firstName: event.target.value })}
                 className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                placeholder="Your name"
+                placeholder="Ralph"
               />
               <span className="block text-xs text-neutral-500">
-                Required. You can change everything else later.
+                Required for booking records and artist communication.
+              </span>
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-neutral-200">
+                Last name
+              </span>
+              <input
+                type="text"
+                value={profileForm.lastName}
+                onChange={(event) => onUpdate({ lastName: event.target.value })}
+                className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                placeholder="Garcia"
+              />
+              <span className="block text-xs text-neutral-500">
+                Shown in booking records and payment context.
               </span>
             </label>
 
@@ -1301,6 +1340,9 @@ const ClientProfilePreview = ({
 }: {
   profileForm: ClientProfileFormState;
 }) => {
+  const fullName =
+    formatClientFullName(profileForm.firstName, profileForm.lastName, "") ||
+    profileForm.displayName;
   const visibleTags = [
     ...profileForm.preferredStyles,
     ...profileForm.interestTags,
@@ -1312,12 +1354,12 @@ const ClientProfilePreview = ({
       <div className="flex items-center gap-4">
         <img
           src={profileForm.avatarUrl || "/fallback-avatar.jpg"}
-          alt={profileForm.displayName || "Client avatar preview"}
+          alt={fullName || "Client avatar preview"}
           className="h-20 w-20 rounded-full border border-white/10 object-cover"
         />
         <div className="min-w-0">
           <p className="truncate text-lg font-semibold text-white">
-            {profileForm.displayName || "Display name"}
+            {fullName || "Client name"}
           </p>
           <p className="truncate text-sm text-neutral-400">
             {profileForm.email || "email@example.com"}

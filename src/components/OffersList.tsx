@@ -37,6 +37,10 @@ import { db } from "../firebase/firebaseConfig";
 import MakeOfferModal from "./MakeOfferModal";
 import type { Offer } from "../types/Offer";
 import { toast } from "react-hot-toast";
+import {
+  getClientFirstName,
+  getFullClientNameTitle,
+} from "../utils/clientDisplayName";
 import { applyOfferImageFallbacks } from "../utils/offerImageFallbacks";
 
 type FirestoreTimestampLike = {
@@ -486,7 +490,7 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(200px,1.04fr) 88px minmax(140px,.66fr) minmax(150px,.7fr) minmax(190px,.9fr) 96px minmax(230px,.82fr)";
+    "minmax(170px,.86fr) 88px minmax(140px,.66fr) minmax(150px,.7fr) minmax(210px,.96fr) 96px minmax(230px,.82fr)";
 
   return (
     <>
@@ -637,6 +641,9 @@ const OfferRow = ({
   const isFlashOffer = offer.sourceType === "flash";
   const scopeLabel = getOfferScopeLabel(offer);
   const statusTitle = getOfferStatusTitle(offer);
+  const clientName = offer.clientName || "Client";
+  const clientTableName = getClientFirstName(offer);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
 
   return (
     <div
@@ -650,12 +657,12 @@ const OfferRow = ({
       >
         <img
           src={offer.clientAvatar || "/default-avatar.png"}
-          alt={offer.clientName || "Client"}
+          alt={clientName}
           className="h-11 w-11 rounded-full border border-white/10 object-cover"
         />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-white">
-            {offer.clientName || "Client"}
+          <p className="truncate font-semibold text-white" title={clientTitle}>
+            {clientTableName}
           </p>
           <p className="text-sm text-neutral-400">
             Sent {formatShortDate(offer.createdAt)}
@@ -771,6 +778,9 @@ const OfferMobileCard = ({
   const isDeclined = offer.status === "declined";
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
+  const clientName = offer.clientName || "Client";
+  const clientTableName = getClientFirstName(offer);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
   const scopeTile = isFlashOffer
     ? {
         label: "Flash",
@@ -801,12 +811,15 @@ const OfferMobileCard = ({
           <div className="mt-3 flex min-w-0 items-center gap-3">
             <img
               src={offer.clientAvatar || "/default-avatar.png"}
-              alt={offer.clientName || "Client"}
+              alt={clientName}
               className="h-10 w-10 rounded-full border border-white/10 object-cover"
             />
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-white">
-                {offer.clientName || "Client"}
+              <p
+                className="truncate text-base font-semibold text-white"
+                title={clientTitle}
+              >
+                {clientTableName}
               </p>
               <p className="mt-0.5 truncate text-xs font-semibold text-neutral-400">
                 ${offer.price} - Deposit {formatDeposit(offer)}
@@ -1325,6 +1338,8 @@ const getOfferScopeLabel = (offer: DashboardOffer) => {
 const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
   id: offer.requestId || offer.id,
   clientId: offer.clientId,
+  clientFirstName: offer.clientFirstName || "",
+  clientLastName: offer.clientLastName || "",
   clientName: offer.clientName || "Client",
   clientAvatar: offer.clientAvatar || "/default-avatar.png",
   description: offer.message || "",

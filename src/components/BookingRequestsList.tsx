@@ -22,6 +22,10 @@ import "react-medium-image-zoom/dist/styles.css";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { db } from "../firebase/firebaseConfig";
+import {
+  getClientFirstName,
+  getFullClientNameTitle,
+} from "../utils/clientDisplayName";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -31,6 +35,8 @@ type FirestoreTimestampLike = {
 type BookingRequest = {
   id: string;
   clientId: string;
+  clientFirstName?: string;
+  clientLastName?: string;
   clientName: string;
   clientAvatar: string;
   description: string;
@@ -680,7 +686,7 @@ const RequestTable = ({
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
   const columns =
-    "minmax(82px,.34fr) minmax(210px,.92fr) minmax(82px,.32fr) minmax(74px,.3fr) minmax(150px,.58fr) minmax(205px,.8fr) minmax(110px,.4fr) minmax(282px,1fr)";
+    "minmax(82px,.34fr) minmax(150px,.55fr) minmax(82px,.32fr) minmax(74px,.3fr) minmax(150px,.58fr) minmax(270px,1fr) minmax(110px,.4fr) minmax(282px,1fr)";
 
   return (
     <>
@@ -832,6 +838,9 @@ const RequestRow = ({
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
   const canPrepareOffer = request.sourceType !== "flash";
+  const clientName = request.clientName || "Client";
+  const clientTableName = getClientFirstName(request);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
 
   return (
     <div
@@ -851,12 +860,12 @@ const RequestRow = ({
       >
         <img
           src={request.clientAvatar || "/default-avatar.png"}
-          alt={request.clientName || "Client"}
+          alt={clientName}
           className="h-11 w-11 rounded-full border border-white/10 object-cover"
         />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-white">
-            {request.clientName || "Client"}
+          <p className="truncate font-semibold text-white" title={clientTitle}>
+            {clientTableName}
           </p>
         </div>
       </button>
@@ -1001,6 +1010,9 @@ const RequestMobileCard = ({
   const previewUrl = request.thumbUrl || request.fullUrl || "";
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
   const canPrepareOffer = request.sourceType !== "flash";
+  const clientName = request.clientName || "Client";
+  const clientTableName = getClientFirstName(request);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
   const budgetLabel =
     request.sourceType === "flash"
       ? formatFlashPrice(request.flashPrice)
@@ -1025,12 +1037,15 @@ const RequestMobileCard = ({
           <div className="mt-3 flex min-w-0 items-center gap-3">
             <img
               src={request.clientAvatar || "/default-avatar.png"}
-              alt={request.clientName || "Client"}
+              alt={clientName}
               className="h-10 w-10 rounded-full border border-white/10 object-cover"
             />
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-white">
-                {request.clientName || "Client"}
+              <p
+                className="truncate text-base font-semibold text-white"
+                title={clientTitle}
+              >
+                {clientTableName}
               </p>
               <p className="mt-0.5 truncate text-xs font-semibold text-neutral-400">
                 {budgetLabel}

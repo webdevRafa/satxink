@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { app } from "../firebase/firebaseConfig";
 import google from "../assets/web_light_sq_SU.svg";
+import { splitFullName } from "../utils/clientDisplayName";
 
 type GoogleSignupButtonProps = {
   role: "client" | "artist";
@@ -30,9 +31,11 @@ export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
+        const googleName = splitFullName(user.displayName || "");
+        const fullName = googleName.fullName || user.displayName || "";
         const baseData = {
           role,
-          name: user.displayName || "",
+          name: fullName,
           email: user.email || "",
           avatarUrl: user.photoURL || "",
           createdAt: serverTimestamp(),
@@ -42,6 +45,9 @@ export const GoogleSignupButton = ({ role }: GoogleSignupButtonProps) => {
         if (role === "client") {
           await setDoc(userRef, {
             ...baseData,
+            firstName: googleName.firstName,
+            lastName: googleName.lastName,
+            displayName: fullName,
             bio: "",
             location: "",
             likedArtists: [],

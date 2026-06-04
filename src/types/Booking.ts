@@ -24,6 +24,8 @@ export type Booking = {
     artistAvatar?: string;
   
     clientId: string;
+    clientFirstName?: string;
+    clientLastName?: string;
     clientName?: string;
     clientAvatar?: string;
     offerId: string;

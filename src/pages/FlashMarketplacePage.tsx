@@ -35,6 +35,7 @@ import {
   flashPreviewCardClassName,
   getFlashTitle,
 } from "../utils/flashPreview";
+import { getClientNameParts } from "../utils/clientDisplayName";
 import {
   FlashPreviewImage,
   FlashPreviewMeta,
@@ -125,14 +126,13 @@ const FlashMarketplacePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
+        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
 
         setClient({
           id: user.uid,
-          name:
-            (data.name as string) ||
-            (data.displayName as string) ||
-            user.displayName ||
-            "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl:
             (data.avatarUrl as string) ||
             user.photoURL ||
@@ -140,9 +140,15 @@ const FlashMarketplacePage = () => {
         });
       } catch (err) {
         console.error("Failed to fetch client profile:", err);
+        const clientNameParts = getClientNameParts(
+          { displayName: user.displayName },
+          "Client"
+        );
         setClient({
           id: user.uid,
-          name: user.displayName || "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl: user.photoURL || "/default-avatar.png",
         });
       }

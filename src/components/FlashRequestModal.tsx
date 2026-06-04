@@ -17,6 +17,10 @@ import {
   getFlashRepeatability,
   isFlashAvailableForClients,
 } from "../utils/flashAvailability";
+import {
+  formatClientFullName,
+  getClientNameParts,
+} from "../utils/clientDisplayName";
 
 export type FlashRequestArtist = {
   id: string;
@@ -28,6 +32,8 @@ export type FlashRequestArtist = {
 export type FlashRequestClient = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   avatarUrl: string;
 };
 
@@ -86,6 +92,12 @@ const FlashRequestModal = ({
 
     try {
       setIsSubmitting(true);
+      const clientNameParts = getClientNameParts(client);
+      const clientName = formatClientFullName(
+        clientNameParts.firstName,
+        clientNameParts.lastName,
+        client.name || "Client"
+      );
 
       const flashSnap = await getDoc(doc(db, "flashes", flash.id));
       const latestFlash = flashSnap.exists()
@@ -106,7 +118,9 @@ const FlashRequestModal = ({
         artistName: getArtistName(artist),
         artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
-        clientName: client.name,
+        clientFirstName: clientNameParts.firstName,
+        clientLastName: clientNameParts.lastName,
+        clientName,
         clientAvatar: client.avatarUrl,
         description,
         bodyPlacement,

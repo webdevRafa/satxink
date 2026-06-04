@@ -60,6 +60,8 @@ import {
 type BookingRequest = {
   id: string;
   clientId: string;
+  clientFirstName?: string;
+  clientLastName?: string;
   clientName: string;
   clientAvatar: string;
   description: string;
@@ -471,6 +473,8 @@ const MakeOfferModal = ({
         shopAddress: shop?.address || "Unavailable",
         shopMapLink: shop?.mapLink || null,
         clientId: selectedRequest.clientId,
+        clientFirstName: selectedRequest.clientFirstName || "",
+        clientLastName: selectedRequest.clientLastName || "",
         clientName: selectedRequest.clientName,
         clientAvatar: selectedRequest.clientAvatar,
         requestId: selectedRequest.id,

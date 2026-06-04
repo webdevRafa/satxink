@@ -6,6 +6,8 @@ export type Offer = {
     displayName: string;
     artistAvatar?: string; // <-- ensure this is always a string
     clientId: string;
+    clientFirstName?: string;
+    clientLastName?: string;
     clientName?: string;
 clientAvatar?: string;
     requestId: string;

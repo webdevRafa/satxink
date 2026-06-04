@@ -73,6 +73,11 @@ import {
   getCanonicalTattooStyles,
   getTattooStyleLabel,
 } from "../types/TattooStyle";
+import {
+  getClientFirstName,
+  getClientNameParts,
+  getFullClientNameTitle,
+} from "../utils/clientDisplayName";
 
 const SPECIALTY_OPTIONS = TATTOO_STYLES;
 
@@ -216,6 +221,8 @@ type DashboardArtist = {
 type DashboardBookingRequest = {
   id: string;
   clientId: string;
+  clientFirstName?: string;
+  clientLastName?: string;
   clientName: string;
   clientAvatar: string;
   description: string;
@@ -910,7 +917,13 @@ const ArtistDashboardView = () => {
 
         const clientMap = new Map<
           string,
-          { name?: string; displayName?: string; avatarUrl?: string }
+          {
+            firstName?: string;
+            lastName?: string;
+            name?: string;
+            displayName?: string;
+            avatarUrl?: string;
+          }
         >();
 
         await Promise.all(
@@ -919,6 +932,8 @@ const ArtistDashboardView = () => {
               const clientSnap = await getDoc(doc(db, "users", clientId));
               if (clientSnap.exists()) {
                 const user = clientSnap.data() as {
+                  firstName?: string;
+                  lastName?: string;
                   name?: string;
                   displayName?: string;
                   avatarUrl?: string;
@@ -935,11 +950,17 @@ const ArtistDashboardView = () => {
         setBookings(
           scopedBookings.map((booking) => {
             const user = clientMap.get(booking.clientId);
+            const clientNameParts = getClientNameParts({
+              ...booking,
+              ...user,
+            });
 
             return {
               ...booking,
               user,
-              clientName: user?.name || user?.displayName || "Client",
+              clientFirstName: clientNameParts.firstName,
+              clientLastName: clientNameParts.lastName,
+              clientName: clientNameParts.fullName,
               clientAvatar: user?.avatarUrl || "/default-avatar.png",
             };
           }) as Booking[]
@@ -1002,13 +1023,17 @@ const ArtistDashboardView = () => {
     const filteredBookings = shouldApplySearch
       ? statusFilteredBookings.filter((booking) => {
           const dashboardBooking = booking as DashboardBooking;
-          const clientName =
-            dashboardBooking.user?.name ||
-            dashboardBooking.user?.displayName ||
-            dashboardBooking.clientName ||
+          const clientName = getDashboardClientName(dashboardBooking);
+          const clientFirstName = getDashboardClientFirstName(dashboardBooking);
+          const clientLastName =
+            dashboardBooking.user?.lastName ||
+            dashboardBooking.clientLastName ||
             "";
 
-          return clientName.toLowerCase().includes(normalizedSearch);
+          return [clientName, clientFirstName, clientLastName]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedSearch);
         })
       : statusFilteredBookings;
 
@@ -2205,9 +2230,17 @@ const ArtistDashboardView = () => {
 };
 
 type DashboardBooking = Booking & {
+  clientFirstName?: string;
+  clientLastName?: string;
   clientName?: string;
   clientAvatar?: string;
-  user?: { name?: string; displayName?: string; avatarUrl?: string };
+  user?: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
   message?: string;
   description?: string;
 };
@@ -2307,6 +2340,9 @@ const ArtistBookingRow = ({
   const canViewInSessions = canStartBookingSession(booking);
   const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
   const canOpenInProjects = isOngoingProjectBooking(booking);
+  const clientName = getDashboardClientName(booking);
+  const clientTableName = getDashboardClientFirstName(booking);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
 
   return (
     <div
@@ -2320,12 +2356,12 @@ const ArtistBookingRow = ({
       >
         <img
           src={getDashboardClientAvatar(booking)}
-          alt={getDashboardClientName(booking)}
+          alt={clientName}
           className="h-11 w-11 rounded-full border border-white/10 object-cover"
         />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-white">
-            {getDashboardClientName(booking)}
+          <p className="truncate font-semibold text-white" title={clientTitle}>
+            {clientTableName}
           </p>
           <p className="text-sm text-neutral-400">
             Created {formatDashboardDate(booking.createdAt || booking.paidAt)}
@@ -2830,42 +2866,50 @@ const SessionClientCell = ({
   clientName: string;
   clientAvatar: string;
   onOpenRecord: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onOpenRecord}
-    className="flex min-w-0 items-center gap-3 pr-4 text-left"
-  >
-    <span className="flex min-w-0 items-center gap-3">
-      <img
-        src={clientAvatar}
-        alt={clientName}
-        className="h-11 w-11 rounded-full border border-white/10 object-cover"
-      />
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-white">
-          {clientName}
-        </span>
-        <span className="mt-0.5 block truncate text-xs uppercase tracking-[0.12em] text-neutral-500">
-          Booking {getShortBookingId(booking.id)}
+}) => {
+  const clientTableName = getDashboardClientFirstName(booking);
+  const clientTitle = getFullClientNameTitle(clientName, clientTableName);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenRecord}
+      className="flex min-w-0 items-center gap-3 pr-4 text-left"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <img
+          src={clientAvatar}
+          alt={clientName}
+          className="h-11 w-11 rounded-full border border-white/10 object-cover"
+        />
+        <span className="min-w-0">
+          <span
+            className="block truncate text-sm font-semibold text-white"
+            title={clientTitle}
+          >
+            {clientTableName}
+          </span>
+          <span className="mt-0.5 block truncate text-xs uppercase tracking-[0.12em] text-neutral-500">
+            Booking {getShortBookingId(booking.id)}
+          </span>
         </span>
       </span>
-    </span>
-    <span className="ml-auto hidden h-14 w-16 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] sm:block">
-      {booking.sampleImageUrl ? (
-        <img
-          src={booking.sampleImageUrl}
-          alt="Session reference"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center text-neutral-500">
-          <ImageIcon size={17} />
-        </span>
-      )}
-    </span>
-  </button>
-);
+      <span className="ml-auto hidden h-14 w-16 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] sm:block">
+        {booking.sampleImageUrl ? (
+          <img
+            src={booking.sampleImageUrl}
+            alt="Session reference"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-neutral-500">
+            <ImageIcon size={17} />
+          </span>
+        )}
+      </span>
+    </button>
+  );
+};
 
 const SessionAppointmentCell = ({ booking }: { booking: DashboardBooking }) => {
   const appointment = getSessionAppointmentDisplay(booking);
@@ -2959,6 +3003,11 @@ const ProjectsTable = ({
             <div className="divide-y divide-white/10">
               {projects.map((booking) => {
                 const clientName = getDashboardClientName(booking);
+                const clientTableName = getDashboardClientFirstName(booking);
+                const clientTitle = getFullClientNameTitle(
+                  clientName,
+                  clientTableName
+                );
                 const clientAvatar = getDashboardClientAvatar(booking);
                 const completedCount = Number(booking.completedSessionCount || 0);
                 const sessionCount = getEstimatedSessionCount(booking);
@@ -2985,8 +3034,11 @@ const ProjectsTable = ({
                         className="h-11 w-11 rounded-full border border-white/10 object-cover"
                       />
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold text-white">
-                          {clientName}
+                        <span
+                          className="block truncate font-semibold text-white"
+                          title={clientTitle}
+                        >
+                          {clientTableName}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-neutral-500">
                           {getProjectStartLabel(booking)}
@@ -3265,11 +3317,7 @@ const BookingRecordDialog = ({
     );
   }, [booking?.id]);
 
-  const clientName =
-    booking?.user?.name ||
-    booking?.user?.displayName ||
-    booking?.clientName ||
-    "Client";
+  const clientName = booking ? getDashboardClientName(booking) : "Client";
   const clientAvatar =
     booking?.user?.avatarUrl ||
     booking?.clientAvatar ||
@@ -3874,10 +3922,22 @@ const getBookingStatusFilterValue = (
 };
 
 const getDashboardClientName = (booking: DashboardBooking) =>
-  booking.user?.name ||
-  booking.user?.displayName ||
-  booking.clientName ||
-  "Client";
+  getClientNameParts({
+    ...booking,
+    ...booking.user,
+    clientFirstName: booking.clientFirstName,
+    clientLastName: booking.clientLastName,
+    clientName: booking.clientName,
+  }).fullName;
+
+const getDashboardClientFirstName = (booking: DashboardBooking) =>
+  getClientFirstName({
+    ...booking,
+    ...booking.user,
+    clientFirstName: booking.clientFirstName,
+    clientLastName: booking.clientLastName,
+    clientName: booking.clientName,
+  });
 
 const getDashboardClientAvatar = (booking: DashboardBooking) =>
   booking.user?.avatarUrl || booking.clientAvatar || "/default-avatar.png";

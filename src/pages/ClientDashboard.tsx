@@ -28,6 +28,7 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import { getClientNameParts } from "../utils/clientDisplayName";
 
 interface Artist {
   id: string;
@@ -38,7 +39,10 @@ interface Artist {
 
 interface Client {
   id: string;
+  firstName?: string;
+  lastName?: string;
   name: string;
+  displayName?: string;
   email: string;
   avatarUrl: string;
   preferredStyles: string[];
@@ -186,7 +190,16 @@ export default function ClientDashboard() {
       const clientSnap = await getDoc(clientRef);
       if (!clientSnap.exists()) return;
 
-      const clientData = { id: user.uid, ...clientSnap.data() } as Client;
+      const data = clientSnap.data();
+      const clientNameParts = getClientNameParts(data, user.displayName || "Client");
+      const clientData = {
+        id: user.uid,
+        ...data,
+        firstName: clientNameParts.firstName,
+        lastName: clientNameParts.lastName,
+        name: clientNameParts.fullName,
+        displayName: clientNameParts.fullName,
+      } as Client;
       setClient(clientData);
 
       const liked = await Promise.all(
@@ -269,10 +282,13 @@ export default function ClientDashboard() {
     }
 
     try {
+      const clientNameParts = getClientNameParts(client);
       const reqRef = await addDoc(collection(db, "bookingRequests"), {
         artistId: selectedArtist.id,
         clientId: client.id,
-        clientName: client.name,
+        clientFirstName: clientNameParts.firstName,
+        clientLastName: clientNameParts.lastName,
+        clientName: clientNameParts.fullName,
         clientAvatar: client.avatarUrl,
         ...modalData,
         availableTime,

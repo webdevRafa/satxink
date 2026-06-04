@@ -90,8 +90,9 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
             </div>
 
             <p className="mt-4 max-w-xl text-xs! leading-5 text-neutral-500!">
-              We only collect your name, profile picture, and email from Google
-              to set up your account. By signing up, you agree to our{" "}
+              We collect your first name, last name, profile picture, and email
+              from Google to set up your account. By signing up, you agree to
+              our{" "}
               <Link
                 to="/terms"
                 target="_blank"
