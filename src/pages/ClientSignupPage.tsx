@@ -101,21 +101,10 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
             </h1>
 
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-neutral-300">
-              Build a taste profile for your next tattoo. We will use your
-              style picks, interests, and inspiration tags to make browsing feel
-              more personal as artists add more work to SATX Ink.
+              Browse real artist work, compare styles, and request your next
+              tattoo with less guesswork.
             </p>
           </ViewportReveal>
-
-          <div className="mt-12 w-full max-w-3xl md:mt-16">
-            {clientBenefits.map((benefit, index) => (
-              <ClientSignupRevealSection
-                key={benefit.title}
-                benefit={benefit}
-                index={index}
-              />
-            ))}
-          </div>
 
           <ViewportReveal
             className="mt-12 w-full max-w-2xl border-t border-white/10 pt-10 md:mt-16 md:pt-12"
@@ -123,7 +112,7 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
             direction="up"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
-              Browse and book
+              Browse / book
             </p>
             <h2 className="mt-4 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold leading-tight text-white sm:text-4xl!">
               <span>Join</span>
@@ -158,6 +147,16 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
               .
             </p>
           </ViewportReveal>
+
+          <div className="mt-12 w-full max-w-3xl md:mt-16">
+            {clientBenefits.map((benefit, index) => (
+              <ClientSignupRevealSection
+                key={benefit.title}
+                benefit={benefit}
+                index={index}
+              />
+            ))}
+          </div>
         </section>
       </div>
     </div>
