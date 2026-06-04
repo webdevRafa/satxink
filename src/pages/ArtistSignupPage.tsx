@@ -584,7 +584,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         onChange={(shop) => setSelectedShop(shop)}
                       >
                         {({ open }) => (
-                          <div className="relative space-y-3">
+                          <div className="space-y-3">
                             <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]">
                               <span className="block truncate">
                                 {selectedShop
@@ -599,7 +599,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 />
                               </span>
                             </Listbox.Button>
-                            <Listbox.Options className="shop-picker-scrollbar absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 max-h-60 overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
+                            <Listbox.Options className="shop-picker-scrollbar max-h-48 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
                               <div className="mb-2 border-b border-white/10 px-2 pb-2">
                                 <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
                                   Available shops

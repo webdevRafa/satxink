@@ -58,6 +58,10 @@ export default function SignupSelection() {
     scrollSignupToTop();
   };
 
+  const signupShellClass = selectedRole
+    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-10 text-center md:pt-12"
+    : "relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center";
+
   return (
     <div className="relative flex min-h-screen w-screen items-center justify-center overflow-x-hidden text-white">
       <video
@@ -71,11 +75,7 @@ export default function SignupSelection() {
       />
       <div className="fixed inset-0 bg-black/75 backdrop-blur-xs" />
 
-      <div
-        className={`relative z-10 flex min-h-screen w-full flex-col items-center px-4 py-24 text-center ${
-          selectedRole ? "justify-start" : "justify-center"
-        }`}
-      >
+      <div className={signupShellClass}>
         {!selectedRole && (
           <section className="w-full max-w-5xl mt-25">
             <ViewportReveal
