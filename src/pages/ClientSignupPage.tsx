@@ -83,16 +83,16 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
             <div className="mt-7 flex flex-col gap-4 border-y border-white/10 py-6 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold text-white">
-                  Start with Google or Apple
+                  Start with Google
                 </p>
               </div>
               <AuthProviderSignupButtons role="client" />
             </div>
 
             <p className="mt-4 max-w-xl text-xs! leading-5 text-neutral-500!">
-              We collect your first name, last name, email, and profile picture
-              when your sign-in provider shares it to set up your account. By
-              signing up, you agree to our{" "}
+              We collect your first name, last name, profile picture, and email
+              from Google to set up your account. By signing up, you agree to
+              our{" "}
               <Link
                 to="/terms"
                 target="_blank"

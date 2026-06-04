@@ -3,9 +3,7 @@ import {
   getAdditionalUserInfo,
   getAuth,
   GoogleAuthProvider,
-  OAuthProvider,
   signInWithPopup,
-  type AuthProvider,
   type UserCredential,
 } from "firebase/auth";
 import {
@@ -16,14 +14,12 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import { FaApple } from "react-icons/fa";
 
 import { app } from "../firebase/firebaseConfig";
 import google from "../assets/web_light_sq_SU.svg";
 import { splitFullName } from "../utils/clientDisplayName";
 
 type SignupRole = "client" | "artist";
-type SignupProviderId = "google" | "apple";
 
 type SignupButtonProps = {
   role: SignupRole;
@@ -44,65 +40,23 @@ const getProfileValue = (profile: unknown, key: string) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
-const getProfileNameObjectValue = (profile: unknown) => {
-  if (!profile || typeof profile !== "object") return "";
-  const name = (profile as ProfileRecord).name;
-  if (!name || typeof name !== "object") return "";
-
-  const nameRecord = name as ProfileRecord;
-  const firstName =
-    typeof nameRecord.firstName === "string" ? nameRecord.firstName.trim() : "";
-  const lastName =
-    typeof nameRecord.lastName === "string" ? nameRecord.lastName.trim() : "";
-
-  return [firstName, lastName].filter(Boolean).join(" ");
-};
-
-const getCredentialDisplayName = (
-  result: UserCredential,
-  providerId: SignupProviderId
-) => {
-  const firebaseProviderId = providerId === "apple" ? "apple.com" : "google.com";
-  const providerProfile = result.user.providerData.find(
-    (provider) => provider.providerId === firebaseProviderId
+const getCredentialDisplayName = (result: UserCredential) => {
+  const googleProfile = result.user.providerData.find(
+    (provider) => provider.providerId === "google.com"
   );
   const profile = getAdditionalUserInfo(result)?.profile;
-  const givenName =
-    getProfileValue(profile, "given_name") ||
-    getProfileValue(profile, "first_name");
-  const familyName =
-    getProfileValue(profile, "family_name") ||
-    getProfileValue(profile, "last_name");
-  const profileFullName = [givenName, familyName].filter(Boolean).join(" ");
 
   return (
     result.user.displayName ||
-    providerProfile?.displayName ||
+    googleProfile?.displayName ||
     getProfileValue(profile, "name") ||
-    getProfileNameObjectValue(profile) ||
-    profileFullName ||
     ""
   );
 };
 
-const createSignupProvider = (providerId: SignupProviderId): AuthProvider => {
-  if (providerId === "apple") {
-    const appleProvider = new OAuthProvider("apple.com");
-    appleProvider.addScope("email");
-    appleProvider.addScope("name");
-    return appleProvider;
-  }
-
-  return new GoogleAuthProvider();
-};
-
-const createClientProfile = (
-  role: SignupRole,
-  result: UserCredential,
-  providerId: SignupProviderId
-) => {
+const createClientProfile = (role: SignupRole, result: UserCredential) => {
   const user = result.user;
-  const providerDisplayName = getCredentialDisplayName(result, providerId);
+  const providerDisplayName = getCredentialDisplayName(result);
   const providerName = splitFullName(providerDisplayName);
   const fullName = providerName.fullName || providerDisplayName || "";
   const baseData = {
@@ -144,12 +98,9 @@ const createClientProfile = (
   };
 };
 
-const createArtistProfile = (
-  result: UserCredential,
-  providerId: SignupProviderId
-) => {
+const createArtistProfile = (result: UserCredential) => {
   const user = result.user;
-  const providerDisplayName = getCredentialDisplayName(result, providerId);
+  const providerDisplayName = getCredentialDisplayName(result);
 
   return {
     avatarUrl: user.photoURL || "",
@@ -175,27 +126,26 @@ const createArtistProfile = (
   };
 };
 
-const useProviderSignup = (role: SignupRole) => {
+const useGoogleSignup = (role: SignupRole) => {
   const navigate = useNavigate();
-  const [activeProvider, setActiveProvider] =
-    useState<SignupProviderId | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const handleProviderSignup = async (providerId: SignupProviderId) => {
-    setActiveProvider(providerId);
+  const handleGoogleSignup = async () => {
+    setIsSigningIn(true);
 
     try {
-      const result = await signInWithPopup(auth, createSignupProvider(providerId));
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const userRef = doc(db, "users", result.user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
         if (role === "client") {
-          await setDoc(userRef, createClientProfile(role, result, providerId));
+          await setDoc(userRef, createClientProfile(role, result));
           navigate("/client-profile-setup");
           return;
         }
 
-        await setDoc(userRef, createArtistProfile(result, providerId));
+        await setDoc(userRef, createArtistProfile(result));
         return;
       }
 
@@ -206,27 +156,26 @@ const useProviderSignup = (role: SignupRole) => {
         navigate(isComplete ? "/dashboard" : "/client-profile-setup");
       }
     } catch (error) {
-      console.error(`${providerId} signup failed:`, error);
+      console.error("Google signup failed:", error);
     } finally {
-      setActiveProvider(null);
+      setIsSigningIn(false);
     }
   };
 
-  return { activeProvider, handleProviderSignup };
+  return { isSigningIn, handleGoogleSignup };
 };
 
 export const GoogleSignupButton = ({ role }: SignupButtonProps) => {
-  const { activeProvider, handleProviderSignup } = useProviderSignup(role);
-  const isLoading = activeProvider === "google";
+  const { isSigningIn, handleGoogleSignup } = useGoogleSignup(role);
 
   return (
     <button
       type="button"
-      onClick={() => handleProviderSignup("google")}
-      disabled={activeProvider !== null}
+      onClick={handleGoogleSignup}
+      disabled={isSigningIn}
       className="mx-auto flex items-center justify-center transition duration-300 ease-in-out hover:scale-105 focus:outline-none disabled:pointer-events-none disabled:opacity-60"
       style={{ height: "40px", width: "auto" }}
-      aria-label={isLoading ? "Signing up with Google" : "Sign up with Google"}
+      aria-label={isSigningIn ? "Signing up with Google" : "Sign up with Google"}
     >
       <img src={google} alt="Sign up with Google" className="h-10 w-auto" />
     </button>
@@ -237,34 +186,9 @@ export const AuthProviderSignupButtons = ({
   role,
   className = "",
 }: AuthProviderSignupButtonsProps) => {
-  const { activeProvider, handleProviderSignup } = useProviderSignup(role);
-  const isAppleLoading = activeProvider === "apple";
-
   return (
-    <div
-      className={`flex flex-col items-center justify-center gap-3 sm:flex-row ${className}`}
-    >
-      <button
-        type="button"
-        onClick={() => handleProviderSignup("google")}
-        disabled={activeProvider !== null}
-        className="flex items-center justify-center transition duration-300 ease-in-out hover:scale-105 focus:outline-none disabled:pointer-events-none disabled:opacity-60"
-        style={{ height: "40px", width: "auto" }}
-        aria-label="Sign up with Google"
-      >
-        <img src={google} alt="Sign up with Google" className="h-10 w-auto" />
-      </button>
-
-      <button
-        type="button"
-        onClick={() => handleProviderSignup("apple")}
-        disabled={activeProvider !== null}
-        className="inline-flex h-10! min-w-[191px] items-center justify-center gap-2 rounded-[4px] border border-white/80 bg-white px-4! py-0! text-sm! font-semibold text-[#0b0b0b] shadow-sm shadow-black/20 transition duration-300 ease-in-out hover:scale-105 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:pointer-events-none disabled:opacity-60"
-        aria-label={isAppleLoading ? "Signing up with Apple" : "Sign up with Apple"}
-      >
-        <FaApple size={19} aria-hidden="true" />
-        <span>{isAppleLoading ? "Opening Apple..." : "Sign up with Apple"}</span>
-      </button>
+    <div className={`flex items-center justify-center ${className}`}>
+      <GoogleSignupButton role={role} />
     </div>
   );
 };
