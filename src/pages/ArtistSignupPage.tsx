@@ -23,7 +23,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { GoogleSignupButton } from "../components/GoogleSignupButton";
+import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
 import logo from "../assets/satx-short-sep.svg";
 import { auth, db } from "../firebase/firebaseConfig";
 import { TATTOO_STYLES } from "../types/TattooStyle";
@@ -469,17 +469,18 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 <span>as an Artist</span>
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
-                Start with Google, then complete a guided profile setup for
-                shop, style, payments, and bio.
+                Start with Google or Apple, then complete a guided profile
+                setup for shop, style, payments, and bio.
               </p>
 
               <div className="mt-7 flex justify-center">
-                <GoogleSignupButton role="artist" />
+                <AuthProviderSignupButtons role="artist" />
               </div>
 
               <p className="mx-auto mt-6 max-w-md text-xs! leading-5 text-neutral-500!">
-                We only collect your name, profile picture, and email from
-                Google to set up your account. By signing up, you agree to our{" "}
+                We only collect your name, email, and profile picture when your
+                sign-in provider shares it to set up your account. By signing
+                up, you agree to our{" "}
                 <Link
                   to="/terms"
                   target="_blank"

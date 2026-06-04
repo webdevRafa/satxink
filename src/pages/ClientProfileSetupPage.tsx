@@ -652,7 +652,7 @@ const ClientProfileSetupPage = () => {
                   {fullName || user?.displayName || "Client name"}
                 </p>
                 <p className="truncate text-sm text-neutral-400">
-                  {user?.email || "Signed in with Google"}
+                  {user?.email || "Signed in securely"}
                 </p>
               </div>
             </div>
