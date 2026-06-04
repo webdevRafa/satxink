@@ -29,7 +29,10 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  isStripeConnectReady,
+  type StripeConnectLike,
+} from "../utils/stripeConnect";
 import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
   flashPreviewCardClassName,
@@ -126,7 +129,10 @@ const FlashMarketplacePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
-        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
+        const clientNameParts = getClientNameParts(
+          data,
+          user.displayName || "Client"
+        );
 
         setClient({
           id: user.uid,
@@ -249,7 +255,9 @@ const FlashMarketplacePage = () => {
     [...flashes, ...sheets].forEach((item) => {
       (item.tags || []).forEach((tag) => tagSet.add(tag));
     });
-    return Array.from(tagSet).sort((a, b) => a.localeCompare(b)).slice(0, 18);
+    return Array.from(tagSet)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, 18);
   }, [flashes, sheets]);
 
   const filteredFlashes = useMemo(() => {
@@ -337,7 +345,7 @@ const FlashMarketplacePage = () => {
 
         <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
           <div className="max-w-3xl pb-2">
-            <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
+            <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! text-4xl">
               Flash Marketplace
             </h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
@@ -362,7 +370,10 @@ const FlashMarketplacePage = () => {
             </dl>
           </div>
 
-          <div className="relative hidden h-[240px] lg:block" aria-hidden="true">
+          <div
+            className="relative hidden h-[240px] lg:block"
+            aria-hidden="true"
+          >
             <div className="absolute right-0 top-2 z-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
               <Tag
                 className="h-4 w-4 text-[var(--color-primary-hover)]"
@@ -436,7 +447,9 @@ const FlashMarketplacePage = () => {
               />
               <select
                 value={priceSort}
-                onChange={(event) => setPriceSort(event.target.value as PriceSort)}
+                onChange={(event) =>
+                  setPriceSort(event.target.value as PriceSort)
+                }
                 disabled={activeTab === "sheets"}
                 className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-40 focus:border-white/30"
               >
@@ -726,7 +739,9 @@ const FlashPager = ({
           {pageSize}/page
           <ChevronRight
             size={13}
-            className={`transition ${pageSizeMenuOpen ? "-rotate-90" : "rotate-90"}`}
+            className={`transition ${
+              pageSizeMenuOpen ? "-rotate-90" : "rotate-90"
+            }`}
           />
         </button>
         {pageSizeMenuOpen && (
@@ -923,7 +938,10 @@ const matchesSearchAndTag = (
     .join(" ")
     .toLowerCase();
 
-  return matchesTag && (!normalizedSearch || searchableText.includes(normalizedSearch));
+  return (
+    matchesTag &&
+    (!normalizedSearch || searchableText.includes(normalizedSearch))
+  );
 };
 
 const isMarketplaceReady = (item: MarketFlash | MarketFlashSheet) => {

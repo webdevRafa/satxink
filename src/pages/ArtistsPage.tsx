@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // @ts-expect-error aos does not ship the type shape used by this app.
 import AOS from "aos";
@@ -18,13 +12,11 @@ import {
   Image as ImageIcon,
   Palette,
   Search,
-  Sparkles,
   Users,
 } from "lucide-react";
 import CountUp from "react-countup";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
-import gun from "../assets/white-gun.svg";
 import sa from "../assets/san-antonio.svg";
 import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
@@ -399,9 +391,7 @@ export const ArtistsPage = () => {
   const handleSpecialtyFilterClick = useCallback(
     (tag: TattooStyle) => {
       setVisibleCount(PAGE_SIZE);
-      setSpecialtyFilter((currentFilter) =>
-        currentFilter === tag ? "" : tag
-      );
+      setSpecialtyFilter((currentFilter) => (currentFilter === tag ? "" : tag));
 
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(scrollArtistGridToTop);
@@ -503,14 +493,7 @@ export const ArtistsPage = () => {
     transformOrigin: "center top",
     willChange: "opacity, transform",
   };
-  const heroArtworkStyle = {
-    opacity: heroOpacity,
-    transform: `translate3d(0, ${heroFadeProgress * 22}px, 0) scale(${
-      1 + heroFadeProgress * 0.035
-    })`,
-    transformOrigin: "center bottom",
-    willChange: "opacity, transform",
-  };
+
   const heroMetrics = [
     {
       label: "Verified artists",
@@ -519,13 +502,13 @@ export const ArtistsPage = () => {
       icon: Users,
     },
     {
-      label: "Style paths",
+      label: "Styles",
       value: String(TATTOO_STYLES.length),
       countValue: TATTOO_STYLES.length,
       icon: Palette,
     },
     {
-      label: "Current view",
+      label: "Viewing",
       value: activeStyleLabel,
       icon: Search,
     },
@@ -674,7 +657,7 @@ export const ArtistsPage = () => {
         />
         <img
           className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,700px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-4"
-          style={{ opacity: 0.055 * heroOpacity }}
+          style={{ opacity: 0.03 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
@@ -684,17 +667,9 @@ export const ArtistsPage = () => {
           <div className="max-w-3xl pb-2" style={heroFadeStyle}>
             <div>
               <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
-                <h1 className="mb-0! whitespace-nowrap text-[2rem]! font-bold leading-none text-white! sm:text-5xl! lg:text-6xl!">
+                <h1 className="mb-0! whitespace-nowrap text-[2rem]! font-bold leading-none text-white! text-4xl">
                   Find Your Artist
                 </h1>
-                <span className="inline-flex h-10 w-14 shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-white/[0.05] shadow-[0_16px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-12 sm:w-20 lg:hidden">
-                  <img
-                    className="h-6 w-10 object-contain sm:h-8 sm:w-14"
-                    src={gun}
-                    alt=""
-                    aria-hidden="true"
-                  />
-                </span>
               </div>
 
               <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
@@ -713,10 +688,7 @@ export const ArtistsPage = () => {
                   typeof metric.countValue === "number" && metricEntryCount > 0;
 
                 return (
-                  <div
-                    key={metric.label}
-                    className="min-w-0 rounded-lg border border-white/[0.12] bg-[#101010]/65 px-2 py-2.5 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[2px] sm:px-4 sm:py-3"
-                  >
+                  <div key={metric.label} className="min-w-0   ">
                     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
                       <Icon
                         className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
@@ -741,30 +713,6 @@ export const ArtistsPage = () => {
               })}
             </div>
           </div>
-
-          <div
-            className="relative hidden h-[240px] lg:block"
-            style={heroArtworkStyle}
-            aria-hidden="true"
-          >
-            <img
-              className="absolute bottom-12 left-1/2 w-[292px] -translate-x-1/2 opacity-35 drop-shadow-[0_26px_32px_rgba(0,0,0,0.7)]"
-              src={sa}
-              alt=""
-            />
-            <div className="absolute right-2 top-4 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
-              <Sparkles
-                className="h-4 w-4 text-[var(--color-primary-hover)]"
-                aria-hidden="true"
-              />
-              Curated Local Work
-            </div>
-            <img
-              className="absolute bottom-3 right-6 h-16 rotate-[-10deg] opacity-90 drop-shadow-[0_24px_32px_rgba(182,56,45,0.26)]"
-              src={gun}
-              alt=""
-            />
-          </div>
         </div>
       </section>
 
@@ -784,7 +732,7 @@ export const ArtistsPage = () => {
               Style filters
             </div>
             <div className="inline-flex items-center gap-2 text-xs text-neutral-400">
-              <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-neutral-200">
+              <span className=" bg-white/[0.04] px-2.5 py-1 text-neutral-200">
                 {activeStyleLabel}
               </span>
               <span>{filteredArtistLabel}</span>
@@ -886,11 +834,7 @@ export const ArtistsPage = () => {
                 })}
               </div>
               {visibleArtists.length > 0 && (
-                <div
-                  ref={lastArtistRef}
-                  className="h-px"
-                  aria-hidden="true"
-                />
+                <div ref={lastArtistRef} className="h-px" aria-hidden="true" />
               )}
             </>
           )}
@@ -926,10 +870,7 @@ type ArtistSpotlightCardProps = {
   preview?: ArtistPreview;
 };
 
-const ArtistPreviewCard = ({
-  artist,
-  preview,
-}: ArtistSpotlightCardProps) => (
+const ArtistPreviewCard = ({ artist, preview }: ArtistSpotlightCardProps) => (
   <Link to={`/artists/${artist.id}`}>
     <ArtistCard
       name={getArtistDisplayName(artist)}

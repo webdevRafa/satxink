@@ -251,7 +251,7 @@ export const HomePage: FC = () => {
 
         <div className="relative z-10 mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl flex-col justify-end px-5 pb-16 pt-24 md:px-8 lg:pb-20">
           <div className="max-w-3xl">
-            <h1 className="max-w-4xl text-5xl! font-bold leading-[0.98] text-white md:text-7xl!">
+            <h1 className="text-4xl font-bold leading-[0.98] text-white">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
@@ -282,10 +282,7 @@ export const HomePage: FC = () => {
             className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
           >
             {heroStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="flex min-w-0 flex-col"
-              >
+              <div key={stat.label} className="flex min-w-0 flex-col">
                 <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
                   {stat.label}
                 </dt>
@@ -351,7 +348,10 @@ export const HomePage: FC = () => {
                 to={`/artists?style=${encodeURIComponent(style)}`}
                 className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
               >
-                <Search size={15} className="text-white/35 group-hover:text-white/60" />
+                <Search
+                  size={15}
+                  className="text-white/35 group-hover:text-white/60"
+                />
                 {style}
               </Link>
             ))}
@@ -452,7 +452,7 @@ const HowItWorksCard = ({
   body: string;
 }) => (
   <article className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent p-5 shadow-xl">
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-black">
+    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-[#0b0b0b]!">
       {step}
     </span>
     <h3 className="mt-5 text-xl! font-semibold text-white">{title}</h3>

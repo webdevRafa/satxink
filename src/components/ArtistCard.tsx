@@ -78,7 +78,7 @@ const ArtistCard = ({
   }, [previewUrl]);
 
   return (
-    <div className="group h-[148px] overflow-hidden rounded-lg border border-white/5 bg-gradient-to-r from-[#121212] via-[#181818] to-[#202020] text-white shadow-md transition duration-300 hover:border-white/15 hover:from-[#171717] hover:to-[#282828]">
+    <div className="group h-[148px] overflow-hidden rounded-lg border border-white/5 bg-[#121212]  hover:bg-[#202020] text-white shadow-md transition duration-300 hover:border-white/15 hover:from-[#171717] hover:to-[#282828]">
       <div className={layoutClass}>
         <img
           src={avatarUrl || "/fallback.jpg"}
@@ -96,7 +96,7 @@ const ArtistCard = ({
                 {visibleSpecialties.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-medium leading-none text-neutral-300"
+                    className=" px-2 py-1 text-[11px] font-medium leading-none text-neutral-300"
                   >
                     {tag}
                   </span>
@@ -113,8 +113,8 @@ const ArtistCard = ({
               </span>
             )}
           </div>
-          <span className="inline-flex w-fit translate-y-1 rounded-md bg-white/[0.08] px-4 py-2 text-sm font-medium text-neutral-300 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:bg-white/[0.12] group-hover:text-white group-hover:opacity-100">
-            View Page
+          <span className="inline-flex w-fit translate-y-1 rounded-md px-4 py-2 text-sm font-medium text-neutral-300 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:text-white group-hover:text-white group-hover:opacity-100">
+            View artist profile
           </span>
         </div>
 
