@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Brush, Sparkles, UserRound } from "lucide-react";
+import { ArrowRight, Brush, UserRound } from "lucide-react";
 
-import logo from "../assets/satx-short-sep.svg";
 import ClientSignupPage from "./ClientSignupPage";
 import ArtistSignupPage from "./ArtistSignupPage";
 
@@ -59,71 +58,46 @@ export default function SignupSelection() {
 
       <div className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center">
         {!selectedRole && (
-          <section className="w-full max-w-5xl">
-            <div className="mx-auto max-w-2xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs uppercase tracking-[0.18em] text-neutral-300 backdrop-blur">
-                <Sparkles
-                  size={14}
-                  className="text-[var(--color-primary)]"
-                  aria-hidden="true"
-                />
-                Choose your path
-              </div>
-
-              <img
-                className="mx-auto mb-3 max-w-[220px]"
-                src={logo}
-                alt="SATX Ink logo"
-              />
-              <h1 className="font-termina text-3xl! font-bold leading-tight text-white md:text-5xl!">
+          <section className="w-full max-w-5xl mt-25">
+            <div className="mx-auto max-w-2xl lg:mb-20">
+              <h1 className="font-termina text-3xl font-bold leading-tight text-white ">
                 San Antonio's Tattoo Hub.
               </h1>
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-300 md:text-base">
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-200! md:text-base">
                 Start with the side of SATX Ink you need today. Clients get a
                 tailored discovery setup, while artists build the profile people
                 browse before they book.
               </p>
             </div>
 
-            <div className="mt-9 grid gap-4 text-left md:grid-cols-2">
+            <div className="mt-9 grid gap-4 text-left md:grid-cols-2 px-2 md:px-5">
               {roleCards.map((card) => {
-                const RoleIcon = card.icon;
-
                 return (
                   <button
                     key={card.role}
                     type="button"
                     onClick={() => setSelectedRole(card.role)}
-                    className="group rounded-lg border border-white/10 bg-[#121212]/85 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition hover:border-white/25 hover:bg-[#171717]/95"
+                    className="group rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition hover:border-white/25 hover:bg-[#171717]/95"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                        <RoleIcon size={21} aria-hidden="true" />
-                      </span>
+                      <div>
+                        <p className="mt-5 text-xs uppercase tracking-[0.18em] text-neutral-500">
+                          {card.eyebrow}
+                        </p>
+                        <h2 className="mt-2 text-2xl! font-semibold text-white">
+                          {card.title}
+                        </h2>
+                        <p className="mt-3 min-h-16 text-sm leading-6 text-neutral-400">
+                          {card.body}
+                        </p>
+                      </div>
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition group-hover:border-white group-hover:bg-white group-hover:text-[#0b0b0b]">
-                        <ArrowRight size={17} aria-hidden="true" />
+                        <ArrowRight
+                          className="w-[40px]"
+                          size={17}
+                          aria-hidden="true"
+                        />
                       </span>
-                    </div>
-
-                    <p className="mt-5 text-xs uppercase tracking-[0.18em] text-neutral-500">
-                      {card.eyebrow}
-                    </p>
-                    <h2 className="mt-2 text-2xl! font-semibold text-white">
-                      {card.title}
-                    </h2>
-                    <p className="mt-3 min-h-16 text-sm leading-6 text-neutral-400">
-                      {card.body}
-                    </p>
-
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {card.highlights.map((highlight) => (
-                        <span
-                          key={highlight}
-                          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-300"
-                        >
-                          {highlight}
-                        </span>
-                      ))}
                     </div>
                   </button>
                 );
