@@ -8,13 +8,17 @@ import { toast } from "react-hot-toast";
 import {
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
+  Brush,
   Building2,
   Check,
   ChevronDown,
   CreditCard,
   Globe,
+  Images,
   Instagram,
   LoaderCircle,
+  MapPin,
   Save,
   Sparkles,
   UserRound,
@@ -42,6 +46,30 @@ type Shop = {
 };
 
 const SPECIALTIES = TATTOO_STYLES;
+
+const artistSignupBenefits = [
+  {
+    title: "Portfolio-first discovery",
+    body: "Put your work, shop, specialties, and social links in one clean profile clients can browse before they reach out.",
+    icon: Images,
+  },
+  {
+    title: "Built around local intent",
+    body: "SATX Ink is designed for people looking for San Antonio artists, flash, and booking paths.",
+    icon: MapPin,
+  },
+  {
+    title: "A sharper booking path",
+    body: "Help clients understand your style, payment flow, and profile details before the conversation starts.",
+    icon: BadgeCheck,
+  },
+];
+
+const artistSignupStats = [
+  { value: "4", label: "setup steps" },
+  { value: "SATX", label: "local focus" },
+  { value: "1", label: "public profile" },
+];
 
 const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
 
@@ -343,39 +371,126 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
         </button>
 
         {!user && (
-          <section className="mx-auto max-w-xl rounded-lg border border-white/10 bg-[#121212]/90 p-6 text-center shadow-2xl shadow-black/30 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-              Artist signup
-            </p>
-            <h1 className="mt-3 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold text-white">
-              <span>Join</span>
-              <img
-                src={logo}
-                alt="SATX Ink logo"
-                className="max-w-[108px] translate-y-[-2px]"
-              />
-              <span>as an Artist</span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-neutral-400">
-              Create your artist profile, showcase your portfolio, and connect
-              with local clients.
-            </p>
-            <div className="mt-7">
-              <GoogleSignupButton role="artist" />
+          <section className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-6">
+            <div className="flex min-h-[440px] flex-col justify-center text-left">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs uppercase tracking-[0.18em] text-neutral-300 backdrop-blur">
+                  <Sparkles
+                    size={14}
+                    className="text-[var(--color-primary)]"
+                    aria-hidden="true"
+                  />
+                  Artist signup
+                </div>
+
+                <h1 className="font-termina mt-5 max-w-2xl text-4xl! font-bold leading-[0.95] text-white sm:text-5xl! lg:text-6xl!">
+                  Build the profile clients see before they book.
+                </h1>
+
+                <p className="mt-5 max-w-xl text-base leading-7 text-neutral-300">
+                  Join SATX Ink as an artist, connect your shop, show your
+                  specialties, and make it easier for local clients to decide
+                  you are the right fit.
+                </p>
+
+                <div className="mt-7 grid max-w-xl grid-cols-3 gap-2 sm:gap-3">
+                  {artistSignupStats.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-lg border border-white/10 bg-white/[0.045] px-3 py-3 backdrop-blur"
+                    >
+                      <p className="font-termina text-xl font-bold leading-none text-white">
+                        {stat.value}
+                      </p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.13em] text-neutral-500">
+                        {stat.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="mx-auto mt-4 max-w-sm text-xs! text-neutral-500!">
-              We only collect your name, profile picture, and email from Google
-              to set up your account. By signing up, you agree to our{" "}
-              <Link
-                to="/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline transition hover:text-white"
-              >
-                Terms
-              </Link>
-              .
-            </p>
+
+            <aside className="relative overflow-hidden rounded-lg border border-white/10 bg-[#111]/88 p-5 text-left shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur md:p-6">
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent"
+                aria-hidden="true"
+              />
+              <div
+                className="pointer-events-none absolute -right-16 -top-16 h-36 w-36 rounded-full bg-[var(--color-primary)]/12 blur-3xl"
+                aria-hidden="true"
+              />
+
+              <div className="relative">
+                <div className="flex items-start justify-between gap-5">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                    <Brush size={21} aria-hidden="true" />
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-neutral-300">
+                    Free setup
+                  </span>
+                </div>
+
+                <div className="mt-7">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                    Get listed
+                  </p>
+                  <h2 className="mt-3 flex flex-wrap items-center gap-2 text-3xl! font-semibold leading-tight text-white">
+                    <span>Join</span>
+                    <img
+                      src={logo}
+                      alt="SATX Ink logo"
+                      className="max-w-[108px] translate-y-[-2px]"
+                    />
+                    <span>as an Artist</span>
+                  </h2>
+                  <p className="mt-4 text-sm leading-6 text-neutral-400">
+                    Start with Google, then complete a guided profile setup for
+                    shop, style, payments, and bio.
+                  </p>
+                </div>
+
+                <div className="mt-7">
+                  <GoogleSignupButton role="artist" />
+                </div>
+
+                <div className="mt-7 space-y-4 border-t border-white/10 pt-6">
+                  {artistSignupBenefits.map((benefit) => {
+                    const BenefitIcon = benefit.icon;
+
+                    return (
+                      <div key={benefit.title} className="flex gap-3">
+                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/[0.055] text-neutral-200">
+                          <BenefitIcon size={16} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            {benefit.title}
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-neutral-500">
+                            {benefit.body}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-6 text-xs! leading-5 text-neutral-500!">
+                  We only collect your name, profile picture, and email from
+                  Google to set up your account. By signing up, you agree to our{" "}
+                  <Link
+                    to="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline transition hover:text-white"
+                  >
+                    Terms
+                  </Link>
+                  .
+                </p>
+              </div>
+            </aside>
           </section>
         )}
 
