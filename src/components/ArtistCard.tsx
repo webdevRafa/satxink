@@ -113,7 +113,7 @@ const ArtistCard = ({
               </span>
             )}
           </div>
-          <span className="inline-flex w-fit translate-y-1 rounded-md px-4 py-2 text-sm font-medium text-neutral-300 opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:text-white group-hover:text-white group-hover:opacity-100">
+          <span className="inline-flex w-fit translate-y-1 rounded-md px-4 py-2 text-sm font-medium text-neutral-300 opacity-0 transition duration-200 group-hover:translate-y-0  group-hover:text-white group-hover:opacity-100">
             View artist profile
           </span>
         </div>
