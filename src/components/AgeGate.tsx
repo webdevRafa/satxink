@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
 const AGE_GATE_STORAGE_KEY = "satxinkAgeConfirmedV1";
+const AGE_GATE_EXEMPT_PATHS = new Set(["/terms", "/privacy"]);
 
 export default function AgeGate() {
-  const [isConfirmed, setIsConfirmed] = useState(true);
-
-  useEffect(() => {
+  const { pathname } = useLocation();
+  const [isConfirmed, setIsConfirmed] = useState(() => {
     try {
-      setIsConfirmed(localStorage.getItem(AGE_GATE_STORAGE_KEY) === "true");
+      return localStorage.getItem(AGE_GATE_STORAGE_KEY) === "true";
     } catch {
-      setIsConfirmed(false);
+      return false;
     }
-  }, []);
+  });
+  const isExemptPath = AGE_GATE_EXEMPT_PATHS.has(pathname);
 
   const confirmAge = () => {
     try {
@@ -29,7 +30,7 @@ export default function AgeGate() {
     window.location.assign("https://www.google.com");
   };
 
-  if (isConfirmed) {
+  if (isConfirmed || isExemptPath) {
     return null;
   }
 
@@ -81,11 +82,21 @@ export default function AgeGate() {
 
         <p className="mt-5 text-xs leading-5 text-neutral-500">
           By continuing, you acknowledge the SATX Ink{" "}
-          <Link className="underline transition hover:text-white" to="/terms">
+          <Link
+            className="underline transition hover:text-white"
+            rel="noopener noreferrer"
+            target="_blank"
+            to="/terms"
+          >
             Terms
           </Link>{" "}
           and{" "}
-          <Link className="underline transition hover:text-white" to="/privacy">
+          <Link
+            className="underline transition hover:text-white"
+            rel="noopener noreferrer"
+            target="_blank"
+            to="/privacy"
+          >
             Privacy Policy
           </Link>
           .
