@@ -75,8 +75,8 @@ export default function SignupSelection() {
                 src={logo}
                 alt="SATX Ink logo"
               />
-              <h1 className="text-3xl! font-semibold leading-tight text-white md:text-5xl!">
-                Your City. Your Ink. Your Platform.
+              <h1 className="text-md font-semibold leading-tight text-white ">
+                San Antonio’s Tattoo Hub.
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-300 md:text-base">
                 Start with the side of SATX Ink you need today. Clients get a
@@ -129,7 +129,6 @@ export default function SignupSelection() {
                 );
               })}
             </div>
-
           </section>
         )}
 
