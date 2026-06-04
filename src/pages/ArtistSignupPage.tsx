@@ -125,7 +125,7 @@ const ArtistSignupRevealSection = ({
       </div>
 
       <div>
-        <h2 className="font-termina text-xl! font-bold leading-tight text-white sm:text-2xl!">
+        <h2 className=" text-xl! font-bold leading-tight text-white sm:text-2xl!">
           {benefit.title}
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300! sm:text-base">
@@ -433,7 +433,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               Back
             </button>
 
-            <div className="mt-12 max-w-3xl md:mt-16">
+            <div className="mt-0 max-w-3xl md:mt-5">
               <h1 className="font-termina text-4xl! font-bold leading-[0.95] text-white ">
                 Make your work easier to find.
               </h1>
