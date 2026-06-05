@@ -78,7 +78,7 @@ export default function SignupSelection({
   };
 
   const signupShellClass = selectedRole
-    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-10 text-center [overflow-anchor:none] md:pt-12"
+    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-[4.5rem] text-center [overflow-anchor:none] md:pt-[4.75rem]"
     : "relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center [overflow-anchor:none]";
 
   return (
@@ -159,13 +159,13 @@ export default function SignupSelection({
         )}
 
         {selectedRole === "client" && (
-          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
+          <div className="relative z-20 w-full max-w-7xl rounded-lg px-4 pb-4 pt-0">
             <ClientSignupPage onBack={handleBack} />
           </div>
         )}
 
         {selectedRole === "artist" && (
-          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
+          <div className="relative z-20 w-full max-w-7xl rounded-lg px-4 pb-4 pt-0">
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}

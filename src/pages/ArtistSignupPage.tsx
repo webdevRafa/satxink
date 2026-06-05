@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -121,7 +121,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState<boolean>(false);
-  const onboardingTopRef = useRef<HTMLFormElement | null>(null);
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -150,11 +149,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    onboardingTopRef.current?.scrollIntoView({
-      block: "start",
-      inline: "nearest",
-      behavior: "auto",
-    });
   }, []);
 
   useEffect(() => {
@@ -403,7 +397,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   };
 
   return (
-    <div data-aos="fade-up" className="w-full px-4 pb-24 pt-4 text-white">
+    <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
       <div className="mx-auto w-full max-w-6xl">
         {!user && (
           <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
@@ -489,7 +483,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
         {formVisible && user && (
           <form
-            ref={onboardingTopRef}
             autoComplete="off"
             onSubmit={handleArtistSubmit}
             className="space-y-6 text-left"
