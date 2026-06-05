@@ -25,12 +25,10 @@ import Clients from "./pages/Clients";
 import ArtistDashboard from "./pages/ArtistDashboard";
 import FlashSheetEditor from "./pages/FlashSheetEditor";
 import ClientDashboard from "./pages/ClientDashboard";
-import ClientSignupPage from "./pages/ClientSignupPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ClientProfileSetupPage from "./pages/ClientProfileSetupPage";
 import DashboardRedirectPage from "./pages/DashboardRedirectPage";
-import ArtistSignupPage from "./pages/ArtistSignupPage";
 import SignupSelection from "./pages/SignupSelection";
 import PaymentPage from "./pages/payment/PaymentPage";
 import PaymentSuccessPage from "./pages/payment/PaymentSuccessPage";
@@ -87,8 +85,14 @@ function App() {
         <Route path="/client-posts" element={<ClientPostsPage />} />
         <Route path="/dashboard" element={<DashboardRedirectPage />} />
         <Route path="/signup" element={<SignupSelection />} />
-        <Route path="/signup/client" element={<ClientSignupPage />} />
-        <Route path="/signup/artist" element={<ArtistSignupPage />} />
+        <Route
+          path="/signup/client"
+          element={<SignupSelection initialRole="client" />}
+        />
+        <Route
+          path="/signup/artist"
+          element={<SignupSelection initialRole="artist" />}
+        />
         <Route path="/payment/:bookingId" element={<PaymentPage />} />
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/admin" element={<AdminDashboardView />} />

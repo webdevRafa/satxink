@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useLayoutEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowRight, Brush, UserRound } from "lucide-react";
 
 import { ViewportReveal } from "../components/ViewportReveal";
@@ -15,9 +9,15 @@ import ArtistSignupPage from "./ArtistSignupPage";
 const videoSrc =
   "https://player.vimeo.com/progressive_redirect/playback/1104639139/rendition/1080p/file.mp4?loc=external&oauth2_token_id=1797553058&signature=aa6c80a11fddadd4e21ba35033d40c97f9ab557b80a6b60bdf47ddf6c64f5e50";
 
+type SignupRole = "client" | "artist";
+
+type SignupSelectionProps = {
+  initialRole?: SignupRole;
+};
+
 const roleCards = [
   {
-    role: "client" as const,
+    role: "client" as SignupRole,
     title: "I am a Client",
     body: "Find artists, save flash, and build a taste profile that helps SATX Ink show you better matches.",
     eyebrow: "Browse and book",
@@ -25,7 +25,7 @@ const roleCards = [
     highlights: ["Local flash", "Community art"],
   },
   {
-    role: "artist" as const,
+    role: "artist" as SignupRole,
     title: "I am an Artist",
     body: "Get discovered by local clients, showcase your work, and make it easier for people to connect with you.",
     eyebrow: "Get listed",
@@ -34,11 +34,11 @@ const roleCards = [
   },
 ];
 
-export default function SignupSelection() {
-  const [selectedRole, setSelectedRole] = useState<"client" | "artist" | null>(
-    null
-  );
-  const selectedRoleTopRef = useRef<HTMLDivElement | null>(null);
+export default function SignupSelection({
+  initialRole,
+}: SignupSelectionProps = {}) {
+  const navigate = useNavigate();
+  const selectedRole = initialRole ?? null;
 
   useEffect(() => {
     const setVh = () => {
@@ -59,36 +59,22 @@ export default function SignupSelection() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    selectedRoleTopRef.current?.scrollIntoView({
-      block: "start",
-      inline: "nearest",
-      behavior: "auto",
-    });
   }, []);
 
-  const handleRoleSelect = (role: "client" | "artist") => {
-    flushSync(() => {
-      setSelectedRole(role);
-    });
-    scrollSignupToTop();
-  };
-
   useLayoutEffect(() => {
-    if (!selectedRole) return undefined;
-
-    scrollSignupToTop();
-    const animationFrame = window.requestAnimationFrame(scrollSignupToTop);
-    const timeout = window.setTimeout(scrollSignupToTop, 80);
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.clearTimeout(timeout);
-    };
+    if (selectedRole) {
+      scrollSignupToTop();
+    }
   }, [scrollSignupToTop, selectedRole]);
 
-  const handleBack = () => {
-    setSelectedRole(null);
+  const handleRoleSelect = (role: SignupRole) => {
     scrollSignupToTop();
+    navigate(`/signup/${role}`);
+  };
+
+  const handleBack = () => {
+    scrollSignupToTop();
+    navigate("/signup");
   };
 
   const signupShellClass = selectedRole
@@ -173,19 +159,13 @@ export default function SignupSelection() {
         )}
 
         {selectedRole === "client" && (
-          <div
-            ref={selectedRoleTopRef}
-            className="relative z-20 w-full max-w-7xl scroll-mt-0 rounded-lg p-4"
-          >
+          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
             <ClientSignupPage onBack={handleBack} />
           </div>
         )}
 
         {selectedRole === "artist" && (
-          <div
-            ref={selectedRoleTopRef}
-            className="relative z-20 w-full max-w-7xl scroll-mt-0 rounded-lg p-4"
-          >
+          <div className="relative z-20 w-full max-w-7xl rounded-lg p-4">
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}
