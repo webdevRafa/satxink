@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -12,7 +12,6 @@ import {
   Building2,
   Check,
   ChevronDown,
-  CreditCard,
   Globe,
   Images,
   Instagram,
@@ -60,21 +59,20 @@ const artistSignupBenefits = [
   },
   {
     title: "Turn your profile into a booking path",
-    body: "Show your portfolio, flash, shop, payment preferences, and social links in one place so clients understand your work before reaching out.",
+    body: "Show your portfolio, flash, shop, and social links in one place so clients understand your work before reaching out.",
     icon: BadgeCheck,
   },
 ];
 
-const stepHeadings = ["Shop", "Style", "Payments", "Profile"];
+const stepHeadings = ["Shop", "Style", "Profile"];
 
 const stepDescriptions = [
   "Connect your profile to the studio clients should see on your public profile.",
   "Choose the styles that best describe your work and add your social channels.",
-  "Set how clients should pay appointment balances.",
   "Choose the public name and bio clients will remember.",
 ];
 
-const stepIcons = [Building2, Sparkles, CreditCard, UserRound];
+const stepIcons = [Building2, Sparkles, UserRound];
 
 type ArtistSignupBenefit = (typeof artistSignupBenefits)[number];
 
@@ -118,14 +116,12 @@ const ArtistSignupRevealSection = ({
 };
 
 const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
-  const [paymentType, setPaymentType] = useState<string>("");
-  const [selectedMethod, setSelectedMethod] = useState<string>("");
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [externalHandle, setExternalHandle] = useState<string>("");
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [isNameTaken, setIsNameTaken] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [formVisible, setFormVisible] = useState<boolean>(false);
+  const onboardingTopRef = useRef<HTMLFormElement | null>(null);
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -145,6 +141,22 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     setSubmitting(false);
   }, []);
 
+  const scrollOnboardingToTop = useCallback(() => {
+    const scrollingElement =
+      document.scrollingElement || document.documentElement;
+
+    scrollingElement.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    scrollingElement.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    onboardingTopRef.current?.scrollIntoView({
+      block: "start",
+      inline: "nearest",
+      behavior: "auto",
+    });
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -158,6 +170,19 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     });
     return () => unsubscribe();
   }, []);
+
+  useLayoutEffect(() => {
+    if (!formVisible || !user) return undefined;
+
+    scrollOnboardingToTop();
+    const animationFrame = window.requestAnimationFrame(scrollOnboardingToTop);
+    const timeout = window.setTimeout(scrollOnboardingToTop, 120);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeout);
+    };
+  }, [formVisible, scrollOnboardingToTop, user]);
 
   useEffect(() => {
     const fetchShops = async () => {
@@ -230,11 +255,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       ? Boolean(selectedShop)
       : currentStep === 1
       ? specialties.length > 0
-      : currentStep === 2
-      ? paymentType === "internal" ||
-        Boolean(
-          paymentType === "external" && selectedMethod && externalHandle.trim()
-        )
       : Boolean(
           displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
         );
@@ -242,10 +262,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const stepCompletion = [
     Boolean(selectedShop),
     specialties.length > 0,
-    paymentType === "internal" ||
-      Boolean(
-        paymentType === "external" && selectedMethod && externalHandle.trim()
-      ),
     Boolean(
       displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
     ),
@@ -259,7 +275,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const getStepWarning = (step: number) => {
     if (step === 0) return "Select your shop before continuing.";
     if (step === 1) return "Choose at least one specialty before continuing.";
-    if (step === 2) return "Choose a payment option before continuing.";
     return "Add an available display name and a bio before creating your profile.";
   };
 
@@ -322,6 +337,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       return;
     }
 
+    const paymentType = "internal";
     const finalPaymentTiming = "before";
     setSubmitting(true);
 
@@ -364,12 +380,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             nonRefundable: true,
           },
           finalPaymentTiming,
-          ...(paymentType === "external" && {
-            externalPaymentDetails: {
-              method: selectedMethod,
-              handle: externalHandle,
-            },
-          }),
           likedBy: [],
           updatedAt: serverTimestamp(),
           profileComplete: true,
@@ -453,7 +463,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
                 Start with Google, then complete a guided profile setup for
-                shop, style, payments, and bio.
+                shop, style, and bio.
               </p>
 
               <div className="mt-7 flex justify-center">
@@ -479,6 +489,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
         {formVisible && user && (
           <form
+            ref={onboardingTopRef}
             autoComplete="off"
             onSubmit={handleArtistSubmit}
             className="space-y-6 text-left"
@@ -674,92 +685,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   )}
 
                   {currentStep === 2 && (
-                    <div data-aos="fade-in" className="space-y-5">
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentType("internal");
-                            setSelectedMethod("");
-                          }}
-                          className={`rounded-lg border p-4 text-left transition ${
-                            paymentType === "internal"
-                              ? "border-white bg-white text-[#0b0b0b]"
-                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold">
-                            Stripe
-                          </span>
-                          <span className="mt-1 block text-xs opacity-70">
-                            In-app deposits and payouts.
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentType("external")}
-                          className={`rounded-lg border p-4 text-left transition ${
-                            paymentType === "external"
-                              ? "border-white bg-white text-[#0b0b0b]"
-                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold">
-                            External
-                          </span>
-                          <span className="mt-1 block text-xs opacity-70">
-                            CashApp, Venmo, Zelle, or similar.
-                          </span>
-                        </button>
-                      </div>
-
-                      {paymentType === "external" && (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <label className="space-y-2">
-                            <span className="text-sm font-medium text-neutral-200">
-                              Preferred method
-                            </span>
-                            <select
-                              name="externalMethod"
-                              value={selectedMethod}
-                              onChange={(e) =>
-                                setSelectedMethod(e.target.value)
-                              }
-                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                            >
-                              <option value="">Select a method</option>
-                              <option value="cashapp">CashApp</option>
-                              <option value="venmo">Venmo</option>
-                              <option value="zelle">Zelle</option>
-                            </select>
-                          </label>
-                          <label className="space-y-2">
-                            <span className="text-sm font-medium text-neutral-200">
-                              Payment handle
-                            </span>
-                            <input
-                              type="text"
-                              name="externalHandle"
-                              value={externalHandle}
-                              onChange={(e) =>
-                                setExternalHandle(e.target.value)
-                              }
-                              placeholder={
-                                selectedMethod === "zelle"
-                                  ? "Email or phone number"
-                                  : selectedMethod === "cashapp"
-                                  ? "$YourCashTag"
-                                  : "@yourusername or phone"
-                              }
-                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {currentStep === 3 && (
                     <div data-aos="fade-in" className="space-y-4">
                       <label className="space-y-2">
                         <span className="text-sm font-medium text-neutral-200">
@@ -871,7 +796,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     Back
                   </button>
 
-                  {currentStep < 3 ? (
+                  {currentStep < stepHeadings.length - 1 ? (
                     <button
                       type="button"
                       onClick={handleNext}
@@ -956,16 +881,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     <span className="text-neutral-400">Shop</span>
                     <span className="max-w-44 truncate text-right text-white">
                       {selectedShop?.name || "Not selected"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Payments</span>
-                    <span className="capitalize text-white">
-                      {paymentType === "internal"
-                        ? "Stripe"
-                        : paymentType === "external"
-                        ? "External"
-                        : "Not selected"}
                     </span>
                   </div>
                 </div>
