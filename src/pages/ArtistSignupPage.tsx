@@ -423,48 +423,24 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
               <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-neutral-300">
                 Join SATX Ink as an artist, connect your shop, show your
-                specialties, and make it easier for local clients connect and
+                specialties, and make it easier for local clients to connect and
                 book.
               </p>
             </ViewportReveal>
 
-            <div className="mt-12 w-full max-w-3xl md:mt-16">
-              {artistSignupBenefits.map((benefit, index) => (
-                <ArtistSignupRevealSection
-                  key={benefit.title}
-                  benefit={benefit}
-                  index={index}
-                />
-              ))}
-            </div>
-
             <ViewportReveal
-              className="mt-12 w-full max-w-2xl border-t border-white/10 pt-10 md:mt-16 md:pt-12"
-              delay={720}
+              className="mt-8 w-full max-w-xl border-y border-white/10 py-7"
+              delay={220}
               direction="up"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                Get listed
-              </p>
-              <h2 className="mt-4 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold leading-tight text-white sm:text-4xl!">
-                <span>Join</span>
-                <img
-                  src={logo}
-                  alt="SATX Ink logo"
-                  className="max-w-[112px] translate-y-[-2px]"
-                />
-                <span>as an Artist</span>
-              </h2>
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
+              <p className="mx-auto max-w-lg text-sm leading-6 text-neutral-300 sm:text-base">
                 Start with Google, then complete a guided profile setup for
                 shop, style, and bio.
               </p>
 
-              <div className="mt-7 flex justify-center">
-                <AuthProviderSignupButtons role="artist" />
-              </div>
+              <AuthProviderSignupButtons className="mt-6" role="artist" />
 
-              <p className="mx-auto mt-6 max-w-md text-xs! leading-5 text-neutral-500!">
+              <p className="mx-auto mt-5 max-w-md text-xs! leading-5 text-neutral-500!">
                 We only collect your name, profile picture, and email from
                 Google to set up your account. By signing up, you agree to our{" "}
                 <Link
@@ -478,6 +454,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 .
               </p>
             </ViewportReveal>
+
+            <div className="mt-10 w-full max-w-3xl md:mt-12">
+              {artistSignupBenefits.map((benefit, index) => (
+                <ArtistSignupRevealSection
+                  key={benefit.title}
+                  benefit={benefit}
+                  index={index}
+                />
+              ))}
+            </div>
           </section>
         )}
 
