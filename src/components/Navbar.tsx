@@ -51,13 +51,61 @@ type NavbarUserDoc = {
   role?: "artist" | "client";
 };
 
+const getAvatarInitial = (label?: string | null) => {
+  const trimmedLabel = label?.trim();
+  return trimmedLabel ? trimmedLabel.charAt(0).toUpperCase() : "S";
+};
+
 export const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
   const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
+  const [isUserDocLoading, setIsUserDocLoading] = useState(
+    Boolean(auth.currentUser)
+  );
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const firestoreAvatarUrl = userDoc?.avatarUrl?.trim() || "";
+  const avatarLabel =
+    userDoc?.name || userDoc?.displayName || user?.displayName || "User avatar";
+  const avatarInitial = getAvatarInitial(
+    userDoc?.name || userDoc?.displayName || user?.displayName || user?.email
+  );
+
+  const renderNavbarAvatar = (
+    className: string,
+    fallbackTextClassName: string
+  ) => {
+    if (isUserDocLoading) {
+      return (
+        <span
+          className={`${className} block animate-pulse bg-white/[0.08]`}
+          aria-hidden="true"
+        />
+      );
+    }
+
+    if (firestoreAvatarUrl) {
+      return (
+        <img
+          src={firestoreAvatarUrl}
+          alt={avatarLabel}
+          className={className}
+        />
+      );
+    }
+
+    return (
+      <span
+        className={`${className} flex items-center justify-center bg-white/[0.08] ${fallbackTextClassName}`}
+        aria-label={avatarLabel}
+      >
+        {avatarInitial}
+      </span>
+    );
+  };
 
   const handleLogout = () => {
     setIsOpen(false);
@@ -77,29 +125,63 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => {
+    let isSubscribed = true;
+    const retryTimers: number[] = [];
+
+    const clearRetryTimers = () => {
+      retryTimers.forEach((timerId) => window.clearTimeout(timerId));
+      retryTimers.length = 0;
+    };
+
     const tryFetchUserData = async (uid: string, retries = 2) => {
-      const userRef = doc(db, "users", uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data() as NavbarUserDoc;
-        setUserRole(data.role ?? null);
-        setUserDoc(data);
-      } else if (retries > 0) {
-        setTimeout(() => tryFetchUserData(uid, retries - 1), 1000);
+      try {
+        const userRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+
+        if (userSnap.exists()) {
+          const data = userSnap.data() as NavbarUserDoc;
+          setUserRole(data.role ?? null);
+          setUserDoc(data);
+          setIsUserDocLoading(false);
+        } else if (retries > 0) {
+          const retryTimerId = window.setTimeout(() => {
+            tryFetchUserData(uid, retries - 1);
+          }, 1000);
+          retryTimers.push(retryTimerId);
+        } else {
+          setUserRole(null);
+          setUserDoc(null);
+          setIsUserDocLoading(false);
+        }
+      } catch {
+        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+        setUserRole(null);
+        setUserDoc(null);
+        setIsUserDocLoading(false);
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      clearRetryTimers();
       setUser(firebaseUser);
+      setUserRole(null);
+      setUserDoc(null);
+
       if (firebaseUser) {
+        setIsUserDocLoading(true);
         tryFetchUserData(firebaseUser.uid);
       } else {
-        setUserRole(null);
-        setUserDoc(null);
+        setIsUserDocLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      clearRetryTimers();
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -182,13 +264,10 @@ export const Navbar = () => {
               aria-label="Open dashboard"
               className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
             >
-              <img
-                src={
-                  userDoc?.avatarUrl || user.photoURL || "/fallback-avatar.jpg"
-                }
-                alt={userDoc?.name || user.displayName || "User avatar"}
-                className="w-8 h-8 rounded-full border border-white/30 object-cover"
-              />
+              {renderNavbarAvatar(
+                "w-8 h-8 rounded-full border border-white/30 object-cover",
+                "text-sm font-semibold text-white"
+              )}
             </Link>
           ) : (
             <div
@@ -268,15 +347,10 @@ export const Navbar = () => {
             {user ? (
               <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      userDoc?.avatarUrl ||
-                      user.photoURL ||
-                      "/fallback-avatar.jpg"
-                    }
-                    alt={userDoc?.name || user.displayName || "User avatar"}
-                    className="h-12 w-12 rounded-full border border-white/20 object-cover"
-                  />
+                  {renderNavbarAvatar(
+                    "h-12 w-12 rounded-full border border-white/20 object-cover",
+                    "text-lg font-semibold text-white"
+                  )}
                   <div className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-white">
                       {userDoc?.name || user.displayName || "Signed in"}
