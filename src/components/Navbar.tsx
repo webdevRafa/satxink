@@ -42,7 +42,6 @@ const mobileNavItems = [
 const desktopNavItems = [
   { label: "Artists", to: "/artists" },
   { label: "Flash", to: "/flash" },
-  { label: "About", to: "/about" },
 ];
 
 type NavbarUserDoc = {
@@ -164,6 +163,19 @@ export const Navbar = () => {
             ))}
           </div>
 
+          <NavLink
+            to="/about"
+            className={({ isActive }) =>
+              `rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                isActive
+                  ? "bg-white/[0.08] text-white"
+                  : "text-neutral-400 hover:bg-white/[0.055] hover:text-white"
+              }`
+            }
+          >
+            About
+          </NavLink>
+
           {user ? (
             <Link
               to="/dashboard"
@@ -191,18 +203,19 @@ export const Navbar = () => {
               <NavLink
                 to="/signup"
                 className={({ isActive }) =>
-                  `rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${
+                  `inline-flex h-8 items-center rounded-full border px-3.5 text-sm font-semibold transition ${
                     isActive
-                      ? "border-white/30 bg-white/[0.14] text-white"
-                      : "border-white/15 bg-white/[0.075] text-white hover:border-white/30 hover:bg-white/[0.12]"
+                      ? "border-white/25 bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                      : "border-white/[0.12] bg-white/[0.055] text-white hover:border-white/25 hover:bg-white/[0.10]"
                   }`
                 }
               >
                 Join
               </NavLink>
               <button
+                type="button"
                 onClick={handleLogin}
-                className="rounded-full px-3! py-1.5! text-sm! font-medium! text-neutral-300 transition hover:bg-white/[0.06] hover:text-white"
+                className="inline-flex h-8 items-center rounded-full px-3.5! py-0! text-sm! font-semibold! text-neutral-300 transition hover:bg-white/[0.07] hover:text-white"
               >
                 Sign in
               </button>
