@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Listbox } from "@headlessui/react";
 import slugify from "slugify";
@@ -206,6 +207,23 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       window.clearTimeout(timeout);
     };
   }, [formVisible, scrollOnboardingToTop, user]);
+
+  useEffect(() => {
+    if (profileCreationPhase === "idle") return undefined;
+
+    const bodyStyle = document.body.style;
+    const htmlStyle = document.documentElement.style;
+    const previousBodyOverflow = bodyStyle.overflow;
+    const previousHtmlOverflow = htmlStyle.overflow;
+
+    bodyStyle.overflow = "hidden";
+    htmlStyle.overflow = "hidden";
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow;
+      htmlStyle.overflow = previousHtmlOverflow;
+    };
+  }, [profileCreationPhase]);
 
   useEffect(() => {
     const fetchShops = async () => {
@@ -483,46 +501,49 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   };
 
   return (
-    <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
-      {profileCreationPhase !== "idle" && (
-        <div
-          className="animate-fade-in fixed inset-0 z-[100] flex items-center justify-center bg-black px-4 text-white opacity-0"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
+    <>
+      {profileCreationPhase !== "idle" &&
+        createPortal(
           <div
-            className={`relative isolate w-full max-w-md overflow-hidden rounded-lg border border-white/[0.1] bg-[#0d0d0d] px-6 py-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-700 ease-out sm:px-9 sm:py-10 ${
-              profileCreationPhase === "reveal"
-                ? "translate-y-0 scale-100 opacity-100"
-                : "translate-y-2 scale-[0.98] opacity-0"
-            }`}
+            className="animate-fade-in fixed inset-0 z-[9999] flex items-center justify-center bg-black px-4 text-white opacity-0"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
           >
             <div
-              className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
-              aria-hidden="true"
-            />
-            <span
-              className="spotlight-border-glint spotlight-border-glint--left"
-              aria-hidden="true"
-            />
-            <span
-              className="spotlight-border-glint spotlight-border-glint--right"
-              aria-hidden="true"
-            />
+              className={`relative isolate w-full max-w-md overflow-hidden rounded-lg border border-white/[0.1] bg-[#0d0d0d] px-6 py-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-700 ease-out sm:px-9 sm:py-10 ${
+                profileCreationPhase === "reveal"
+                  ? "translate-y-0 scale-100 opacity-100"
+                  : "translate-y-2 scale-[0.98] opacity-0"
+              }`}
+            >
+              <div
+                className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                aria-hidden="true"
+              />
+              <span
+                className="spotlight-border-glint spotlight-border-glint--left"
+                aria-hidden="true"
+              />
+              <span
+                className="spotlight-border-glint spotlight-border-glint--right"
+                aria-hidden="true"
+              />
 
-            <img
-              src={logo}
-              alt="SATX Ink"
-              className="mx-auto w-36 max-w-full"
-            />
-            <p className="mx-auto mt-6 max-w-xs text-sm font-medium leading-6 text-neutral-300">
-              One moment while we create your artist profile.
-            </p>
-          </div>
-        </div>
-      )}
+              <img
+                src={logo}
+                alt="SATX Ink"
+                className="mx-auto w-36 max-w-full"
+              />
+              <p className="mx-auto mt-6 max-w-xs text-sm font-medium leading-6 text-neutral-300">
+                One moment while we create your artist profile.
+              </p>
+            </div>
+          </div>,
+          document.body
+        )}
 
+      <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
       <div className="mx-auto w-full max-w-6xl">
         {!user && (
           <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
@@ -1010,7 +1031,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           </form>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 
