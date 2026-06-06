@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -124,6 +124,7 @@ const ArtistSignupRevealSection = ({
 };
 
 const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
+  const onboardingStepTopRef = useRef<HTMLDivElement | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [isNameTaken, setIsNameTaken] = useState(false);
@@ -157,6 +158,15 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
+  const scrollOnboardingStepIntoView = useCallback(() => {
+    const target = onboardingStepTopRef.current;
+    if (!target) return;
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   }, []);
 
   useEffect(() => {
@@ -285,9 +295,24 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     return "Add an available display name and a bio before creating your profile.";
   };
 
+  const navigateToStep = useCallback(
+    (targetStep: number) => {
+      const nextStep = Math.max(
+        0,
+        Math.min(targetStep, stepHeadings.length - 1)
+      );
+
+      if (nextStep === currentStep) return;
+
+      setCurrentStep(nextStep);
+      scrollOnboardingStepIntoView();
+    },
+    [currentStep, scrollOnboardingStepIntoView]
+  );
+
   const handleStepCardClick = (targetStep: number) => {
     if (targetStep <= currentStep) {
-      setCurrentStep(targetStep);
+      navigateToStep(targetStep);
       return;
     }
 
@@ -296,12 +321,12 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     );
 
     if (firstIncompleteStep !== -1) {
-      setCurrentStep(firstIncompleteStep);
+      navigateToStep(firstIncompleteStep);
       toast.error(getStepWarning(firstIncompleteStep));
       return;
     }
 
-    setCurrentStep(targetStep);
+    navigateToStep(targetStep);
   };
 
   const handleNext = () => {
@@ -310,7 +335,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       return;
     }
 
-    setCurrentStep((step) => Math.min(step + 1, stepHeadings.length - 1));
+    navigateToStep(currentStep + 1);
+  };
+
+  const handleBackStep = () => {
+    navigateToStep(currentStep - 1);
   };
 
   const handleArtistSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -486,7 +515,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             onSubmit={handleArtistSubmit}
             className="space-y-6 text-left"
           >
-            <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+            <div
+              ref={onboardingStepTopRef}
+              className="scroll-mt-24 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
+            >
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
                   Artist onboarding
@@ -794,9 +826,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() =>
-                      setCurrentStep((step) => Math.max(step - 1, 0))
-                    }
+                    onClick={handleBackStep}
                     disabled={currentStep === 0}
                     className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 px-3.5 py-1.5 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
