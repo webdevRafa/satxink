@@ -62,6 +62,7 @@ export const Navbar = () => {
   const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
   const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isUserDocLoading, setIsUserDocLoading] = useState(
     Boolean(auth.currentUser)
   );
@@ -165,6 +166,7 @@ export const Navbar = () => {
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       clearRetryTimers();
+      setIsAuthLoading(false);
       setUser(firebaseUser);
       setUserRole(null);
       setUserDoc(null);
@@ -258,46 +260,60 @@ export const Navbar = () => {
             About
           </NavLink>
 
-          {user ? (
-            <Link
-              to="/dashboard"
-              aria-label="Open dashboard"
-              className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-            >
-              {renderNavbarAvatar(
-                "w-8 h-8 rounded-full border border-white/30 object-cover",
-                "text-sm font-semibold text-white"
-              )}
-            </Link>
-          ) : (
-            <div
-              className={`flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
-                isScrolled
-                  ? "border-white/10 bg-white/[0.035]"
-                  : "border-white/[0.08] bg-black/[0.10]"
-              }`}
-            >
-              <NavLink
-                to="/signup"
-                className={({ isActive }) =>
-                  `inline-flex h-8 items-center rounded-full  px-3.5 text-sm font-semibold transition hover:text-white! ${
-                    isActive
-                      ? "border-white/25 bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
-                      : "border-white/[0.12] bg-white/[0.01] text-neutral-400! hover:border-white/25 hover:bg-white/[0.10]"
-                  }`
-                }
+          <div className="flex w-[146px] justify-end">
+            {isAuthLoading ? (
+              <div
+                className={`flex h-10 w-full items-center justify-between rounded-full border px-3 transition duration-300 ${
+                  isScrolled
+                    ? "border-white/10 bg-white/[0.035]"
+                    : "border-white/[0.08] bg-black/[0.10]"
+                }`}
+                aria-hidden="true"
               >
-                Join
-              </NavLink>
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="inline-flex h-8 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                <span className="h-2 w-16 animate-pulse rounded-full bg-white/[0.08]" />
+                <span className="h-8 w-8 animate-pulse rounded-full border border-white/10 bg-white/[0.08]" />
+              </div>
+            ) : user ? (
+              <Link
+                to="/dashboard"
+                aria-label="Open dashboard"
+                className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
               >
-                Sign in
-              </button>
-            </div>
-          )}
+                {renderNavbarAvatar(
+                  "w-8 h-8 rounded-full border border-white/30 object-cover",
+                  "text-sm font-semibold text-white"
+                )}
+              </Link>
+            ) : (
+              <div
+                className={`flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
+                  isScrolled
+                    ? "border-white/10 bg-white/[0.035]"
+                    : "border-white/[0.08] bg-black/[0.10]"
+                }`}
+              >
+                <NavLink
+                  to="/signup"
+                  className={({ isActive }) =>
+                    `inline-flex h-8 items-center rounded-full px-3.5 text-sm font-semibold transition hover:text-white! ${
+                      isActive
+                        ? "border-white/25 bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                        : "border-white/[0.12] bg-white/[0.01] text-neutral-400! hover:border-white/25 hover:bg-white/[0.10]"
+                    }`
+                  }
+                >
+                  Join
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={handleLogin}
+                  className="inline-flex h-8 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                >
+                  Sign in
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Hamburger Button */}
@@ -344,7 +360,21 @@ export const Navbar = () => {
           </div>
 
           <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            {user ? (
+            {isAuthLoading ? (
+              <section
+                className="rounded-lg border border-white/10 bg-white/[0.04] p-4"
+                aria-hidden="true"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="h-12 w-12 animate-pulse rounded-full border border-white/10 bg-white/[0.08]" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block h-3 w-32 animate-pulse rounded-full bg-white/[0.08]" />
+                    <span className="mt-2 block h-2 w-20 animate-pulse rounded-full bg-white/[0.055]" />
+                  </div>
+                </div>
+                <span className="mt-4 block h-10 animate-pulse rounded-md bg-white/[0.08]" />
+              </section>
+            ) : user ? (
               <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center gap-3">
                   {renderNavbarAvatar(
