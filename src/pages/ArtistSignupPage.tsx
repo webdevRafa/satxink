@@ -74,6 +74,14 @@ const stepDescriptions = [
 
 const stepIcons = [Building2, Sparkles, UserRound];
 
+type StepStatus = "required" | "ready" | "complete";
+
+const stepStatusLabels: Record<StepStatus, string> = {
+  required: "Required",
+  ready: "Ready",
+  complete: "Complete",
+};
+
 type ArtistSignupBenefit = (typeof artistSignupBenefits)[number];
 
 const ArtistSignupRevealSection = ({
@@ -265,6 +273,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
   );
   const ActiveStepIcon = stepIcons[currentStep];
+
+  const getStepStatus = (step: number): StepStatus => {
+    if (!stepCompletion[step]) return "required";
+    return currentStep === step ? "ready" : "complete";
+  };
 
   const getStepWarning = (step: number) => {
     if (step === 0) return "Select your shop before continuing.";
@@ -511,41 +524,57 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-5">
-                <div className="grid gap-2 sm:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-3">
                   {stepHeadings.map((heading, index) => {
                     const StepIcon = stepIcons[index];
                     const isActive = currentStep === index;
-                    const isComplete = stepCompletion[index];
+                    const stepStatus = getStepStatus(index);
+                    const statusLabel = stepStatusLabels[stepStatus];
 
                     return (
                       <button
                         key={heading}
                         type="button"
                         onClick={() => handleStepCardClick(index)}
-                        className={`rounded-lg border p-3 text-left transition ${
+                        aria-label={`${heading}: ${statusLabel}`}
+                        className={`grid min-h-16 grid-cols-[2rem_minmax(0,1fr)] items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                           isActive
-                            ? "border-white/25 bg-white/[0.08] text-white"
-                            : isComplete
+                            ? "border-[var(--color-primary)] bg-white/[0.08] text-white"
+                            : stepStatus === "complete"
                             ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
                             : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:text-white"
                         }`}
                       >
-                        <span className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-white/5">
-                          {isComplete ? (
+                        <span
+                          className={`flex h-8 w-8 items-center justify-center rounded-md ${
+                            stepStatus === "complete"
+                              ? "bg-emerald-400/10 text-emerald-200"
+                              : stepStatus === "ready"
+                              ? "bg-[var(--color-primary)]/15 text-[var(--color-primary)]"
+                              : "bg-white/5"
+                          }`}
+                        >
+                          {stepStatus === "complete" ? (
                             <Check size={16} aria-hidden="true" />
                           ) : (
                             <StepIcon size={16} aria-hidden="true" />
                           )}
                         </span>
-                        <span className="block text-sm font-semibold">
-                          {heading}
-                        </span>
-                        <span
-                          className={`mt-1 block text-xs ${
-                            isComplete ? "text-emerald-200" : "text-neutral-500"
-                          }`}
-                        >
-                          {isComplete ? "Complete" : "Required"}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold leading-5">
+                            {heading}
+                          </span>
+                          <span
+                            className={`block text-xs leading-4 ${
+                              stepStatus === "complete"
+                                ? "text-emerald-200"
+                                : stepStatus === "ready"
+                                ? "text-[var(--color-primary)]"
+                                : "text-neutral-500"
+                            }`}
+                          >
+                            {statusLabel}
+                          </span>
                         </span>
                       </button>
                     );
