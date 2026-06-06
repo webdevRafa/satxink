@@ -1,9 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import logo from "../assets/satx-short-sep.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import {
@@ -38,6 +37,12 @@ const mobileNavItems = [
     to: "/about",
     icon: Info,
   },
+];
+
+const desktopNavItems = [
+  { label: "Artists", to: "/artists" },
+  { label: "Flash", to: "/flash" },
+  { label: "About", to: "/about" },
 ];
 
 type NavbarUserDoc = {
@@ -134,21 +139,30 @@ export const Navbar = () => {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-6 text-sm">
-          <Link
-            to="/artists"
-            className="text-neutral-300 hover:text-orange-400"
+        <div className="hidden items-center gap-3 text-sm md:flex">
+          <div
+            className={`flex items-center gap-1 rounded-full border px-1.5 py-1 transition duration-300 ${
+              isScrolled
+                ? "border-white/10 bg-white/[0.035]"
+                : "border-white/[0.08] bg-black/[0.10]"
+            }`}
           >
-            Artists
-          </Link>
-
-          <Link to="/flash" className="text-neutral-300 hover:text-orange-400">
-            Flash
-          </Link>
-
-          <Link to="/about" className="text-neutral-300 hover:text-orange-400">
-            About
-          </Link>
+            {desktopNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-white/[0.10] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                      : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
 
           {user ? (
             <Link
@@ -167,20 +181,32 @@ export const Navbar = () => {
               />
             </Link>
           ) : (
-            <>
-              <Link
+            <div
+              className={`flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
+                isScrolled
+                  ? "border-white/10 bg-white/[0.035]"
+                  : "border-white/[0.08] bg-black/[0.10]"
+              }`}
+            >
+              <NavLink
                 to="/signup"
-                className="text-neutral-300 hover:text-orange-400"
+                className={({ isActive }) =>
+                  `rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${
+                    isActive
+                      ? "border-white/30 bg-white/[0.14] text-white"
+                      : "border-white/15 bg-white/[0.075] text-white hover:border-white/30 hover:bg-white/[0.12]"
+                  }`
+                }
               >
-                Signup
-              </Link>
+                Join
+              </NavLink>
               <button
                 onClick={handleLogin}
-                className="text-white py-1! px-2! font-light! hover:text-[var(--color-primary)]"
+                className="rounded-full px-3! py-1.5! text-sm! font-medium! text-neutral-300 transition hover:bg-white/[0.06] hover:text-white"
               >
-                Login
+                Sign in
               </button>
-            </>
+            </div>
           )}
         </div>
 
