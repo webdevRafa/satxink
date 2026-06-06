@@ -19,7 +19,6 @@ const roleCards = [
   {
     role: "client" as SignupRole,
     title: "I am a Client",
-    body: "Find artists, save flash, and build a taste profile that helps SATX Ink show you better matches.",
     eyebrow: "Browse and book",
     icon: UserRound,
     highlights: ["Local flash", "Community art"],
@@ -27,7 +26,6 @@ const roleCards = [
   {
     role: "artist" as SignupRole,
     title: "I am an Artist",
-    body: "Get discovered by local clients, showcase your work, and make it easier for people to connect with you.",
     eyebrow: "Get listed",
     icon: Brush,
     highlights: ["Get discovered", "Connect with clients"],
@@ -98,21 +96,20 @@ export default function SignupSelection({
         {!selectedRole && (
           <section className="w-full max-w-5xl mt-25">
             <ViewportReveal
-              className="mx-auto max-w-2xl lg:mb-20"
+              className="mx-auto max-w-2xl"
               delay={80}
               direction="up"
             >
-              <h1 className="font-termina text-3xl font-bold leading-tight text-white ">
+              <h1 className="text-3xl font-bold leading-tight text-white ">
                 San Antonio's Tattoo Hub.
               </h1>
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-200! md:text-base">
-                Start with the side of SATX Ink you need today. Clients get a
-                tailored discovery setup, while artists build the profile people
-                browse before they book.
+              <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-neutral-200! md:text-lg">
+                Built to connect tattoo ideas with the artists who can bring
+                them to life.
               </p>
             </ViewportReveal>
 
-            <div className="mt-9 grid gap-4 text-left md:grid-cols-2 px-2 md:px-5">
+            <div className="mt-10 grid gap-4 text-left md:grid-cols-2 px-2 md:px-5">
               {roleCards.map((card, index) => {
                 return (
                   <ViewportReveal
@@ -124,7 +121,7 @@ export default function SignupSelection({
                     <button
                       type="button"
                       onClick={() => handleRoleSelect(card.role)}
-                      className="signup-role-card group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
+                      className="signup-role-card group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/20 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500! hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
                     >
                       <span
                         className="spotlight-border-glint signup-role-card-glint signup-role-card-glint--left"
@@ -142,13 +139,10 @@ export default function SignupSelection({
                           <h2 className="mt-2 text-2xl! font-semibold text-white">
                             {card.title}
                           </h2>
-                          <p className="mt-3 min-h-16 text-sm leading-6 text-neutral-400">
-                            {card.body}
-                          </p>
                         </div>
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition duration-500 group-hover:translate-x-0.5 group-hover:border-white group-hover:bg-white group-hover:text-[#0b0b0b]">
+                        <span className="translate-x-[-5px] hover:translate-x-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition duration-500 group-hover:translate-x-0.5 group-hover:border-white group-hover:bg-white group-hover:text-[#0b0b0b]">
                           <ArrowRight
-                            className="w-[40px]"
+                            className="w-[40px] "
                             size={17}
                             aria-hidden="true"
                           />
