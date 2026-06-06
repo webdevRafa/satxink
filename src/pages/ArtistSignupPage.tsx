@@ -539,7 +539,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         aria-label={`${heading}: ${statusLabel}`}
                         className={`grid min-h-16 grid-cols-[2rem_minmax(0,1fr)] items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                           isActive
-                            ? "border-[var(--color-primary)] bg-white/[0.08] text-white"
+                            ? "border-white/35 bg-white/[0.07] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                             : stepStatus === "complete"
                             ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
                             : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:text-white"
@@ -550,7 +550,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             stepStatus === "complete"
                               ? "bg-emerald-400/10 text-emerald-200"
                               : stepStatus === "ready"
-                              ? "bg-[var(--color-primary)]/15 text-[var(--color-primary)]"
+                              ? "bg-emerald-400/10 text-emerald-200"
                               : "bg-white/5"
                           }`}
                         >
@@ -569,7 +569,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                               stepStatus === "complete"
                                 ? "text-emerald-200"
                                 : stepStatus === "ready"
-                                ? "text-[var(--color-primary)]"
+                                ? "text-emerald-200"
                                 : "text-neutral-500"
                             }`}
                           >
@@ -798,7 +798,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                       setCurrentStep((step) => Math.max(step - 1, 0))
                     }
                     disabled={currentStep === 0}
-                    className="inline-flex items-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/10 px-3.5 py-1.5 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ArrowLeft size={16} aria-hidden="true" />
                     Back
@@ -809,14 +809,14 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                       type="button"
                       onClick={handleNext}
                       aria-disabled={!canContinue}
-                      className={`inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 ${
+                      className={`inline-flex min-h-9 items-center gap-2 rounded-md border border-white/20 bg-white/[0.08] px-4 py-1.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.13] ${
                         !canContinue ? "opacity-60" : ""
                       }`}
                     >
                       Next
                       <ArrowRight
                         size={16}
-                        className="text-[#0b0b0b]!"
+                        className="text-white"
                         aria-hidden="true"
                       />
                     </button>
@@ -824,18 +824,18 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     <button
                       type="submit"
                       disabled={!allStepsComplete || submitting}
-                      className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/20 bg-white/[0.08] px-4 py-1.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.13] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {submitting ? (
                         <LoaderCircle
                           size={16}
-                          className="animate-spin text-[#0b0b0b]!"
+                          className="animate-spin text-white"
                           aria-hidden="true"
                         />
                       ) : (
                         <Save
                           size={16}
-                          className="text-[#0b0b0b]!"
+                          className="text-white"
                           aria-hidden="true"
                         />
                       )}
