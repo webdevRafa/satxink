@@ -106,27 +106,27 @@ const ArtistSignupRevealSection = ({
 
   return (
     <ViewportReveal
-      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10"
-      delay={260 + index * 140}
-      direction={directions[index] ?? "up"}
+      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-6 md:py-8 lg:flex lg:h-full lg:min-h-[260px] lg:flex-col lg:justify-between lg:overflow-hidden lg:rounded-lg lg:border lg:border-white/10 lg:bg-white/[0.035] lg:p-5 lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] lg:backdrop-blur"
+      delay={120 + index * 60}
+      direction={index === 1 ? "up" : directions[index] ?? "up"}
     >
-      <div className="flex items-center gap-3 sm:block">
-        <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-5">
+      <div className="flex items-center gap-3 sm:block lg:flex">
+        <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-4 lg:mt-0 lg:h-10 lg:w-10 lg:items-center lg:justify-center lg:rounded-md lg:border lg:border-white/10 lg:bg-white/[0.04] lg:text-neutral-300">
           <BenefitIcon size={21} aria-hidden="true" />
         </span>
       </div>
 
       <div>
-        <h2 className=" text-xl! font-bold leading-tight text-white sm:text-2xl!">
+        <h2 className="text-xl! font-bold leading-tight text-white sm:text-2xl! lg:text-xl!">
           {benefit.title}
         </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300! sm:text-base">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300!">
           {benefit.body}
         </p>
       </div>
 
       <span
-        className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700"
+        className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700 lg:w-full lg:opacity-70"
         aria-hidden="true"
       />
     </ViewportReveal>
@@ -546,7 +546,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
       <div className="mx-auto w-full max-w-6xl">
         {!user && (
-          <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
+          <section className="mx-auto flex w-full max-w-6xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
             <ViewportReveal delay={40} direction="up">
               <button
                 type="button"
@@ -601,7 +601,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </p>
             </ViewportReveal>
 
-            <div className="mt-10 w-full max-w-3xl md:mt-12">
+            <div className="mt-10 grid w-full max-w-6xl gap-0 md:mt-12 lg:grid-cols-3 lg:gap-4">
               {artistSignupBenefits.map((benefit, index) => (
                 <ArtistSignupRevealSection
                   key={benefit.title}
