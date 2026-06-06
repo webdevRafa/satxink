@@ -260,7 +260,7 @@ export const Navbar = () => {
             About
           </NavLink>
 
-          <div className="flex w-[146px] justify-end">
+          <div className="flex w-[168px] shrink-0 justify-end">
             {isAuthLoading ? (
               <div
                 className={`flex h-10 w-full items-center justify-between rounded-full border px-3 transition duration-300 ${
@@ -295,7 +295,7 @@ export const Navbar = () => {
                 <NavLink
                   to="/signup"
                   className={({ isActive }) =>
-                    `inline-flex h-8 items-center rounded-full px-3.5 text-sm font-semibold transition hover:text-white! ${
+                    `inline-flex h-8 shrink-0 items-center rounded-full px-3.5 text-sm font-semibold whitespace-nowrap transition hover:text-white! ${
                       isActive
                         ? "border-white/25 bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                         : "border-white/[0.12] bg-white/[0.01] text-neutral-400! hover:border-white/25 hover:bg-white/[0.10]"
@@ -307,7 +307,7 @@ export const Navbar = () => {
                 <button
                   type="button"
                   onClick={handleLogin}
-                  className="inline-flex h-8 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                  className="inline-flex h-8 shrink-0 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! whitespace-nowrap text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
                 >
                   Sign in
                 </button>
