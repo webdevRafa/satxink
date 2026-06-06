@@ -124,14 +124,14 @@ export default function SignupSelection({
                     <button
                       type="button"
                       onClick={() => handleRoleSelect(card.role)}
-                      className="group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
+                      className="signup-role-card group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
                     >
                       <span
-                        className="spotlight-border-glint spotlight-border-glint--left opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        className="spotlight-border-glint signup-role-card-glint signup-role-card-glint--left"
                         aria-hidden="true"
                       />
                       <span
-                        className="spotlight-border-glint spotlight-border-glint--right opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        className="spotlight-border-glint signup-role-card-glint signup-role-card-glint--right"
                         aria-hidden="true"
                       />
                       <div className="flex items-start justify-between gap-4">

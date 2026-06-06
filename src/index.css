@@ -420,6 +420,38 @@ a.bg-white svg {
   }
 }
 
+.signup-role-card-glint {
+  opacity: 0;
+  animation: none;
+}
+
+.signup-role-card-glint--left {
+  left: 0;
+}
+
+.signup-role-card-glint--right {
+  right: 0;
+}
+
+.signup-role-card:hover .signup-role-card-glint--left,
+.signup-role-card:focus-visible .signup-role-card-glint--left {
+  animation: spotlight-border-slide-left 5.4s ease-in-out infinite;
+}
+
+.signup-role-card:hover .signup-role-card-glint--right,
+.signup-role-card:focus-visible .signup-role-card-glint--right {
+  animation: spotlight-border-slide-right 5.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-role-card:hover .signup-role-card-glint,
+  .signup-role-card:focus-visible .signup-role-card-glint {
+    animation: none;
+    opacity: 0.55;
+    transform: none;
+  }
+}
+
 :root {
     --color-bg-base: #121212;
     --color-bg-card: #1c1c1c;
