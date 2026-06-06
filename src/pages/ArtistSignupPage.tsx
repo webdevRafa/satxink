@@ -12,7 +12,7 @@ import {
   Building2,
   Check,
   ChevronDown,
-  Globe,
+  Facebook,
   Images,
   Instagram,
   LoaderCircle,
@@ -64,7 +64,7 @@ const artistSignupBenefits = [
   },
 ];
 
-const stepHeadings = ["Shop", "Style", "Profile"];
+const stepHeadings = ["Shop", "Style", "You"];
 
 const stepDescriptions = [
   "Connect your profile to the studio clients should see on your public profile.",
@@ -680,7 +680,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                               onClick={() => toggleSpecialty(style)}
                               className={`rounded-md border px-3 py-3 text-left text-sm transition ${
                                 selected
-                                  ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                                  ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
                                   : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
                               }`}
                             >
@@ -772,7 +772,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         </label>
                         <label className="space-y-2">
                           <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                            <Globe size={15} aria-hidden="true" />
+                            <Facebook size={15} aria-hidden="true" />
                             Facebook
                           </span>
                           <input
