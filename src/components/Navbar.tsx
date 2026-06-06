@@ -184,9 +184,7 @@ export const Navbar = () => {
             >
               <img
                 src={
-                  userDoc?.avatarUrl ||
-                  user.photoURL ||
-                  "/fallback-avatar.jpg"
+                  userDoc?.avatarUrl || user.photoURL || "/fallback-avatar.jpg"
                 }
                 alt={userDoc?.name || user.displayName || "User avatar"}
                 className="w-8 h-8 rounded-full border border-white/30 object-cover"
@@ -203,10 +201,10 @@ export const Navbar = () => {
               <NavLink
                 to="/signup"
                 className={({ isActive }) =>
-                  `inline-flex h-8 items-center rounded-full border px-3.5 text-sm font-semibold transition ${
+                  `inline-flex h-8 items-center rounded-full  px-3.5 text-sm font-semibold transition hover:text-white! ${
                     isActive
-                      ? "border-white/25 bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
-                      : "border-white/[0.12] bg-white/[0.055] text-white hover:border-white/25 hover:bg-white/[0.10]"
+                      ? "border-white/25 bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                      : "border-white/[0.12] bg-white/[0.01] text-neutral-400! hover:border-white/25 hover:bg-white/[0.10]"
                   }`
                 }
               >
@@ -215,7 +213,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 onClick={handleLogin}
-                className="inline-flex h-8 items-center rounded-full px-3.5! py-0! text-sm! font-semibold! text-neutral-300 transition hover:bg-white/[0.07] hover:text-white"
+                className="inline-flex h-8 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
               >
                 Sign in
               </button>
