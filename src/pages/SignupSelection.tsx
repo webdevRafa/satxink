@@ -124,10 +124,14 @@ export default function SignupSelection({
                     <button
                       type="button"
                       onClick={() => handleRoleSelect(card.role)}
-                      className="group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:-translate-y-1 hover:border-white/25 hover:bg-[#171717]/95 hover:shadow-black/35"
+                      className="group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/55 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500 hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
                     >
                       <span
-                        className="pointer-events-none absolute inset-x-4 top-0 h-px origin-left scale-x-0 bg-gradient-to-r from-[var(--color-primary)] via-white/40 to-transparent opacity-0 transition duration-700 group-hover:scale-x-100 group-hover:opacity-100"
+                        className="spotlight-border-glint spotlight-border-glint--left opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+                        aria-hidden="true"
+                      />
+                      <span
+                        className="spotlight-border-glint spotlight-border-glint--right opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
                         aria-hidden="true"
                       />
                       <div className="flex items-start justify-between gap-4">
