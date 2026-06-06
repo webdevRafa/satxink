@@ -75,12 +75,21 @@ const stepDescriptions = [
 const stepIcons = [Building2, Sparkles, UserRound];
 
 type StepStatus = "required" | "ready" | "complete";
+type ProfileCreationPhase = "idle" | "dim" | "reveal";
 
 const stepStatusLabels: Record<StepStatus, string> = {
   required: "Required",
   ready: "Ready",
   complete: "Complete",
 };
+
+const profileCreationRevealDelayMs = 1400;
+const profileCreationHoldDelayMs = 4400;
+
+const waitFor = (durationMs: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, durationMs);
+  });
 
 type ArtistSignupBenefit = (typeof artistSignupBenefits)[number];
 
@@ -135,6 +144,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [profileCreationPhase, setProfileCreationPhase] =
+    useState<ProfileCreationPhase>("idle");
 
   const [displayName, setDisplayName] = useState<string>("");
   const [bio, setBio] = useState<string>("");
@@ -376,11 +387,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     const paymentType = "internal";
     const finalPaymentTiming = "before";
     setSubmitting(true);
+    setProfileCreationPhase("dim");
 
     const slug = slugify(displayName, { lower: true, strict: true });
 
     try {
-      await runTransaction(db, async (transaction) => {
+      const startedAt = Date.now();
+      const profileCreationResult = runTransaction(db, async (transaction) => {
         const slugQuery = query(
           collection(db, "users"),
           where("slug", "==", slug)
@@ -423,10 +436,41 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
         const artistRef = doc(db, "users", user.uid);
         transaction.set(artistRef, newArtist, { merge: true });
-      });
+      }).then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error })
+      );
+
+      const firstResult = await Promise.race([
+        profileCreationResult,
+        waitFor(profileCreationRevealDelayMs).then(() => null),
+      ]);
+
+      if (firstResult && !firstResult.ok) {
+        throw firstResult.error;
+      }
+
+      if (firstResult?.ok) {
+        await waitFor(
+          Math.max(0, profileCreationRevealDelayMs - (Date.now() - startedAt))
+        );
+      }
+
+      setProfileCreationPhase("reveal");
+      const revealedAt = Date.now();
+      const finalResult = firstResult ?? (await profileCreationResult);
+
+      if (!finalResult.ok) {
+        throw finalResult.error;
+      }
+
+      await waitFor(
+        Math.max(0, profileCreationHoldDelayMs - (Date.now() - revealedAt))
+      );
 
       navigate("/dashboard");
     } catch (err: unknown) {
+      setProfileCreationPhase("idle");
       console.error("Artist profile submission failed:", err);
       toast.error(
         err instanceof Error
@@ -440,6 +484,45 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
   return (
     <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
+      {profileCreationPhase !== "idle" && (
+        <div
+          className="animate-fade-in fixed inset-0 z-[100] flex items-center justify-center bg-black px-4 text-white opacity-0"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div
+            className={`relative isolate w-full max-w-md overflow-hidden rounded-lg border border-white/[0.1] bg-[#0d0d0d] px-6 py-8 text-center shadow-[0_30px_90px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-700 ease-out sm:px-9 sm:py-10 ${
+              profileCreationPhase === "reveal"
+                ? "translate-y-0 scale-100 opacity-100"
+                : "translate-y-2 scale-[0.98] opacity-0"
+            }`}
+          >
+            <div
+              className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+              aria-hidden="true"
+            />
+            <span
+              className="spotlight-border-glint spotlight-border-glint--left"
+              aria-hidden="true"
+            />
+            <span
+              className="spotlight-border-glint spotlight-border-glint--right"
+              aria-hidden="true"
+            />
+
+            <img
+              src={logo}
+              alt="SATX Ink"
+              className="mx-auto w-36 max-w-full"
+            />
+            <p className="mx-auto mt-6 max-w-xs text-sm font-medium leading-6 text-neutral-300">
+              One moment while we create your artist profile.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto w-full max-w-6xl">
         {!user && (
           <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
