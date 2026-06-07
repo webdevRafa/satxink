@@ -716,7 +716,7 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles left"
               onClick={() => scrollStyleRail(-1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
             >
               <ChevronLeft
                 className="block h-5 w-5 text-white"
@@ -739,7 +739,7 @@ export const ArtistsPage = () => {
                     className={`min-h-9 shrink-0 rounded-lg border px-3! py-2! text-xs! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/50 ${
                       selected
                         ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/24 text-white shadow-[0_0_24px_rgba(182,56,45,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                        : "border-white/[0.14] bg-white/[0.035] text-neutral-200 hover:-translate-y-0.5 hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
+                        : "border-white/[0.14] bg-white/[0.035] text-neutral-200  hover:border-white/35 hover:bg-white/[0.08] hover:text-white"
                     }`}
                     onClick={() => handleSpecialtyFilterClick(tag)}
                   >
@@ -752,7 +752,7 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles right"
               onClick={() => scrollStyleRail(1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
             >
               <ChevronRight
                 className="block h-5 w-5 text-white "
