@@ -303,18 +303,22 @@ export const HomePage: FC = () => {
         `}
       </style>
 
-      <section className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-black">
+      <section className="relative overflow-hidden bg-black">
         <img
           src={heroImage}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-55"
+          className="absolute inset-0 h-full w-full object-cover opacity-50"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.9),rgba(0,0,0,0.44),rgba(0,0,0,0.78))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
+        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
-        <div className="relative z-10 mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl flex-col justify-end px-5 pb-16 pt-24 md:px-8 lg:pb-20">
+        <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-end gap-10 px-5 pb-12 pt-28 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
           <div className="max-w-3xl">
-            <h1 className="text-4xl font-bold leading-[0.98] text-white">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+              San Antonio tattoo discovery
+            </p>
+            <h1 className="max-w-3xl text-4xl font-bold leading-[0.98] text-white md:text-6xl">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
@@ -325,54 +329,50 @@ export const HomePage: FC = () => {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/20 bg-white/[0.08] px-4 py-1.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.13]"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
               >
                 Browse artists
                 <ArrowRight size={17} className="text-white" />
               </Link>
               <Link
                 to="/flash"
-                className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/80 backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/80 backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
                 Explore flash
                 <ChevronRight size={17} />
               </Link>
             </div>
+
+            <dl
+              ref={heroStatsRef}
+              className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
+            >
+              {heroStats.map((stat) => (
+                <div key={stat.label} className="flex min-w-0 flex-col">
+                  <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
+                    {stat.label}
+                  </dt>
+                  <dd className="order-1 text-xl font-semibold leading-none text-white sm:text-2xl">
+                    {stat.loading ? (
+                      "..."
+                    ) : heroStatsEntryCount > 0 ? (
+                      <CountUp
+                        key={`${stat.label}-${heroStatsEntryCount}-${stat.value}`}
+                        end={stat.value}
+                        duration={1.4}
+                        separator=","
+                        suffix={stat.suffix}
+                      />
+                    ) : (
+                      `${stat.value}${stat.suffix || ""}`
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
-          <dl
-            ref={heroStatsRef}
-            className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
-          >
-            {heroStats.map((stat) => (
-              <div key={stat.label} className="flex min-w-0 flex-col">
-                <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
-                  {stat.label}
-                </dt>
-                <dd className="order-1 text-xl font-semibold leading-none text-white sm:text-2xl">
-                  {stat.loading ? (
-                    "..."
-                  ) : heroStatsEntryCount > 0 ? (
-                    <CountUp
-                      key={`${stat.label}-${heroStatsEntryCount}-${stat.value}`}
-                      end={stat.value}
-                      duration={1.4}
-                      separator=","
-                      suffix={stat.suffix}
-                    />
-                  ) : (
-                    `${stat.value}${stat.suffix || ""}`
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
-
-      <section className="border-y border-white/5 bg-[#121212] px-5 py-18 md:px-8">
-        <div className="mx-auto max-w-7xl">
-          <FeaturedArtistSpotlight
+          <HeroFeaturedArtistPanel
             artist={featuredArtist}
             previewItems={featuredPreviewItems}
           />
@@ -487,7 +487,7 @@ const SectionHeader = ({
   </div>
 );
 
-const FeaturedArtistSpotlight = ({
+const HeroFeaturedArtistPanel = ({
   artist,
   previewItems,
 }: {
@@ -511,97 +511,116 @@ const FeaturedArtistSpotlight = ({
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-stretch">
-      <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/30">
+    <aside className="relative overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl lg:self-end">
+      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+      <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
         <img
           src={featureImage}
           alt={featureImageAlt}
-          className="absolute inset-0 h-full w-full object-cover opacity-82"
+          className="absolute inset-0 h-full w-full object-cover opacity-[0.88]"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.10),rgba(0,0,0,0.72))]" />
-        <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.78))]" />
+        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
           Featured SATX Artist
         </div>
-        <div className="absolute inset-x-0 bottom-0 p-5">
+        <div className="absolute inset-x-0 bottom-0 p-4">
           <div className="max-w-md">
             <p className="mb-2 flex items-center gap-2 text-sm font-medium text-white/65">
               <MapPin size={15} aria-hidden="true" />
               {shopLabel}
             </p>
-            <h2 className="text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+            <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl!">
               {artist ? artistName : "Meet the next artist spotlight."}
             </h2>
           </div>
         </div>
       </div>
 
-      <div className="flex min-h-[420px] flex-col justify-between rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.065] via-white/[0.03] to-transparent p-6 shadow-xl md:p-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
-            Featured SATX Artist
-          </p>
-          <h3 className="mt-3 max-w-2xl text-3xl! font-semibold leading-tight text-white md:text-4xl!">
-            {artist
-              ? `A closer look at ${artistName}.`
-              : "A local spotlight is getting inked in."}
-          </h3>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60 md:text-base">
-            {story}
-          </p>
-
-          {quote && (
-            <blockquote className="mt-5 rounded-lg border border-white/10 bg-black/25 p-4">
-              <Quote size={18} className="text-white/35" aria-hidden="true" />
-              <p className="mt-3 text-base font-medium leading-7 text-white/80">
-                {quote}
-              </p>
-            </blockquote>
-          )}
-
-          {visibleStyles.length > 0 && (
-            <div className="mt-5 flex flex-wrap gap-2">
-              {visibleStyles.map((style) => (
-                <span
-                  key={style}
-                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-white/65"
-                >
-                  {style}
-                </span>
-              ))}
-            </div>
+      <div className="p-3 pt-4 md:p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
+              Cover artist
+            </p>
+            <h3 className="mt-2 text-xl! font-semibold leading-tight text-white md:text-2xl!">
+              {artist
+                ? `A closer look at ${artistName}.`
+                : "A local spotlight is getting inked in."}
+            </h3>
+          </div>
+          {artist?.avatarUrl && (
+            <img
+              src={artist.avatarUrl}
+              alt={artistName}
+              className="h-11 w-11 shrink-0 rounded-full border border-white/15 object-cover"
+              loading="lazy"
+            />
           )}
         </div>
 
-        <div className="mt-8">
-          {previewItems.length > 0 && (
-            <div className="mb-5 grid grid-cols-4 gap-2">
-              {previewItems.map((item) => (
-                <Link
-                  key={`${item.type}-${item.id}`}
-                  to={item.href}
-                  className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-black"
-                  aria-label={item.label}
-                >
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    className="h-full w-full object-cover opacity-82 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
-                    loading="lazy"
-                  />
-                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/75">
-                    {item.type}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
+        <p className="mt-3 line-clamp-4 text-sm leading-6 text-white/[0.62]">
+          {story}
+        </p>
 
+        {quote && (
+          <blockquote className="mt-4 rounded-lg border border-white/10 bg-white/[0.035] p-3">
+            <div className="flex items-start gap-2">
+              <Quote
+                size={16}
+                className="mt-0.5 shrink-0 text-white/35"
+                aria-hidden="true"
+              />
+              <p className="line-clamp-3 text-sm font-medium leading-6 text-white/[0.78]">
+                {quote}
+              </p>
+            </div>
+          </blockquote>
+        )}
+
+        {visibleStyles.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {visibleStyles.map((style) => (
+              <span
+                key={style}
+                className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-1 text-[11px] font-semibold text-white/65"
+              >
+                {style}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {previewItems.length > 0 && (
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {previewItems.map((item) => (
+              <Link
+                key={`${item.type}-${item.id}`}
+                to={item.href}
+                className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-black"
+                aria-label={item.label}
+              >
+                <img
+                  src={item.imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover opacity-[0.82] transition duration-500 group-hover:scale-105 group-hover:opacity-100"
+                  loading="lazy"
+                />
+                <span className="absolute bottom-1 left-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white/75">
+                  {item.type}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5">
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               View artist profile
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -609,7 +628,7 @@ const FeaturedArtistSpotlight = ({
           ) : (
             <Link
               to="/artists"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Browse local artists
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -617,7 +636,7 @@ const FeaturedArtistSpotlight = ({
           )}
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 
