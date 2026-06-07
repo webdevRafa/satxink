@@ -295,12 +295,12 @@ const FlashMarketplacePage = () => {
   const marketStats = useMemo(
     () => [
       {
-        label: "Flash items",
+        label: "Items",
         value: flashes.length,
         icon: ImageIcon,
       },
       {
-        label: "Flash sheets",
+        label: "Sheets",
         value: sheets.length,
         icon: Layers,
       },
@@ -345,10 +345,10 @@ const FlashMarketplacePage = () => {
 
         <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
           <div className="max-w-3xl pb-2">
-            <h1 className="mb-0! text-[2rem]! font-bold leading-none text-white! text-4xl">
+            <h1 className="mb-0! text-[1.7rem]! font-bold leading-none text-white! text-4xl">
               Flash Marketplace
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300! ">
               Browse flash designs and sheets from SATX artists. Search by
               subject, style, tag, or artist when you want to explore a
               collection.
@@ -374,13 +374,6 @@ const FlashMarketplacePage = () => {
             className="relative hidden h-[240px] lg:block"
             aria-hidden="true"
           >
-            <div className="absolute right-0 top-2 z-10 inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#101010]/80 px-3 py-2 text-xs font-semibold text-neutral-200 shadow-2xl shadow-black/40 backdrop-blur">
-              <Tag
-                className="h-4 w-4 text-[var(--color-primary-hover)]"
-                aria-hidden="true"
-              />
-              Ready-to-Claim Flash
-            </div>
             <div className="absolute bottom-0 left-5 right-2 h-[190px]">
               {[
                 {
@@ -616,7 +609,7 @@ const MarketStat = ({
   value: number;
   entryCount: number;
 }) => (
-  <div className="min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:px-4 sm:py-3">
+  <div className="min-w-0 rounded-lg  px-2 py-1!  sm:px-4 sm:py-3">
     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
       <Icon
         className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"

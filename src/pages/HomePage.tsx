@@ -262,10 +262,10 @@ export const HomePage: FC = () => {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/20 bg-white/[0.08] px-4 py-1.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.13]"
               >
                 Browse artists
-                <ArrowRight size={17} className="text-[#0b0b0b]!" />
+                <ArrowRight size={17} className="text-white" />
               </Link>
               <Link
                 to="/flash"

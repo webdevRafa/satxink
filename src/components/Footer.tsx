@@ -1,35 +1,10 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import {
-  ArrowUpRight,
-  ChevronDown,
-  CheckCircle2,
-  Mail,
-  Search,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { ArrowUpRight, ChevronDown, Mail, Search, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 import logo from "../assets/satx-short-sep.svg";
 import { db } from "../firebase/firebaseConfig";
-
-const footerLinks = [
-  { label: "Artists", to: "/artists" },
-  { label: "Flash", to: "/flash" },
-  { label: "About", to: "/about" },
-];
-
-const artistLinks = [
-  { label: "Join as artist", to: "/signup/artist" },
-];
-
-const trustSignals = [
-  { label: "Verified local artists", icon: CheckCircle2 },
-  { label: "Ready-to-request flash", icon: Sparkles },
-  { label: "Cleaner tattoo booking", icon: Search },
-];
 
 const audienceOptions = [
   { value: "client", label: "Client" },
@@ -66,10 +41,7 @@ export const Footer = () => {
   const [contactForm, setContactForm] =
     useState<ContactFormState>(initialContactForm);
 
-  const updateContactField = (
-    field: keyof ContactFormState,
-    value: string
-  ) => {
+  const updateContactField = (field: keyof ContactFormState, value: string) => {
     setContactForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -118,30 +90,10 @@ export const Footer = () => {
               <div className="max-w-xl">
                 <img className="h-auto w-28" src={logo} alt="SATX Ink" />
                 <p className="mt-5 max-w-lg text-base leading-7 text-neutral-300">
-                  San Antonio tattoo discovery for clients, artists, flash,
-                  and bookings that need to feel clean from first look to
-                  final deposit.
+                  San Antonio tattoo discovery for clients, artists, flash, and
+                  bookings that need to feel clean from first look to final
+                  deposit.
                 </p>
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:min-w-[330px]">
-                {trustSignals.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.label}
-                      className="rounded-lg border border-white/10 bg-white/[0.03] p-3"
-                    >
-                      <Icon
-                        size={16}
-                        className="text-[var(--color-primary)]"
-                        aria-hidden="true"
-                      />
-                      <p className="mt-2 text-[11px] font-semibold leading-4 text-neutral-200">
-                        {item.label}
-                      </p>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
@@ -179,8 +131,6 @@ export const Footer = () => {
           </section>
 
           <section className="grid gap-8 sm:grid-cols-3 lg:grid-cols-2">
-            <FooterLinkGroup title="Explore" links={footerLinks} />
-            <FooterLinkGroup title="For artists" links={artistLinks} />
             <div className="sm:col-span-3 lg:col-span-2">
               <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
                 Local focus
@@ -231,7 +181,10 @@ export const Footer = () => {
               </button>
             </div>
 
-            <form onSubmit={handleContactSubmit} className="space-y-4 p-5 sm:p-6">
+            <form
+              onSubmit={handleContactSubmit}
+              className="space-y-4 p-5 sm:p-6"
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 <ContactField label="Name">
                   <input
@@ -305,31 +258,6 @@ export const Footer = () => {
   );
 };
 
-const FooterLinkGroup = ({
-  title,
-  links,
-}: {
-  title: string;
-  links: { label: string; to: string }[];
-}) => (
-  <div>
-    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
-      {title}
-    </p>
-    <div className="mt-3 grid gap-2">
-      {links.map((link) => (
-        <Link
-          key={link.label}
-          to={link.to}
-          className="w-fit text-sm font-medium text-neutral-300 transition hover:text-white"
-        >
-          {link.label}
-        </Link>
-      ))}
-    </div>
-  </div>
-);
-
 const ContactField = ({
   label,
   children,
@@ -361,7 +289,10 @@ const ContactSelect = ({
       className="relative normal-case tracking-normal"
       onBlur={(event) => {
         const nextTarget = event.relatedTarget;
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+        if (
+          !(nextTarget instanceof Node) ||
+          !event.currentTarget.contains(nextTarget)
+        ) {
           setIsOpen(false);
         }
       }}

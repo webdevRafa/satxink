@@ -637,8 +637,8 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,700px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-4"
-          style={{ opacity: 0.03 * heroOpacity }}
+          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,500px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-40"
+          style={{ opacity: 0.04 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
@@ -648,12 +648,12 @@ export const ArtistsPage = () => {
           <div className="max-w-3xl pb-2" style={heroFadeStyle}>
             <div>
               <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
-                <h1 className="mb-0! whitespace-nowrap text-[2rem]! font-bold leading-none text-white! text-4xl">
+                <h1 className="mb-0! whitespace-nowrap text-[1.7rem]! font-bold leading-none text-white! text-4xl">
                   Find Your Artist
                 </h1>
               </div>
 
-              <p className="mt-3 max-w-2xl text-base leading-7 text-neutral-300! sm:text-lg">
+              <p className="mt-3 max-w-2xl leading-7 text-neutral-300! text-sm">
                 Browse verified San Antonio tattooers by style, portfolio
                 preview, and the kind of work you want to wear next.
               </p>
@@ -664,17 +664,12 @@ export const ArtistsPage = () => {
               className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
             >
               {heroMetrics.map((metric) => {
-                const Icon = metric.icon;
                 const shouldAnimateCount =
                   typeof metric.countValue === "number" && metricEntryCount > 0;
 
                 return (
                   <div key={metric.label} className="min-w-0   ">
                     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
-                      <Icon
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
-                        aria-hidden="true"
-                      />
                       {metric.label}
                     </dt>
                     <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
@@ -699,17 +694,13 @@ export const ArtistsPage = () => {
 
       <div
         ref={stylesToolbarRef}
-        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-20 ${
+        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-18 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
         <div className="mx-auto max-w-[1300px] px-4 py-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-neutral-300">
-              <Palette
-                className="h-4 w-4 text-[var(--color-primary-hover)]"
-                aria-hidden="true"
-              />
               Style filters
             </div>
             <div className="inline-flex items-center gap-2 text-xs text-neutral-400">
@@ -725,10 +716,10 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles left"
               onClick={() => scrollStyleRail(-1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
             >
               <ChevronLeft
-                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                className="block h-5 w-5 text-white"
                 strokeWidth={3}
                 aria-hidden="true"
               />
@@ -761,10 +752,10 @@ export const ArtistsPage = () => {
               type="button"
               aria-label="Scroll styles right"
               onClick={() => scrollStyleRail(1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.06))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/60 md:inline-flex"
             >
               <ChevronRight
-                className="block h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]"
+                className="block h-5 w-5 text-white "
                 strokeWidth={3}
                 aria-hidden="true"
               />
@@ -1027,12 +1018,12 @@ const ArtistSpotlightCard = ({
               {displayName}
             </h2>
 
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <div className="mt-1 flex flex-wrap justify-center gap-2">
               {visibleSpecialties.length > 0 ? (
                 visibleSpecialties.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-lg border border-white/[0.12] bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-neutral-100"
+                    className="rounded-lg  px-3 py-1.5 text-xs font-semibold text-neutral-300!"
                   >
                     {tag}
                   </span>
@@ -1044,7 +1035,7 @@ const ArtistSpotlightCard = ({
               )}
             </div>
 
-            <span className="mt-6 inline-flex items-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.07] px-4 py-2 text-sm font-semibold text-white transition duration-300 group-hover:border-[var(--color-primary-hover)]/70 group-hover:bg-[var(--color-primary)]/20">
+            <span className="mt-6 inline-flex items-center gap-2 rounded-lg  px-4 py-2 text-sm font-semibold text-neutral-600! transition duration-300 group-hover:border-[var(--color-primary-hover)]/70 group-hover:text-neutral-300!">
               View artist profile
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </span>

@@ -90,11 +90,7 @@ export const Navbar = () => {
 
     if (firestoreAvatarUrl) {
       return (
-        <img
-          src={firestoreAvatarUrl}
-          alt={avatarLabel}
-          className={className}
-        />
+        <img src={firestoreAvatarUrl} alt={avatarLabel} className={className} />
       );
     }
 
@@ -224,20 +220,16 @@ export const Navbar = () => {
         {/* Desktop Nav */}
         <div className="hidden items-center gap-3 text-sm md:flex">
           <div
-            className={`flex items-center gap-1 rounded-full border px-1.5 py-1 transition duration-300 ${
-              isScrolled
-                ? "border-white/10 bg-white/[0.035]"
-                : "border-white/[0.08] bg-black/[0.10]"
-            }`}
+            className={`flex items-center gap-1 rounded-full  px-1.5 py-1 transition duration-300 `}
           >
             {desktopNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  `rounded-full px-3 py-1.5 text-sm text-white transition ${
                     isActive
-                      ? "bg-white/[0.10] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                      ? "bg-white/[0.10] text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                       : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                   }`
                 }
@@ -250,14 +242,14 @@ export const Navbar = () => {
           <NavLink
             to="/about"
             className={({ isActive }) =>
-              `rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              `rounded-full px-3 py-1.5 text-xs font-medium transition text-neutral-300 ${
                 isActive
-                  ? "bg-white/[0.08] text-white"
+                  ? "bg-white/[0.10] text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                   : "text-neutral-400 hover:bg-white/[0.055] hover:text-white"
               }`
             }
           >
-            About
+            About SATX INK
           </NavLink>
 
           <div className="flex w-[168px] shrink-0 justify-end">
