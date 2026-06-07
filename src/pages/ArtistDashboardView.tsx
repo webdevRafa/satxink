@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -113,6 +113,13 @@ type ArtistDashboardTab =
   | "gallery"
   | "payments";
 
+type HomepageFeatureFormState = {
+  story: string;
+  quote: string;
+  imageUrl: string;
+  imageAlt: string;
+};
+
 const BOOKING_STATUS_FILTERS: {
   label: string;
   value: BookingStatusFilter;
@@ -183,6 +190,7 @@ type ArtistProfileFormState = {
     nonRefundable: boolean;
   };
   finalPaymentTiming: FinalPaymentTiming;
+  homepageFeature: HomepageFeatureFormState;
 };
 
 type DashboardArtist = {
@@ -207,6 +215,9 @@ type DashboardArtist = {
   stripeConnect?: Artist["stripeConnect"];
   paymentType?: PaymentType;
   finalPaymentTiming?: FinalPaymentTiming;
+  homepageFeature?: Partial<HomepageFeatureFormState> & {
+    updatedAt?: unknown;
+  };
   externalPaymentDetails?: {
     method?: string;
     handle?: string;
@@ -322,6 +333,12 @@ const createProfileFormState = (
     nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
   },
   finalPaymentTiming: artist?.finalPaymentTiming || "after",
+  homepageFeature: {
+    story: artist?.homepageFeature?.story || "",
+    quote: artist?.homepageFeature?.quote || "",
+    imageUrl: artist?.homepageFeature?.imageUrl || "",
+    imageAlt: artist?.homepageFeature?.imageAlt || "",
+  },
 });
 
 const ArtistDashboardView = () => {
@@ -374,6 +391,8 @@ const ArtistDashboardView = () => {
     useState<DisplayNameStatus>("idle");
   const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingHomepageFeatureImage, setIsUploadingHomepageFeatureImage] =
+    useState(false);
 
   const [offerPrice, setOfferPrice] = useState(0);
   const [depositAmount, setDepositAmount] = useState<number>(0);
@@ -471,7 +490,7 @@ const ArtistDashboardView = () => {
     setIsProfileDirty(true);
   };
 
-  const checkDisplayNameAvailability = async (displayName: string) => {
+  const checkDisplayNameAvailability = useCallback(async (displayName: string) => {
     if (!uid) return "idle" as DisplayNameStatus;
 
     const slug = slugify(displayName, { lower: true, strict: true });
@@ -486,7 +505,7 @@ const ArtistDashboardView = () => {
     return belongsToAnotherArtist
       ? ("taken" as DisplayNameStatus)
       : ("available" as DisplayNameStatus);
-  };
+  }, [currentSlug, uid]);
 
   useEffect(() => {
     const displayName = profileForm.displayName.trim();
@@ -509,7 +528,7 @@ const ArtistDashboardView = () => {
     }, 650);
 
     return () => window.clearTimeout(timeoutId);
-  }, [profileForm.displayName, uid, currentSlug]);
+  }, [profileForm.displayName, uid, currentSlug, checkDisplayNameAvailability]);
 
   const toggleSpecialty = (specialty: string) => {
     updateProfileForm((current) => {
@@ -599,6 +618,59 @@ const ArtistDashboardView = () => {
     }
   };
 
+  const handleHomepageFeatureFileSelect = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Choose an image file.");
+      return;
+    }
+
+    if (!uid) {
+      toast.error("Your artist account is still loading.");
+      return;
+    }
+
+    setIsUploadingHomepageFeatureImage(true);
+
+    try {
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
+      const featureRef = ref(
+        storage,
+        `users/${uid}/homepage-feature/${Date.now()}-${safeName}`
+      );
+
+      await uploadBytes(featureRef, file, {
+        contentType: file.type,
+      });
+
+      const imageUrl = await getDownloadURL(featureRef);
+
+      updateProfileForm((current) => ({
+        ...current,
+        homepageFeature: {
+          ...current.homepageFeature,
+          imageUrl,
+          imageAlt:
+            current.homepageFeature.imageAlt ||
+            current.displayName ||
+            "Featured artist image",
+        },
+      }));
+      toast.success("Homepage feature image ready. Save changes to publish.");
+    } catch (error) {
+      console.error("Homepage feature image upload failed:", error);
+      toast.error("Homepage feature image upload failed.");
+    } finally {
+      setIsUploadingHomepageFeatureImage(false);
+    }
+  };
+
   const resetProfileForm = () => {
     setProfileForm(createProfileFormState(artist));
     setDisplayNameStatus("idle");
@@ -611,6 +683,10 @@ const ArtistDashboardView = () => {
     const displayName = profileForm.displayName.trim();
     const email = profileForm.email.trim();
     const bio = profileForm.bio.trim();
+    const homepageFeatureStory = profileForm.homepageFeature.story.trim();
+    const homepageFeatureQuote = profileForm.homepageFeature.quote.trim();
+    const homepageFeatureImageAlt =
+      profileForm.homepageFeature.imageAlt.trim();
     const nextSlug = slugify(displayName, { lower: true, strict: true });
 
     if (!displayName) {
@@ -685,6 +761,13 @@ const ArtistDashboardView = () => {
         nonRefundable: profileForm.depositPolicy.nonRefundable,
       },
       finalPaymentTiming: profileForm.finalPaymentTiming,
+      homepageFeature: {
+        story: homepageFeatureStory,
+        quote: homepageFeatureQuote,
+        imageUrl: profileForm.homepageFeature.imageUrl.trim(),
+        imageAlt: homepageFeatureImageAlt,
+        updatedAt: serverTimestamp(),
+      },
       profileComplete: true,
       updatedAt: serverTimestamp(),
     };
@@ -1002,6 +1085,7 @@ const ArtistDashboardView = () => {
     !isProfileDirty ||
     isSavingProfile ||
     isUploadingAvatar ||
+    isUploadingHomepageFeatureImage ||
     displayNameStatus === "checking" ||
     displayNameStatus === "taken";
   const visibleBookings = useMemo(() => {
@@ -1430,6 +1514,142 @@ const ArtistDashboardView = () => {
                       {profileForm.bio.length}/700
                     </span>
                   </label>
+                </section>
+
+                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <ImageIcon size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Homepage feature</h2>
+                      <p className="text-sm text-neutral-400">
+                        Prepare your spotlight story for when SATX Ink features
+                        you on the homepage.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                    <div className="space-y-4">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Feature story
+                        </span>
+                        <textarea
+                          value={profileForm.homepageFeature.story}
+                          onChange={(event) =>
+                            updateProfileForm((current) => ({
+                              ...current,
+                              homepageFeature: {
+                                ...current.homepageFeature,
+                                story: event.target.value,
+                              },
+                            }))
+                          }
+                          rows={5}
+                          maxLength={520}
+                          className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          placeholder="Share the work, style, or creative point of view you want clients to remember."
+                        />
+                        <span className="block text-right text-xs text-neutral-500">
+                          {profileForm.homepageFeature.story.length}/520
+                        </span>
+                      </label>
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Optional quote
+                        </span>
+                        <input
+                          type="text"
+                          value={profileForm.homepageFeature.quote}
+                          maxLength={180}
+                          onChange={(event) =>
+                            updateProfileForm((current) => ({
+                              ...current,
+                              homepageFeature: {
+                                ...current.homepageFeature,
+                                quote: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          placeholder="A short line about your work, process, or style."
+                        />
+                        <span className="block text-right text-xs text-neutral-500">
+                          {profileForm.homepageFeature.quote.length}/180
+                        </span>
+                      </label>
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Image alt text
+                        </span>
+                        <input
+                          type="text"
+                          value={profileForm.homepageFeature.imageAlt}
+                          onChange={(event) =>
+                            updateProfileForm((current) => ({
+                              ...current,
+                              homepageFeature: {
+                                ...current.homepageFeature,
+                                imageAlt: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                          placeholder="Describe the image for accessibility."
+                        />
+                      </label>
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
+                      <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-white/10 bg-black">
+                        {profileForm.homepageFeature.imageUrl ? (
+                          <img
+                            src={profileForm.homepageFeature.imageUrl}
+                            alt={
+                              profileForm.homepageFeature.imageAlt ||
+                              profileForm.displayName ||
+                              "Homepage feature preview"
+                            }
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-500">
+                            Upload a vertical or editorial image for the
+                            homepage spotlight.
+                          </div>
+                        )}
+                      </div>
+                      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/25 hover:text-white">
+                        {isUploadingHomepageFeatureImage ? (
+                          <LoaderCircle
+                            size={15}
+                            className="animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Camera size={15} aria-hidden="true" />
+                        )}
+                        {isUploadingHomepageFeatureImage
+                          ? "Uploading"
+                          : "Upload image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          disabled={isUploadingHomepageFeatureImage}
+                          onChange={handleHomepageFeatureFileSelect}
+                        />
+                      </label>
+                      <p className="mt-2 text-xs leading-5 text-neutral-500">
+                        Admin controls who appears on the homepage. This content
+                        is saved to your artist profile.
+                      </p>
+                    </div>
+                  </div>
                 </section>
 
                 <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">

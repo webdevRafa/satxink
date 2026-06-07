@@ -11,6 +11,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -820,23 +821,75 @@ const ClearToolsButton = ({
 
 const ToggleFeaturedButton = ({
   artist,
+  featuredArtistId,
+  legacyFeaturedArtistIds,
+  adminUserId,
 }: {
   artist: ArtistRecord;
+  featuredArtistId: string;
+  legacyFeaturedArtistIds: string[];
+  adminUserId?: string;
 }) => {
   const [isSaving, setIsSaving] = useState(false);
-  const featured = artist.featured === true;
+  const featured = featuredArtistId
+    ? featuredArtistId === artist.id
+    : artist.featured === true;
 
   const handleToggle = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setIsSaving(true);
     try {
-      await updateDoc(doc(db, "users", artist.id), {
-        featured: !featured,
-      });
-      toast.success(featured ? "Artist unfeatured" : "Artist featured");
+      const homepageSettingsRef = doc(db, "siteSettings", "homepage");
+      const currentFeaturedIds = new Set(
+        [featuredArtistId, ...legacyFeaturedArtistIds].filter(
+          (id): id is string => Boolean(id && id !== artist.id)
+        )
+      );
+
+      if (featured) {
+        await Promise.all([
+          setDoc(
+            homepageSettingsRef,
+            {
+              featuredArtistId: null,
+              updatedAt: serverTimestamp(),
+              updatedBy: adminUserId || null,
+            },
+            { merge: true }
+          ),
+          updateDoc(doc(db, "users", artist.id), {
+            featured: false,
+            updatedAt: serverTimestamp(),
+          }),
+        ]);
+        toast.success("Homepage spotlight cleared");
+      } else {
+        await Promise.all([
+          setDoc(
+            homepageSettingsRef,
+            {
+              featuredArtistId: artist.id,
+              updatedAt: serverTimestamp(),
+              updatedBy: adminUserId || null,
+            },
+            { merge: true }
+          ),
+          updateDoc(doc(db, "users", artist.id), {
+            featured: true,
+            updatedAt: serverTimestamp(),
+          }),
+          ...Array.from(currentFeaturedIds).map((artistId) =>
+            updateDoc(doc(db, "users", artistId), {
+              featured: false,
+              updatedAt: serverTimestamp(),
+            })
+          ),
+        ]);
+        toast.success("Homepage spotlight updated");
+      }
     } catch (error) {
-      console.error("Failed to update featured artist", error);
-      toast.error("Could not update featured status");
+      console.error("Failed to update homepage spotlight", error);
+      toast.error("Could not update homepage spotlight");
     } finally {
       setIsSaving(false);
     }
@@ -852,8 +905,10 @@ const ToggleFeaturedButton = ({
           ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
           : "border-white/10 text-neutral-500 hover:border-white/25 hover:text-white"
       } disabled:opacity-50`}
-      aria-label={featured ? "Remove featured artist" : "Mark artist featured"}
-      title={featured ? "Featured" : "Mark featured"}
+      aria-label={
+        featured ? "Clear homepage spotlight" : "Make homepage spotlight"
+      }
+      title={featured ? "Homepage spotlight" : "Make homepage spotlight"}
     >
       <Star size={15} fill={featured ? "currentColor" : "none"} />
     </button>
@@ -1248,10 +1303,17 @@ interface TableProps<T> {
   status?: CollectionStatus;
 }
 
-const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
+const ArtistsTable: React.FC<
+  TableProps<ArtistRecord> & {
+    featuredArtistId: string;
+    adminUserId?: string;
+  }
+> = ({
   data,
   onSelect,
   status,
+  featuredArtistId,
+  adminUserId,
 }) => {
   const [search, setSearch] = useState("");
   const [stripeFilter, setStripeFilter] = useState<StripeFilter>("all");
@@ -1263,7 +1325,9 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
     () =>
       data.filter((artist) => {
         const stripeConnected = isStripeConnected(artist);
-        const featured = artist.featured === true;
+        const featured = featuredArtistId
+          ? featuredArtistId === artist.id
+          : artist.featured === true;
         const matchesStripe =
           stripeFilter === "all" ||
           (stripeFilter === "connected" && stripeConnected) ||
@@ -1289,7 +1353,7 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
           ])
         );
       }),
-    [attentionFilter, data, featuredFilter, search, stripeFilter]
+    [attentionFilter, data, featuredArtistId, featuredFilter, search, stripeFilter]
   );
 
   const hasActiveTools =
@@ -1381,6 +1445,9 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
           {filteredArtists.map((artist) => {
             const artistName = getUserName(artist, artist.id);
             const stripeConnected = isStripeConnected(artist);
+            const legacyFeaturedArtistIds = data
+              .filter((candidate) => candidate.featured === true)
+              .map((candidate) => candidate.id);
             return (
               <button
                 key={artist.id}
@@ -1406,7 +1473,12 @@ const ArtistsTable: React.FC<TableProps<ArtistRecord>> = ({
                 </span>
                 <span className={inlineCellClass}>{formatDate(artist.createdAt)}</span>
                 <span className={inlineCellClass}>
-                  <ToggleFeaturedButton artist={artist} />
+                  <ToggleFeaturedButton
+                    artist={artist}
+                    featuredArtistId={featuredArtistId}
+                    legacyFeaturedArtistIds={legacyFeaturedArtistIds}
+                    adminUserId={adminUserId}
+                  />
                 </span>
               </button>
             );
@@ -2775,6 +2847,7 @@ const AdminDashboardView: React.FC = () => {
   const [bookings, setBookings] = useState<GenericRecord[]>([]);
   const [sessions, setSessions] = useState<GenericRecord[]>([]);
   const [contactMessages, setContactMessages] = useState<GenericRecord[]>([]);
+  const [featuredArtistId, setFeaturedArtistId] = useState("");
   const [collectionStatuses, setCollectionStatuses] = useState(
     getInitialCollectionStatus
   );
@@ -2838,6 +2911,21 @@ const AdminDashboardView: React.FC = () => {
       (error) => {
         console.error("Failed to load users for admin dashboard", error);
         toast.error("Could not load user lookup data");
+      }
+    );
+    const unsubHomepageSettings = onSnapshot(
+      doc(db, "siteSettings", "homepage"),
+      (snap) => {
+        const data = snap.data();
+        setFeaturedArtistId(
+          typeof data?.featuredArtistId === "string"
+            ? data.featuredArtistId
+            : ""
+        );
+      },
+      (error) => {
+        console.error("Failed to load homepage settings", error);
+        toast.error("Could not load homepage feature settings");
       }
     );
     // Artists
@@ -2954,6 +3042,7 @@ const AdminDashboardView: React.FC = () => {
     );
     return () => {
       unsubUsers();
+      unsubHomepageSettings();
       unsubArtists();
       unsubRequests();
       unsubOffers();
@@ -3001,6 +3090,8 @@ const AdminDashboardView: React.FC = () => {
         {activeView === "artists" && (
           <ArtistsTable
             data={artists}
+            featuredArtistId={featuredArtistId}
+            adminUserId={currentUser.id}
             status={collectionStatuses.artists}
             onSelect={(item) => setSelectedItem(item)}
           />

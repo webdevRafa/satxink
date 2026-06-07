@@ -12,13 +12,18 @@ import {
   ChevronRight,
   ImageOff,
   Layers,
+  MapPin,
+  Quote,
   Search,
+  Sparkles,
   Tag,
 } from "lucide-react";
 import CountUp from "react-countup";
 import {
   collection,
+  doc,
   documentId,
+  getDoc,
   getDocs,
   limit,
   query,
@@ -45,7 +50,17 @@ type PublicArtist = {
   name?: string;
   displayName?: string;
   avatarUrl?: string;
+  bio?: string;
+  shopName?: string;
   studioName?: string;
+  specialties?: string[];
+  homepageFeature?: {
+    story?: string;
+    quote?: string;
+    imageUrl?: string;
+    imageAlt?: string;
+    updatedAt?: unknown;
+  };
   role?: string;
   isVerified?: boolean | "true" | "false";
 } & StripeConnectLike;
@@ -56,6 +71,14 @@ type HomeFlash = Flash & {
 
 type HomeFlashSheet = FlashSheet & {
   artist?: PublicArtist;
+};
+
+type FeaturedPreviewItem = {
+  id: string;
+  href: string;
+  imageUrl: string;
+  label: string;
+  type: "flash" | "sheet";
 };
 
 const featuredStyles = FEATURED_TATTOO_STYLES;
@@ -100,6 +123,12 @@ export const HomePage: FC = () => {
     useViewportEntry<HTMLDListElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
+  const [featuredArtist, setFeaturedArtist] = useState<PublicArtist | null>(
+    null
+  );
+  const [featuredPreviewItems, setFeaturedPreviewItems] = useState<
+    FeaturedPreviewItem[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -117,6 +146,14 @@ export const HomePage: FC = () => {
             query(collection(db, "flashSheets"), limit(HOME_SHEET_FETCH_LIMIT))
           ),
         ]);
+        const homepageSettingsSnap = await getDoc(
+          doc(db, "siteSettings", "homepage")
+        );
+        const homepageSettings = homepageSettingsSnap.data();
+        const featuredArtistId =
+          typeof homepageSettings?.featuredArtistId === "string"
+            ? homepageSettings.featuredArtistId
+            : "";
 
         const rawFlashes = flashSnapshot.docs
           .map((flashDoc) => ({
@@ -148,6 +185,7 @@ export const HomePage: FC = () => {
           new Set(
             [...rawFlashes, ...rawSheets]
               .map((item) => item.artistId)
+              .concat(featuredArtistId ? [featuredArtistId] : [])
               .filter(Boolean)
           )
         );
@@ -174,13 +212,38 @@ export const HomePage: FC = () => {
             .filter(isMarketplaceReady)
         ).slice(0, 5);
 
+        const selectedFeaturedArtist = featuredArtistId
+          ? artistsById[featuredArtistId] || null
+          : null;
+        const featuredPreviews = selectedFeaturedArtist
+          ? getFeaturedPreviewItems(
+              rawFlashes
+                .map((flash) => ({
+                  ...flash,
+                  artist: artistsById[flash.artistId],
+                }))
+                .filter(isMarketplaceReady),
+              rawSheets
+                .map((sheet) => ({
+                  ...sheet,
+                  artist: artistsById[sheet.artistId],
+                }))
+                .filter(isMarketplaceReady),
+              selectedFeaturedArtist.id
+            )
+          : [];
+
         setFlashes(readyFlashes);
         setSheets(readySheets);
+        setFeaturedArtist(selectedFeaturedArtist);
+        setFeaturedPreviewItems(featuredPreviews);
       } catch (err) {
         console.error("Failed to fetch homepage preview data:", err);
         if (isMounted) {
           setFlashes([]);
           setSheets([]);
+          setFeaturedArtist(null);
+          setFeaturedPreviewItems([]);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -309,28 +372,10 @@ export const HomePage: FC = () => {
 
       <section className="border-y border-white/5 bg-[#121212] px-5 py-18 md:px-8">
         <div className="mx-auto max-w-7xl">
-          <SectionHeader
-            kicker="How SATX Ink works"
-            title="A cleaner way to find your next tattoo."
-            body="Start with the artist, the style, the flash, or the event. SATX Ink keeps the discovery path simple so clients can move from browsing to booking with less guesswork."
+          <FeaturedArtistSpotlight
+            artist={featuredArtist}
+            previewItems={featuredPreviewItems}
           />
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <HowItWorksCard
-              step="01"
-              title="Find local artists"
-              body="Search San Antonio artists by portfolio, specialties, shop, and profile details."
-            />
-            <HowItWorksCard
-              step="02"
-              title="Browse real flash"
-              body="See individual flash and full sheets from connected artists ready to receive requests."
-            />
-            <HowItWorksCard
-              step="03"
-              title="Book with intent"
-              body="Send a focused request, reserve event spots when available, and keep the next step clear."
-            />
-          </div>
         </div>
       </section>
 
@@ -396,14 +441,14 @@ export const HomePage: FC = () => {
       <section className="border-t border-white/5 bg-[#171717] px-5 py-20 text-center md:px-8">
         <div className="mx-auto max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
-            Booking, simplified
+            Start the conversation
           </p>
           <h2 className="mt-3 text-3xl! font-semibold text-white md:text-4xl!">
-            Less digging, clearer next steps.
+            When the work feels right, reach out.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-            Compare artists, open flash sheets, and move toward a request when
-            the work and artist feel right.
+            Compare artists, browse real flash, and send a focused request when
+            you are ready to take the next step.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
@@ -442,23 +487,139 @@ const SectionHeader = ({
   </div>
 );
 
-const HowItWorksCard = ({
-  step,
-  title,
-  body,
+const FeaturedArtistSpotlight = ({
+  artist,
+  previewItems,
 }: {
-  step: string;
-  title: string;
-  body: string;
-}) => (
-  <article className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent p-5 shadow-xl">
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-[#0b0b0b]!">
-      {step}
-    </span>
-    <h3 className="mt-5 text-xl! font-semibold text-white">{title}</h3>
-    <p className="mt-3 text-sm leading-6 text-white/55">{body}</p>
-  </article>
-);
+  artist: PublicArtist | null;
+  previewItems: FeaturedPreviewItem[];
+}) => {
+  const artistName = getArtistName(artist || undefined);
+  const feature = artist?.homepageFeature;
+  const story =
+    feature?.story?.trim() ||
+    artist?.bio ||
+    "A SATX Ink artist spotlight is coming soon. Until then, explore local artists, compare styles, and find the work that feels right.";
+  const quote = feature?.quote?.trim();
+  const featureImage = feature?.imageUrl || artist?.avatarUrl || heroImage;
+  const featureImageAlt =
+    feature?.imageAlt?.trim() ||
+    (artist ? `${artistName} featured artist image` : "SATX Ink artist work");
+  const shopLabel = artist
+    ? artist.shopName || artist.studioName || "San Antonio artist"
+    : "Featured artist";
+  const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-stretch">
+      <div className="relative min-h-[420px] overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl shadow-black/30">
+        <img
+          src={featureImage}
+          alt={featureImageAlt}
+          className="absolute inset-0 h-full w-full object-cover opacity-82"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.10),rgba(0,0,0,0.72))]" />
+        <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
+          <Sparkles size={13} aria-hidden="true" />
+          Featured SATX Artist
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-5">
+          <div className="max-w-md">
+            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-white/65">
+              <MapPin size={15} aria-hidden="true" />
+              {shopLabel}
+            </p>
+            <h2 className="text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+              {artist ? artistName : "Meet the next artist spotlight."}
+            </h2>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-[420px] flex-col justify-between rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.065] via-white/[0.03] to-transparent p-6 shadow-xl md:p-8">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+            Featured SATX Artist
+          </p>
+          <h3 className="mt-3 max-w-2xl text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+            {artist
+              ? `A closer look at ${artistName}.`
+              : "A local spotlight is getting inked in."}
+          </h3>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60 md:text-base">
+            {story}
+          </p>
+
+          {quote && (
+            <blockquote className="mt-5 rounded-lg border border-white/10 bg-black/25 p-4">
+              <Quote size={18} className="text-white/35" aria-hidden="true" />
+              <p className="mt-3 text-base font-medium leading-7 text-white/80">
+                {quote}
+              </p>
+            </blockquote>
+          )}
+
+          {visibleStyles.length > 0 && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {visibleStyles.map((style) => (
+                <span
+                  key={style}
+                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-white/65"
+                >
+                  {style}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8">
+          {previewItems.length > 0 && (
+            <div className="mb-5 grid grid-cols-4 gap-2">
+              {previewItems.map((item) => (
+                <Link
+                  key={`${item.type}-${item.id}`}
+                  to={item.href}
+                  className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-black"
+                  aria-label={item.label}
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover opacity-82 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
+                    loading="lazy"
+                  />
+                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/75">
+                    {item.type}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {artist ? (
+            <Link
+              to={`/artists/${artist.id}`}
+              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+            >
+              View artist profile
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
+            </Link>
+          ) : (
+            <Link
+              to="/artists"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+            >
+              Browse local artists
+              <ArrowRight size={16} className="text-[#0b0b0b]!" />
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PreviewRail = <T,>({
   title,
@@ -626,6 +787,36 @@ const EmptyPreview = ({ label }: { label: string }) => (
     <p className="text-sm text-white/45">{label}</p>
   </div>
 );
+
+const getFeaturedPreviewItems = (
+  flashes: HomeFlash[],
+  sheets: HomeFlashSheet[],
+  artistId: string
+): FeaturedPreviewItem[] => {
+  const flashItems: FeaturedPreviewItem[] = flashes
+    .filter((flash) => flash.artistId === artistId)
+    .map((flash) => ({
+      id: flash.id,
+      href: flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash",
+      imageUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+      label: flash.title || flash.caption || "Featured flash",
+      type: "flash",
+    }));
+
+  const sheetItems: FeaturedPreviewItem[] = sheets
+    .filter((sheet) => sheet.artistId === artistId)
+    .map((sheet) => ({
+      id: sheet.id,
+      href: `/flash/sheets/${sheet.id}`,
+      imageUrl: sheet.thumbUrl || sheet.imageUrl,
+      label: sheet.title || "Featured flash sheet",
+      type: "sheet",
+    }));
+
+  return [...flashItems, ...sheetItems]
+    .filter((item) => item.imageUrl)
+    .slice(0, 4);
+};
 
 const fetchArtistsById = async (artistIds: string[]) => {
   const artistsById: Record<string, PublicArtist> = {};
