@@ -375,6 +375,7 @@ export const HomePage: FC = () => {
           <HeroFeaturedArtistPanel
             artist={featuredArtist}
             previewItems={featuredPreviewItems}
+            loading={loading}
           />
         </div>
       </section>
@@ -490,10 +491,14 @@ const SectionHeader = ({
 const HeroFeaturedArtistPanel = ({
   artist,
   previewItems,
+  loading,
 }: {
   artist: PublicArtist | null;
   previewItems: FeaturedPreviewItem[];
+  loading: boolean;
 }) => {
+  if (loading) return <HeroFeaturedArtistPanelSkeleton />;
+
   const artistName = getArtistName(artist || undefined);
   const feature = artist?.homepageFeature;
   const story =
@@ -501,7 +506,7 @@ const HeroFeaturedArtistPanel = ({
     artist?.bio ||
     "A SATX Ink artist spotlight is coming soon. Until then, explore local artists, compare styles, and find the work that feels right.";
   const quote = feature?.quote?.trim();
-  const featureImage = feature?.imageUrl || artist?.avatarUrl || heroImage;
+  const featureImage = feature?.imageUrl || artist?.avatarUrl || "";
   const featureImageAlt =
     feature?.imageAlt?.trim() ||
     (artist ? `${artistName} featured artist image` : "SATX Ink artist work");
@@ -511,16 +516,24 @@ const HeroFeaturedArtistPanel = ({
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
 
   return (
-    <aside className="relative overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl lg:self-end">
+    <aside className="relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end">
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-        <img
-          src={featureImage}
-          alt={featureImageAlt}
-          className="absolute inset-0 h-full w-full object-cover opacity-[0.88]"
-          loading="lazy"
-        />
+        {featureImage ? (
+          <img
+            src={featureImage}
+            alt={featureImageAlt}
+            className="absolute inset-0 h-full w-full object-cover opacity-[0.88]"
+            loading="lazy"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
+            <div className="flex h-full items-center justify-center">
+              <ImageOff size={38} className="text-white/18" />
+            </div>
+          </div>
+        )}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.78))]" />
         <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
@@ -561,7 +574,7 @@ const HeroFeaturedArtistPanel = ({
           )}
         </div>
 
-        <p className="mt-3 line-clamp-4 text-sm leading-6 text-white/[0.62]">
+        <p className="mt-3 min-h-24 line-clamp-4 text-sm leading-6 text-white/[0.62]">
           {story}
         </p>
 
@@ -639,6 +652,64 @@ const HeroFeaturedArtistPanel = ({
     </aside>
   );
 };
+
+const HeroFeaturedArtistPanelSkeleton = () => (
+  <aside
+    className="relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end"
+    aria-label="Loading featured SATX artist"
+  >
+    <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+    <div className="preview-loading-sheen relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
+      <div className="absolute left-3 top-3 h-8 w-48 rounded-full border border-white/10 bg-black/35" />
+      <div className="absolute inset-x-4 bottom-4">
+        <div className="mb-3 h-3 w-36 rounded-full bg-white/[0.09]" />
+        <div className="h-8 w-3/4 rounded-md bg-white/[0.12]" />
+        <div className="mt-2 h-8 w-1/2 rounded-md bg-white/[0.09]" />
+      </div>
+    </div>
+
+    <div className="p-3 pt-4 md:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="skeleton-sheen h-3 w-32 rounded-full bg-white/[0.08]" />
+          <div className="skeleton-sheen mt-3 h-6 w-11/12 rounded-md bg-white/[0.11]" />
+          <div className="skeleton-sheen mt-2 h-6 w-3/5 rounded-md bg-white/[0.08]" />
+        </div>
+        <div className="skeleton-sheen h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/[0.08]" />
+      </div>
+
+      <div className="mt-4 min-h-24 space-y-3">
+        <div className="skeleton-sheen h-3 w-full rounded-full bg-white/[0.08]" />
+        <div className="skeleton-sheen h-3 w-11/12 rounded-full bg-white/[0.075]" />
+        <div className="skeleton-sheen h-3 w-10/12 rounded-full bg-white/[0.07]" />
+        <div className="skeleton-sheen h-3 w-7/12 rounded-full bg-white/[0.06]" />
+      </div>
+
+      <div className="skeleton-sheen mt-4 min-h-[72px] rounded-lg border border-white/10 bg-white/[0.035]" />
+
+      <div className="mt-4 flex min-h-7 flex-wrap gap-2">
+        {[0, 1, 2, 3].map((item) => (
+          <span
+            key={item}
+            className="skeleton-sheen h-7 w-20 rounded-full border border-white/10 bg-white/[0.06]"
+          />
+        ))}
+      </div>
+
+      <div className="mt-4 grid min-h-[96px] grid-cols-4 gap-2">
+        {[0, 1, 2, 3].map((item) => (
+          <span
+            key={item}
+            className="preview-loading-sheen aspect-square rounded-md border border-white/10 bg-white/[0.045]"
+          />
+        ))}
+      </div>
+
+      <div className="skeleton-sheen mt-5 h-10 w-44 rounded-md bg-white/[0.12]" />
+    </div>
+  </aside>
+);
 
 const PreviewRail = <T,>({
   title,
