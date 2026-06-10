@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from "uuid";
 import Stripe from 'stripe';
 import { onCall } from 'firebase-functions/v2/https';
 import { onRequest } from 'firebase-functions/v2/https';
+import * as transactionalEmail from "./transactionalEmail";
 
 
 
@@ -3323,5 +3324,6 @@ module.exports = {
   discardFlashDraft,
   cleanupProcessedEvents,
   cleanupExpiredFlashHolds,
+  ...transactionalEmail,
 };
  
