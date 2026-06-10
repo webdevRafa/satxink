@@ -520,20 +520,7 @@ const HeroFeaturedArtistPanel = ({
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-        {featureImage ? (
-          <img
-            src={featureImage}
-            alt={featureImageAlt}
-            className="absolute inset-0 h-full w-full object-cover opacity-[0.88]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
-            <div className="flex h-full items-center justify-center">
-              <ImageOff size={38} className="text-white/18" />
-            </div>
-          </div>
-        )}
+        <HeroFeaturedArtistImage src={featureImage} alt={featureImageAlt} />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.78))]" />
         <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
@@ -650,6 +637,89 @@ const HeroFeaturedArtistPanel = ({
         </div>
       </div>
     </aside>
+  );
+};
+
+const HeroFeaturedArtistImage = ({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) => {
+  const [decodedSrc, setDecodedSrc] = useState("");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setDecodedSrc("");
+    setFailed(false);
+
+    if (!src) return;
+
+    let cancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+
+    const markDecoded = () => {
+      if (!cancelled) setDecodedSrc(src);
+    };
+
+    const markFailed = () => {
+      if (!cancelled) setFailed(true);
+    };
+
+    image.src = src;
+
+    if (image.decode) {
+      image
+        .decode()
+        .then(markDecoded)
+        .catch(() => {
+          if (image.complete && image.naturalWidth > 0) {
+            markDecoded();
+          } else {
+            markFailed();
+          }
+        });
+    } else {
+      image.onload = markDecoded;
+      image.onerror = markFailed;
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  if (!src || failed) {
+    return (
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
+        <div className="flex h-full items-center justify-center">
+          <ImageOff size={38} className="text-white/18" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
+          decodedSrc ? "opacity-0" : "opacity-100"
+        }`}
+        aria-hidden="true"
+      />
+      {decodedSrc && (
+        <img
+          key={decodedSrc}
+          src={decodedSrc}
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-cover opacity-[0.88] transition-opacity duration-500"
+          loading="eager"
+          decoding="async"
+        />
+      )}
+    </>
   );
 };
 
