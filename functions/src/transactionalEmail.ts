@@ -556,7 +556,7 @@ const renderClientWelcomeEmail = (
     preview: "Find the right San Antonio tattoo artist for your idea.",
     headline: "Discover San Antonio tattoo artists who fit your style.",
     body:
-      "Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when someone feels like the right fit.",
+      "Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when it feels like the right fit.",
     brandLogoUrl: logoAttachment
       ? `cid:${CLIENT_WELCOME_LOGO_CONTENT_ID}`
       : undefined,
