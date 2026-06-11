@@ -4,9 +4,11 @@ import {
   onDocumentUpdated,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import { Resend } from "resend";
+import { Resend, type Attachment } from "resend";
 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 
@@ -14,8 +16,16 @@ const APP_URL = "https://satxink.com";
 const SUPPORT_EMAIL = "support@satxink.com";
 const EMAIL_REGION = "us-central1";
 const BRAND_NAME = "SATX Ink";
-const CLIENT_WELCOME_LOGO_PATH =
-  "/email/satx-ink-email-logo_satx-for-email.png";
+const CLIENT_WELCOME_LOGO_FILENAME =
+  "satx-ink-email-logo_satx-for-email.png";
+const CLIENT_WELCOME_LOGO_CONTENT_ID = "satx-ink-email-logo";
+const CLIENT_WELCOME_LOGO_ASSET_PATH = path.join(
+  __dirname,
+  "..",
+  "assets",
+  CLIENT_WELCOME_LOGO_FILENAME
+);
+const PREVIEW_SPACER = "&nbsp;&zwnj;".repeat(36);
 const STALE_SENDING_WINDOW_MS = 10 * 60 * 1000;
 
 const senders = {
@@ -45,6 +55,7 @@ type EmailTemplate = {
   subject: string;
   html: string;
   text: string;
+  attachments?: Attachment[];
 };
 
 type LayoutInput = {
@@ -64,6 +75,7 @@ type LayoutInput = {
     href: string;
   };
   footerNote?: string;
+  attachments?: Attachment[];
 };
 
 type TransactionalEmailInput = EmailTemplate & {
@@ -293,7 +305,7 @@ const renderSections = (sections: DetailSection[] = []) =>
 const renderEmailLayout = (input: LayoutInput) => {
   const brandHeader = input.brandLogoUrl
     ? `<img src="${escapeHtml(input.brandLogoUrl)}" alt="${escapeHtml(
-        input.brandLogoAlt || BRAND_NAME
+        input.brandLogoAlt ?? BRAND_NAME
       )}" width="168" style="display:block;width:168px;max-width:168px;height:auto;border:0;outline:none;text-decoration:none;">`
     : `<div style="font-size:22px;line-height:26px;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">SATX<span style="color:#b6382d;font-style:italic;">INK</span></div>`;
   const avatar = input.avatarUrl
@@ -318,6 +330,7 @@ const renderEmailLayout = (input: LayoutInput) => {
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(
       input.preview
     )}</div>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">${PREVIEW_SPACER}</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0d0d0d;border-collapse:collapse;">
       <tr>
         <td align="center" style="padding:32px 16px;">
@@ -383,7 +396,7 @@ const renderEmailLayout = (input: LayoutInput) => {
 
 const renderTextEmail = (input: LayoutInput) => {
   const lines = [
-    "SATX Ink",
+    input.preview,
     "",
     input.headline,
     "",
@@ -410,7 +423,25 @@ const buildEmail = (
   subject,
   html: renderEmailLayout(input),
   text: renderTextEmail(input),
+  attachments: input.attachments,
 });
+
+const getClientWelcomeLogoAttachment = (): Attachment | undefined => {
+  try {
+    return {
+      filename: CLIENT_WELCOME_LOGO_FILENAME,
+      content: fs.readFileSync(CLIENT_WELCOME_LOGO_ASSET_PATH),
+      contentType: "image/png",
+      contentId: CLIENT_WELCOME_LOGO_CONTENT_ID,
+    };
+  } catch (error) {
+    logger.warn("Client welcome email logo could not be attached.", {
+      path: CLIENT_WELCOME_LOGO_ASSET_PATH,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+};
 
 const claimEmailEvent = async (
   eventKey: string,
@@ -478,6 +509,7 @@ const sendTransactionalEmail = async (input: TransactionalEmailInput) => {
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments,
     });
 
     if (result.error) {
@@ -513,15 +545,18 @@ const renderClientWelcomeEmail = (
 ): EmailTemplate => {
   const name = firstString(user.displayName, user.name, user.firstName, "there");
   const email = getUserEmail(user);
+  const logoAttachment = getClientWelcomeLogoAttachment();
 
-  return buildEmail("Welcome to SATX Ink", {
+  return buildEmail("Your SATX Ink account is ready", {
     preview: "Find the right San Antonio tattoo artist for your idea.",
-    eyebrow: "Welcome to SATX Ink",
+    eyebrow: "Account ready",
     headline: "Discover San Antonio tattoo artists who fit your style.",
     body:
-      "Welcome to SATX Ink. Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when someone feels like the right fit.",
-    brandLogoUrl: getAbsoluteUrl(CLIENT_WELCOME_LOGO_PATH),
-    brandLogoAlt: BRAND_NAME,
+      "Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when someone feels like the right fit.",
+    brandLogoUrl: logoAttachment
+      ? `cid:${CLIENT_WELCOME_LOGO_CONTENT_ID}`
+      : undefined,
+    brandLogoAlt: "",
     avatarUrl: firstString(user.avatarUrl),
     avatarAlt: name,
     sections: [
@@ -537,6 +572,7 @@ const renderClientWelcomeEmail = (
       label: "Browse artists",
       href: getAbsoluteUrl("/artists"),
     },
+    attachments: logoAttachment ? [logoAttachment] : undefined,
   });
 };
 
