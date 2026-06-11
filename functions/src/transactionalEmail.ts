@@ -14,6 +14,8 @@ const APP_URL = "https://satxink.com";
 const SUPPORT_EMAIL = "support@satxink.com";
 const EMAIL_REGION = "us-central1";
 const BRAND_NAME = "SATX Ink";
+const CLIENT_WELCOME_LOGO_PATH =
+  "/email/satx-ink-email-logo_satx-for-email.png";
 const STALE_SENDING_WINDOW_MS = 10 * 60 * 1000;
 
 const senders = {
@@ -52,6 +54,8 @@ type LayoutInput = {
   body: string;
   avatarUrl?: string;
   avatarAlt?: string;
+  brandLogoUrl?: string;
+  brandLogoAlt?: string;
   heroImageUrl?: string;
   heroImageAlt?: string;
   sections?: DetailSection[];
@@ -287,6 +291,11 @@ const renderSections = (sections: DetailSection[] = []) =>
     .join("");
 
 const renderEmailLayout = (input: LayoutInput) => {
+  const brandHeader = input.brandLogoUrl
+    ? `<img src="${escapeHtml(input.brandLogoUrl)}" alt="${escapeHtml(
+        input.brandLogoAlt || BRAND_NAME
+      )}" width="168" style="display:block;width:168px;max-width:168px;height:auto;border:0;outline:none;text-decoration:none;">`
+    : `<div style="font-size:22px;line-height:26px;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">SATX<span style="color:#b6382d;font-style:italic;">INK</span></div>`;
   const avatar = input.avatarUrl
     ? `<img src="${escapeHtml(input.avatarUrl)}" alt="${escapeHtml(
         input.avatarAlt || ""
@@ -315,7 +324,7 @@ const renderEmailLayout = (input: LayoutInput) => {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;border-collapse:collapse;">
             <tr>
               <td style="padding:0 4px 16px;">
-                <div style="font-size:22px;line-height:26px;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">SATX<span style="color:#b6382d;font-style:italic;">INK</span></div>
+                ${brandHeader}
               </td>
             </tr>
             <tr>
@@ -503,31 +512,30 @@ const renderClientWelcomeEmail = (
   user: admin.firestore.DocumentData
 ): EmailTemplate => {
   const name = firstString(user.displayName, user.name, user.firstName, "there");
-  const profileComplete = user.profileComplete === true;
+  const email = getUserEmail(user);
 
   return buildEmail("Welcome to SATX Ink", {
-    preview: "Your client account is ready.",
-    eyebrow: "Account ready",
-    headline: "Your client account is ready.",
+    preview: "Find the right San Antonio tattoo artist for your idea.",
+    eyebrow: "Welcome to SATX Ink",
+    headline: "Discover San Antonio tattoo artists who fit your style.",
     body:
-      "Start saving artists, browsing flash, and sending focused tattoo requests in one place.",
+      "Welcome to SATX Ink. Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when someone feels like the right fit.",
+    brandLogoUrl: getAbsoluteUrl(CLIENT_WELCOME_LOGO_PATH),
+    brandLogoAlt: BRAND_NAME,
     avatarUrl: firstString(user.avatarUrl),
     avatarAlt: name,
     sections: [
       {
-        title: "Account details",
+        title: "Your account",
         rows: [
           { label: "Name", value: name },
-          {
-            label: "Profile",
-            value: profileComplete ? "Complete" : "Ready to finish",
-          },
+          { label: "Email", value: email },
         ],
       },
     ],
     cta: {
-      label: profileComplete ? "Browse artists" : "Finish your profile",
-      href: getAbsoluteUrl(profileComplete ? "/artists" : "/client-profile-setup"),
+      label: "Browse artists",
+      href: getAbsoluteUrl("/artists"),
     },
   });
 };
