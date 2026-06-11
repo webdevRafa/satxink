@@ -60,7 +60,7 @@ type EmailTemplate = {
 
 type LayoutInput = {
   preview: string;
-  eyebrow: string;
+  eyebrow?: string;
   headline: string;
   body: string;
   avatarUrl?: string;
@@ -348,9 +348,13 @@ const renderEmailLayout = (input: LayoutInput) => {
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
                         <tr>
                           <td style="vertical-align:top;">
-                            <p style="margin:0 0 10px;color:#b6382d;font-size:12px;line-height:18px;font-weight:700;text-transform:uppercase;letter-spacing:0.16em;">${escapeHtml(
+                            ${
                               input.eyebrow
-                            )}</p>
+                                ? `<p style="margin:0 0 10px;color:#b6382d;font-size:12px;line-height:18px;font-weight:700;text-transform:uppercase;letter-spacing:0.16em;">${escapeHtml(
+                                    input.eyebrow
+                                  )}</p>`
+                                : ""
+                            }
                             <h1 style="margin:0;color:#ffffff;font-size:30px;line-height:36px;font-weight:800;letter-spacing:-0.02em;">${escapeHtml(
                               input.headline
                             )}</h1>
@@ -547,9 +551,8 @@ const renderClientWelcomeEmail = (
   const email = getUserEmail(user);
   const logoAttachment = getClientWelcomeLogoAttachment();
 
-  return buildEmail("Your SATX Ink account is ready", {
+  return buildEmail("Welcome to SATX Ink", {
     preview: "Find the right San Antonio tattoo artist for your idea.",
-    eyebrow: "Account ready",
     headline: "Discover San Antonio tattoo artists who fit your style.",
     body:
       "Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when someone feels like the right fit.",
@@ -572,6 +575,8 @@ const renderClientWelcomeEmail = (
       label: "Browse artists",
       href: getAbsoluteUrl("/artists"),
     },
+    footerNote:
+      "You are receiving this because you signed up for a SATX Ink account.",
     attachments: logoAttachment ? [logoAttachment] : undefined,
   });
 };
