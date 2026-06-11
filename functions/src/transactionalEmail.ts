@@ -30,6 +30,7 @@ const PREVIEW_SPACER = "&nbsp;&zwnj;".repeat(36);
 const STALE_SENDING_WINDOW_MS = 10 * 60 * 1000;
 
 const senders = {
+  support: `${BRAND_NAME} <${SUPPORT_EMAIL}>`,
   accounts: `${BRAND_NAME} <accounts@satxink.com>`,
   requests: `${BRAND_NAME} <requests@satxink.com>`,
   offers: `${BRAND_NAME} <offers@satxink.com>`,
@@ -905,7 +906,7 @@ const sendClientWelcome = async (
   if (user.role !== "client") return;
   await sendTransactionalEmail({
     eventKey: `welcome-client-${uid}`,
-    from: "accounts",
+    from: "support",
     to: getUserEmail(user),
     ...renderClientWelcomeEmail(user),
   });
