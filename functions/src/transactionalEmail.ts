@@ -25,6 +25,7 @@ const CLIENT_WELCOME_LOGO_ASSET_PATH = path.join(
   "assets",
   CLIENT_WELCOME_LOGO_FILENAME
 );
+const BRAND_LOGO_WIDTH = 120;
 const PREVIEW_SPACER = "&nbsp;&zwnj;".repeat(36);
 const STALE_SENDING_WINDOW_MS = 10 * 60 * 1000;
 
@@ -306,7 +307,7 @@ const renderEmailLayout = (input: LayoutInput) => {
   const brandHeader = input.brandLogoUrl
     ? `<img src="${escapeHtml(input.brandLogoUrl)}" alt="${escapeHtml(
         input.brandLogoAlt ?? BRAND_NAME
-      )}" width="168" style="display:block;width:168px;max-width:168px;height:auto;border:0;outline:none;text-decoration:none;">`
+      )}" width="${BRAND_LOGO_WIDTH}" style="display:block;width:${BRAND_LOGO_WIDTH}px;max-width:${BRAND_LOGO_WIDTH}px;height:auto;border:0;outline:none;text-decoration:none;">`
     : `<div style="font-size:22px;line-height:26px;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">SATX<span style="color:#b6382d;font-style:italic;">INK</span></div>`;
   const avatar = input.avatarUrl
     ? `<img src="${escapeHtml(input.avatarUrl)}" alt="${escapeHtml(
