@@ -617,37 +617,43 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           <form
             autoComplete="off"
             onSubmit={handleArtistSubmit}
-            className="space-y-6 text-left"
+            className="space-y-4 text-left sm:space-y-6"
           >
             <div
               ref={onboardingStepTopRef}
-              className="scroll-mt-24 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
+              className="scroll-mt-20 flex flex-col gap-3 border-b border-white/10 pb-4 sm:scroll-mt-24 sm:gap-4 sm:pb-5 lg:flex-row lg:items-end lg:justify-between"
             >
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+              <div className="min-w-0">
+                <p className="text-[0.65rem] uppercase tracking-[0.16em] text-[var(--color-primary)] sm:text-xs sm:tracking-[0.18em]">
                   Artist onboarding
                 </p>
-                <h1 className="mt-2 flex flex-wrap items-center gap-2 text-3xl! font-semibold text-white">
+                <h1 className="mt-1 flex flex-nowrap items-center gap-1.5 text-[1.65rem]! font-semibold leading-tight text-white sm:mt-2 sm:flex-wrap sm:gap-2 sm:text-3xl!">
                   <span>Join</span>
                   <img
                     src={logo}
                     alt="SATX Ink logo"
-                    className="max-w-[104px] translate-y-[-2px]"
+                    className="w-[88px] max-w-[32vw] translate-y-[-2px] sm:w-auto sm:max-w-[104px]"
                   />
-                  <span>as an Artist</span>
+                  <span className="hidden sm:inline">as an Artist</span>
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  Build the profile clients will see before they request, book,
-                  or follow your work.
+                <p className="mt-1 max-w-2xl text-[0.82rem] leading-5 text-neutral-400 sm:mt-2 sm:text-sm sm:leading-6">
+                  <span className="sm:hidden">
+                    Set up the profile clients will see before they request or
+                    book.
+                  </span>
+                  <span className="hidden sm:inline">
+                    Build the profile clients will see before they request,
+                    book, or follow your work.
+                  </span>
                 </p>
               </div>
 
-              <div className="min-w-56">
-                <div className="flex items-center justify-between text-xs text-neutral-400">
+              <div className="w-full min-w-0 lg:w-auto lg:min-w-56">
+                <div className="flex items-center justify-between text-[0.68rem] text-neutral-400 sm:text-xs">
                   <span>Setup progress</span>
                   <span>{progress}%</span>
                 </div>
-                <div className="mt-2 h-2 rounded-full bg-white/10">
+                <div className="mt-1 h-1.5 rounded-full bg-white/10 sm:mt-2 sm:h-2">
                   <div
                     className={`h-full rounded-full transition-all ${
                       progress === 100 ? "bg-emerald-400" : "bg-white"
@@ -660,7 +666,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-5">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-2">
                   {stepHeadings.map((heading, index) => {
                     const StepIcon = stepIcons[index];
                     const isActive = currentStep === index;
@@ -673,7 +679,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         type="button"
                         onClick={() => handleStepCardClick(index)}
                         aria-label={`${heading}: ${statusLabel}`}
-                        className={`grid min-h-16 grid-cols-[2rem_minmax(0,1fr)] items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                        className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-center transition sm:grid sm:min-h-16 sm:grid-cols-[2rem_minmax(0,1fr)] sm:items-center sm:gap-3 sm:px-3 sm:py-2.5 sm:text-left ${
                           isActive
                             ? "border-white/35 bg-white/[0.07] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                             : stepStatus === "complete"
@@ -697,11 +703,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           )}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold leading-5">
+                          <span className="block truncate text-[0.8rem] font-semibold leading-4 sm:text-sm sm:leading-5">
                             {heading}
                           </span>
                           <span
-                            className={`block text-xs leading-4 ${
+                            className={`block text-[0.68rem] leading-4 sm:text-xs ${
                               stepStatus === "complete"
                                 ? "text-emerald-200"
                                 : stepStatus === "ready"
@@ -717,16 +723,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   })}
                 </div>
 
-                <section className="rounded-lg border border-white/10 bg-[#121212]/90 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                <section className="rounded-lg border border-white/10 bg-[#121212]/90 p-4 shadow-2xl shadow-black/20 backdrop-blur sm:p-5">
+                  <div className="mb-4 flex items-start gap-3 sm:mb-5 sm:items-center">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-9 sm:w-9">
                       <ActiveStepIcon size={18} aria-hidden="true" />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="mb-0! text-lg!">
                         {stepHeadings[currentStep]}
                       </h2>
-                      <p className="text-sm text-neutral-400">
+                      <p className="text-[0.9rem] leading-6 text-neutral-400 sm:text-sm">
                         {stepDescriptions[currentStep]}
                       </p>
                     </div>
@@ -814,7 +820,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                               key={style}
                               type="button"
                               onClick={() => toggleSpecialty(style)}
-                              className={`rounded-md border px-3 py-3 text-left text-sm transition ${
+                              className={`min-h-12 rounded-md border px-3 py-2.5 text-left text-sm leading-5 transition ${
                                 selected
                                   ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
                                   : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
