@@ -30,7 +30,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-import heroImage from "../assets/images/satx-inked.webp";
+import heroImage from "../assets/images/inkhero.webp";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
@@ -303,22 +303,19 @@ export const HomePage: FC = () => {
         `}
       </style>
 
-      <section className="relative overflow-hidden bg-black">
+      <section className="relative overflow-hidden bg-black pt-30 md:pt-0">
         <img
           src={heroImage}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-50"
+          className="absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
         <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-end gap-10 px-5 pb-12 pt-28 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
+        <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
           <div className="max-w-3xl">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-              San Antonio tattoo discovery
-            </p>
-            <h1 className="max-w-3xl text-4xl font-bold leading-[0.98] text-white md:text-6xl">
+            <h1 className="max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-6xl">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
