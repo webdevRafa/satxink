@@ -4,6 +4,14 @@ export type FlashRepeatability = "repeatable" | "one_of_one";
 export type FlashAvailabilityStatus = "available" | "held" | "sold";
 export type FlashPublicationStatus = "draft" | "published";
 
+export type MarketplaceArtistPublic = {
+  id: string;
+  name?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  studioName?: string | null;
+};
+
 export type Flash = {
   id: string;                      // Firestore document ID
   artistId: string;                // Linked artist
@@ -36,6 +44,12 @@ export type Flash = {
   tags?: string[];                 // Optional: for search/filter
   artistStripeConnectReady?: boolean;
   marketplaceVisible?: boolean;
+  marketplaceReady?: boolean;
+  artistPublic?: MarketplaceArtistPublic | null;
+  searchTokens?: string[];
+  searchTags?: string[];
+  hasPrice?: boolean;
+  marketplaceUpdatedAt?: Timestamp | Date | FieldValue | null;
   publicationStatus?: FlashPublicationStatus;
   publishedAt?: Timestamp | Date | FieldValue | null;
   status?: string;                 // Optional processing status for uploaded files

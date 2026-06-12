@@ -36,6 +36,11 @@ type Props = {
 
 type SheetRelationshipMode = "standalone" | "existing";
 
+const parsePositivePrice = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const UploadModal: React.FC<Props> = ({
   uid,
   isOpen,
@@ -73,8 +78,11 @@ const UploadModal: React.FC<Props> = ({
   );
   const selectedSheetPreviewUrl =
     selectedSheet?.thumbUrl || selectedSheet?.imageUrl;
+  const parsedFlashPrice = parsePositivePrice(priceInput);
   const canPublish =
-    Boolean(croppedFile) && (!isLinkingExistingSheet || Boolean(selectedSheetId));
+    Boolean(croppedFile) &&
+    (!isLinkingExistingSheet || Boolean(selectedSheetId)) &&
+    (!isFlashUpload || parsedFlashPrice !== null);
 
   useEffect(() => {
     if (!croppedFile) {
@@ -141,7 +149,7 @@ const UploadModal: React.FC<Props> = ({
       const ext = croppedFile.name.split(".").pop() || "jpg";
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
-      const price = isFlashUpload && priceInput ? parseFloat(priceInput) : null;
+      const price = isFlashUpload ? parsedFlashPrice : null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
 
@@ -287,7 +295,8 @@ const UploadModal: React.FC<Props> = ({
                 </span>
                 <input
                   type="number"
-                  placeholder="Optional"
+                  min={1}
+                  placeholder="Required"
                   value={priceInput}
                   onChange={(e) => setPriceInput(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"

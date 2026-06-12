@@ -18,6 +18,11 @@ type Props = {
   onFlashAdded: () => void;
 };
 
+const parsePositivePrice = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const FlashCropModal = ({
   uid,
   sheetId,
@@ -32,6 +37,7 @@ const FlashCropModal = ({
   const [price, setPrice] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const parsedPrice = parsePositivePrice(price);
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
     setCropArea(areaPixels);
@@ -58,6 +64,10 @@ const FlashCropModal = ({
 
   const handleSubmit = async () => {
     if (!cropArea || isSaving) return;
+    if (parsedPrice === null) {
+      toast("Add a price before saving marketplace flash.");
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -84,7 +94,7 @@ const FlashCropModal = ({
         artistId: uid,
         sheetId,
         title: title.trim() || "Untitled Flash",
-        price: price ? parseFloat(price) : null,
+        price: parsedPrice,
         tags,
         fullUrl,
         thumbUrl,
@@ -189,9 +199,10 @@ const FlashCropModal = ({
               </span>
               <input
                 type="number"
+                min={1}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="Optional"
+                placeholder="Required"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
               />
             </label>
@@ -223,7 +234,7 @@ const FlashCropModal = ({
                 type="button"
                 onClick={handleSubmit}
                 className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={isSaving || !cropArea}
+                disabled={isSaving || !cropArea || parsedPrice === null}
               >
                 {isSaving ? "Saving..." : "Save flash"}
               </button>

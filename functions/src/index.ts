@@ -1,6 +1,7 @@
 // functions/src/index.ts
 import type { CheckoutRequestData } from '../src/types/StripeCheckout';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 
 import { onObjectFinalized } from 'firebase-functions/v2/storage';
@@ -121,6 +122,363 @@ const getFlashPublicationStatus = (
   data: admin.firestore.DocumentData | undefined
 ): FlashPublicationStatus =>
   data?.publicationStatus === "draft" ? "draft" : "published";
+
+type MarketplaceKind = "flash" | "sheet";
+
+type MarketplaceArtistPublic = {
+  id: string;
+  name: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  studioName: string | null;
+};
+
+type MarketplaceProjection = {
+  marketplaceReady: boolean;
+  artistPublic: MarketplaceArtistPublic | null;
+  searchTokens: string[];
+  searchTags: string[];
+  hasPrice?: boolean;
+};
+
+const MARKETPLACE_METADATA_REF = db
+  .collection("siteSettings")
+  .doc("flashMarketplace");
+const MARKETPLACE_TAG_COUNTS_COLLECTION = "marketplaceTagCounts";
+const MARKETPLACE_TOP_TAG_LIMIT = 18;
+const MARKETPLACE_BATCH_LIMIT = 450;
+
+const getFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const getStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+
+const normalizeSearchValue = (value: unknown) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const getSearchWords = (value: unknown) => {
+  const normalized = normalizeSearchValue(value);
+  return normalized ? normalized.split(/\s+/).filter(Boolean) : [];
+};
+
+const normalizeTagKey = (tag: string) => getSearchWords(tag).join("-");
+
+const getTagLabelMap = (tags: unknown) => {
+  const labels: Record<string, string> = {};
+  getStringArray(tags).forEach((tag) => {
+    const key = normalizeTagKey(tag);
+    if (key && !labels[key]) labels[key] = tag.trim();
+  });
+  return labels;
+};
+
+const buildMarketplaceSearchTokens = (
+  item: admin.firestore.DocumentData,
+  artist: MarketplaceArtistPublic | null
+) => {
+  const tokens = new Set<string>();
+  [
+    item.title,
+    item.caption,
+    item.description,
+    artist?.displayName,
+    artist?.name,
+    artist?.studioName,
+    ...getStringArray(item.tags),
+  ].forEach((value) => {
+    getSearchWords(value).forEach((word) => tokens.add(word));
+  });
+
+  return Array.from(tokens).slice(0, 80);
+};
+
+const buildMarketplaceSearchTags = (tags: unknown) =>
+  Array.from(
+    new Set(
+      getStringArray(tags)
+        .map(normalizeTagKey)
+        .filter(Boolean)
+    )
+  ).slice(0, 40);
+
+const isStripeConnectReadyForMarketplace = (
+  artist: admin.firestore.DocumentData | null | undefined
+) => {
+  const stripeConnect = artist?.stripeConnect;
+  return Boolean(
+    stripeConnect?.onboardingComplete &&
+      stripeConnect?.chargesEnabled &&
+      stripeConnect?.payoutsEnabled &&
+      stripeConnect?.detailsSubmitted
+  );
+};
+
+const buildMarketplaceArtistPublic = (
+  artistId: string,
+  artist: admin.firestore.DocumentData | null | undefined
+): MarketplaceArtistPublic => ({
+  id: artistId,
+  name: getFirstString(artist?.name) || null,
+  displayName: getFirstString(artist?.displayName) || null,
+  avatarUrl: getFirstString(artist?.avatarUrl, artist?.avatar, artist?.photoURL) || null,
+  studioName: getFirstString(artist?.studioName, artist?.shopName) || null,
+});
+
+const getMarketplaceArtist = async (artistId: unknown) => {
+  if (typeof artistId !== "string" || !artistId.trim()) return null;
+  const artistSnap = await db.collection("users").doc(artistId.trim()).get();
+  return artistSnap.exists ? artistSnap.data() || null : null;
+};
+
+const hasMarketplaceImage = (item: admin.firestore.DocumentData) =>
+  Boolean(item.thumbUrl || item.webp90Url || item.fullUrl || item.imageUrl);
+
+const hasValidMarketplacePrice = (item: admin.firestore.DocumentData) =>
+  typeof item.price === "number" && Number.isFinite(item.price) && item.price > 0;
+
+const buildFlashMarketplaceProjectionFromArtist = (
+  item: admin.firestore.DocumentData,
+  artist: admin.firestore.DocumentData | null | undefined
+): MarketplaceProjection => {
+  const artistId = getFirstString(item.artistId);
+  const artistPublic = artistId ? buildMarketplaceArtistPublic(artistId, artist) : null;
+  const artistReady =
+    item.artistStripeConnectReady === true || isStripeConnectReadyForMarketplace(artist);
+  const hasPrice = hasValidMarketplacePrice(item);
+  const marketplaceReady = Boolean(
+    artistId &&
+      artistReady &&
+      item.marketplaceVisible !== false &&
+      getFlashPublicationStatus(item) === "published" &&
+      item.isAvailable !== false &&
+      getFlashAvailabilityStatus(item) === "available" &&
+      hasPrice &&
+      hasMarketplaceImage(item)
+  );
+
+  return {
+    marketplaceReady,
+    artistPublic,
+    searchTokens: buildMarketplaceSearchTokens(item, artistPublic),
+    searchTags: buildMarketplaceSearchTags(item.tags),
+    hasPrice,
+  };
+};
+
+const buildFlashMarketplaceProjection = async (
+  item: admin.firestore.DocumentData
+): Promise<MarketplaceProjection> =>
+  buildFlashMarketplaceProjectionFromArtist(
+    item,
+    await getMarketplaceArtist(getFirstString(item.artistId))
+  );
+
+const buildSheetMarketplaceProjectionFromArtist = (
+  item: admin.firestore.DocumentData,
+  artist: admin.firestore.DocumentData | null | undefined
+): MarketplaceProjection => {
+  const artistId = getFirstString(item.artistId);
+  const artistPublic = artistId ? buildMarketplaceArtistPublic(artistId, artist) : null;
+  const artistReady =
+    item.artistStripeConnectReady === true || isStripeConnectReadyForMarketplace(artist);
+  const marketplaceReady = Boolean(
+    artistId &&
+      artistReady &&
+      item.marketplaceVisible !== false &&
+      hasMarketplaceImage(item)
+  );
+
+  return {
+    marketplaceReady,
+    artistPublic,
+    searchTokens: buildMarketplaceSearchTokens(item, artistPublic),
+    searchTags: buildMarketplaceSearchTags(item.tags),
+  };
+};
+
+const buildSheetMarketplaceProjection = async (
+  item: admin.firestore.DocumentData
+): Promise<MarketplaceProjection> =>
+  buildSheetMarketplaceProjectionFromArtist(
+    item,
+    await getMarketplaceArtist(getFirstString(item.artistId))
+  );
+
+const arraysEqual = (left: unknown, right: unknown) => {
+  const leftItems = getStringArray(left);
+  const rightItems = getStringArray(right);
+  return (
+    leftItems.length === rightItems.length &&
+    leftItems.every((item, index) => item === rightItems[index])
+  );
+};
+
+const artistPublicEquals = (
+  left: unknown,
+  right: MarketplaceArtistPublic | null
+) => JSON.stringify(left || null) === JSON.stringify(right || null);
+
+const projectionMatches = (
+  data: admin.firestore.DocumentData,
+  projection: MarketplaceProjection
+) =>
+  data.marketplaceReady === projection.marketplaceReady &&
+  artistPublicEquals(data.artistPublic, projection.artistPublic) &&
+  arraysEqual(data.searchTokens, projection.searchTokens) &&
+  arraysEqual(data.searchTags, projection.searchTags) &&
+  (projection.hasPrice === undefined || data.hasPrice === projection.hasPrice);
+
+const getProjectionUpdate = (projection: MarketplaceProjection) => ({
+  marketplaceReady: projection.marketplaceReady,
+  artistPublic: projection.artistPublic,
+  searchTokens: projection.searchTokens,
+  searchTags: projection.searchTags,
+  ...(projection.hasPrice === undefined ? {} : { hasPrice: projection.hasPrice }),
+  marketplaceUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+});
+
+const refreshMarketplaceTopTags = async () => {
+  const snapshot = await db
+    .collection(MARKETPLACE_TAG_COUNTS_COLLECTION)
+    .where("count", ">", 0)
+    .orderBy("count", "desc")
+    .limit(MARKETPLACE_TOP_TAG_LIMIT)
+    .get();
+
+  await MARKETPLACE_METADATA_REF.set(
+    {
+      topTags: snapshot.docs.map((tagDoc) => {
+        const data = tagDoc.data() || {};
+        return {
+          key: tagDoc.id,
+          tag: getFirstString(data.tag) || tagDoc.id,
+          count: typeof data.count === "number" ? data.count : 0,
+        };
+      }),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+const updateMarketplaceMetadata = async ({
+  kind,
+  beforeReady,
+  beforeTags,
+  afterReady,
+  afterTags,
+  afterTagLabels,
+}: {
+  kind: MarketplaceKind;
+  beforeReady: boolean;
+  beforeTags: string[];
+  afterReady: boolean;
+  afterTags: string[];
+  afterTagLabels: Record<string, string>;
+}) => {
+  const readyChanged = beforeReady !== afterReady;
+  const beforeTagSet = new Set(beforeReady ? beforeTags : []);
+  const afterTagSet = new Set(afterReady ? afterTags : []);
+  const removedTags = Array.from(beforeTagSet).filter((tag) => !afterTagSet.has(tag));
+  const addedTags = Array.from(afterTagSet).filter((tag) => !beforeTagSet.has(tag));
+
+  if (!readyChanged && removedTags.length === 0 && addedTags.length === 0) return;
+
+  const batch = db.batch();
+  const countField = kind === "flash" ? "flashCount" : "sheetCount";
+
+  if (readyChanged) {
+    batch.set(
+      MARKETPLACE_METADATA_REF,
+      {
+        [countField]: admin.firestore.FieldValue.increment(afterReady ? 1 : -1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+
+  removedTags.forEach((tagKey) => {
+    batch.set(
+      db.collection(MARKETPLACE_TAG_COUNTS_COLLECTION).doc(tagKey),
+      {
+        count: admin.firestore.FieldValue.increment(-1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+
+  addedTags.forEach((tagKey) => {
+    batch.set(
+      db.collection(MARKETPLACE_TAG_COUNTS_COLLECTION).doc(tagKey),
+      {
+        tag: afterTagLabels[tagKey] || tagKey,
+        count: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+
+  await batch.commit();
+  await refreshMarketplaceTopTags();
+};
+
+const syncMarketplaceProjectionDocument = async ({
+  kind,
+  before,
+  after,
+}: {
+  kind: MarketplaceKind;
+  before: admin.firestore.QueryDocumentSnapshot | undefined;
+  after: admin.firestore.QueryDocumentSnapshot | undefined;
+}) => {
+  const beforeData = before?.data();
+
+  if (!after) {
+    await updateMarketplaceMetadata({
+      kind,
+      beforeReady: beforeData?.marketplaceReady === true,
+      beforeTags: getStringArray(beforeData?.searchTags),
+      afterReady: false,
+      afterTags: [],
+      afterTagLabels: {},
+    });
+    return;
+  }
+
+  const afterData = after.data() || {};
+  const projection =
+    kind === "flash"
+      ? await buildFlashMarketplaceProjection(afterData)
+      : await buildSheetMarketplaceProjection(afterData);
+
+  if (!projectionMatches(afterData, projection)) {
+    await after.ref.update(getProjectionUpdate(projection));
+    return;
+  }
+
+  await updateMarketplaceMetadata({
+    kind,
+    beforeReady: beforeData?.marketplaceReady === true,
+    beforeTags: getStringArray(beforeData?.searchTags),
+    afterReady: projection.marketplaceReady,
+    afterTags: projection.searchTags,
+    afterTagLabels: getTagLabelMap(afterData.tags),
+  });
+};
 
 const toMillis = (value: unknown) => {
   if (!value) return 0;
@@ -2999,6 +3357,15 @@ const cropFlashFromSheet = onCall(
         : "repeatable";
     const normalizedPublicationStatus =
       publicationStatus === "draft" ? "draft" : "published";
+    if (
+      normalizedPublicationStatus === "published" &&
+      (normalizedPrice === null || normalizedPrice <= 0)
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Add a price before publishing marketplace flash."
+      );
+    }
     const now = admin.firestore.FieldValue.serverTimestamp();
     const titleValue =
       typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash";
@@ -3153,6 +3520,13 @@ const publishFlashDrafts = onCall(
           );
         }
 
+        if (!hasValidMarketplacePrice(flash)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Add a price before publishing marketplace flash."
+          );
+        }
+
         transaction.update(flashRefs[index], {
           publicationStatus: "published",
           marketplaceVisible: true,
@@ -3230,6 +3604,212 @@ const discardFlashDraft = onCall(
     );
 
     return { discarded: true };
+  }
+);
+
+const syncFlashMarketplaceProjection = onDocumentWritten(
+  { document: "flashes/{flashId}", region: "us-central1" },
+  async (event) => {
+    await syncMarketplaceProjectionDocument({
+      kind: "flash",
+      before: event.data?.before.exists
+        ? (event.data.before as admin.firestore.QueryDocumentSnapshot)
+        : undefined,
+      after: event.data?.after.exists
+        ? (event.data.after as admin.firestore.QueryDocumentSnapshot)
+        : undefined,
+    });
+  }
+);
+
+const syncFlashSheetMarketplaceProjection = onDocumentWritten(
+  { document: "flashSheets/{sheetId}", region: "us-central1" },
+  async (event) => {
+    await syncMarketplaceProjectionDocument({
+      kind: "sheet",
+      before: event.data?.before.exists
+        ? (event.data.before as admin.firestore.QueryDocumentSnapshot)
+        : undefined,
+      after: event.data?.after.exists
+        ? (event.data.after as admin.firestore.QueryDocumentSnapshot)
+        : undefined,
+    });
+  }
+);
+
+const hasArtistMarketplaceProjectionChange = (
+  before: admin.firestore.DocumentData | undefined,
+  after: admin.firestore.DocumentData | undefined
+) => {
+  if (!before && !after) return false;
+
+  const publicFields = [
+    "name",
+    "displayName",
+    "avatarUrl",
+    "avatar",
+    "photoURL",
+    "studioName",
+    "shopName",
+    "role",
+  ];
+
+  if (
+    publicFields.some(
+      (field) => JSON.stringify(before?.[field] ?? null) !== JSON.stringify(after?.[field] ?? null)
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    isStripeConnectReadyForMarketplace(before) !==
+    isStripeConnectReadyForMarketplace(after)
+  );
+};
+
+const updateArtistMarketplaceItems = async (
+  artistId: string,
+  artist: admin.firestore.DocumentData | null | undefined
+) => {
+  const [flashSnapshot, sheetSnapshot] = await Promise.all([
+    db.collection("flashes").where("artistId", "==", artistId).get(),
+    db.collection("flashSheets").where("artistId", "==", artistId).get(),
+  ]);
+  let batch = db.batch();
+  let writeCount = 0;
+  let updatedFlashes = 0;
+  let updatedSheets = 0;
+
+  const commitIfNeeded = async () => {
+    if (writeCount === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    writeCount = 0;
+  };
+
+  for (const flashDoc of flashSnapshot.docs) {
+    const projection = buildFlashMarketplaceProjectionFromArtist(
+      flashDoc.data(),
+      artist
+    );
+    if (!projectionMatches(flashDoc.data(), projection)) {
+      batch.update(flashDoc.ref, getProjectionUpdate(projection));
+      writeCount += 1;
+      updatedFlashes += 1;
+    }
+    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+  }
+
+  for (const sheetDoc of sheetSnapshot.docs) {
+    const projection = buildSheetMarketplaceProjectionFromArtist(
+      sheetDoc.data(),
+      artist
+    );
+    if (!projectionMatches(sheetDoc.data(), projection)) {
+      batch.update(sheetDoc.ref, getProjectionUpdate(projection));
+      writeCount += 1;
+      updatedSheets += 1;
+    }
+    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+  }
+
+  await commitIfNeeded();
+  return { updatedFlashes, updatedSheets };
+};
+
+const syncArtistMarketplaceProjection = onDocumentWritten(
+  { document: "users/{uid}", region: "us-central1" },
+  async (event) => {
+    const before = event.data?.before.exists ? event.data.before.data() : undefined;
+    const after = event.data?.after.exists ? event.data.after.data() : undefined;
+    if (!hasArtistMarketplaceProjectionChange(before, after)) return;
+
+    const result = await updateArtistMarketplaceItems(
+      event.params.uid,
+      after || null
+    );
+    logger.info("Synced artist marketplace projection.", {
+      artistId: event.params.uid,
+      ...result,
+    });
+  }
+);
+
+const rebuildMarketplaceProjection = onCall(
+  { cors: true, region: "us-central1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in as an admin to rebuild marketplace projections.");
+    }
+
+    const adminSnap = await db.collection("users").doc(uid).get();
+    if (adminSnap.data()?.role !== "admin") {
+      throw new HttpsError("permission-denied", "Only admins can rebuild marketplace projections.");
+    }
+
+    const [flashSnapshot, sheetSnapshot] = await Promise.all([
+      db.collection("flashes").get(),
+      db.collection("flashSheets").get(),
+    ]);
+    const artistsById = new Map<string, admin.firestore.DocumentData | null>();
+    let batch = db.batch();
+    let writeCount = 0;
+    let updatedFlashes = 0;
+    let updatedSheets = 0;
+
+    const getArtistForProjection = async (artistId: string) => {
+      if (!artistId) return null;
+      if (artistsById.has(artistId)) return artistsById.get(artistId) || null;
+      const artist = await getMarketplaceArtist(artistId);
+      artistsById.set(artistId, artist);
+      return artist;
+    };
+
+    const commitIfNeeded = async () => {
+      if (writeCount === 0) return;
+      await batch.commit();
+      batch = db.batch();
+      writeCount = 0;
+    };
+
+    for (const flashDoc of flashSnapshot.docs) {
+      const data = flashDoc.data();
+      const projection = buildFlashMarketplaceProjectionFromArtist(
+        data,
+        await getArtistForProjection(getFirstString(data.artistId))
+      );
+      if (!projectionMatches(data, projection)) {
+        batch.update(flashDoc.ref, getProjectionUpdate(projection));
+        writeCount += 1;
+        updatedFlashes += 1;
+      }
+      if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+    }
+
+    for (const sheetDoc of sheetSnapshot.docs) {
+      const data = sheetDoc.data();
+      const projection = buildSheetMarketplaceProjectionFromArtist(
+        data,
+        await getArtistForProjection(getFirstString(data.artistId))
+      );
+      if (!projectionMatches(data, projection)) {
+        batch.update(sheetDoc.ref, getProjectionUpdate(projection));
+        writeCount += 1;
+        updatedSheets += 1;
+      }
+      if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+    }
+
+    await commitIfNeeded();
+
+    return {
+      scannedFlashes: flashSnapshot.size,
+      scannedSheets: sheetSnapshot.size,
+      updatedFlashes,
+      updatedSheets,
+    };
   }
 );
 
@@ -3322,6 +3902,10 @@ module.exports = {
   cropFlashFromSheet,
   publishFlashDrafts,
   discardFlashDraft,
+  syncFlashMarketplaceProjection,
+  syncFlashSheetMarketplaceProjection,
+  syncArtistMarketplaceProjection,
+  rebuildMarketplaceProjection,
   cleanupProcessedEvents,
   cleanupExpiredFlashHolds,
   ...transactionalEmail,

@@ -1,0 +1,75 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "searchTags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "price", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "price", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashSheets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashSheets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "searchTags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashSheets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

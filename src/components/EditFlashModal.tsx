@@ -9,6 +9,7 @@ import {
 } from "../utils/flashSourceQuality";
 import {
   getFlashAvailabilityStatus,
+  getFlashPublicationStatus,
   getFlashRepeatability,
 } from "../utils/flashAvailability";
 
@@ -26,6 +27,11 @@ type Props = {
   onDelete?: (flash: Flash) => void;
 };
 
+const parsePositivePrice = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [title, setTitle] = useState(flash.title || "");
   const [price, setPrice] = useState(flash.price?.toString() || "");
@@ -33,7 +39,10 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   const [tags, setTags] = useState<string[]>(flash.tags || []);
   const [repeatability, setRepeatability] = useState(getFlashRepeatability(flash));
   const availabilityStatus = getFlashAvailabilityStatus(flash);
+  const publicationStatus = getFlashPublicationStatus(flash);
   const isSold = availabilityStatus === "sold";
+  const parsedPrice = parsePositivePrice(price);
+  const canSave = publicationStatus === "draft" || parsedPrice !== null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-xl">
@@ -84,10 +93,13 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               </span>
               <input
                 type="number"
+                min={1}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-                placeholder="Optional"
+                placeholder={
+                  publicationStatus === "draft" ? "Optional" : "Required"
+                }
               />
             </label>
 
@@ -171,12 +183,13 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                   onSave(
                     flash.id,
                     title,
-                    price ? parseFloat(price) : null,
+                    parsedPrice,
                     normalizeFlashDescription(description),
                     tags,
                     repeatability
                   )
                 }
+                disabled={!canSave}
                 className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"
               >
                 <Save size={16} />

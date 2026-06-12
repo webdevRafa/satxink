@@ -93,6 +93,16 @@ const parseOptionalPrice = (value: string) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
+const hasPositiveFlashPrice = (flash: Pick<Flash, "price">) =>
+  typeof flash.price === "number" &&
+  Number.isFinite(flash.price) &&
+  flash.price > 0;
+
+const parsePositivePrice = (value: string) => {
+  const parsedValue = parseOptionalPrice(value);
+  return parsedValue !== null && parsedValue > 0 ? parsedValue : null;
+};
+
 const useMediaQuery = (queryString: string) => {
   const getMatches = () =>
     typeof window !== "undefined"
@@ -147,6 +157,10 @@ const FlashSheetDetailPage = () => {
   const draftFlashes = useMemo(
     () => flashes.filter((flash) => getFlashPublicationStatus(flash) === "draft"),
     [flashes]
+  );
+  const draftFlashesReadyToPublish = useMemo(
+    () => draftFlashes.length > 0 && draftFlashes.every(hasPositiveFlashPrice),
+    [draftFlashes]
   );
   const publishedFlashes = useMemo(
     () =>
@@ -309,11 +323,16 @@ const FlashSheetDetailPage = () => {
     publicationStatus: "draft" | "published" = "published"
   ) => {
     const validCropArea = getSerializableCropArea(cropArea);
+    const parsedPrice = parsePositivePrice(newFlashPrice);
 
     if (!sheet || !validCropArea || isPublishing) {
       if (!validCropArea) {
         toast("Adjust the crop before creating flash.");
       }
+      return false;
+    }
+    if (publicationStatus === "published" && parsedPrice === null) {
+      toast("Add a price before publishing marketplace flash.");
       return false;
     }
 
@@ -325,7 +344,7 @@ const FlashSheetDetailPage = () => {
         sheetId: sheet.id,
         crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
-        price: parseOptionalPrice(newFlashPrice),
+        price: parsedPrice,
         description: normalizeFlashDescription(newFlashDescription),
         tags: newFlashTags,
         repeatability: newFlashRepeatability,
@@ -373,6 +392,19 @@ const FlashSheetDetailPage = () => {
     closeCropper = false
   ) => {
     if (!sheet || draftIds.length === 0 || isPublishingDrafts) return;
+    const selectedDrafts = flashes.filter((flash) => draftIds.includes(flash.id));
+    const unpricedDrafts = selectedDrafts.filter(
+      (flash) => !hasPositiveFlashPrice(flash)
+    );
+
+    if (unpricedDrafts.length > 0) {
+      toast(
+        unpricedDrafts.length === 1
+          ? "Add a price before publishing this draft."
+          : "Add prices before publishing these drafts."
+      );
+      return;
+    }
 
     try {
       setIsPublishingDrafts(true);
@@ -555,7 +587,7 @@ const FlashSheetDetailPage = () => {
               onClick={() =>
                 handlePublishDrafts(draftFlashes.map((flash) => flash.id))
               }
-              disabled={isPublishingDrafts || draftFlashes.length === 0}
+              disabled={isPublishingDrafts || !draftFlashesReadyToPublish}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-5! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <CheckCircle2 size={16} />
@@ -623,7 +655,7 @@ const FlashSheetDetailPage = () => {
                     onClick={() =>
                       handlePublishDrafts(draftFlashes.map((flash) => flash.id))
                     }
-                    disabled={isPublishingDrafts}
+                    disabled={isPublishingDrafts || !draftFlashesReadyToPublish}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                   >
                     <CheckCircle2 size={16} />
@@ -930,6 +962,9 @@ const CropFlashModal = ({
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
+  const canPublishWithPrice = Boolean(validCropArea && parsePositivePrice(price) !== null);
+  const canPublishDrafts =
+    draftFlashes.length > 0 && draftFlashes.every(hasPositiveFlashPrice);
   const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
   const cropperStyle = isDesktopCropper
     ? undefined
@@ -1065,9 +1100,10 @@ const CropFlashModal = ({
         </span>
         <input
           type="number"
+          min={1}
           value={price}
           onChange={(e) => onPriceChange(e.target.value)}
-          placeholder="Optional"
+          placeholder="Required to publish"
           className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
         />
       </label>
@@ -1127,7 +1163,7 @@ const CropFlashModal = ({
         type="button"
         onClick={onPublish}
         className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
-        disabled={isPublishing || !validCropArea}
+        disabled={isPublishing || !canPublishWithPrice}
       >
         {isPublishing ? "Publishing..." : "Publish flash"}
       </button>
@@ -1299,7 +1335,7 @@ const CropFlashModal = ({
             <button
               type="button"
               onClick={onPublishDrafts}
-              disabled={draftFlashes.length === 0 || isPublishingDrafts || isPublishing}
+              disabled={!canPublishDrafts || isPublishingDrafts || isPublishing}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <CheckCircle2 size={16} />

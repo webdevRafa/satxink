@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ChevronLeft,
   ChevronRight,
   Filter,
   Image as ImageIcon,
   Layers,
+  Loader2,
   Search,
   SlidersHorizontal,
   Tag,
@@ -14,12 +14,18 @@ import {
 import CountUp from "react-countup";
 import {
   collection,
-  documentId,
   doc,
   getDoc,
   getDocs,
+  limit as firestoreLimit,
+  orderBy,
   query,
+  startAfter,
   where,
+  type DocumentData,
+  type OrderByDirection,
+  type QueryConstraint,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
@@ -29,16 +35,11 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
-import {
-  isStripeConnectReady,
-  type StripeConnectLike,
-} from "../utils/stripeConnect";
-import { isFlashAvailableForClients } from "../utils/flashAvailability";
+import { getClientNameParts } from "../utils/clientDisplayName";
 import {
   flashPreviewCardClassName,
   getFlashTitle,
 } from "../utils/flashPreview";
-import { getClientNameParts } from "../utils/clientDisplayName";
 import {
   FlashPreviewImage,
   FlashPreviewMeta,
@@ -46,6 +47,7 @@ import {
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
+type MarketplaceCursor = QueryDocumentSnapshot<DocumentData> | null;
 
 type PublicArtist = {
   id: string;
@@ -53,19 +55,36 @@ type PublicArtist = {
   displayName?: string;
   avatarUrl?: string;
   studioName?: string;
-  role?: string;
-} & StripeConnectLike;
+};
 
 type MarketFlash = Flash & {
-  artist?: PublicArtist;
+  artist?: PublicArtist | null;
 };
 
 type MarketFlashSheet = FlashSheet & {
-  artist?: PublicArtist;
+  artist?: PublicArtist | null;
 };
 
-const DEFAULT_FLASH_ITEMS_PER_PAGE = 18;
-const FLASH_ITEMS_PER_PAGE_OPTIONS = [18, 36, 54];
+type MarketplaceTopTag = {
+  key: string;
+  tag: string;
+  count?: number;
+};
+
+type MarketplaceMetadata = {
+  flashCount: number;
+  sheetCount: number;
+  topTags: MarketplaceTopTag[];
+};
+
+const MARKETPLACE_BATCH_SIZE = 18;
+const CLIENT_FILTER_MAX_FETCH_ROUNDS = 5;
+
+const emptyMetadata: MarketplaceMetadata = {
+  flashCount: 0,
+  sheetCount: 0,
+  topTags: [],
+};
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
@@ -105,7 +124,11 @@ const FlashMarketplacePage = () => {
   const [activeTab, setActiveTab] = useState<MarketplaceTab>("flashes");
   const [flashes, setFlashes] = useState<MarketFlash[]>([]);
   const [sheets, setSheets] = useState<MarketFlashSheet[]>([]);
+  const [metadata, setMetadata] = useState<MarketplaceMetadata>(emptyMetadata);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreFlashes, setHasMoreFlashes] = useState(false);
+  const [hasMoreSheets, setHasMoreSheets] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [minBudget, setMinBudget] = useState("");
@@ -113,10 +136,16 @@ const FlashMarketplacePage = () => {
   const [priceSort, setPriceSort] = useState<PriceSort>("newest");
   const [client, setClient] = useState<FlashRequestClient | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<MarketFlash | null>(null);
-  const [flashPage, setFlashPage] = useState(0);
-  const [flashItemsPerPage, setFlashItemsPerPage] = useState(
-    DEFAULT_FLASH_ITEMS_PER_PAGE
+  const fetchSequenceRef = useRef(0);
+  const flashCursorRef = useRef<MarketplaceCursor>(null);
+  const sheetCursorRef = useRef<MarketplaceCursor>(null);
+
+  const searchTokens = useMemo(
+    () => getSearchTokens(searchTerm),
+    [searchTerm]
   );
+  const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
+  const maxPrice = useMemo(() => parseBudgetValue(maxBudget), [maxBudget]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -166,157 +195,197 @@ const FlashMarketplacePage = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchMarketplace = async () => {
+    const fetchMetadata = async () => {
       try {
-        setLoading(true);
-
-        const [flashSnapshot, sheetSnapshot] = await Promise.all([
-          getDocs(collection(db, "flashes")),
-          getDocs(collection(db, "flashSheets")),
-        ]);
-
-        const rawFlashes = flashSnapshot.docs
-          .map((flashDoc) => ({
-            id: flashDoc.id,
-            ...flashDoc.data(),
-          }))
-          .filter((flash): flash is Flash => {
-            const typedFlash = flash as Flash;
-            return Boolean(
-              typedFlash.artistId &&
-                isFlashAvailableForClients(typedFlash) &&
-                (typedFlash.thumbUrl ||
-                  typedFlash.webp90Url ||
-                  typedFlash.fullUrl ||
-                  typedFlash.status === "processing")
-            );
-          });
-
-        const rawSheets = sheetSnapshot.docs
-          .map((sheetDoc) => ({
-            id: sheetDoc.id,
-            ...sheetDoc.data(),
-          }))
-          .filter((sheet): sheet is FlashSheet => {
-            const typedSheet = sheet as FlashSheet;
-            return Boolean(typedSheet.artistId && typedSheet.imageUrl);
-          });
-
-        const artistIds = Array.from(
-          new Set(
-            [...rawFlashes, ...rawSheets]
-              .map((item) => item.artistId)
-              .filter(Boolean)
-          )
+        const metadataSnap = await getDoc(
+          doc(db, "siteSettings", "flashMarketplace")
         );
-
-        const artistsById = await fetchArtistsById(artistIds);
-
         if (!isMounted) return;
-
-        setFlashes(
-          rawFlashes
-            .map((flash) => ({
-              ...flash,
-              artist: artistsById[flash.artistId],
-            }))
-            .filter(isMarketplaceReady)
-            .sort(sortByNewest)
-        );
-        setSheets(
-          rawSheets
-            .map((sheet) => ({
-              ...sheet,
-              artist: artistsById[sheet.artistId],
-            }))
-            .filter(isMarketplaceReady)
-            .sort(sortByNewest)
-        );
+        setMetadata(parseMarketplaceMetadata(metadataSnap.data()));
       } catch (err) {
-        console.error("Failed to fetch flash marketplace:", err);
-        if (isMounted) {
-          setFlashes([]);
-          setSheets([]);
-        }
-      } finally {
-        if (isMounted) setLoading(false);
+        console.error("Failed to fetch marketplace metadata:", err);
+        if (isMounted) setMetadata(emptyMetadata);
       }
     };
 
-    fetchMarketplace();
+    fetchMetadata();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    [...flashes, ...sheets].forEach((item) => {
-      (item.tags || []).forEach((tag) => tagSet.add(tag));
-    });
-    return Array.from(tagSet)
-      .sort((a, b) => a.localeCompare(b))
-      .slice(0, 18);
-  }, [flashes, sheets]);
+  const fetchMarketplacePage = useCallback(
+    async (mode: "replace" | "append" = "replace") => {
+      const sequence = ++fetchSequenceRef.current;
+      const tab = activeTab;
+      const isAppend = mode === "append";
+      const startingCursor =
+        isAppend && tab === "flashes"
+          ? flashCursorRef.current
+          : isAppend
+          ? sheetCursorRef.current
+          : null;
+      const collected: Array<MarketFlash | MarketFlashSheet> = [];
+      let nextCursor: MarketplaceCursor = startingCursor;
+      let nextHasMore = false;
+      let fetchRounds = 0;
 
-  const filteredFlashes = useMemo(() => {
-    const minPrice = parseBudgetValue(minBudget);
-    const maxPrice = parseBudgetValue(maxBudget);
+      if (isAppend) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setSelectedFlash(null);
+        if (tab === "flashes") {
+          setFlashes([]);
+          flashCursorRef.current = null;
+          setHasMoreFlashes(false);
+        } else {
+          setSheets([]);
+          sheetCursorRef.current = null;
+          setHasMoreSheets(false);
+        }
+      }
 
-    return flashes
-      .filter((flash) => {
-        const matchesBudget = matchesBudgetRange(flash, minPrice, maxPrice);
-        return (
-          matchesBudget && matchesSearchAndTag(flash, searchTerm, selectedTag)
+      try {
+        do {
+          fetchRounds += 1;
+          const marketplaceQuery = buildMarketplaceQuery({
+            tab,
+            cursor: nextCursor,
+            selectedTag,
+            searchTokens,
+            priceSort,
+            minPrice,
+            maxPrice,
+          });
+          const snapshot = await getDocs(marketplaceQuery);
+          const docs = snapshot.docs;
+
+          if (docs.length === 0) {
+            nextHasMore = false;
+            break;
+          }
+
+          nextCursor = docs[docs.length - 1];
+          nextHasMore = docs.length === MARKETPLACE_BATCH_SIZE;
+          collected.push(
+            ...docs
+              .map((marketDoc) =>
+                tab === "flashes"
+                  ? toMarketFlash(marketDoc)
+                  : toMarketFlashSheet(marketDoc)
+              )
+              .filter((item) =>
+                matchesActiveMarketplaceFilters({
+                  item,
+                  tab,
+                  selectedTag,
+                  searchTokens,
+                  minPrice,
+                  maxPrice,
+                })
+              )
+          );
+        } while (
+          nextHasMore &&
+          needsClientSideFiltering({
+            tab,
+            selectedTag,
+            searchTokens,
+            priceSort,
+            minPrice,
+            maxPrice,
+          }) &&
+          collected.length < MARKETPLACE_BATCH_SIZE &&
+          fetchRounds < CLIENT_FILTER_MAX_FETCH_ROUNDS
         );
-      })
-      .sort((a, b) => sortFlashes(a, b, priceSort));
-  }, [flashes, maxBudget, minBudget, priceSort, searchTerm, selectedTag]);
 
-  const filteredSheets = useMemo(
-    () =>
-      sheets.filter((sheet) =>
-        matchesSearchAndTag(sheet, searchTerm, selectedTag)
-      ),
-    [sheets, searchTerm, selectedTag]
+        if (sequence !== fetchSequenceRef.current) return;
+
+        if (tab === "flashes") {
+          setFlashes((current) =>
+            isAppend
+              ? dedupeById([...current, ...(collected as MarketFlash[])])
+              : (collected as MarketFlash[])
+          );
+          flashCursorRef.current = nextCursor;
+          setHasMoreFlashes(nextHasMore);
+        } else {
+          setSheets((current) =>
+            isAppend
+              ? dedupeById([...current, ...(collected as MarketFlashSheet[])])
+              : (collected as MarketFlashSheet[])
+          );
+          sheetCursorRef.current = nextCursor;
+          setHasMoreSheets(nextHasMore);
+        }
+      } catch (err) {
+        console.error("Failed to fetch flash marketplace:", err);
+        if (sequence === fetchSequenceRef.current && !isAppend) {
+          if (tab === "flashes") setFlashes([]);
+          else setSheets([]);
+        }
+      } finally {
+        if (sequence === fetchSequenceRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [
+      activeTab,
+      maxPrice,
+      minPrice,
+      priceSort,
+      searchTokens,
+      selectedTag,
+    ]
   );
 
-  const visibleItems =
-    activeTab === "flashes" ? filteredFlashes.length : filteredSheets.length;
-  const flashPageCount = Math.max(
-    1,
-    Math.ceil(filteredFlashes.length / flashItemsPerPage)
+  useEffect(() => {
+    void fetchMarketplacePage("replace");
+  }, [
+    activeTab,
+    maxPrice,
+    minPrice,
+    priceSort,
+    searchTokens,
+    selectedTag,
+    fetchMarketplacePage,
+  ]);
+
+  const activeItems = activeTab === "flashes" ? flashes : sheets;
+  const hasMore = activeTab === "flashes" ? hasMoreFlashes : hasMoreSheets;
+  const activeTotal =
+    activeTab === "flashes" ? metadata.flashCount : metadata.sheetCount;
+  const hasActiveFilters = Boolean(
+    selectedTag ||
+      searchTokens.length > 0 ||
+      (activeTab === "flashes" && (minPrice !== null || maxPrice !== null))
   );
-  const pagedFlashes = filteredFlashes.slice(
-    flashPage * flashItemsPerPage,
-    flashPage * flashItemsPerPage + flashItemsPerPage
-  );
+  const resultLabel = getResultLabel({
+    loadedCount: activeItems.length,
+    totalCount: activeTotal,
+    hasFilters: hasActiveFilters,
+    hasMore,
+  });
+
   const marketStats = useMemo(
     () => [
       {
         label: "Items",
-        value: flashes.length,
+        value: metadata.flashCount,
         icon: ImageIcon,
       },
       {
         label: "Sheets",
-        value: sheets.length,
+        value: metadata.sheetCount,
         icon: Layers,
       },
     ],
-    [flashes.length, sheets.length]
+    [metadata.flashCount, metadata.sheetCount]
   );
-
-  useEffect(() => {
-    setFlashPage(0);
-  }, [activeTab, maxBudget, minBudget, priceSort, searchTerm, selectedTag]);
-
-  useEffect(() => {
-    if (flashPage >= flashPageCount) {
-      setFlashPage(Math.max(0, flashPageCount - 1));
-    }
-  }, [flashPage, flashPageCount]);
 
   return (
     <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
@@ -503,19 +572,19 @@ const FlashMarketplacePage = () => {
             </button>
           </div>
 
-          {allTags.length > 0 && (
+          {metadata.topTags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               <TagButton
                 active={!selectedTag}
                 label="All tags"
                 onClick={() => setSelectedTag("")}
               />
-              {allTags.map((tag) => (
+              {metadata.topTags.map((tag) => (
                 <TagButton
-                  key={tag}
-                  active={selectedTag === tag}
-                  label={`#${tag}`}
-                  onClick={() => setSelectedTag(tag)}
+                  key={tag.key}
+                  active={selectedTag === tag.key}
+                  label={`#${tag.tag}`}
+                  onClick={() => setSelectedTag(tag.key)}
                 />
               ))}
             </div>
@@ -532,55 +601,48 @@ const FlashMarketplacePage = () => {
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-white/45">
-              {visibleItems} result{visibleItems === 1 ? "" : "s"}
-            </p>
-            {activeTab === "flashes" &&
-              filteredFlashes.length > DEFAULT_FLASH_ITEMS_PER_PAGE && (
-                <FlashPager
-                  currentPage={flashPage}
-                  pageCount={flashPageCount}
-                  totalItems={filteredFlashes.length}
-                  pageSize={flashItemsPerPage}
-                  onPrevious={() =>
-                    setFlashPage((page) => Math.max(0, page - 1))
-                  }
-                  onNext={() =>
-                    setFlashPage((page) =>
-                      Math.min(flashPageCount - 1, page + 1)
-                    )
-                  }
-                  onPageSizeChange={(pageSize) => {
-                    setFlashItemsPerPage(pageSize);
-                    setFlashPage(0);
-                  }}
-                />
-              )}
+            <p className="text-sm text-white/45">{resultLabel}</p>
           </div>
         </div>
 
         {loading ? (
           <MarketplaceSkeleton />
         ) : activeTab === "flashes" ? (
-          filteredFlashes.length > 0 ? (
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-              {pagedFlashes.map((flash) => (
-                <FlashCard
-                  key={flash.id}
-                  flash={flash}
-                  onRequest={() => setSelectedFlash(flash)}
+          flashes.length > 0 ? (
+            <>
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+                {flashes.map((flash) => (
+                  <FlashCard
+                    key={flash.id}
+                    flash={flash}
+                    onRequest={() => setSelectedFlash(flash)}
+                  />
+                ))}
+              </div>
+              {hasMoreFlashes && (
+                <LoadMoreButton
+                  loading={loadingMore}
+                  onClick={() => void fetchMarketplacePage("append")}
                 />
-              ))}
-            </div>
+              )}
+            </>
           ) : (
             <EmptyMarketplaceState />
           )
-        ) : filteredSheets.length > 0 ? (
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredSheets.map((sheet) => (
-              <FlashSheetMarketCard key={sheet.id} sheet={sheet} />
-            ))}
-          </div>
+        ) : sheets.length > 0 ? (
+          <>
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {sheets.map((sheet) => (
+                <FlashSheetMarketCard key={sheet.id} sheet={sheet} />
+              ))}
+            </div>
+            {hasMoreSheets && (
+              <LoadMoreButton
+                loading={loadingMore}
+                onClick={() => void fetchMarketplacePage("append")}
+              />
+            )}
+          </>
         ) : (
           <EmptyMarketplaceState />
         )}
@@ -609,7 +671,7 @@ const MarketStat = ({
   value: number;
   entryCount: number;
 }) => (
-  <div className="min-w-0 rounded-lg  px-2 py-1!  sm:px-4 sm:py-3">
+  <div className="min-w-0 rounded-lg px-2 py-1! sm:px-4 sm:py-3">
     <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
       <Icon
         className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-primary-hover)] sm:mt-0 sm:h-4 sm:w-4"
@@ -683,117 +745,25 @@ const BudgetInput = ({
   </label>
 );
 
-const FlashPager = ({
-  currentPage,
-  pageCount,
-  totalItems,
-  pageSize,
-  onPrevious,
-  onNext,
-  onPageSizeChange,
+const LoadMoreButton = ({
+  loading,
+  onClick,
 }: {
-  currentPage: number;
-  pageCount: number;
-  totalItems: number;
-  pageSize: number;
-  onPrevious: () => void;
-  onNext: () => void;
-  onPageSizeChange: (pageSize: number) => void;
-}) => {
-  const [pageSizeMenuOpen, setPageSizeMenuOpen] = useState(false);
-  const firstItem = currentPage * pageSize + 1;
-  const lastItem = Math.min(totalItems, (currentPage + 1) * pageSize);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/10 bg-[#151515]/95 px-2 py-1 shadow-xl shadow-black/25">
-      <span className="px-2 text-xs font-semibold text-white/50">
-        {firstItem}-{lastItem} of {totalItems}
-      </span>
-      <span className="hidden h-4 w-px bg-white/10 sm:block" />
-      <span className="hidden px-1 text-xs font-semibold text-white/35 sm:inline">
-        Page {currentPage + 1} of {pageCount}
-      </span>
-      <div
-        className="relative"
-        onBlur={(event) => {
-          const nextFocusedElement = event.relatedTarget as Node | null;
-          if (!event.currentTarget.contains(nextFocusedElement)) {
-            setPageSizeMenuOpen(false);
-          }
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setPageSizeMenuOpen((open) => !open)}
-          className="!inline-flex !h-8 !items-center !justify-center !gap-1.5 !rounded-full !border !border-white/10 !bg-black/30 !px-3 !py-0 !text-xs font-semibold text-white/65 outline-none transition hover:!border-white/20 hover:!bg-white/[0.06] focus:!border-white/35"
-          aria-haspopup="listbox"
-          aria-expanded={pageSizeMenuOpen}
-        >
-          {pageSize}/page
-          <ChevronRight
-            size={13}
-            className={`transition ${
-              pageSizeMenuOpen ? "-rotate-90" : "rotate-90"
-            }`}
-          />
-        </button>
-        {pageSizeMenuOpen && (
-          <div
-            role="listbox"
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[9rem] overflow-hidden rounded-xl border border-white/10 bg-[#151515] p-1 shadow-2xl shadow-black/40"
-          >
-            {FLASH_ITEMS_PER_PAGE_OPTIONS.map((option) => {
-              const active = option === pageSize;
-
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  onClick={() => {
-                    onPageSizeChange(option);
-                    setPageSizeMenuOpen(false);
-                  }}
-                  className={`!flex !h-9 !w-full !items-center !justify-between !rounded-lg !px-3 !py-0 !text-xs font-semibold transition ${
-                    active
-                      ? "!bg-white !text-black"
-                      : "!bg-transparent text-white/65 hover:!bg-white/[0.08] hover:text-white"
-                  }`}
-                >
-                  {option}/page
-                  {active && (
-                    <span className="text-[10px] uppercase tracking-[0.16em]">
-                      Active
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onPrevious}
-        disabled={currentPage === 0}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white p-0! text-black shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/25"
-        aria-label="Previous flash page"
-      >
-        <ChevronLeft size={16} strokeWidth={2.5} />
-      </button>
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={currentPage >= pageCount - 1}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white p-0! text-black shadow-sm transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/25"
-        aria-label="Next flash page"
-      >
-        <ChevronRight size={16} strokeWidth={2.5} />
-      </button>
-    </div>
-  );
-};
+  loading: boolean;
+  onClick: () => void;
+}) => (
+  <div className="mt-8 flex justify-center">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/85 disabled:cursor-wait disabled:opacity-65"
+    >
+      {loading && <Loader2 size={16} className="animate-spin" />}
+      {loading ? "Loading" : "Load more"}
+    </button>
+  </div>
+);
 
 const FlashCard = ({
   flash,
@@ -911,107 +881,230 @@ const EmptyMarketplaceState = () => (
   </div>
 );
 
-const matchesSearchAndTag = (
-  item: MarketFlash | MarketFlashSheet,
-  searchTerm: string,
-  selectedTag: string
-) => {
-  const tags = item.tags || [];
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const matchesTag = !selectedTag || tags.includes(selectedTag);
-  const searchableText = [
-    "title" in item ? item.title : "",
-    "caption" in item ? item.caption : "",
-    item.artist?.displayName,
-    item.artist?.name,
-    item.artist?.studioName,
-    ...tags,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+const buildMarketplaceQuery = ({
+  tab,
+  cursor,
+  selectedTag,
+  searchTokens,
+  priceSort,
+  minPrice,
+  maxPrice,
+}: {
+  tab: MarketplaceTab;
+  cursor: MarketplaceCursor;
+  selectedTag: string;
+  searchTokens: string[];
+  priceSort: PriceSort;
+  minPrice: number | null;
+  maxPrice: number | null;
+}) => {
+  const collectionName = tab === "flashes" ? "flashes" : "flashSheets";
+  const constraints: QueryConstraint[] = [where("marketplaceReady", "==", true)];
 
-  return (
-    matchesTag &&
-    (!normalizedSearch || searchableText.includes(normalizedSearch))
-  );
-};
-
-const isMarketplaceReady = (item: MarketFlash | MarketFlashSheet) => {
-  if (item.marketplaceVisible === false) return false;
-  if (item.artistStripeConnectReady === true) return true;
-  return isStripeConnectReady(item.artist);
-};
-
-const fetchArtistsById = async (artistIds: string[]) => {
-  const artistsById: Record<string, PublicArtist> = {};
-  const chunks = chunkArray(artistIds, 30);
-
-  for (const chunk of chunks) {
-    if (!chunk.length) continue;
-
-    const artistsQuery = query(
-      collection(db, "users"),
-      where(documentId(), "in", chunk)
-    );
-
-    const snapshot = await getDocs(artistsQuery);
-
-    snapshot.docs.forEach((artistDoc) => {
-      artistsById[artistDoc.id] = {
-        id: artistDoc.id,
-        ...artistDoc.data(),
-      } as PublicArtist;
-    });
+  if (tab === "flashes" && shouldUsePriceQuery(priceSort, minPrice, maxPrice)) {
+    const direction: OrderByDirection =
+      priceSort === "price_desc" ? "desc" : "asc";
+    if (minPrice !== null) constraints.push(where("price", ">=", minPrice));
+    if (maxPrice !== null) constraints.push(where("price", "<=", maxPrice));
+    constraints.push(orderBy("price", direction), orderBy("createdAt", "desc"));
+  } else {
+    if (selectedTag) {
+      constraints.push(where("searchTags", "array-contains", selectedTag));
+    } else if (searchTokens[0]) {
+      constraints.push(where("searchTokens", "array-contains", searchTokens[0]));
+    }
+    constraints.push(orderBy("createdAt", "desc"));
   }
 
-  return artistsById;
+  if (cursor) constraints.push(startAfter(cursor));
+  constraints.push(firestoreLimit(MARKETPLACE_BATCH_SIZE));
+
+  return query(collection(db, collectionName), ...constraints);
 };
 
-const chunkArray = <T,>(items: T[], size: number) => {
-  const chunks: T[][] = [];
+const shouldUsePriceQuery = (
+  priceSort: PriceSort,
+  minPrice: number | null,
+  maxPrice: number | null
+) => priceSort !== "newest" || minPrice !== null || maxPrice !== null;
 
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+const needsClientSideFiltering = ({
+  tab,
+  selectedTag,
+  searchTokens,
+  priceSort,
+  minPrice,
+  maxPrice,
+}: {
+  tab: MarketplaceTab;
+  selectedTag: string;
+  searchTokens: string[];
+  priceSort: PriceSort;
+  minPrice: number | null;
+  maxPrice: number | null;
+}) => {
+  if (tab === "flashes" && shouldUsePriceQuery(priceSort, minPrice, maxPrice)) {
+    return Boolean(selectedTag || searchTokens.length > 0);
   }
 
-  return chunks;
+  if (selectedTag) return searchTokens.length > 0;
+  return searchTokens.length > 1;
 };
 
-const getArtistName = (artist?: PublicArtist) =>
-  artist?.displayName || artist?.name || "SATX Ink artist";
+const matchesActiveMarketplaceFilters = ({
+  item,
+  tab,
+  selectedTag,
+  searchTokens,
+  minPrice,
+  maxPrice,
+}: {
+  item: MarketFlash | MarketFlashSheet;
+  tab: MarketplaceTab;
+  selectedTag: string;
+  searchTokens: string[];
+  minPrice: number | null;
+  maxPrice: number | null;
+}) => {
+  const itemTags = item.searchTags || [];
+  const itemTokens = item.searchTokens || [];
+  const matchesTag = !selectedTag || itemTags.includes(selectedTag);
+  const matchesSearch =
+    searchTokens.length === 0 ||
+    searchTokens.every((token) => itemTokens.includes(token));
 
-const getRequestArtist = (flash: MarketFlash): FlashRequestArtist => ({
-  id: flash.artist?.id || flash.artistId,
-  name: flash.artist?.name,
-  displayName: flash.artist?.displayName,
-  avatarUrl: flash.artist?.avatarUrl,
+  if (tab === "sheets") return matchesTag && matchesSearch;
+
+  const price = (item as MarketFlash).price;
+  const matchesBudget =
+    typeof price === "number" &&
+    (minPrice === null || price >= minPrice) &&
+    (maxPrice === null || price <= maxPrice);
+
+  return matchesTag && matchesSearch && matchesBudget;
+};
+
+const toMarketFlash = (
+  marketDoc: QueryDocumentSnapshot<DocumentData>
+): MarketFlash => {
+  const data = marketDoc.data();
+  return {
+    id: marketDoc.id,
+    ...data,
+    artist: toPublicArtist(data.artistPublic),
+  } as MarketFlash;
+};
+
+const toMarketFlashSheet = (
+  marketDoc: QueryDocumentSnapshot<DocumentData>
+): MarketFlashSheet => {
+  const data = marketDoc.data();
+  return {
+    id: marketDoc.id,
+    ...data,
+    artist: toPublicArtist(data.artistPublic),
+  } as MarketFlashSheet;
+};
+
+const toPublicArtist = (value: unknown): PublicArtist | null => {
+  if (!value || typeof value !== "object") return null;
+  const data = value as Record<string, unknown>;
+  const id = typeof data.id === "string" ? data.id : "";
+  if (!id) return null;
+
+  return {
+    id,
+    name: typeof data.name === "string" ? data.name : undefined,
+    displayName:
+      typeof data.displayName === "string" ? data.displayName : undefined,
+    avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : undefined,
+    studioName:
+      typeof data.studioName === "string" ? data.studioName : undefined,
+  };
+};
+
+const parseMarketplaceMetadata = (
+  data: DocumentData | undefined
+): MarketplaceMetadata => ({
+  flashCount: getFiniteNumber(data?.flashCount),
+  sheetCount: getFiniteNumber(data?.sheetCount),
+  topTags: Array.isArray(data?.topTags)
+    ? data.topTags
+        .map((tag): MarketplaceTopTag | null => {
+          if (typeof tag === "string") {
+            return { key: normalizeTagKey(tag), tag };
+          }
+          if (!tag || typeof tag !== "object") return null;
+          const record = tag as Record<string, unknown>;
+          const label =
+            typeof record.tag === "string" && record.tag.trim()
+              ? record.tag.trim()
+              : "";
+          const key =
+            typeof record.key === "string" && record.key.trim()
+              ? record.key.trim()
+              : normalizeTagKey(label);
+          return key && label
+            ? {
+                key,
+                tag: label,
+                count: getFiniteNumber(record.count),
+              }
+            : null;
+        })
+        .filter((tag): tag is MarketplaceTopTag => Boolean(tag))
+    : [],
 });
 
-const getCreatedTime = (item: Flash | FlashSheet) => {
-  const createdAt = item.createdAt;
+const getFiniteNumber = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
 
-  if (!createdAt) return 0;
-  if (createdAt instanceof Date) return createdAt.getTime();
-
-  const maybeTimestamp = createdAt as {
-    seconds?: number;
-    toDate?: () => Date;
-  };
-
-  if (typeof maybeTimestamp.toDate === "function") {
-    return maybeTimestamp.toDate().getTime();
-  }
-
-  if (typeof maybeTimestamp.seconds === "number") {
-    return maybeTimestamp.seconds * 1000;
-  }
-
-  return 0;
+const dedupeById = <T extends { id: string }>(items: T[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 };
 
-const sortByNewest = <T extends Flash | FlashSheet>(a: T, b: T) =>
-  getCreatedTime(b) - getCreatedTime(a);
+const getSearchTokens = (value: string) =>
+  normalizeSearchValue(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6);
+
+const normalizeSearchValue = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const normalizeTagKey = (tag: string) =>
+  normalizeSearchValue(tag).split(/\s+/).filter(Boolean).join("-");
+
+const getResultLabel = ({
+  loadedCount,
+  totalCount,
+  hasFilters,
+  hasMore,
+}: {
+  loadedCount: number;
+  totalCount: number;
+  hasFilters: boolean;
+  hasMore: boolean;
+}) => {
+  if (!hasFilters && totalCount > 0) {
+    return hasMore
+      ? `${loadedCount} loaded of ${totalCount}`
+      : `${totalCount} result${totalCount === 1 ? "" : "s"}`;
+  }
+
+  return `${loadedCount}${hasMore ? "+" : ""} result${
+    loadedCount === 1 && !hasMore ? "" : "s"
+  }`;
+};
 
 const parseBudgetValue = (value: string) => {
   const trimmedValue = value.trim();
@@ -1021,36 +1114,14 @@ const parseBudgetValue = (value: string) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
-const matchesBudgetRange = (
-  flash: Flash,
-  minPrice: number | null,
-  maxPrice: number | null
-) => {
-  if (minPrice === null && maxPrice === null) return true;
-  if (typeof flash.price !== "number") return false;
+const getArtistName = (artist?: PublicArtist | null) =>
+  artist?.displayName || artist?.name || "SATX Ink artist";
 
-  const meetsMin = minPrice === null || flash.price >= minPrice;
-  const meetsMax = maxPrice === null || flash.price <= maxPrice;
-
-  return meetsMin && meetsMax;
-};
-
-const getSortablePrice = (flash: Flash) =>
-  typeof flash.price === "number" ? flash.price : null;
-
-const sortFlashes = (a: Flash, b: Flash, priceSort: PriceSort) => {
-  if (priceSort === "newest") return sortByNewest(a, b);
-
-  const aPrice = getSortablePrice(a);
-  const bPrice = getSortablePrice(b);
-  if (aPrice === null && bPrice === null) return sortByNewest(a, b);
-  if (aPrice === null) return 1;
-  if (bPrice === null) return -1;
-
-  const priceDifference =
-    priceSort === "price_asc" ? aPrice - bPrice : bPrice - aPrice;
-
-  return priceDifference || sortByNewest(a, b);
-};
+const getRequestArtist = (flash: MarketFlash): FlashRequestArtist => ({
+  id: flash.artist?.id || flash.artistId,
+  name: flash.artist?.name || undefined,
+  displayName: flash.artist?.displayName || undefined,
+  avatarUrl: flash.artist?.avatarUrl || undefined,
+});
 
 export default FlashMarketplacePage;

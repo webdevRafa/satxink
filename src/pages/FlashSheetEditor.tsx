@@ -22,6 +22,11 @@ import { getCroppedImgFromElement } from "../utils/getCroppedImgFromElement";
 import { isStripeConnectReady } from "../utils/stripeConnect";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 
+const parsePositivePrice = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const FlashSheetEditor = () => {
   const { sheetId } = useParams();
   const [sheet, setSheet] = useState<FlashSheet | null>(null);
@@ -36,6 +41,7 @@ const FlashSheetEditor = () => {
   const [showModal, setShowModal] = useState(false);
   const [stripeReady, setStripeReady] = useState(false);
   const uidRef = useRef<string | null>(null);
+  const parsedPrice = parsePositivePrice(price);
 
   useEffect(() => {
     const fetchSheet = async () => {
@@ -101,6 +107,10 @@ const FlashSheetEditor = () => {
       alert("Connect Stripe before adding flash to the marketplace.");
       return;
     }
+    if (parsedPrice === null) {
+      alert("Add a price before saving marketplace flash.");
+      return;
+    }
 
     try {
       const blob = await getCroppedImgFromElement(
@@ -158,7 +168,7 @@ const FlashSheetEditor = () => {
       previewPath: `${basePath}_webp90.webp`,
       fullPath: `${basePath}_full.jpg`,
       title,
-      price: price ? parseFloat(price) : null,
+      price: parsedPrice,
       tags,
       artistStripeConnectReady: true,
       marketplaceVisible: true,
@@ -222,9 +232,10 @@ const FlashSheetEditor = () => {
             />
             <input
               type="number"
+              min={1}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="Price (optional)"
+              placeholder="Price (required)"
               className="bg-zinc-800 text-white px-3 py-2 rounded w-full"
             />
             <AnimatedTagInput
@@ -242,6 +253,7 @@ const FlashSheetEditor = () => {
               </button>
               <button
                 onClick={handleFlashSubmit}
+                disabled={parsedPrice === null}
                 className="bg-emerald-600 text-white px-4 py-2 rounded"
               >
                 Save Flash
