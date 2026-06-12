@@ -140,10 +140,7 @@ const FlashMarketplacePage = () => {
   const flashCursorRef = useRef<MarketplaceCursor>(null);
   const sheetCursorRef = useRef<MarketplaceCursor>(null);
 
-  const searchTokens = useMemo(
-    () => getSearchTokens(searchTerm),
-    [searchTerm]
-  );
+  const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
   const maxPrice = useMemo(() => parseBudgetValue(maxBudget), [maxBudget]);
 
@@ -333,14 +330,7 @@ const FlashMarketplacePage = () => {
         }
       }
     },
-    [
-      activeTab,
-      maxPrice,
-      minPrice,
-      priceSort,
-      searchTokens,
-      selectedTag,
-    ]
+    [activeTab, maxPrice, minPrice, priceSort, searchTokens, selectedTag]
   );
 
   useEffect(() => {
@@ -591,12 +581,12 @@ const FlashMarketplacePage = () => {
           )}
         </section>
 
-        <div className="sticky top-20 z-30 mt-10 flex flex-col gap-4 border-y border-white/10 bg-[#0d0d0d]/92 py-4 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:flex-row sm:items-end sm:justify-between">
+        <div className="sticky top-18 z-30 mt-10 flex flex-col gap-4 border-y border-white/10 bg-[#0d0d0d]/92 py-4 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
               {activeTab === "flashes" ? "Available designs" : "Browse sheets"}
             </p>
-            <h2 className="mt-2 text-3xl! font-semibold text-white">
+            <h2 className="mt-1 text-lg md:text-3xl! font-semibold text-white">
               {activeTab === "flashes" ? "Flash items" : "Flash sheets"}
             </h2>
           </div>
@@ -899,7 +889,9 @@ const buildMarketplaceQuery = ({
   maxPrice: number | null;
 }) => {
   const collectionName = tab === "flashes" ? "flashes" : "flashSheets";
-  const constraints: QueryConstraint[] = [where("marketplaceReady", "==", true)];
+  const constraints: QueryConstraint[] = [
+    where("marketplaceReady", "==", true),
+  ];
 
   if (tab === "flashes" && shouldUsePriceQuery(priceSort, minPrice, maxPrice)) {
     const direction: OrderByDirection =
@@ -911,7 +903,9 @@ const buildMarketplaceQuery = ({
     if (selectedTag) {
       constraints.push(where("searchTags", "array-contains", selectedTag));
     } else if (searchTokens[0]) {
-      constraints.push(where("searchTokens", "array-contains", searchTokens[0]));
+      constraints.push(
+        where("searchTokens", "array-contains", searchTokens[0])
+      );
     }
     constraints.push(orderBy("createdAt", "desc"));
   }
@@ -1069,10 +1063,7 @@ const dedupeById = <T extends { id: string }>(items: T[]) => {
 };
 
 const getSearchTokens = (value: string) =>
-  normalizeSearchValue(value)
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6);
+  normalizeSearchValue(value).split(/\s+/).filter(Boolean).slice(0, 6);
 
 const normalizeSearchValue = (value: string) =>
   value

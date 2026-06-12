@@ -31,6 +31,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import heroImage from "../assets/images/inkhero.webp";
+import heroImageMobile from "../assets/images/heroImageMobile.webp";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
@@ -307,7 +308,12 @@ export const HomePage: FC = () => {
         <img
           src={heroImage}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
+          className="hidden md:block absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
+        />
+        <img
+          src={heroImageMobile}
+          alt=""
+          className="absolute md:hidden inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
         <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent" />
@@ -513,7 +519,7 @@ const HeroFeaturedArtistPanel = ({
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
 
   return (
-    <aside className="relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end">
+    <aside className="relative min-h-[640px] overflow-hidden rounded-xl  p-3 shadow-2xl shadow-black/40 backdrop-blur-sm sm:min-h-[660px] lg:self-end">
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
@@ -539,9 +545,6 @@ const HeroFeaturedArtistPanel = ({
       <div className="p-3 pt-4 md:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
-              Cover artist
-            </p>
             <h3 className="mt-2 text-xl! font-semibold leading-tight text-white md:text-2xl!">
               {artist
                 ? `A closer look at ${artistName}.`
@@ -578,7 +581,7 @@ const HeroFeaturedArtistPanel = ({
         )}
 
         {visibleStyles.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-1 flex flex-wrap gap-2">
             {visibleStyles.map((style) => (
               <span
                 key={style}
@@ -617,7 +620,7 @@ const HeroFeaturedArtistPanel = ({
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="inline-flex min-h-10 items-center gap-2 bg-white  rounded-md border border-white/20 bg-white/[0.09]e px-4 py-2 text-sm font-semibold  text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
             >
               View artist profile
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -625,10 +628,10 @@ const HeroFeaturedArtistPanel = ({
           ) : (
             <Link
               to="/artists"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="inline-flex min-h-10 items-center gap-2  rounded-md border border-white/20 bg-white/[0.09]e px-4 py-2 text-sm font-semibold  text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
             >
               Browse local artists
-              <ArrowRight size={16} className="text-[#0b0b0b]!" />
+              <ArrowRight size={16} className="text-white!" />
             </Link>
           )}
         </div>
