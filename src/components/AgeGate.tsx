@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
@@ -15,6 +15,40 @@ export default function AgeGate() {
     }
   });
   const isExemptPath = AGE_GATE_EXEMPT_PATHS.has(pathname);
+  const shouldShowAgeGate = !isConfirmed && !isExemptPath;
+
+  useEffect(() => {
+    if (!shouldShowAgeGate) return;
+
+    const scrollY = window.scrollY;
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+    const previousBodyPosition = body.style.position;
+    const previousBodyTop = body.style.top;
+    const previousBodyWidth = body.style.width;
+    const previousDocumentOverflow = documentElement.style.overflow;
+    const previousDocumentOverscroll = documentElement.style.overscrollBehavior;
+
+    documentElement.style.overflow = "hidden";
+    documentElement.style.overscrollBehavior = "none";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    return () => {
+      documentElement.style.overflow = previousDocumentOverflow;
+      documentElement.style.overscrollBehavior = previousDocumentOverscroll;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+      body.style.position = previousBodyPosition;
+      body.style.top = previousBodyTop;
+      body.style.width = previousBodyWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [shouldShowAgeGate]);
 
   const confirmAge = () => {
     try {
@@ -30,7 +64,7 @@ export default function AgeGate() {
     window.location.assign("https://www.google.com");
   };
 
-  if (isConfirmed || isExemptPath) {
+  if (!shouldShowAgeGate) {
     return null;
   }
 
@@ -39,7 +73,7 @@ export default function AgeGate() {
       aria-labelledby="age-gate-title"
       aria-modal="true"
       role="dialog"
-      className="fixed inset-0 z-[90] flex min-h-dvh items-center justify-center bg-black/90 px-4 py-8 text-white backdrop-blur"
+      className="fixed inset-0 z-[90] isolate flex h-[100dvh] min-h-[100svh] items-center justify-center overflow-y-auto overscroll-contain bg-black px-4 py-6 text-white sm:py-8"
     >
       <div className="w-full max-w-md rounded-lg border border-white/12 bg-[#121212] p-6 shadow-2xl shadow-black/50">
         <div className="flex items-center gap-4">

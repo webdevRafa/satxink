@@ -603,9 +603,9 @@ const renderArtistWelcomeEmail = (
     : [];
 
   return buildEmail("Welcome to SATX Ink for Artists", {
-    preview: "Start connecting with clients.",
+    preview: "Manage requests, offers, and bookings from one dashboard.",
     eyebrow: "Welcome, artist",
-    headline: "Start connecting with clients.",
+    headline: "Start connecting with clients",
     body:
       "Use your dashboard to manage requests, send offers, and keep your booking flow organized as you finish getting set up.",
     avatarUrl: firstString(user.avatarUrl),
