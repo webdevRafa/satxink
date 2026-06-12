@@ -125,9 +125,81 @@ function useViewportEntry<T extends Element>() {
   return { targetRef, entryCount };
 }
 
+function useDesktopHeroParallax<T extends HTMLElement>() {
+  const targetRef = useRef<T | null>(null);
+
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    const reducedMotionQuery = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    );
+    let animationFrame = 0;
+
+    const resetParallax = () => {
+      target.style.removeProperty("--satx-hero-parallax-y");
+    };
+
+    const updateParallax = () => {
+      animationFrame = 0;
+
+      if (!desktopQuery.matches || reducedMotionQuery.matches) {
+        resetParallax();
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+
+      if (rect.bottom <= 0 || rect.top >= viewportHeight) return;
+
+      const progress = Math.min(
+        1,
+        Math.max(0, Math.abs(Math.min(rect.top, 0)) / Math.max(rect.height, 1))
+      );
+
+      target.style.setProperty(
+        "--satx-hero-parallax-y",
+        `${Math.round(progress * 112)}px`
+      );
+    };
+
+    const scheduleUpdate = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(updateParallax);
+    };
+
+    const handleMediaChange = () => {
+      resetParallax();
+      scheduleUpdate();
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    desktopQuery.addEventListener("change", handleMediaChange);
+    reducedMotionQuery.addEventListener("change", handleMediaChange);
+
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      desktopQuery.removeEventListener("change", handleMediaChange);
+      reducedMotionQuery.removeEventListener("change", handleMediaChange);
+      resetParallax();
+    };
+  }, []);
+
+  return targetRef;
+}
+
 export const HomePage: FC = () => {
   const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
+  const heroParallaxRef = useDesktopHeroParallax<HTMLElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
   const [featuredArtist, setFeaturedArtist] = useState<PublicArtist | null>(
@@ -307,15 +379,34 @@ export const HomePage: FC = () => {
               width: 100%;
             }
           }
+
+          .satx-hero-parallax-image {
+            transform: translate3d(0, var(--satx-hero-parallax-y, 0px), 0) scale(1.08);
+            transform-origin: center top;
+            will-change: transform;
+            backface-visibility: hidden;
+          }
+
+          @media (max-width: 767px), (prefers-reduced-motion: reduce) {
+            .satx-hero-parallax-image {
+              transform: scale(1.03);
+              will-change: auto;
+            }
+          }
         `}
       </style>
 
-      <section className="relative overflow-hidden bg-black pt-30 md:pt-0">
-        <img
-          src={heroImage}
-          alt=""
-          className="hidden md:block absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
-        />
+      <section
+        ref={heroParallaxRef}
+        className="relative overflow-hidden bg-black pt-30 md:pt-0"
+      >
+        <div className="absolute inset-0 hidden overflow-hidden md:block">
+          <img
+            src={heroImage}
+            alt=""
+            className="satx-hero-parallax-image absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
+          />
+        </div>
         <img
           src={heroImageMobile}
           alt=""
