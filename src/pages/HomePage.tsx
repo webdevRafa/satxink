@@ -338,7 +338,7 @@ export const HomePage: FC = () => {
 
         <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
           <div className="max-w-3xl">
-            <h1 className="max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-6xl">
+            <h1 className="max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-5xl!">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
@@ -400,7 +400,7 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="px-5 py-18 md:px-8">
+      <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             kicker="Browse by style"
@@ -425,7 +425,7 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="overflow-hidden bg-[#121212] px-5 py-18 md:px-8">
+      <section className="overflow-hidden bg-[#121212] z-50 relative px-5 py-18 md:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <SectionHeader
@@ -459,7 +459,7 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="border-t border-white/5 bg-[#171717] px-5 py-20 text-center md:px-8">
+      <section className="border-t border-white/5 bg-[#171717] px-5 py-20 text-center md:px-8  z-50 relative">
         <div className="mx-auto max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
             Start the conversation
