@@ -11,6 +11,14 @@ export type SocialLinks = {
     nonRefundable: boolean;     // Artist’s preference
   };
   
+  export type HomepageFeature = {
+    story?: string;
+    quote?: string;
+    imageUrl?: string;
+    imageAlt?: string;
+    updatedAt?: Date | Timestamp | FieldValue | null;
+  };
+
   export type Artist = {
     id: string;                 
     avatarUrl: string;
@@ -23,6 +31,7 @@ export type SocialLinks = {
     shopId?: string;            
     specialties: string[];      
     featured: boolean;
+    homepageFeature?: HomepageFeature;
     isVerified?: boolean | "true" | "false";
     profileComplete: boolean;
     paymentType: "internal" | "external";

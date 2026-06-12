@@ -21,6 +21,17 @@
     transform: translateX(-50%);
   }
 }
+
+button.bg-white,
+a.bg-white {
+  color: #0b0b0b !important;
+}
+
+button.bg-white svg,
+a.bg-white svg {
+  color: #0b0b0b !important;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -91,6 +102,10 @@
 .animate-scroll {
   animation: scroll-horizontal 15s linear infinite;
   will-change: transform;
+}
+
+.font-termina {
+  font-family: "termina", "Space Grotesk", sans-serif;
 }
 
 @keyframes flash-upload-tag-pill-in {
@@ -275,6 +290,69 @@
   pointer-events: none;
 }
 
+@keyframes preview-loading-flow {
+  0% {
+    opacity: 0.12;
+    transform: translateY(-120%);
+  }
+  45% {
+    opacity: 0.42;
+  }
+  100% {
+    opacity: 0.12;
+    transform: translateY(120%);
+  }
+}
+
+.preview-loading-sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.09), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+}
+
+.preview-loading-sheen::before {
+  content: "";
+  position: absolute;
+  inset: -55% 0;
+  background: linear-gradient(
+    180deg,
+    transparent 18%,
+    rgba(255, 255, 255, 0.045) 38%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.045) 62%,
+    transparent 82%
+  );
+  animation: preview-loading-flow 1.35s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-loading-sheen::before {
+    animation: none;
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flash-sheet-preview-in {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.flash-sheet-preview-enter {
+  animation: flash-sheet-preview-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
 @keyframes spotlight-border-slide-left {
   0%,
   100% {
@@ -329,7 +407,45 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .flash-sheet-preview-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
   .spotlight-border-glint {
+    animation: none;
+    opacity: 0.55;
+    transform: none;
+  }
+}
+
+.signup-role-card-glint {
+  opacity: 0;
+  animation: none;
+}
+
+.signup-role-card-glint--left {
+  left: 0;
+}
+
+.signup-role-card-glint--right {
+  right: 0;
+}
+
+.signup-role-card:hover .signup-role-card-glint--left,
+.signup-role-card:focus-visible .signup-role-card-glint--left {
+  animation: spotlight-border-slide-left 5.4s ease-in-out infinite;
+}
+
+.signup-role-card:hover .signup-role-card-glint--right,
+.signup-role-card:focus-visible .signup-role-card-glint--right {
+  animation: spotlight-border-slide-right 5.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-role-card:hover .signup-role-card-glint,
+  .signup-role-card:focus-visible .signup-role-card-glint {
     animation: none;
     opacity: 0.55;
     transform: none;

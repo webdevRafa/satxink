@@ -1,5 +1,17 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
 
+export type FlashRepeatability = "repeatable" | "one_of_one";
+export type FlashAvailabilityStatus = "available" | "held" | "sold";
+export type FlashPublicationStatus = "draft" | "published";
+
+export type MarketplaceArtistPublic = {
+  id: string;
+  name?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  studioName?: string | null;
+};
+
 export type Flash = {
   id: string;                      // Firestore document ID
   artistId: string;                // Linked artist
@@ -17,11 +29,29 @@ export type Flash = {
 
   title?: string;                  // Optional artist-provided title
   caption?: string | null;         // Legacy upload modal title field
+  description?: string | null;      // Optional short public note
   isAvailable?: boolean;           // Optional: mark flash as available or sold
+  repeatability?: FlashRepeatability;
+  availabilityStatus?: FlashAvailabilityStatus;
+  heldByBookingId?: string | null;
+  heldByClientId?: string | null;
+  heldByCheckoutSessionId?: string | null;
+  heldUntil?: Timestamp | Date | FieldValue | null;
+  soldBookingId?: string | null;
+  soldCheckoutSessionId?: string | null;
+  soldAt?: Timestamp | Date | FieldValue | null;
   price?: number | null;           // Optional: for marketplace support
   tags?: string[];                 // Optional: for search/filter
   artistStripeConnectReady?: boolean;
   marketplaceVisible?: boolean;
+  marketplaceReady?: boolean;
+  artistPublic?: MarketplaceArtistPublic | null;
+  searchTokens?: string[];
+  searchTags?: string[];
+  hasPrice?: boolean;
+  marketplaceUpdatedAt?: Timestamp | Date | FieldValue | null;
+  publicationStatus?: FlashPublicationStatus;
+  publishedAt?: Timestamp | Date | FieldValue | null;
   status?: string;                 // Optional processing status for uploaded files
   isFromSheet: true | false
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp

@@ -12,6 +12,16 @@ export default function TermsOfService() {
       </p>
 
       <div className="mb-10">
+        <h2>Age and Mature Content</h2>
+        <p>
+          SATX INK is intended for users and visitors who are 18 years of age or
+          older. The platform may display tattoo and body-art imagery with
+          mature themes, and by continuing to use the site you acknowledge that
+          you are at least 18 and comfortable viewing this content.
+        </p>
+      </div>
+
+      <div className="mb-10">
         <h2>User Conduct</h2>
         <p>
           Users agree to communicate respectfully and honestly with artists and

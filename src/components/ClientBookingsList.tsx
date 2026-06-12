@@ -15,7 +15,10 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { toast } from "react-hot-toast";
 import { db, functions } from "../firebase/firebaseConfig";
-import type { Booking } from "../types/Booking";
+import type { Booking, ProjectAmendment } from "../types/Booking";
+import ProjectControlsPanel from "./ProjectControlsPanel";
+import ProjectPauseDialog from "./ProjectPauseDialog";
+import ProjectScheduleProposalDialog from "./ProjectScheduleProposalDialog";
 
 interface Props {
   clientId: string;
@@ -25,6 +28,11 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [scheduleProposalBooking, setScheduleProposalBooking] =
+    useState<Booking | null>(null);
+  const [pauseDialogMode, setPauseDialogMode] =
+    useState<"pause" | "resume" | null>(null);
+  const [pendingAmendments, setPendingAmendments] = useState<ProjectAmendment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +66,34 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       unsubscribe();
     };
   }, [clientId]);
+
+  useEffect(() => {
+    if (!selectedBooking) {
+      setPendingAmendments([]);
+      return;
+    }
+
+    const amendmentsQuery = query(
+      collection(db, "bookings", selectedBooking.id, "amendments"),
+      where("status", "==", "proposed")
+    );
+
+    return onSnapshot(
+      amendmentsQuery,
+      (snap) => {
+        setPendingAmendments(
+          snap.docs.map((amendmentDoc) => ({
+            id: amendmentDoc.id,
+            ...amendmentDoc.data(),
+          })) as ProjectAmendment[]
+        );
+      },
+      (error) => {
+        console.error("Error listening to project amendments:", error);
+        setPendingAmendments([]);
+      }
+    );
+  }, [selectedBooking]);
 
   const sortedBookings = useMemo(
     () => [...bookings].sort((a, b) => getBookingTime(b) - getBookingTime(a)),
@@ -198,6 +234,82 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
     }
   };
 
+  const handleRespondToAmendment = async (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => {
+    if (!selectedBooking) return;
+
+    try {
+      const respondToAmendment = httpsCallable(
+        functions,
+        "respondToProjectAmendment"
+      );
+      await respondToAmendment({
+        bookingId: selectedBooking.id,
+        amendmentId,
+        response,
+      });
+      toast.success(
+        response === "accepted"
+          ? "Project amendment accepted."
+          : response === "declined"
+          ? "Project amendment declined."
+          : "Project amendment cancelled."
+      );
+    } catch (error) {
+      console.error("Project amendment response failed:", error);
+      toast.error("Could not update the amendment.");
+    }
+  };
+
+  const handleRequestNextSession = async (
+    booking: Booking,
+    input: { date: string; time: string; message: string }
+  ) => {
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: booking.id,
+        type: "schedule_next_session",
+        date: input.date,
+        time: input.time,
+        sessionNumber: Math.max(Number(booking.activeSessionNumber || 1), 1),
+        message: input.message,
+      });
+      toast.success("Next-session request sent to the artist.");
+    } catch (error) {
+      console.error("Next-session request failed:", error);
+      toast.error("Could not send the session request.");
+      throw error;
+    }
+  };
+
+  const handleSetProjectPaused = async (
+    booking: Booking,
+    input: { reason: string; pausedUntil: string }
+  ) => {
+    const paused = pauseDialogMode === "pause";
+
+    try {
+      const setPaused = httpsCallable(functions, "setProjectPaused");
+      await setPaused({
+        bookingId: booking.id,
+        paused,
+        reason: input.reason,
+        pausedUntil: input.pausedUntil,
+      });
+      toast.success(paused ? "Project paused." : "Project resumed.");
+    } catch (error) {
+      console.error("Project pause update failed:", error);
+      toast.error("Could not update project status.");
+      throw error;
+    }
+  };
+
   if (loading) return <SectionSkeleton />;
 
   return (
@@ -231,10 +343,29 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
 
       <BookingDetailsDialog
         booking={selectedBooking}
+        amendments={pendingAmendments}
+        clientId={clientId}
         onClose={() => setSelectedBooking(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
         onConfirmExternalPayment={handleConfirmExternalPayment}
         onDisputeExternalPayment={handleDisputeExternalPayment}
+        onRespondToAmendment={handleRespondToAmendment}
+        onRequestNextSession={(booking) => setScheduleProposalBooking(booking)}
+        onPauseProject={() => setPauseDialogMode("pause")}
+        onResumeProject={() => setPauseDialogMode("resume")}
+      />
+      <ProjectScheduleProposalDialog
+        booking={scheduleProposalBooking}
+        viewerRole="client"
+        onClose={() => setScheduleProposalBooking(null)}
+        onSubmit={handleRequestNextSession}
+      />
+      <ProjectPauseDialog
+        booking={pauseDialogMode ? selectedBooking : null}
+        mode={pauseDialogMode || "pause"}
+        viewerRole="client"
+        onClose={() => setPauseDialogMode(null)}
+        onSubmit={handleSetProjectPaused}
       />
     </section>
   );
@@ -297,15 +428,19 @@ const BookingRow = ({
 }) => {
   const remainingBalance = getRemainingBalance(booking);
   const isMultiSession = isMultiSessionBooking(booking);
+  const hasPendingPlatformFee =
+    booking.remainingPaymentMethod === "external" &&
+    Number(booking.pendingPlatformFeeCents || 0) > 0;
   const hasPendingSessionPayment =
     !isMultiSession || Number(booking.pendingSessionPaymentAmount || 0) > 0;
   const isPayable =
     booking.paymentType === "internal" &&
-    booking.remainingPaymentMethod !== "external" &&
     (booking.status === "pending_payment" ||
       (booking.status === "deposit_paid" &&
-        remainingBalance > 0 &&
-        hasPendingSessionPayment));
+        ((booking.remainingPaymentMethod !== "external" &&
+          remainingBalance > 0 &&
+          hasPendingSessionPayment) ||
+          hasPendingPlatformFee)));
   return (
     <div
       className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
@@ -375,16 +510,31 @@ const BookingRow = ({
 
 const BookingDetailsDialog = ({
   booking,
+  amendments,
+  clientId,
   onClose,
   onPay,
   onConfirmExternalPayment,
   onDisputeExternalPayment,
+  onRespondToAmendment,
+  onRequestNextSession,
+  onPauseProject,
+  onResumeProject,
 }: {
   booking: Booking | null;
+  amendments: ProjectAmendment[];
+  clientId: string;
   onClose: () => void;
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: Booking) => void;
   onDisputeExternalPayment: (booking: Booking) => void;
+  onRespondToAmendment: (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => void;
+  onRequestNextSession: (booking: Booking) => void;
+  onPauseProject: () => void;
+  onResumeProject: () => void;
 }) => {
   const showExternalPaymentConfirmation =
     booking?.remainingPaymentMethod === "external" &&
@@ -464,6 +614,17 @@ const BookingDetailsDialog = ({
                           {booking.shopAddress}
                         </a>
                       )}
+                      <ProjectControlsPanel
+                        booking={booking}
+                        viewerRole="client"
+                        currentUserId={clientId}
+                        amendments={amendments}
+                        onRespondToAmendment={onRespondToAmendment}
+                        onPlanNextSession={() => onRequestNextSession(booking)}
+                        onPauseProject={onPauseProject}
+                        onResumeProject={onResumeProject}
+                        onPayPlatformFee={() => onPay(booking.id)}
+                      />
                       {booking.remainingPaymentMethod === "external" &&
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
@@ -536,17 +697,20 @@ const BookingDetailsDialog = ({
                           </div>
                         )}
                       {booking.paymentType === "internal" &&
-                        booking.remainingPaymentMethod !== "external" &&
                         (booking.status === "pending_payment" ||
                           (booking.status === "deposit_paid" &&
-                            getRemainingBalance(booking) > 0)) && (
+                            ((booking.remainingPaymentMethod !== "external" &&
+                              getRemainingBalance(booking) > 0) ||
+                              Number(booking.pendingPlatformFeeCents || 0) > 0))) && (
                           <button
                             type="button"
                             onClick={() => onPay(booking.id)}
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                           >
                             <CreditCard size={16} />
-                            {booking.status === "deposit_paid"
+                            {Number(booking.pendingPlatformFeeCents || 0) > 0
+                              ? "Pay platform fee"
+                              : booking.status === "deposit_paid"
                               ? isMultiSessionBooking(booking)
                                 ? `Pay ${getSessionOrdinal(
                                     getPayableSessionNumber(booking)
@@ -694,7 +858,8 @@ const reconcilePendingPayments = async (bookings: Booking[]) => {
       booking.paymentType === "internal" &&
       (booking.status === "pending_payment" ||
         (booking.status === "deposit_paid" &&
-          booking.checkoutPaymentMode === "remaining")) &&
+          (booking.checkoutPaymentMode === "remaining" ||
+            booking.checkoutPaymentMode === "platform_fee"))) &&
       booking.stripeCheckoutSessionId
   );
 

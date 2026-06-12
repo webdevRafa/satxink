@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  CheckCircle2,
   DollarSign,
   Edit3,
   Grid2X2,
   Layers,
+  Plus,
   Scissors,
   Tag,
+  Trash2,
   X,
 } from "lucide-react";
 import Cropper from "react-easy-crop";
@@ -26,10 +29,28 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
-import type { Flash } from "../types/Flash";
+import type { Flash, FlashRepeatability } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import EditFlashModal from "../components/EditFlashModal";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "../components/FlashRepeatabilityControl";
+import {
+  FlashPreviewImage,
+  FlashTinyTag,
+} from "../components/FlashPreviewCard";
+import {
+  formatFlashPrice,
+  getFlashTitle,
+} from "../utils/flashPreview";
+import {
+  FLASH_DESCRIPTION_MAX_LENGTH,
+  normalizeFlashDescription,
+} from "../utils/flashSourceQuality";
+import {
+  getFlashAvailabilityStatus,
+  getFlashPublicationStatus,
+  getFlashRepeatability,
+} from "../utils/flashAvailability";
 
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (
@@ -72,6 +93,16 @@ const parseOptionalPrice = (value: string) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
+const hasPositiveFlashPrice = (flash: Pick<Flash, "price">) =>
+  typeof flash.price === "number" &&
+  Number.isFinite(flash.price) &&
+  flash.price > 0;
+
+const parsePositivePrice = (value: string) => {
+  const parsedValue = parseOptionalPrice(value);
+  return parsedValue !== null && parsedValue > 0 ? parsedValue : null;
+};
+
 const useMediaQuery = (queryString: string) => {
   const getMatches = () =>
     typeof window !== "undefined"
@@ -104,17 +135,44 @@ const FlashSheetDetailPage = () => {
   const [showCropModal, setShowCropModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isPublishingDrafts, setIsPublishingDrafts] = useState(false);
+  const [isApplyingSheetDefault, setIsApplyingSheetDefault] = useState(false);
+  const [discardingDraftId, setDiscardingDraftId] = useState<string | null>(null);
+  const [createdDraftIds, setCreatedDraftIds] = useState<string[]>([]);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [newFlashTitle, setNewFlashTitle] = useState("");
   const [newFlashPrice, setNewFlashPrice] = useState("");
+  const [newFlashDescription, setNewFlashDescription] = useState("");
   const [newFlashTags, setNewFlashTags] = useState<string[]>([]);
+  const [newFlashRepeatability, setNewFlashRepeatability] =
+    useState<FlashRepeatability>("repeatable");
 
   const sheetTags = useMemo(
     () => (Array.isArray(sheet?.tags) ? sheet.tags.slice(0, 5) : []),
     [sheet?.tags]
+  );
+  const draftFlashes = useMemo(
+    () => flashes.filter((flash) => getFlashPublicationStatus(flash) === "draft"),
+    [flashes]
+  );
+  const draftFlashesReadyToPublish = useMemo(
+    () => draftFlashes.length > 0 && draftFlashes.every(hasPositiveFlashPrice),
+    [draftFlashes]
+  );
+  const publishedFlashes = useMemo(
+    () =>
+      flashes.filter((flash) => getFlashPublicationStatus(flash) === "published"),
+    [flashes]
+  );
+  const createdDraftFlashes = useMemo(
+    () =>
+      createdDraftIds
+        .map((draftId) => flashes.find((flash) => flash.id === draftId))
+        .filter((flash): flash is Flash => Boolean(flash)),
+    [createdDraftIds, flashes]
   );
 
   const fetchFlashes = async (sheetId: string) => {
@@ -166,12 +224,93 @@ const FlashSheetDetailPage = () => {
     flashId: string,
     title: string,
     price: number | null,
-    tags: string[]
+    description: string | null,
+    tags: string[],
+    repeatability: FlashRepeatability
   ) => {
-    await updateDoc(doc(db, "flashes", flashId), { title, price, tags });
+    await updateDoc(doc(db, "flashes", flashId), {
+      title,
+      price,
+      description,
+      tags,
+      repeatability,
+    });
     setEditingFlash(null);
     if (id) fetchFlashes(id);
     toast.success("Flash updated.");
+  };
+
+  const handleOpenCropModal = () => {
+    setCreatedDraftIds([]);
+    setNewFlashTitle("");
+    setNewFlashPrice("");
+    setNewFlashDescription("");
+    setNewFlashTags([]);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCropArea(null);
+    setNewFlashRepeatability(
+      sheet?.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
+    );
+    setShowCropModal(true);
+  };
+
+  const handleUpdateSheetRepeatabilityDefault = async (
+    repeatabilityDefault: FlashRepeatability
+  ) => {
+    if (!sheet) return;
+
+    await updateDoc(doc(db, "flashSheets", sheet.id), {
+      repeatabilityDefault,
+    });
+    setSheet({ ...sheet, repeatabilityDefault });
+    toast.success("Sheet default updated.");
+  };
+
+  const handleApplySheetDefaultToCurrentDesigns = async () => {
+    if (!sheet || isApplyingSheetDefault) return;
+
+    const repeatabilityDefault =
+      sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable";
+    const eligibleFlashes = flashes.filter((flash) => {
+      const status = getFlashAvailabilityStatus(flash);
+      return status !== "held" && status !== "sold";
+    });
+
+    if (eligibleFlashes.length === 0) {
+      toast("No available designs to update.");
+      return;
+    }
+
+    try {
+      setIsApplyingSheetDefault(true);
+      await Promise.all(
+        eligibleFlashes.map((flash) =>
+          updateDoc(doc(db, "flashes", flash.id), {
+            repeatability: repeatabilityDefault,
+            availabilityStatus: "available",
+            isAvailable: true,
+          })
+        )
+      );
+      setFlashes((current) =>
+        current.map((flash) =>
+          eligibleFlashes.some((eligible) => eligible.id === flash.id)
+            ? {
+                ...flash,
+                repeatability: repeatabilityDefault,
+                availabilityStatus: "available",
+                isAvailable: true,
+              }
+            : flash
+        )
+      );
+      toast.success("Current designs updated.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Could not update current designs."));
+    } finally {
+      setIsApplyingSheetDefault(false);
+    }
   };
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
@@ -180,40 +319,151 @@ const FlashSheetDetailPage = () => {
     );
   };
 
-  const handleSaveNewFlash = async () => {
+  const handleSaveNewFlash = async (
+    publicationStatus: "draft" | "published" = "published"
+  ) => {
     const validCropArea = getSerializableCropArea(cropArea);
+    const parsedPrice = parsePositivePrice(newFlashPrice);
 
     if (!sheet || !validCropArea || isPublishing) {
       if (!validCropArea) {
-        toast("Adjust the crop before publishing.");
+        toast("Adjust the crop before creating flash.");
       }
-      return;
+      return false;
+    }
+    if (publicationStatus === "published" && parsedPrice === null) {
+      toast("Add a price before publishing marketplace flash.");
+      return false;
     }
 
     try {
       setIsPublishing(true);
 
       const cropFlashFromSheet = httpsCallable(functions, "cropFlashFromSheet");
-      await cropFlashFromSheet({
+      const result = await cropFlashFromSheet({
         sheetId: sheet.id,
         crop: validCropArea,
         title: newFlashTitle.trim() || "Untitled Flash",
-        price: parseOptionalPrice(newFlashPrice),
+        price: parsedPrice,
+        description: normalizeFlashDescription(newFlashDescription),
         tags: newFlashTags,
+        repeatability: newFlashRepeatability,
+        publicationStatus,
       });
+      const createdFlash = result.data as Flash;
 
-      setShowCropModal(false);
+      setFlashes((current) => [
+        createdFlash,
+        ...current.filter((flash) => flash.id !== createdFlash.id),
+      ]);
+      if (publicationStatus === "draft") {
+        setCreatedDraftIds((current) => [
+          createdFlash.id,
+          ...current.filter((draftId) => draftId !== createdFlash.id),
+        ]);
+      } else {
+        setShowCropModal(false);
+      }
       setNewFlashTitle("");
       setNewFlashPrice("");
+      setNewFlashDescription("");
       setNewFlashTags([]);
+      setNewFlashRepeatability(
+        sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
+      );
       setCropArea(null);
+      setCrop({ x: 0, y: 0 });
       setZoom(1);
-      if (id) fetchFlashes(id);
-      toast.success("Flash published.");
+      if (publicationStatus === "published" && id) fetchFlashes(id);
+      toast.success(
+        publicationStatus === "draft" ? "Flash draft created." : "Flash published."
+      );
+      return true;
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Something went wrong while publishing."));
+      toast.error(getErrorMessage(err, "Something went wrong while saving flash."));
+      return false;
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handlePublishDrafts = async (
+    draftIds: string[],
+    closeCropper = false
+  ) => {
+    if (!sheet || draftIds.length === 0 || isPublishingDrafts) return;
+    const selectedDrafts = flashes.filter((flash) => draftIds.includes(flash.id));
+    const unpricedDrafts = selectedDrafts.filter(
+      (flash) => !hasPositiveFlashPrice(flash)
+    );
+
+    if (unpricedDrafts.length > 0) {
+      toast(
+        unpricedDrafts.length === 1
+          ? "Add a price before publishing this draft."
+          : "Add prices before publishing these drafts."
+      );
+      return;
+    }
+
+    try {
+      setIsPublishingDrafts(true);
+      const publishFlashDrafts = httpsCallable(functions, "publishFlashDrafts");
+      await publishFlashDrafts({
+        sheetId: sheet.id,
+        flashIds: draftIds,
+      });
+
+      setFlashes((current) =>
+        current.map((flash) =>
+          draftIds.includes(flash.id)
+            ? {
+                ...flash,
+                publicationStatus: "published",
+                marketplaceVisible: true,
+                isAvailable: true,
+                availabilityStatus: "available",
+              }
+            : flash
+        )
+      );
+      setCreatedDraftIds((current) =>
+        current.filter((draftId) => !draftIds.includes(draftId))
+      );
+      if (id) await fetchFlashes(id);
+      if (closeCropper) setShowCropModal(false);
+      toast.success(
+        draftIds.length === 1 ? "Flash published." : "Flash drafts published."
+      );
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Could not publish flash drafts."));
+    } finally {
+      setIsPublishingDrafts(false);
+    }
+  };
+
+  const handleDiscardDraft = async (flash: Flash) => {
+    if (!sheet || discardingDraftId) return;
+
+    try {
+      setDiscardingDraftId(flash.id);
+      const discardFlashDraft = httpsCallable(functions, "discardFlashDraft");
+      await discardFlashDraft({
+        sheetId: sheet.id,
+        flashId: flash.id,
+      });
+      setFlashes((current) =>
+        current.filter((currentFlash) => currentFlash.id !== flash.id)
+      );
+      setCreatedDraftIds((current) =>
+        current.filter((draftId) => draftId !== flash.id)
+      );
+      if (editingFlash?.id === flash.id) setEditingFlash(null);
+      toast.success("Draft discarded.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Could not discard this draft."));
+    } finally {
+      setDiscardingDraftId(null);
     }
   };
 
@@ -233,7 +483,7 @@ const FlashSheetDetailPage = () => {
           <button
             type="button"
             onClick={() => navigate("/dashboard?tab=flashes")}
-            className="mt-5 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black"
+            className="mt-5 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]!"
           >
             Back to flashes
           </button>
@@ -241,6 +491,9 @@ const FlashSheetDetailPage = () => {
       </div>
     );
   }
+
+  const sheetRepeatabilityDefault =
+    sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable";
 
   return (
     <div className="mx-auto mt-24 min-h-screen max-w-7xl px-5 pb-16 text-white md:px-8">
@@ -294,23 +547,51 @@ const FlashSheetDetailPage = () => {
 
         <aside className="border-t border-white/10 bg-black/25 p-5 lg:border-l lg:border-t-0 md:p-6">
           <div className="sticky top-24 space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-                Status
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <MiniStat label="Items" value={flashes.length} />
-                <MiniStat label="Sheet" value="Live" />
+            <div className="border-b border-white/10 pb-4">
+              <div className="grid grid-cols-2 gap-2">
+                <MiniStat label="Published" value={publishedFlashes.length} />
+                <MiniStat label="Drafts" value={draftFlashes.length} />
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowCropModal(true)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              onClick={handleOpenCropModal}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200"
             >
               <Scissors size={16} />
               Add flash from sheet
+            </button>
+
+            <FlashRepeatabilityControl
+              value={sheetRepeatabilityDefault}
+              onChange={handleUpdateSheetRepeatabilityDefault}
+              label="Sheet default"
+              description="New designs cropped from this sheet start with this setting."
+              disabled={isApplyingSheetDefault}
+            />
+
+            <button
+              type="button"
+              onClick={handleApplySheetDefaultToCurrentDesigns}
+              disabled={isApplyingSheetDefault || flashes.length === 0}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isApplyingSheetDefault
+                ? "Applying..."
+                : "Apply default to current designs"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                handlePublishDrafts(draftFlashes.map((flash) => flash.id))
+              }
+              disabled={isPublishingDrafts || !draftFlashesReadyToPublish}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-5! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <CheckCircle2 size={16} />
+              {isPublishingDrafts ? "Publishing..." : "Publish all drafts"}
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -357,54 +638,70 @@ const FlashSheetDetailPage = () => {
             </p>
           </div>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {flashes.map((flash) => (
-              <article
-                key={flash.id}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]"
-              >
-                <div className="aspect-square overflow-hidden bg-black">
-                  <img
-                    src={flash.thumbUrl || flash.webp90Url || flash.fullUrl}
-                    alt={flash.title || "Flash"}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base! font-bold text-white">
-                        {flash.title || "Untitled Flash"}
-                      </h3>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        {flash.price ? `$${flash.price}` : "Price not set"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setEditingFlash(flash)}
-                      className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white hover:text-black"
-                      aria-label={`Edit ${flash.title || "flash"}`}
-                    >
-                      <Edit3 size={15} />
-                    </button>
+          <div className="mt-6 space-y-10">
+            {draftFlashes.length > 0 && (
+              <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
+                      Unpublished drafts
+                    </p>
+                    <h3 className="mt-2 text-xl! font-bold text-white">
+                      Hidden from clients
+                    </h3>
                   </div>
-                  {Array.isArray(flash.tags) && flash.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {flash.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs text-zinc-300"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handlePublishDrafts(draftFlashes.map((flash) => flash.id))
+                    }
+                    disabled={isPublishingDrafts || !draftFlashesReadyToPublish}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
+                  >
+                    <CheckCircle2 size={16} />
+                    {isPublishingDrafts ? "Publishing..." : "Publish all drafts"}
+                  </button>
                 </div>
-              </article>
-            ))}
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {draftFlashes.map((flash) => (
+                    <FlashItemCard
+                      key={flash.id}
+                      flash={flash}
+                      onEdit={() => setEditingFlash(flash)}
+                      onDiscard={() => handleDiscardDraft(flash)}
+                      isDiscarding={discardingDraftId === flash.id}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                  Published flash
+                </p>
+                <h3 className="mt-2 text-xl! font-bold text-white">
+                  Visible marketplace items
+                </h3>
+              </div>
+
+              {publishedFlashes.length === 0 ? (
+                <div className="mt-4 rounded-[1.25rem] border border-white/10 bg-[#121212] p-6 text-sm text-zinc-400">
+                  Publish a draft to make it visible to clients.
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {publishedFlashes.map((flash) => (
+                    <FlashItemCard
+                      key={flash.id}
+                      flash={flash}
+                      onEdit={() => setEditingFlash(flash)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -425,16 +722,34 @@ const FlashSheetDetailPage = () => {
           cropArea={cropArea}
           title={newFlashTitle}
           price={newFlashPrice}
+          description={newFlashDescription}
           tags={newFlashTags}
+          repeatability={newFlashRepeatability}
+          draftFlashes={createdDraftFlashes}
           isPublishing={isPublishing}
+          isPublishingDrafts={isPublishingDrafts}
+          discardingDraftId={discardingDraftId}
           onCropChange={setCrop}
           onZoomChange={setZoom}
           onCropComplete={handleCropComplete}
           onTitleChange={setNewFlashTitle}
           onPriceChange={setNewFlashPrice}
+          onDescriptionChange={setNewFlashDescription}
           onTagsChange={setNewFlashTags}
-          onClose={() => setShowCropModal(false)}
-          onPublish={handleSaveNewFlash}
+          onRepeatabilityChange={setNewFlashRepeatability}
+          onClose={() => {
+            setShowCropModal(false);
+            setCreatedDraftIds([]);
+          }}
+          onCreateDraft={() => handleSaveNewFlash("draft")}
+          onPublish={() => handleSaveNewFlash("published")}
+          onPublishDrafts={() => handlePublishDrafts(createdDraftIds, true)}
+          onEditDraft={(flash) => {
+            setShowCropModal(false);
+            setCreatedDraftIds([]);
+            setEditingFlash(flash);
+          }}
+          onDiscardDraft={handleDiscardDraft}
         />
       )}
     </div>
@@ -442,11 +757,13 @@ const FlashSheetDetailPage = () => {
 };
 
 const MiniStat = ({ label, value }: { label: string; value: string | number }) => (
-  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-2 text-lg! font-bold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
@@ -455,6 +772,84 @@ const PreviewPlaceholder = () => (
     <Scissors size={22} />
   </span>
 );
+
+const FlashItemCard = ({
+  flash,
+  onEdit,
+  onDiscard,
+  isDiscarding = false,
+}: {
+  flash: Flash;
+  onEdit: () => void;
+  onDiscard?: () => void;
+  isDiscarding?: boolean;
+}) => {
+  const repeatability = getFlashRepeatability(flash);
+  const availabilityStatus = getFlashAvailabilityStatus(flash);
+  const isDraft = getFlashPublicationStatus(flash) === "draft";
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]">
+      <FlashPreviewImage flash={flash} showBadge={false}>
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+          {isDraft && (
+            <span className="rounded-full border border-emerald-300/30 bg-emerald-500/20 px-2.5! py-1! text-[11px] font-semibold text-emerald-100 backdrop-blur">
+              Draft
+            </span>
+          )}
+          {repeatability === "one_of_one" && (
+            <span className="rounded-full border border-red-300/30 bg-red-500/20 px-2.5! py-1! text-[11px] font-semibold text-red-100 backdrop-blur">
+              One of one
+            </span>
+          )}
+          {availabilityStatus !== "available" && (
+            <span className="rounded-full border border-white/15 bg-black/55 px-2.5! py-1! text-[11px] font-semibold capitalize text-white/80 backdrop-blur">
+              {availabilityStatus}
+            </span>
+          )}
+        </div>
+      </FlashPreviewImage>
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-base! font-bold text-white">
+              {getFlashTitle(flash)}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              {formatFlashPrice(flash.price)}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white hover:text-black"
+              aria-label={`Edit ${flash.title || "flash"}`}
+            >
+              <Edit3 size={15} />
+            </button>
+            {onDiscard && (
+              <button
+                type="button"
+                onClick={onDiscard}
+                disabled={isDiscarding}
+                className="rounded-full border border-red-400/20 bg-red-500/10 p-2! text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label={`Discard ${flash.title || "flash"} draft`}
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+        {Array.isArray(flash.tags) && flash.tags.length > 0 && (
+          <div className="mt-3 flex min-w-0">
+            <FlashTinyTag tags={flash.tags} className="text-zinc-300" />
+          </div>
+        )}
+      </div>
+    </article>
+  );
+};
 
 const CroppedFlashPreview = ({
   imageUrl,
@@ -513,16 +908,27 @@ const CropFlashModal = ({
   cropArea,
   title,
   price,
+  description,
   tags,
+  repeatability,
+  draftFlashes,
   isPublishing,
+  isPublishingDrafts,
+  discardingDraftId,
   onCropChange,
   onZoomChange,
   onCropComplete,
   onTitleChange,
   onPriceChange,
+  onDescriptionChange,
   onTagsChange,
+  onRepeatabilityChange,
   onClose,
+  onCreateDraft,
   onPublish,
+  onPublishDrafts,
+  onEditDraft,
+  onDiscardDraft,
 }: {
   sheet: FlashSheet;
   crop: { x: number; y: number };
@@ -530,20 +936,35 @@ const CropFlashModal = ({
   cropArea: Area | null;
   title: string;
   price: string;
+  description: string;
   tags: string[];
+  repeatability: FlashRepeatability;
+  draftFlashes: Flash[];
   isPublishing: boolean;
+  isPublishingDrafts: boolean;
+  discardingDraftId: string | null;
   onCropChange: (value: { x: number; y: number }) => void;
   onZoomChange: (value: number) => void;
   onCropComplete: (croppedArea: Area, croppedAreaPixels: Area) => void;
   onTitleChange: (value: string) => void;
   onPriceChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
   onTagsChange: (value: string[]) => void;
+  onRepeatabilityChange: (value: FlashRepeatability) => void;
   onClose: () => void;
-  onPublish: () => void;
+  onCreateDraft: () => Promise<boolean>;
+  onPublish: () => Promise<boolean>;
+  onPublishDrafts: () => void;
+  onEditDraft: (flash: Flash) => void;
+  onDiscardDraft: (flash: Flash) => void;
 }) => {
   const [mobileStep, setMobileStep] = useState<"crop" | "details">("crop");
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
+  const canPublishWithPrice = Boolean(validCropArea && parsePositivePrice(price) !== null);
+  const canPublishDrafts =
+    draftFlashes.length > 0 && draftFlashes.every(hasPositiveFlashPrice);
   const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
   const cropperStyle = isDesktopCropper
     ? undefined
@@ -566,19 +987,47 @@ const CropFlashModal = ({
     setMobileStep("details");
   };
 
+  const handleOpenDesktopDetails = () => {
+    if (!validCropArea) {
+      toast("Choose a crop area first.");
+      return;
+    }
+
+    setShowDetailsModal(true);
+  };
+
+  const handleSubmitDesktopDetails = async () => {
+    const created = await onCreateDraft();
+    if (created) setShowDetailsModal(false);
+  };
+
   const cropPanel = (
     <div
       className={`${
         mobileStep === "details" ? "hidden lg:flex" : "flex"
       } min-h-0 flex-col`}
     >
-      <div className="border-b border-white/10 p-5 pr-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
-          Crop from sheet
-        </p>
-        <h2 className="mt-2 text-2xl! font-bold text-white">
-          {sheet.title || "Untitled sheet"}
-        </h2>
+      <div className="border-b border-white/10 p-5 pr-16 lg:flex lg:items-center lg:justify-between lg:gap-5 lg:pr-5">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+            Crop from sheet
+          </p>
+          <h2 className="mt-2 truncate text-2xl! font-bold text-white">
+            {sheet.title || "Untitled sheet"}
+          </h2>
+        </div>
+
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+          <button
+            type="button"
+            onClick={handleOpenDesktopDetails}
+            disabled={!validCropArea || isPublishing || isPublishingDrafts}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
+          >
+            <Plus size={16} />
+            Create flash
+          </button>
+        </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden bg-black lg:min-h-[420px]">
         <Cropper
@@ -594,12 +1043,34 @@ const CropFlashModal = ({
           onCropComplete={onCropComplete}
         />
       </div>
+      <div className="hidden border-t border-white/10 bg-black/40 p-4 lg:block">
+        <label className="block">
+          <span className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-zinc-300">Zoom</span>
+            {validCropArea && (
+              <span className="text-xs font-medium text-zinc-400">
+                Crop source: {validCropArea.width} x {validCropArea.height}
+              </span>
+            )}
+          </span>
+          <input
+            aria-label="Zoom"
+            type="range"
+            min={1}
+            max={8}
+            step={0.1}
+            value={zoom}
+            onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+            className="mt-3 w-full accent-red-400"
+          />
+        </label>
+      </div>
       <div className="border-t border-white/10 p-4 lg:hidden">
         <div className="flex">
           <button
             type="button"
             onClick={handleContinueToDetails}
-            className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
+            className="w-full rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
             disabled={!validCropArea || isPublishing}
           >
             Continue
@@ -629,11 +1100,31 @@ const CropFlashModal = ({
         </span>
         <input
           type="number"
+          min={1}
           value={price}
           onChange={(e) => onPriceChange(e.target.value)}
-          placeholder="Optional"
+          placeholder="Required to publish"
           className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
         />
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-semibold text-zinc-300">
+          Short public note
+        </span>
+        <textarea
+          value={description}
+          onChange={(e) =>
+            onDescriptionChange(
+              e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
+            )
+          }
+          placeholder="Optional context, placement idea, or what clients should focus on."
+          className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+        />
+        <span className="mt-1 block text-right text-[11px] text-zinc-600">
+          {description.length}/{FLASH_DESCRIPTION_MAX_LENGTH}
+        </span>
       </label>
 
       <AnimatedTagInput
@@ -646,6 +1137,14 @@ const CropFlashModal = ({
           </>
         }
         emptyPlaceholder="anime, color, dragon"
+      />
+
+      <FlashRepeatabilityControl
+        value={repeatability}
+        onChange={onRepeatabilityChange}
+        label="Availability"
+        disabled={isPublishing}
+        compact
       />
     </>
   );
@@ -663,8 +1162,8 @@ const CropFlashModal = ({
       <button
         type="button"
         onClick={onPublish}
-        className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-45"
-        disabled={isPublishing || !validCropArea}
+        className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
+        disabled={isPublishing || !canPublishWithPrice}
       >
         {isPublishing ? "Publishing..." : "Publish flash"}
       </button>
@@ -700,7 +1199,7 @@ const CropFlashModal = ({
             </h2>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <div className="request-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center gap-4">
                 {validCropArea ? (
@@ -742,40 +1241,179 @@ const CropFlashModal = ({
         </div>
 
         <aside className="hidden min-h-0 flex-col border-t border-white/10 bg-black/30 lg:flex lg:border-l lg:border-t-0">
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
-                  <Scissors size={18} />
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4 pr-14">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-red-300">
+                Draft queue
+              </p>
+              <h3 className="mt-1 truncate text-base! font-bold text-white">
+                Added flash
+              </h3>
+            </div>
+            <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5! py-1! text-xs font-semibold text-zinc-300">
+              {draftFlashes.length}
+            </span>
+          </div>
+
+          <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+            {draftFlashes.length === 0 ? (
+              <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] p-5 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
+                  <Scissors size={22} />
                 </span>
-                <p className="text-sm leading-6 text-zinc-400">
-                  Keep the crop tight around one flash design. The saved item
-                  will stay linked to this sheet.
+                <h4 className="mt-4 text-base! font-bold text-white">
+                  No drafts yet
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  Choose a crop, then create flash to add it here before
+                  publishing.
                 </p>
               </div>
-            </div>
-
-            <label className="block">
-              <span className="text-sm font-semibold text-zinc-300">Zoom</span>
-              <input
-                aria-label="Zoom"
-                type="range"
-                min={1}
-                max={8}
-                step={0.1}
-                value={zoom}
-                onChange={(e) => onZoomChange(parseFloat(e.target.value))}
-                className="mt-3 w-full accent-red-400"
-              />
-            </label>
-
-            {renderDetailsFields()}
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {draftFlashes.map((flash) => {
+                  const repeatability = getFlashRepeatability(flash);
+                  return (
+                    <article
+                      key={flash.id}
+                      className="overflow-hidden rounded-xl border border-white/10 bg-[#151515] shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
+                    >
+                      <FlashPreviewImage flash={flash} showBadge={false}>
+                        {repeatability === "one_of_one" && (
+                          <span className="absolute left-2 top-2 rounded-full border border-red-300/30 bg-red-500/20 px-2! py-0.5! text-[9px] font-bold uppercase tracking-[0.08em] text-red-100 backdrop-blur">
+                            One of one
+                          </span>
+                        )}
+                      </FlashPreviewImage>
+                      <div className="p-2.5">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="truncate text-xs! font-bold text-white sm:text-sm!">
+                              {getFlashTitle(flash)}
+                            </h4>
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">
+                              {formatFlashPrice(flash.price)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onEditDraft(flash)}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 p-0! text-zinc-300 transition hover:bg-white hover:text-black"
+                              aria-label={`Edit ${getFlashTitle(flash)} draft`}
+                              title="Edit draft"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDiscardDraft(flash)}
+                              disabled={discardingDraftId === flash.id}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/20 bg-red-500/10 p-0! text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+                              aria-label={`Discard ${getFlashTitle(flash)} draft`}
+                              title="Discard draft"
+                            >
+                              {discardingDraftId === flash.id ? (
+                                <span className="text-[11px] font-bold">
+                                  ...
+                                </span>
+                              ) : (
+                                <Trash2 size={13} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <div className="border-t border-white/10 p-5">
-            {renderActionButtons()}
+          <div className="border-t border-white/10 bg-[#0d0d0d]/95 p-4 shadow-[0_-18px_40px_rgba(0,0,0,0.32)]">
+            <button
+              type="button"
+              onClick={onPublishDrafts}
+              disabled={!canPublishDrafts || isPublishingDrafts || isPublishing}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4! py-3! text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <CheckCircle2 size={16} />
+              {isPublishingDrafts ? "Publishing..." : "Publish added flash"}
+            </button>
           </div>
         </aside>
+
+        {showDetailsModal && (
+          <div className="absolute inset-0 z-30 hidden items-center justify-center bg-black/70 px-6 backdrop-blur-sm lg:flex">
+            <div className="w-full max-w-xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#151515] shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                    Flash details
+                  </p>
+                  <h3 className="mt-2 text-2xl! font-bold text-white">
+                    Create hidden draft
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDetailsModal(false)}
+                  disabled={isPublishing}
+                  className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-label="Close flash details"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="request-modal-scrollbar max-h-[70vh] space-y-5 overflow-y-auto p-5">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-center gap-4">
+                    {validCropArea ? (
+                      <CroppedFlashPreview
+                        imageUrl={sheet.imageUrl}
+                        cropArea={validCropArea}
+                      />
+                    ) : (
+                      <PreviewPlaceholder />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">
+                        Crop preview
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-zinc-400">
+                        This draft stays hidden until you publish the added
+                        flash.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {renderDetailsFields()}
+              </div>
+
+              <div className="grid gap-3 border-t border-white/10 p-5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDetailsModal(false)}
+                  disabled={isPublishing}
+                  className="rounded-xl border border-white/10 bg-white/5 px-5! py-3! text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitDesktopDetails}
+                  disabled={!validCropArea || isPublishing}
+                  className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
+                >
+                  {isPublishing ? "Creating..." : "Submit draft"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

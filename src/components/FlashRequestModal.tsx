@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
 import { db } from "../firebase/firebaseConfig";
@@ -12,6 +12,15 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
+import {
+  formatClientFullName,
+  getClientNameParts,
+} from "../utils/clientDisplayName";
 
 export type FlashRequestArtist = {
   id: string;
@@ -23,6 +32,8 @@ export type FlashRequestArtist = {
 export type FlashRequestClient = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   avatarUrl: string;
 };
 
@@ -81,13 +92,35 @@ const FlashRequestModal = ({
 
     try {
       setIsSubmitting(true);
+      const clientNameParts = getClientNameParts(client);
+      const clientName = formatClientFullName(
+        clientNameParts.firstName,
+        clientNameParts.lastName,
+        client.name || "Client"
+      );
+
+      const flashSnap = await getDoc(doc(db, "flashes", flash.id));
+      const latestFlash = flashSnap.exists()
+        ? ({ id: flashSnap.id, ...flashSnap.data() } as Flash)
+        : flash;
+
+      if (!isFlashAvailableForClients(latestFlash)) {
+        toast.error(
+          getFlashRepeatability(latestFlash) === "one_of_one"
+            ? "This one-of-one flash is no longer available."
+            : "This flash is no longer available."
+        );
+        return;
+      }
 
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
         artistName: getArtistName(artist),
         artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
-        clientName: client.name,
+        clientFirstName: clientNameParts.firstName,
+        clientLastName: clientNameParts.lastName,
+        clientName,
         clientAvatar: client.avatarUrl,
         description,
         bodyPlacement,
@@ -98,14 +131,19 @@ const FlashRequestModal = ({
         status: "pending",
         createdAt: serverTimestamp(),
 
-        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl,
-        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+        fullUrl:
+          latestFlash.fullUrl || latestFlash.webp90Url || latestFlash.thumbUrl,
+        thumbUrl:
+          latestFlash.thumbUrl || latestFlash.webp90Url || latestFlash.fullUrl,
         sourceType: "flash",
-        flashId: flash.id,
-        flashTitle: getFlashTitle(flash),
-        flashPrice: flash.price ?? null,
-        flashSheetId: flash.sheetId || null,
-        isFromSheet: flash.isFromSheet,
+        flashId: latestFlash.id,
+        flashTitle: getFlashTitle(latestFlash),
+        flashDescription: latestFlash.description || null,
+        flashPrice: latestFlash.price ?? null,
+        flashSheetId: latestFlash.sheetId || null,
+        flashRepeatability: getFlashRepeatability(latestFlash),
+        flashAvailabilityStatus: getFlashAvailabilityStatus(latestFlash),
+        isFromSheet: latestFlash.isFromSheet,
       });
 
       toast.success("Flash request sent!");
@@ -168,6 +206,11 @@ const FlashRequestModal = ({
                   )}
                 </div>
               </div>
+              {flash.description && (
+                <p className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3 text-sm leading-6 text-white/70">
+                  {flash.description}
+                </p>
+              )}
             </div>
           </div>
 

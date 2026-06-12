@@ -1,9 +1,13 @@
+import type { FlashAvailabilityStatus, FlashRepeatability } from "./Flash";
+
 export type Offer = {
     id: string;
     artistId: string;
     displayName: string;
     artistAvatar?: string; // <-- ensure this is always a string
     clientId: string;
+    clientFirstName?: string;
+    clientLastName?: string;
     clientName?: string;
 clientAvatar?: string;
     requestId: string;
@@ -22,8 +26,11 @@ clientAvatar?: string;
     sourceType?: "custom" | "flash" | string;
     flashId?: string | null;
     flashTitle?: string | null;
+    flashDescription?: string | null;
     flashPrice?: number | null;
     flashSheetId?: string | null;
+    flashRepeatability?: FlashRepeatability;
+    flashAvailabilityStatus?: FlashAvailabilityStatus;
     isFromSheet?: boolean | null;
     shopName?: string;
     shopAddress?: string;

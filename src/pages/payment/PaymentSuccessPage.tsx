@@ -90,10 +90,16 @@ const PaymentSuccessPage = () => {
     Math.max(Math.round((price - Number(booking.totalArtistPaidAmount || 0)) * 100), 0);
   const fallbackBreakdown = calculateClientPaymentBreakdown(latestArtistPayment, {
     platformFeeBaseAmount: price,
-    platformFeeCentsOverride: booking.checkoutPaymentMode === "remaining" ? 0 : undefined,
+    platformFeeCentsOverride:
+      booking.checkoutPaymentMode === "remaining" ||
+      booking.checkoutPaymentMode === "platform_fee"
+        ? booking.platformFeeCents ?? 0
+        : undefined,
   });
   const artistReceivesCents =
-    booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
+    booking.checkoutPaymentMode === "platform_fee"
+      ? 0
+      : booking.artistQuotedAmountCents ?? fallbackBreakdown.artistAmountCents;
   const clientTotalCents =
     booking.clientPaymentAmountCents ?? fallbackBreakdown.clientTotalCents;
 

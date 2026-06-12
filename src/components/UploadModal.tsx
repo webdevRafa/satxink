@@ -13,9 +13,15 @@ import {
   X,
 } from "lucide-react";
 import type { FlashSheet } from "../types/FlashSheet";
+import type { FlashRepeatability } from "../types/Flash";
 import CustomSelect from "./ui/CustomSelect";
 import type { SelectOption } from "../utils/timeOptions";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
+import {
+  FLASH_DESCRIPTION_MAX_LENGTH,
+  normalizeFlashDescription,
+} from "../utils/flashSourceQuality";
 
 type Props = {
   uid: string;
@@ -29,6 +35,11 @@ type Props = {
 };
 
 type SheetRelationshipMode = "standalone" | "existing";
+
+const parsePositivePrice = (value: string) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
 
 const UploadModal: React.FC<Props> = ({
   uid,
@@ -44,8 +55,11 @@ const UploadModal: React.FC<Props> = ({
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [repeatability, setRepeatability] =
+    useState<FlashRepeatability>("repeatable");
   const [sheetRelationshipMode, setSheetRelationshipMode] =
     useState<SheetRelationshipMode>("standalone");
   const [selectedSheetId, setSelectedSheetId] = useState("");
@@ -64,8 +78,11 @@ const UploadModal: React.FC<Props> = ({
   );
   const selectedSheetPreviewUrl =
     selectedSheet?.thumbUrl || selectedSheet?.imageUrl;
+  const parsedFlashPrice = parsePositivePrice(priceInput);
   const canPublish =
-    Boolean(croppedFile) && (!isLinkingExistingSheet || Boolean(selectedSheetId));
+    Boolean(croppedFile) &&
+    (!isLinkingExistingSheet || Boolean(selectedSheetId)) &&
+    (!isFlashUpload || parsedFlashPrice !== null);
 
   useEffect(() => {
     if (!croppedFile) {
@@ -79,6 +96,16 @@ const UploadModal: React.FC<Props> = ({
     return () => URL.revokeObjectURL(objectUrl);
   }, [croppedFile]);
 
+  useEffect(() => {
+    if (!isFlashUpload || !selectedSheet || !isLinkingExistingSheet) return;
+
+    setRepeatability(
+      selectedSheet.repeatabilityDefault === "one_of_one"
+        ? "one_of_one"
+        : "repeatable"
+    );
+  }, [isFlashUpload, isLinkingExistingSheet, selectedSheet]);
+
   if (!isOpen) return null;
 
   const resetAndClose = () => {
@@ -86,8 +113,10 @@ const UploadModal: React.FC<Props> = ({
     setCroppedFile(null);
     setPreviewUrl(null);
     setCaptionOrTitle("");
+    setDescription("");
     setPriceInput("");
     setTags([]);
+    setRepeatability("repeatable");
     setSheetRelationshipMode("standalone");
     setSelectedSheetId("");
     setIsUploading(false);
@@ -120,7 +149,7 @@ const UploadModal: React.FC<Props> = ({
       const ext = croppedFile.name.split(".").pop() || "jpg";
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
-      const price = isFlashUpload && priceInput ? parseFloat(priceInput) : null;
+      const price = isFlashUpload ? parsedFlashPrice : null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
 
@@ -128,6 +157,7 @@ const UploadModal: React.FC<Props> = ({
         artistId: uid,
         caption: captionOrTitle || null,
         title: isFlashUpload ? captionOrTitle || "Untitled Flash" : null,
+        description: isFlashUpload ? normalizeFlashDescription(description) : null,
         price,
         tags,
         artistStripeConnectReady: isFlashUpload
@@ -137,6 +167,8 @@ const UploadModal: React.FC<Props> = ({
         fileName: baseName,
         timestamp,
         isAvailable: isFlashUpload ? true : null,
+        repeatability: isFlashUpload ? repeatability : null,
+        availabilityStatus: isFlashUpload ? "available" : null,
         isFromSheet: isFlashUpload ? Boolean(linkedSheetId) : null,
         sheetId: isFlashUpload ? linkedSheetId || null : null,
         status: "processing",
@@ -263,11 +295,33 @@ const UploadModal: React.FC<Props> = ({
                 </span>
                 <input
                   type="number"
-                  placeholder="Optional"
+                  min={1}
+                  placeholder="Required"
                   value={priceInput}
                   onChange={(e) => setPriceInput(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
                 />
+              </label>
+            )}
+
+            {isFlashUpload && (
+              <label className="block">
+                <span className="text-sm font-semibold text-zinc-300">
+                  Short public note
+                </span>
+                <textarea
+                  value={description}
+                  onChange={(e) =>
+                    setDescription(
+                      e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
+                    )
+                  }
+                  placeholder="Optional context, placement idea, or what clients should focus on."
+                  className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                />
+                <span className="mt-1 block text-right text-[11px] text-zinc-600">
+                  {description.length}/{FLASH_DESCRIPTION_MAX_LENGTH}
+                </span>
               </label>
             )}
 
@@ -281,6 +335,16 @@ const UploadModal: React.FC<Props> = ({
                 </>
               }
             />
+
+            {isFlashUpload && (
+              <FlashRepeatabilityControl
+                value={repeatability}
+                onChange={setRepeatability}
+                label="Availability"
+                description="Use one of one for designs that should disappear once a client starts checkout."
+                disabled={isUploading}
+              />
+            )}
 
             {isFlashUpload && allowSheetLink && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -302,6 +366,7 @@ const UploadModal: React.FC<Props> = ({
                         onClick={() => {
                           setSheetRelationshipMode("standalone");
                           setSelectedSheetId("");
+                          setRepeatability("repeatable");
                         }}
                         className={`flex items-center justify-between rounded-xl border px-3! py-3! text-left transition ${
                           !isLinkingExistingSheet

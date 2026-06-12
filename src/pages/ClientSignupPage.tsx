@@ -1,14 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  Compass,
-  Heart,
-  MessageSquareText,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { ArrowLeft, Heart, MessageSquareText, Search } from "lucide-react";
 
-import { GoogleSignupButton } from "../components/GoogleSignupButton";
+import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
+import { ViewportReveal } from "../components/ViewportReveal";
 import logo from "../assets/satx-short-sep.svg";
 
 const clientBenefits = [
@@ -29,6 +23,47 @@ const clientBenefits = [
   },
 ];
 
+type ClientSignupBenefit = (typeof clientBenefits)[number];
+
+const ClientSignupRevealSection = ({
+  benefit,
+  index,
+}: {
+  benefit: ClientSignupBenefit;
+  index: number;
+}) => {
+  const BenefitIcon = benefit.icon;
+  const directions = ["left", "right", "up"] as const;
+
+  return (
+    <ViewportReveal
+      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10"
+      delay={260 + index * 140}
+      direction={directions[index] ?? "up"}
+    >
+      <div className="flex items-center gap-3 sm:block">
+        <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-5">
+          <BenefitIcon size={21} aria-hidden="true" />
+        </span>
+      </div>
+
+      <div>
+        <h2 className="text-xl! font-bold leading-tight text-white sm:text-2xl!">
+          {benefit.title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-300! sm:text-base">
+          {benefit.body}
+        </p>
+      </div>
+
+      <span
+        className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700"
+        aria-hidden="true"
+      />
+    </ViewportReveal>
+  );
+};
+
 const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const navigate = useNavigate();
 
@@ -44,54 +79,63 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
   return (
     <div data-aos="fade-up" className="w-full px-4 pb-24 pt-4 text-white">
       <div className="mx-auto w-full max-w-6xl">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          Back
-        </button>
+        <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
+          <ViewportReveal delay={40} direction="up">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back
+            </button>
+          </ViewportReveal>
 
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch">
-          <div className="rounded-lg border border-white/10 bg-[#121212]/90 p-6 text-left shadow-2xl shadow-black/30 backdrop-blur md:p-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                <Compass size={20} aria-hidden="true" />
-              </span>
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                Client signup
-              </p>
-            </div>
+          <ViewportReveal
+            className="mt-0 max-w-3xl md:mt-5"
+            delay={120}
+            direction="up"
+          >
+            <h1 className="font-termina text-4xl! font-bold leading-[0.95] text-white">
+              Find the right artist for your next tattoo.
+            </h1>
 
-            <h1 className="mt-5 flex flex-wrap items-center gap-2 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-neutral-300">
+              Browse real artist work, compare styles, and request your next
+              tattoo with less guesswork.
+            </p>
+          </ViewportReveal>
+
+          <ViewportReveal
+            className="mt-12 w-full max-w-2xl border-t border-white/10 pt-10 md:mt-16 md:pt-12"
+            delay={720}
+            direction="up"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
+              Browse / book
+            </p>
+            <h2 className="mt-4 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold leading-tight text-white sm:text-4xl!">
               <span>Join</span>
               <img
                 src={logo}
                 alt="SATX Ink logo"
-                className="max-w-[108px] translate-y-[-2px] md:max-w-[124px]"
+                className="max-w-[112px] translate-y-[-2px]"
               />
               <span>as a Client</span>
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-neutral-300 md:text-base">
-              Build a taste profile for your next tattoo. We will use your
-              style picks, interests, and inspiration tags to make browsing feel
-              more personal as artists add more work to SATX Ink.
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
+              Start with Google, then create a short taste profile so SATX Ink
+              can make browsing feel more personal.
             </p>
 
-            <div className="mt-7 flex flex-col gap-4 border-y border-white/10 py-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  Start with Google
-                </p>
-              </div>
-              <GoogleSignupButton role="client" />
+            <div className="mt-7 flex justify-center">
+              <AuthProviderSignupButtons role="client" />
             </div>
 
-            <p className="mt-4 max-w-xl text-xs! leading-5 text-neutral-500!">
-              We only collect your name, profile picture, and email from Google
-              to set up your account. By signing up, you agree to our{" "}
+            <p className="mx-auto mt-6 max-w-md text-xs! leading-5 text-neutral-500!">
+              We collect your first name, last name, profile picture, and email
+              from Google to set up your account. By signing up, you agree to
+              our{" "}
               <Link
                 to="/terms"
                 target="_blank"
@@ -102,45 +146,17 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </Link>
               .
             </p>
+          </ViewportReveal>
+
+          <div className="mt-12 w-full max-w-3xl md:mt-16">
+            {clientBenefits.map((benefit, index) => (
+              <ClientSignupRevealSection
+                key={benefit.title}
+                benefit={benefit}
+                index={index}
+              />
+            ))}
           </div>
-
-          <aside className="rounded-lg border border-white/10 bg-[#101010]/95 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-            <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                <Sparkles size={18} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  What happens next
-                </p>
-                <p className="text-xs text-neutral-500">
-                  A short discovery setup
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {clientBenefits.map((benefit) => {
-                const BenefitIcon = benefit.icon;
-
-                return (
-                  <div key={benefit.title} className="flex gap-3">
-                    <span className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/5 text-neutral-200">
-                      <BenefitIcon size={16} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {benefit.title}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-neutral-400">
-                        {benefit.body}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </aside>
         </section>
       </div>
     </div>

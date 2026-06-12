@@ -1,9 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import logo from "../assets/satx-short-sep.svg";
 import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import {
@@ -40,11 +39,21 @@ const mobileNavItems = [
   },
 ];
 
+const desktopNavItems = [
+  { label: "Artists", to: "/artists" },
+  { label: "Flash", to: "/flash" },
+];
+
 type NavbarUserDoc = {
   avatarUrl?: string;
   displayName?: string;
   name?: string;
   role?: "artist" | "client";
+};
+
+const getAvatarInitial = (label?: string | null) => {
+  const trimmedLabel = label?.trim();
+  return trimmedLabel ? trimmedLabel.charAt(0).toUpperCase() : "S";
 };
 
 export const Navbar = () => {
@@ -53,7 +62,47 @@ export const Navbar = () => {
   const [user, setUser] = useState(auth.currentUser);
   const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
   const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isUserDocLoading, setIsUserDocLoading] = useState(
+    Boolean(auth.currentUser)
+  );
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const firestoreAvatarUrl = userDoc?.avatarUrl?.trim() || "";
+  const avatarLabel =
+    userDoc?.name || userDoc?.displayName || user?.displayName || "User avatar";
+  const avatarInitial = getAvatarInitial(
+    userDoc?.name || userDoc?.displayName || user?.displayName || user?.email
+  );
+
+  const renderNavbarAvatar = (
+    className: string,
+    fallbackTextClassName: string
+  ) => {
+    if (isUserDocLoading) {
+      return (
+        <span
+          className={`${className} block animate-pulse bg-white/[0.08]`}
+          aria-hidden="true"
+        />
+      );
+    }
+
+    if (firestoreAvatarUrl) {
+      return (
+        <img src={firestoreAvatarUrl} alt={avatarLabel} className={className} />
+      );
+    }
+
+    return (
+      <span
+        className={`${className} flex items-center justify-center bg-white/[0.08] ${fallbackTextClassName}`}
+        aria-label={avatarLabel}
+      >
+        {avatarInitial}
+      </span>
+    );
+  };
 
   const handleLogout = () => {
     setIsOpen(false);
@@ -73,29 +122,64 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => {
+    let isSubscribed = true;
+    const retryTimers: number[] = [];
+
+    const clearRetryTimers = () => {
+      retryTimers.forEach((timerId) => window.clearTimeout(timerId));
+      retryTimers.length = 0;
+    };
+
     const tryFetchUserData = async (uid: string, retries = 2) => {
-      const userRef = doc(db, "users", uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data() as NavbarUserDoc;
-        setUserRole(data.role ?? null);
-        setUserDoc(data);
-      } else if (retries > 0) {
-        setTimeout(() => tryFetchUserData(uid, retries - 1), 1000);
+      try {
+        const userRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+
+        if (userSnap.exists()) {
+          const data = userSnap.data() as NavbarUserDoc;
+          setUserRole(data.role ?? null);
+          setUserDoc(data);
+          setIsUserDocLoading(false);
+        } else if (retries > 0) {
+          const retryTimerId = window.setTimeout(() => {
+            tryFetchUserData(uid, retries - 1);
+          }, 1000);
+          retryTimers.push(retryTimerId);
+        } else {
+          setUserRole(null);
+          setUserDoc(null);
+          setIsUserDocLoading(false);
+        }
+      } catch {
+        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+        setUserRole(null);
+        setUserDoc(null);
+        setIsUserDocLoading(false);
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      clearRetryTimers();
+      setIsAuthLoading(false);
       setUser(firebaseUser);
+      setUserRole(null);
+      setUserDoc(null);
+
       if (firebaseUser) {
+        setIsUserDocLoading(true);
         tryFetchUserData(firebaseUser.uid);
       } else {
-        setUserRole(null);
-        setUserDoc(null);
+        setIsUserDocLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      clearRetryTimers();
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -134,54 +218,94 @@ export const Navbar = () => {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-6 text-sm">
-          <Link
-            to="/artists"
-            className="text-neutral-300 hover:text-orange-400"
+        <div className="hidden items-center gap-3 text-sm md:flex">
+          <div
+            className={`flex items-center gap-1 rounded-full  px-1.5 py-1 transition duration-300 `}
           >
-            Artists
-          </Link>
-
-          <Link to="/flash" className="text-neutral-300 hover:text-orange-400">
-            Flash
-          </Link>
-
-          <Link to="/about" className="text-neutral-300 hover:text-orange-400">
-            About
-          </Link>
-
-          {user ? (
-            <Link
-              to="/dashboard"
-              aria-label="Open dashboard"
-              className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-            >
-              <img
-                src={
-                  userDoc?.avatarUrl ||
-                  user.photoURL ||
-                  "/fallback-avatar.jpg"
+            {desktopNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `rounded-full px-3 py-1.5 text-sm text-white transition ${
+                    isActive
+                      ? "bg-white/[0.10] text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                      : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+                  }`
                 }
-                alt={userDoc?.name || user.displayName || "User avatar"}
-                className="w-8 h-8 rounded-full border border-white/30 object-cover"
-              />
-            </Link>
-          ) : (
-            <>
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+
+          <NavLink
+            to="/about"
+            className={({ isActive }) =>
+              `rounded-full px-3 py-1.5 text-xs font-medium transition text-neutral-300 ${
+                isActive
+                  ? "bg-white/[0.10] text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                  : "text-neutral-400 hover:bg-white/[0.055] hover:text-white"
+              }`
+            }
+          >
+            About SATX INK
+          </NavLink>
+
+          <div className="flex w-[168px] shrink-0 justify-end">
+            {isAuthLoading ? (
+              <div
+                className={`flex h-10 w-full items-center justify-between rounded-full border px-3 transition duration-300 ${
+                  isScrolled
+                    ? "border-white/10 bg-white/[0.035]"
+                    : "border-white/[0.08] bg-black/[0.10]"
+                }`}
+                aria-hidden="true"
+              >
+                <span className="h-2 w-16 animate-pulse rounded-full bg-white/[0.08]" />
+                <span className="h-8 w-8 animate-pulse rounded-full border border-white/10 bg-white/[0.08]" />
+              </div>
+            ) : user ? (
               <Link
-                to="/signup"
-                className="text-neutral-300 hover:text-orange-400"
+                to="/dashboard"
+                aria-label="Open dashboard"
+                className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
               >
-                Signup
+                {renderNavbarAvatar(
+                  "w-8 h-8 rounded-full border border-white/30 object-cover",
+                  "text-sm font-semibold text-white"
+                )}
               </Link>
-              <button
-                onClick={handleLogin}
-                className="text-white py-1! px-2! font-light! hover:text-[var(--color-primary)]"
+            ) : (
+              <div
+                className={`flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
+                  isScrolled
+                    ? "border-white/10 bg-white/[0.035]"
+                    : "border-white/[0.08] bg-black/[0.10]"
+                }`}
               >
-                Login
-              </button>
-            </>
-          )}
+                <NavLink
+                  to="/signup"
+                  className={({ isActive }) =>
+                    `inline-flex h-8 shrink-0 items-center rounded-full px-3.5 text-sm font-semibold whitespace-nowrap transition hover:text-white! ${
+                      isActive
+                        ? "border-white/25 bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                        : "border-white/[0.12] bg-white/[0.01] text-neutral-400! hover:border-white/25 hover:bg-white/[0.10]"
+                    }`
+                  }
+                >
+                  Join
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={handleLogin}
+                  className="inline-flex h-8 shrink-0 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! whitespace-nowrap text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                >
+                  Sign in
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Hamburger Button */}
@@ -228,18 +352,27 @@ export const Navbar = () => {
           </div>
 
           <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            {user ? (
+            {isAuthLoading ? (
+              <section
+                className="rounded-lg border border-white/10 bg-white/[0.04] p-4"
+                aria-hidden="true"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="h-12 w-12 animate-pulse rounded-full border border-white/10 bg-white/[0.08]" />
+                  <div className="min-w-0 flex-1">
+                    <span className="block h-3 w-32 animate-pulse rounded-full bg-white/[0.08]" />
+                    <span className="mt-2 block h-2 w-20 animate-pulse rounded-full bg-white/[0.055]" />
+                  </div>
+                </div>
+                <span className="mt-4 block h-10 animate-pulse rounded-md bg-white/[0.08]" />
+              </section>
+            ) : user ? (
               <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      userDoc?.avatarUrl ||
-                      user.photoURL ||
-                      "/fallback-avatar.jpg"
-                    }
-                    alt={userDoc?.name || user.displayName || "User avatar"}
-                    className="h-12 w-12 rounded-full border border-white/20 object-cover"
-                  />
+                  {renderNavbarAvatar(
+                    "h-12 w-12 rounded-full border border-white/20 object-cover",
+                    "text-lg font-semibold text-white"
+                  )}
                   <div className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-white">
                       {userDoc?.name || user.displayName || "Signed in"}

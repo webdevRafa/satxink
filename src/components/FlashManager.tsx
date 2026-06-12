@@ -28,13 +28,19 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
-import type { Flash } from "../types/Flash";
+import type { Flash, FlashRepeatability } from "../types/Flash";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
+import {
+  formatFileSize,
+  getImageMegapixels,
+  type ImageSourceMetadata,
+} from "../utils/flashSourceQuality";
 import UploadModal from "./UploadModal";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
 
 type FlashManagerProps = {
   uid: string;
@@ -60,10 +66,14 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [sheetImage, setSheetImage] = useState<string | null>(null);
+  const [sheetSourceMetadata, setSheetSourceMetadata] =
+    useState<ImageSourceMetadata | null>(null);
   const [pendingSheetFile, setPendingSheetFile] = useState<File | null>(null);
   const [showSheetTitleModal, setShowSheetTitleModal] = useState(false);
   const [sheetTitleInput, setSheetTitleInput] = useState("");
   const [sheetTags, setSheetTags] = useState<string[]>([]);
+  const [sheetRepeatabilityDefault, setSheetRepeatabilityDefault] =
+    useState<FlashRepeatability>("repeatable");
   const [isUploadingSheet, setIsUploadingSheet] = useState(false);
 
   const linkedFlashCount = useMemo(
@@ -75,6 +85,10 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
+  const sheetMegapixels = getImageMegapixels(
+    sheetSourceMetadata?.width,
+    sheetSourceMetadata?.height
+  );
 
   const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -160,6 +174,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     if (!file) return;
 
     setPendingSheetFile(file);
+    setSheetSourceMetadata(null);
     setShowSheetTitleModal(true);
 
     const reader = new FileReader();
@@ -167,7 +182,14 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       const base64 = reader.result as string;
       const testImg = new Image();
       testImg.crossOrigin = "anonymous";
-      testImg.onload = () => setSheetImage(base64);
+      testImg.onload = () => {
+        setSheetSourceMetadata({
+          width: testImg.naturalWidth,
+          height: testImg.naturalHeight,
+          fileSizeBytes: file.size,
+        });
+        setSheetImage(base64);
+      };
       testImg.onerror = () =>
         toast.error("This image could not be previewed. Try another file.");
       testImg.src = base64;
@@ -179,8 +201,10 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     setShowSheetTitleModal(false);
     setSheetTitleInput("");
     setSheetTags([]);
+    setSheetRepeatabilityDefault("repeatable");
     setPendingSheetFile(null);
     setSheetImage(null);
+    setSheetSourceMetadata(null);
   };
 
   const handleSubmitFlashSheet = async () => {
@@ -216,19 +240,26 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         artistId: uid,
         title: sheetTitleInput.trim(),
         tags: sheetTags,
+        repeatabilityDefault: sheetRepeatabilityDefault,
         artistStripeConnectReady: true,
         marketplaceVisible: true,
         fileName: baseName,
         imageUrl,
         thumbUrl,
         fullPath: `${storageBase}_full.jpg`,
+        sourceWidth: sheetSourceMetadata?.width || null,
+        sourceHeight: sheetSourceMetadata?.height || null,
+        sourceMegapixels: sheetMegapixels,
+        sourceFileSizeBytes: sheetSourceMetadata?.fileSizeBytes || null,
         createdAt: serverTimestamp(),
       });
 
       setSheetTitleInput("");
       setSheetTags([]);
+      setSheetRepeatabilityDefault("repeatable");
       setPendingSheetFile(null);
       setSheetImage(null);
+      setSheetSourceMetadata(null);
       setShowSheetTitleModal(false);
       toast.success("Flash sheet uploaded. Opening editor.");
       void fetchFlashData();
@@ -365,7 +396,23 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         createPortal(
           <div className="request-modal-scrollbar fixed bottom-0 left-0 right-0 top-0 z-[120] h-dvh min-h-screen w-screen overflow-y-auto bg-black text-white backdrop-blur-xl md:px-4 md:py-8">
             <div className="mx-auto flex min-h-full w-full items-stretch justify-center md:items-center">
-              <div className="relative grid min-h-full w-full max-w-4xl overflow-y-auto border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-0 md:overflow-hidden md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
+              <div className="relative isolate grid min-h-full w-full max-w-4xl overflow-hidden border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-0 md:rounded-[1.25rem] md:grid-cols-[0.9fr_1.1fr]">
+                {isUploadingSheet && (
+                  <>
+                    <div
+                      className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="spotlight-border-glint spotlight-border-glint--left"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="spotlight-border-glint spotlight-border-glint--right"
+                      aria-hidden="true"
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={closeSheetTitleModal}
@@ -388,12 +435,34 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     sheet editor where you crop individual flash.
                   </p>
                   {sheetImage && (
-                    <div className="mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
+                    <div className="flash-sheet-preview-enter mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
                       <img
                         src={sheetImage}
                         alt="Flash sheet preview"
                         className="h-full w-full object-contain md:object-cover"
                       />
+                    </div>
+                  )}
+                  {sheetSourceMetadata && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-sm font-semibold text-white">
+                        Source quality
+                      </p>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                        Resolution
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">
+                        {sheetSourceMetadata.width} x {sheetSourceMetadata.height}
+                        {sheetMegapixels ? ` - ${sheetMegapixels} MP` : ""}
+                        {formatFileSize(sheetSourceMetadata.fileSizeBytes)
+                          ? ` - ${formatFileSize(sheetSourceMetadata.fileSizeBytes)}`
+                          : ""}
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-zinc-400">
+                        Original camera photos or scans crop best. Avoid
+                        screenshots or social downloads, photograph the sheet flat
+                        in even light, and leave breathing room between designs.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -422,23 +491,34 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         Sheet tags
                       </>
                     }
+                    helperTextClassName="mt-1.5 text-sm leading-6 text-zinc-400"
                     emptyPlaceholder="anime, color, dragon"
                   />
 
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
-                        <Scissors size={18} />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          Continue in sheet editor
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-zinc-500">
-                          Once the sheet is saved, the full editor opens so you can
-                          crop designs and review itemized flash beneath it.
-                        </p>
-                      </div>
+                  <div className="mt-4">
+                    <FlashRepeatabilityControl
+                      value={sheetRepeatabilityDefault}
+                      onChange={setSheetRepeatabilityDefault}
+                      label="Default for this sheet"
+                      description="New flash cropped from this sheet starts with this setting, and each design can still be changed later."
+                      labelClassName="text-2xl! font-bold text-white"
+                      descriptionClassName="mt-2 text-sm leading-6 text-zinc-400"
+                      disabled={isUploadingSheet}
+                    />
+                  </div>
+
+                  <div className="mt-6 flex gap-3 px-1">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
+                      <Scissors size={18} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Continue in sheet editor
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-zinc-400">
+                        Once the sheet is saved, the full editor opens so you can
+                        crop designs and review itemized flash beneath it.
+                      </p>
                     </div>
                   </div>
 

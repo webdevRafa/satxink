@@ -35,8 +35,11 @@ import ClientBookingsList from "../components/ClientBookingsList";
 import RequestTattooModal from "../components/RequestTattooModal";
 import ClientRequestsList from "../components/ClientRequestsList";
 import ImageCropperModal from "../components/ImageCropperModal";
+import ProjectControlsPanel from "../components/ProjectControlsPanel";
+import ProjectPauseDialog from "../components/ProjectPauseDialog";
+import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
-import { db, auth, storage } from "../firebase/firebaseConfig";
+import { db, auth, storage, functions } from "../firebase/firebaseConfig";
 import {
   collection,
   doc,
@@ -47,9 +50,14 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import type { Booking } from "../types/Booking";
+import type { Booking, ProjectAmendment } from "../types/Booking";
 import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
+import {
+  formatClientFullName,
+  getClientNameParts,
+} from "../utils/clientDisplayName";
 
 const STYLE_OPTIONS = TATTOO_STYLES;
 
@@ -113,6 +121,8 @@ type ClientView =
   | "sessions";
 
 type ClientProfileFormState = {
+  firstName: string;
+  lastName: string;
   displayName: string;
   email: string;
   avatarUrl: string;
@@ -178,21 +188,27 @@ const isClientDashboardView = (view: string | null): view is ClientView =>
 
 const createProfileFormState = (
   client: Partial<ClientProfile> | null
-): ClientProfileFormState => ({
-  displayName: client?.displayName || client?.name || "",
-  email: client?.email || "",
-  avatarUrl: client?.avatarUrl || "",
-  bio: client?.bio || "",
-  location: client?.location || "",
-  preferredStyles: getCanonicalTattooStyles(client?.preferredStyles),
-  interestCategories: Array.isArray(client?.interestCategories)
-    ? client.interestCategories
-    : [],
-  interestTags: Array.isArray(client?.interestTags) ? client.interestTags : [],
-  tattooGoals: Array.isArray(client?.tattooGoals) ? client.tattooGoals : [],
-  budgetRange: client?.budgetRange || "",
-  timeframe: client?.timeframe || "",
-});
+): ClientProfileFormState => {
+  const nameParts = getClientNameParts(client || {}, "");
+
+  return {
+    firstName: nameParts.firstName,
+    lastName: nameParts.lastName,
+    displayName: nameParts.fullName,
+    email: client?.email || "",
+    avatarUrl: client?.avatarUrl || "",
+    bio: client?.bio || "",
+    location: client?.location || "",
+    preferredStyles: getCanonicalTattooStyles(client?.preferredStyles),
+    interestCategories: Array.isArray(client?.interestCategories)
+      ? client.interestCategories
+      : [],
+    interestTags: Array.isArray(client?.interestTags) ? client.interestTags : [],
+    tattooGoals: Array.isArray(client?.tattooGoals) ? client.tattooGoals : [],
+    budgetRange: client?.budgetRange || "",
+    timeframe: client?.timeframe || "",
+  };
+};
 
 const ClientDashboardView = () => {
   const navigate = useNavigate();
@@ -200,6 +216,11 @@ const ClientDashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(null);
   const [selectedSession, setSelectedSession] = useState<ClientDashboardBooking | null>(null);
+  const [sessionAmendments, setSessionAmendments] = useState<ProjectAmendment[]>([]);
+  const [scheduleProposalSession, setScheduleProposalSession] =
+    useState<ClientDashboardBooking | null>(null);
+  const [pauseSessionMode, setPauseSessionMode] =
+    useState<"pause" | "resume" | null>(null);
   const [activeView, setActiveView] = useState<ClientView>(() =>
     getClientDashboardView(searchParams.get("tab"))
   );
@@ -248,11 +269,14 @@ const ClientDashboardView = () => {
       const userRef = doc(db, "users", user.uid);
       unsubscribeProfile = onSnapshot(userRef, (snap) => {
         const data = snap.exists() ? snap.data() : {};
+        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
         const nextClient = {
           id: user.uid,
           ...data,
-          name: data.name || data.displayName || user.displayName || "Client",
-          displayName: data.displayName || data.name || user.displayName || "Client",
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
+          name: clientNameParts.fullName,
+          displayName: clientNameParts.fullName,
           email: data.email || user.email || "",
           avatarUrl: data.avatarUrl || user.photoURL || "/default-avatar.png",
           bio: data.bio || "",
@@ -337,6 +361,34 @@ const ClientDashboardView = () => {
       unsubs.forEach((unsub) => unsub());
     };
   }, [client?.id]);
+
+  useEffect(() => {
+    if (!selectedSession?.id) {
+      setSessionAmendments([]);
+      return;
+    }
+
+    const amendmentsQuery = query(
+      collection(db, "bookings", selectedSession.id, "amendments"),
+      where("status", "==", "proposed")
+    );
+
+    return onSnapshot(
+      amendmentsQuery,
+      (snap) => {
+        setSessionAmendments(
+          snap.docs.map((amendmentDoc) => ({
+            id: amendmentDoc.id,
+            ...amendmentDoc.data(),
+          })) as ProjectAmendment[]
+        );
+      },
+      (error) => {
+        console.error("Client session amendment listener failed:", error);
+        setSessionAmendments([]);
+      }
+    );
+  }, [selectedSession?.id]);
 
   const updateProfileForm = (
     updater:
@@ -446,11 +498,13 @@ const ClientDashboardView = () => {
   const handleSaveProfile = async () => {
     if (!client?.id) return;
 
-    const displayName = profileForm.displayName.trim();
+    const firstName = profileForm.firstName.trim();
+    const lastName = profileForm.lastName.trim();
+    const displayName = formatClientFullName(firstName, lastName, "");
     const email = profileForm.email.trim();
 
-    if (!displayName) {
-      toast.error("Display name is required.");
+    if (!firstName || !lastName) {
+      toast.error("First and last name are required.");
       return;
     }
 
@@ -462,6 +516,8 @@ const ClientDashboardView = () => {
     setIsSavingProfile(true);
 
     const profileUpdate = {
+      firstName,
+      lastName,
       name: displayName,
       displayName,
       email,
@@ -640,8 +696,84 @@ const ClientDashboardView = () => {
     }
   };
 
+  const handleRespondToSessionAmendment = async (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => {
+    if (!selectedSession) return;
+
+    try {
+      const respondToAmendment = httpsCallable(
+        functions,
+        "respondToProjectAmendment"
+      );
+      await respondToAmendment({
+        bookingId: selectedSession.id,
+        amendmentId,
+        response,
+      });
+      toast.success(
+        response === "accepted"
+          ? "Project amendment accepted."
+          : response === "declined"
+          ? "Project amendment declined."
+          : "Project amendment cancelled."
+      );
+    } catch (error) {
+      console.error("Client session amendment response failed:", error);
+      toast.error("Could not update the amendment.");
+    }
+  };
+
+  const handleRequestSessionProposal = async (
+    booking: Booking,
+    input: { date: string; time: string; message: string }
+  ) => {
+    try {
+      const proposeAmendment = httpsCallable(
+        functions,
+        "proposeProjectAmendment"
+      );
+      await proposeAmendment({
+        bookingId: booking.id,
+        type: "schedule_next_session",
+        date: input.date,
+        time: input.time,
+        sessionNumber: Math.max(Number(booking.activeSessionNumber || 1), 1),
+        message: input.message,
+      });
+      toast.success("Next-session request sent to the artist.");
+    } catch (error) {
+      console.error("Client next-session request failed:", error);
+      toast.error("Could not send the session request.");
+      throw error;
+    }
+  };
+
+  const handleSetSessionProjectPaused = async (
+    booking: Booking,
+    input: { reason: string; pausedUntil: string }
+  ) => {
+    const paused = pauseSessionMode === "pause";
+
+    try {
+      const setPaused = httpsCallable(functions, "setProjectPaused");
+      await setPaused({
+        bookingId: booking.id,
+        paused,
+        reason: input.reason,
+        pausedUntil: input.pausedUntil,
+      });
+      toast.success(paused ? "Project paused." : "Project resumed.");
+    } catch (error) {
+      console.error("Client project pause update failed:", error);
+      toast.error("Could not update project status.");
+      throw error;
+    }
+  };
+
   const profileCompletionItems = [
-    Boolean(profileForm.displayName.trim()),
+    Boolean(profileForm.firstName.trim() && profileForm.lastName.trim()),
     Boolean(profileForm.email.trim()),
     Boolean(profileForm.avatarUrl.trim()),
     Boolean(profileForm.bio.trim()),
@@ -660,7 +792,11 @@ const ClientDashboardView = () => {
       ? "bg-amber-400"
       : "bg-[var(--color-primary)]";
   const isSaveDisabled =
-    !isProfileDirty || isSavingProfile || isUploadingAvatar || !profileForm.displayName.trim();
+    !isProfileDirty ||
+    isSavingProfile ||
+    isUploadingAvatar ||
+    !profileForm.firstName.trim() ||
+    !profileForm.lastName.trim();
 
   const sessions = useMemo(
     () =>
@@ -771,10 +907,29 @@ const ClientDashboardView = () => {
 
       <ClientSessionRecordDialog
         booking={selectedSession}
+        clientId={client?.id || null}
+        amendments={sessionAmendments}
         onClose={() => setSelectedSession(null)}
         onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
         onConfirmExternalPayment={handleConfirmExternalPayment}
         onDisputeExternalPayment={handleDisputeExternalPayment}
+        onRespondToAmendment={handleRespondToSessionAmendment}
+        onRequestNextSession={(booking) => setScheduleProposalSession(booking)}
+        onPauseProject={() => setPauseSessionMode("pause")}
+        onResumeProject={() => setPauseSessionMode("resume")}
+      />
+      <ProjectScheduleProposalDialog
+        booking={scheduleProposalSession}
+        viewerRole="client"
+        onClose={() => setScheduleProposalSession(null)}
+        onSubmit={handleRequestSessionProposal}
+      />
+      <ProjectPauseDialog
+        booking={pauseSessionMode ? selectedSession : null}
+        mode={pauseSessionMode || "pause"}
+        viewerRole="client"
+        onClose={() => setPauseSessionMode(null)}
+        onSubmit={handleSetSessionProjectPaused}
       />
     </div>
   );
@@ -882,17 +1037,33 @@ const ClientProfileSettings = ({
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-sm font-medium text-neutral-200">
-                Display name
+                First name
               </span>
               <input
                 type="text"
-                value={profileForm.displayName}
-                onChange={(event) => onUpdate({ displayName: event.target.value })}
+                value={profileForm.firstName}
+                onChange={(event) => onUpdate({ firstName: event.target.value })}
                 className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                placeholder="Your name"
+                placeholder="Ralph"
               />
               <span className="block text-xs text-neutral-500">
-                Required. You can change everything else later.
+                Required for booking records and artist communication.
+              </span>
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-neutral-200">
+                Last name
+              </span>
+              <input
+                type="text"
+                value={profileForm.lastName}
+                onChange={(event) => onUpdate({ lastName: event.target.value })}
+                className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                placeholder="Garcia"
+              />
+              <span className="block text-xs text-neutral-500">
+                Shown in booking records and payment context.
               </span>
             </label>
 
@@ -1169,6 +1340,9 @@ const ClientProfilePreview = ({
 }: {
   profileForm: ClientProfileFormState;
 }) => {
+  const fullName =
+    formatClientFullName(profileForm.firstName, profileForm.lastName, "") ||
+    profileForm.displayName;
   const visibleTags = [
     ...profileForm.preferredStyles,
     ...profileForm.interestTags,
@@ -1180,12 +1354,12 @@ const ClientProfilePreview = ({
       <div className="flex items-center gap-4">
         <img
           src={profileForm.avatarUrl || "/fallback-avatar.jpg"}
-          alt={profileForm.displayName || "Client avatar preview"}
+          alt={fullName || "Client avatar preview"}
           className="h-20 w-20 rounded-full border border-white/10 object-cover"
         />
         <div className="min-w-0">
           <p className="truncate text-lg font-semibold text-white">
-            {profileForm.displayName || "Display name"}
+            {fullName || "Client name"}
           </p>
           <p className="truncate text-sm text-neutral-400">
             {profileForm.email || "email@example.com"}
@@ -1490,16 +1664,31 @@ const ClientSessionsTable = ({
 
 const ClientSessionRecordDialog = ({
   booking,
+  clientId,
+  amendments,
   onClose,
   onPay,
   onConfirmExternalPayment,
   onDisputeExternalPayment,
+  onRespondToAmendment,
+  onRequestNextSession,
+  onPauseProject,
+  onResumeProject,
 }: {
   booking: ClientDashboardBooking | null;
+  clientId: string | null;
+  amendments: ProjectAmendment[];
   onClose: () => void;
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
   onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
+  onRespondToAmendment: (
+    amendmentId: string,
+    response: "accepted" | "declined" | "cancelled"
+  ) => void;
+  onRequestNextSession: (booking: ClientDashboardBooking) => void;
+  onPauseProject: () => void;
+  onResumeProject: () => void;
 }) => {
   const remainingBalance = booking ? getRemainingBalance(booking) : 0;
   const showExternalConfirmation =
@@ -1624,6 +1813,18 @@ const ClientSessionRecordDialog = ({
                             {booking.shopAddress}
                           </a>
                         )}
+
+                        <ProjectControlsPanel
+                          booking={booking}
+                          viewerRole="client"
+                          currentUserId={clientId}
+                          amendments={amendments}
+                          onRespondToAmendment={onRespondToAmendment}
+                          onPlanNextSession={() => onRequestNextSession(booking)}
+                          onPauseProject={onPauseProject}
+                          onResumeProject={onResumeProject}
+                          onPayPlatformFee={() => onPay(booking.id)}
+                        />
 
                         <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                           <div className="flex items-start justify-between gap-3">

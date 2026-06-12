@@ -22,7 +22,6 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  DollarSign,
   Expand,
   Globe2,
   Heart,
@@ -37,6 +36,16 @@ import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
 import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  getFlashAvailabilityStatus,
+  getFlashRepeatability,
+  isFlashAvailableForClients,
+} from "../utils/flashAvailability";
+import {
+  FlashPreviewImage,
+  FlashPreviewMeta,
+} from "../components/FlashPreviewCard";
+import { flashPreviewCardClassName } from "../utils/flashPreview";
 import RequestTattooModal from "../components/RequestTattooModal";
 import CustomSelect from "../components/ui/CustomSelect";
 import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
@@ -46,6 +55,7 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
+import { getClientNameParts } from "../utils/clientDisplayName";
 
 const flashSizeOptions = [
   { value: "Small", label: "Small" },
@@ -78,6 +88,8 @@ interface SocialLinks {
 type ClientProfile = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   avatarUrl: string;
   likedArtists: string[];
 };
@@ -123,14 +135,13 @@ export const ArtistProfilePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
+        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
 
         setClient({
           id: user.uid,
-          name:
-            (data.name as string) ||
-            (data.displayName as string) ||
-            user.displayName ||
-            "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl:
             (data.avatarUrl as string) ||
             user.photoURL ||
@@ -141,9 +152,15 @@ export const ArtistProfilePage = () => {
         });
       } catch (err) {
         console.error("Failed to fetch client profile:", err);
+        const clientNameParts = getClientNameParts(
+          { displayName: user.displayName },
+          "Client"
+        );
         setClient({
           id: user.uid,
-          name: user.displayName || "Client",
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
           avatarUrl: user.photoURL || "/default-avatar.png",
           likedArtists: [],
         });
@@ -1145,52 +1162,26 @@ const FlashItemCard = ({
 }: {
   flash: Flash;
   onClick: () => void;
-}) => (
-  <button
-    type="button"
-    data-aos="fade-up"
-    onClick={onClick}
-    className="group overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_14px_40px_rgba(0,0,0,0.25)] transition duration-300 hover:border-white/25 hover:shadow-[0_18px_54px_rgba(0,0,0,0.36)]"
-  >
-    <div className="relative aspect-[4/3] overflow-hidden bg-black">
-      <img
-        src={getFlashPreviewUrl(flash)}
-        alt={flash.title || "Flash tattoo design"}
-        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        loading="lazy"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-      <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 opacity-0 backdrop-blur-md transition duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
-        Request
-      </div>
-    </div>
-    <div className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <h4 className="line-clamp-2 text-base! font-semibold! text-white my-0!">
-          {flash.title || "Untitled flash"}
-        </h4>
-        {typeof flash.price === "number" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-xs text-white/75">
-            <DollarSign size={12} />
-            {flash.price}
-          </span>
-        )}
-      </div>
-      {Array.isArray(flash.tags) && flash.tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {flash.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs text-white/60"
-            >
-              {tag}
-            </span>
-          ))}
+}) => {
+  return (
+    <button
+      type="button"
+      data-aos="fade-up"
+      onClick={onClick}
+      className={`${flashPreviewCardClassName} p-0! text-left hover:shadow-[0_18px_54px_rgba(0,0,0,0.36)]`}
+    >
+      <FlashPreviewImage flash={flash}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+        <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-xs text-white/75 opacity-0 backdrop-blur-md transition duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+          Request
         </div>
-      )}
-    </div>
-  </button>
-);
+      </FlashPreviewImage>
+      <div className="p-4">
+        <FlashPreviewMeta flash={flash} showArtist={false} />
+      </div>
+    </button>
+  );
+};
 
 const PortfolioLightbox = ({
   item,
@@ -1560,11 +1551,27 @@ const FlashRequestModal = ({
     try {
       setIsSubmitting(true);
 
+      const flashSnap = await getDoc(doc(db, "flashes", flash.id));
+      const latestFlash = flashSnap.exists()
+        ? ({ id: flashSnap.id, ...flashSnap.data() } as Flash)
+        : flash;
+
+      if (!isFlashAvailableForClients(latestFlash)) {
+        toast.error(
+          getFlashRepeatability(latestFlash) === "one_of_one"
+            ? "This one-of-one flash is no longer available."
+            : "This flash is no longer available."
+        );
+        return;
+      }
+
       await addDoc(collection(db, "bookingRequests"), {
         artistId: artist.id,
         artistName: getArtistDisplayName(artist),
         artistAvatar: artist.avatarUrl || "/default-avatar.png",
         clientId: client.id,
+        clientFirstName: client.firstName || "",
+        clientLastName: client.lastName || "",
         clientName: client.name,
         clientAvatar: client.avatarUrl,
         description,
@@ -1576,14 +1583,19 @@ const FlashRequestModal = ({
         status: "pending",
         createdAt: serverTimestamp(),
 
-        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl,
-        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
+        fullUrl:
+          latestFlash.fullUrl || latestFlash.webp90Url || latestFlash.thumbUrl,
+        thumbUrl:
+          latestFlash.thumbUrl || latestFlash.webp90Url || latestFlash.fullUrl,
         sourceType: "flash",
-        flashId: flash.id,
-        flashTitle: flash.title || "Untitled flash",
-        flashPrice: flash.price ?? null,
-        flashSheetId: flash.sheetId || null,
-        isFromSheet: flash.isFromSheet,
+        flashId: latestFlash.id,
+        flashTitle: latestFlash.title || "Untitled flash",
+        flashDescription: latestFlash.description || null,
+        flashPrice: latestFlash.price ?? null,
+        flashSheetId: latestFlash.sheetId || null,
+        flashRepeatability: getFlashRepeatability(latestFlash),
+        flashAvailabilityStatus: getFlashAvailabilityStatus(latestFlash),
+        isFromSheet: latestFlash.isFromSheet,
       });
 
       toast.success("Flash request sent!");
@@ -1646,6 +1658,11 @@ const FlashRequestModal = ({
                   )}
                 </div>
               </div>
+              {flash.description && (
+                <p className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3 text-sm leading-6 text-white/70">
+                  {flash.description}
+                </p>
+              )}
             </div>
           </div>
 
@@ -1819,6 +1836,9 @@ const isMarketplaceReady = (
   item: Flash | FlashSheet,
   artist?: StripeReadyArtist | null
 ) => {
+  if ("isAvailable" in item && !isFlashAvailableForClients(item as Flash)) {
+    return false;
+  }
   if (item.marketplaceVisible === false) return false;
   if (item.artistStripeConnectReady === true) return true;
   return isStripeConnectReady(artist);
