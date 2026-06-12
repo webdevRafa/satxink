@@ -52,6 +52,7 @@ type PublicArtist = {
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
+  shopId?: string;
   shopName?: string;
   studioName?: string;
   specialties?: string[];
@@ -80,6 +81,11 @@ type FeaturedPreviewItem = {
   imageUrl: string;
   label: string;
   type: "flash" | "sheet";
+};
+
+type ShopLookup = {
+  id: string;
+  name?: string;
 };
 
 const featuredStyles = FEATURED_TATTOO_STYLES;
@@ -513,9 +519,7 @@ const HeroFeaturedArtistPanel = ({
   const featureImageAlt =
     feature?.imageAlt?.trim() ||
     (artist ? `${artistName} featured artist image` : "SATX Ink artist work");
-  const shopLabel = artist
-    ? artist.shopName || artist.studioName || "San Antonio artist"
-    : "Featured artist";
+  const shopLabel = artist ? getArtistStudioLabel(artist) : "Featured artist";
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
 
   return (
@@ -1004,7 +1008,52 @@ const fetchArtistsById = async (artistIds: string[]) => {
     });
   }
 
+  const shopsById = await fetchShopsById(
+    Array.from(
+      new Set(
+        Object.values(artistsById)
+          .map((artist) => artist.shopId)
+          .filter((shopId): shopId is string => Boolean(shopId))
+      )
+    )
+  );
+
+  Object.values(artistsById).forEach((artist) => {
+    if (!artist.shopId) return;
+
+    const shop = shopsById[artist.shopId];
+    if (!shop?.name) return;
+
+    artist.shopName = artist.shopName || shop.name;
+    artist.studioName = artist.studioName || shop.name;
+  });
+
   return artistsById;
+};
+
+const fetchShopsById = async (shopIds: string[]) => {
+  const shopsById: Record<string, ShopLookup> = {};
+  const chunks = chunkArray(shopIds, 10);
+
+  for (const chunk of chunks) {
+    if (!chunk.length) continue;
+
+    const shopsQuery = query(
+      collection(db, "shops"),
+      where(documentId(), "in", chunk)
+    );
+    const snapshot = await getDocs(shopsQuery);
+
+    snapshot.docs.forEach((shopDoc) => {
+      const data = shopDoc.data();
+      shopsById[shopDoc.id] = {
+        id: shopDoc.id,
+        name: typeof data.name === "string" ? data.name : undefined,
+      };
+    });
+  }
+
+  return shopsById;
 };
 
 const chunkArray = <T,>(items: T[], size: number) => {
@@ -1028,3 +1077,19 @@ const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
 
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "SATX Ink artist";
+
+const getArtistStudioLabel = (artist: PublicArtist) =>
+  artist.shopName ||
+  artist.studioName ||
+  getShopIdLabel(artist.shopId) ||
+  "San Antonio artist";
+
+const getShopIdLabel = (shopId?: string) => {
+  if (!shopId) return "";
+
+  return shopId
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
