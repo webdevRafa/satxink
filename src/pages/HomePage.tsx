@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type FC,
   type ReactNode,
   useEffect,
@@ -309,42 +308,33 @@ export const HomePage: FC = () => {
             }
           }
 
-          @media (min-width: 768px) {
-            .satx-home-hero::before {
-              content: "";
-              position: absolute;
-              inset: 0;
-              background-image: var(--satx-hero-image);
-              background-size: cover;
-              background-position: center;
-              background-repeat: no-repeat;
-              background-attachment: fixed;
-              filter: blur(3px);
-              opacity: 0.8;
-              transform: scale(1.03);
-              transform-origin: center;
-              pointer-events: none;
-            }
+          .satx-home-hero-fixed-image {
+            transform: scale(1.03);
+            transform-origin: center;
+            backface-visibility: hidden;
           }
         `}
       </style>
 
-      <section
-        className="satx-home-hero relative overflow-hidden bg-black pt-30 md:pt-0"
-        style={
-          {
-            "--satx-hero-image": `url(${heroImage})`,
-          } as CSSProperties
-        }
-      >
+      <section className="satx-home-hero relative isolate overflow-hidden bg-black pt-30 md:pt-0">
+        <div
+          className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block"
+          aria-hidden="true"
+        >
+          <img
+            src={heroImage}
+            alt=""
+            className="satx-home-hero-fixed-image h-full w-full object-cover opacity-80 blur-[3px]"
+          />
+        </div>
         <img
           src={heroImageMobile}
           alt=""
-          className="absolute md:hidden inset-0 h-full w-full object-cover opacity-80 blur-[3px]"
+          className="absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px] md:hidden"
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
-        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
+        <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
+        <div className="absolute inset-x-0 top-0 z-[2] h-32 bg-gradient-to-b from-black/70 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
         <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
           <div className="max-w-3xl">
