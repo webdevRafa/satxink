@@ -156,8 +156,7 @@ export const HomePage: FC = () => {
     FeaturedPreviewItem[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] =
-    useState(false);
+  const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] = useState(false);
   const [isMobileHeroImageReady, setIsMobileHeroImageReady] = useState(false);
   const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
     useState(false);
@@ -845,16 +844,16 @@ const HeroFeaturedArtistPanel = ({
       <div className="relative isolate aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
         <HeroFeaturedArtistImageSlider slides={featureSlides} />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.76))]" />
-        <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
+        <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full  bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
-          Featured SATX Artist
+          Artist Spotlight
         </div>
         <div className="absolute inset-x-0 bottom-0 z-20 p-4">
           <div className="max-w-md">
-            <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl!">
+            <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl! mb-0!">
               {artist ? artistName : "Meet the next artist spotlight."}
             </h2>
-            <p className="mt-2 flex items-center gap-2 text-sm font-medium text-white/60">
+            <p className="mt-1 flex items-center gap-2 text-sm font-medium text-white/60">
               <MapPin size={15} aria-hidden="true" />
               <span className="truncate">{shopLabel}</span>
             </p>
@@ -1034,8 +1033,8 @@ const HeroFeaturedArtistImageSlider = ({
               index === activeIndex
                 ? "active"
                 : index === previousIndex
-                  ? "previous"
-                  : "hidden"
+                ? "previous"
+                : "hidden"
             }
             prefersReducedMotion={prefersReducedMotion}
           />
@@ -1043,16 +1042,16 @@ const HeroFeaturedArtistImageSlider = ({
       </div>
 
       {slides.length > 1 && (
-        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 backdrop-blur">
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full   backdrop-blur">
           {slides.map((slide, index) => (
             <button
               key={`${slide.id}-dot`}
               type="button"
               onClick={() => showSlide(index)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
+              className={`p-0! h-[20px] w-[30px] rounded-full transition-all duration-300 border-1 border-transparent  ${
                 activeIndex === index
-                  ? "w-5 bg-white"
-                  : "w-1.5 bg-white/35 hover:bg-white/65"
+                  ? "w-5 border-white! border-1 bg-white/20"
+                  : "w-1.5 bg-white/5 hover:bg-white/20"
               }`}
               aria-label={`Show featured artist image ${index + 1}`}
             />
@@ -1084,14 +1083,14 @@ const HeroFeaturedArtistSlideImage = ({
     state === "active"
       ? "z-[2] opacity-100"
       : state === "previous"
-        ? "z-[1] opacity-0"
-        : "z-0 opacity-0";
+      ? "z-[1] opacity-0"
+      : "z-0 opacity-0";
   const transform =
     state === "active"
       ? "translate3d(0, 0, 0) scale(1)"
       : state === "previous"
-        ? "translate3d(-2.75%, 0, 0) scale(1.018)"
-        : "translate3d(2.75%, 0, 0) scale(1.018)";
+      ? "translate3d(-2.75%, 0, 0) scale(1.018)"
+      : "translate3d(2.75%, 0, 0) scale(1.018)";
 
   return (
     <div
