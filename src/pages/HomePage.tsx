@@ -137,7 +137,7 @@ export const HomePage: FC = () => {
     FeaturedPreviewItem[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [showFeaturedArtistPanel, setShowFeaturedArtistPanel] =
+  const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
     useState(false);
 
   useEffect(() => {
@@ -272,7 +272,7 @@ export const HomePage: FC = () => {
     ).matches;
     const delay = prefersReducedMotion ? 0 : 3000;
     const timeoutId = window.setTimeout(
-      () => setShowFeaturedArtistPanel(true),
+      () => setIsFeaturedArtistPanelRevealed(true),
       delay
     );
 
@@ -344,16 +344,28 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-feature-panel {
-            animation: satx-feature-panel-enter 760ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+            opacity: 0;
+            transform: translate3d(34px, 0, 0) scale(0.985);
+            filter: blur(8px);
+            pointer-events: none;
             will-change: opacity, transform, filter;
+          }
+
+          .satx-home-feature-panel--visible {
+            animation: satx-feature-panel-enter 760ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+            pointer-events: auto;
           }
 
           @media (prefers-reduced-motion: reduce) {
             .satx-home-feature-panel {
-              animation: none;
               opacity: 1;
               transform: none;
               filter: none;
+              pointer-events: auto;
+            }
+
+            .satx-home-feature-panel--visible {
+              animation: none;
             }
           }
         `}
@@ -435,18 +447,12 @@ export const HomePage: FC = () => {
             </dl>
           </div>
 
-          {showFeaturedArtistPanel ? (
-            <HeroFeaturedArtistPanel
-              artist={featuredArtist}
-              previewItems={featuredPreviewItems}
-              loading={loading}
-            />
-          ) : (
-            <div
-              className="min-h-[640px] sm:min-h-[660px] lg:self-end"
-              aria-hidden="true"
-            />
-          )}
+          <HeroFeaturedArtistPanel
+            artist={featuredArtist}
+            previewItems={featuredPreviewItems}
+            loading={loading}
+            isRevealed={isFeaturedArtistPanelRevealed}
+          />
         </div>
       </section>
 
@@ -562,12 +568,16 @@ const HeroFeaturedArtistPanel = ({
   artist,
   previewItems,
   loading,
+  isRevealed,
 }: {
   artist: PublicArtist | null;
   previewItems: FeaturedPreviewItem[];
   loading: boolean;
+  isRevealed: boolean;
 }) => {
-  if (loading) return <HeroFeaturedArtistPanelSkeleton />;
+  if (loading) {
+    return <HeroFeaturedArtistPanelSkeleton isRevealed={isRevealed} />;
+  }
 
   const artistName = getArtistName(artist || undefined);
   const feature = artist?.homepageFeature;
@@ -582,9 +592,16 @@ const HeroFeaturedArtistPanel = ({
     (artist ? `${artistName} featured artist image` : "SATX Ink artist work");
   const shopLabel = artist ? getArtistStudioLabel(artist) : "Featured artist";
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
+  const panelVisibilityClass = isRevealed
+    ? " satx-home-feature-panel--visible"
+    : "";
 
   return (
-    <aside className="satx-home-feature-panel relative min-h-[640px] overflow-hidden rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-sm sm:min-h-[660px] lg:self-end">
+    <aside
+      className={`satx-home-feature-panel${panelVisibilityClass} relative min-h-[640px] overflow-hidden rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-sm sm:min-h-[660px] lg:self-end`}
+      aria-hidden={!isRevealed}
+      inert={!isRevealed}
+    >
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
@@ -788,62 +805,74 @@ const HeroFeaturedArtistImage = ({
   );
 };
 
-const HeroFeaturedArtistPanelSkeleton = () => (
-  <aside
-    className="satx-home-feature-panel relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end"
-    aria-label="Loading featured SATX artist"
-  >
-    <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+const HeroFeaturedArtistPanelSkeleton = ({
+  isRevealed,
+}: {
+  isRevealed: boolean;
+}) => {
+  const panelVisibilityClass = isRevealed
+    ? " satx-home-feature-panel--visible"
+    : "";
 
-    <div className="preview-loading-sheen relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-      <div className="absolute left-3 top-3 h-8 w-48 rounded-full border border-white/10 bg-black/35" />
-      <div className="absolute inset-x-4 bottom-4">
-        <div className="h-8 w-3/4 rounded-md bg-white/[0.12]" />
-        <div className="mt-3 h-3 w-36 rounded-full bg-white/[0.09]" />
-      </div>
-    </div>
+  return (
+    <aside
+      className={`satx-home-feature-panel${panelVisibilityClass} relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end`}
+      aria-label="Loading featured SATX artist"
+      aria-hidden={!isRevealed}
+      inert={!isRevealed}
+    >
+      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-    <div className="p-3 pt-4 md:p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="skeleton-sheen h-3 w-32 rounded-full bg-white/[0.08]" />
-          <div className="skeleton-sheen mt-3 h-6 w-11/12 rounded-md bg-white/[0.11]" />
-          <div className="skeleton-sheen mt-2 h-6 w-3/5 rounded-md bg-white/[0.08]" />
+      <div className="preview-loading-sheen relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
+        <div className="absolute left-3 top-3 h-8 w-48 rounded-full border border-white/10 bg-black/35" />
+        <div className="absolute inset-x-4 bottom-4">
+          <div className="h-8 w-3/4 rounded-md bg-white/[0.12]" />
+          <div className="mt-3 h-3 w-36 rounded-full bg-white/[0.09]" />
         </div>
-        <div className="skeleton-sheen h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/[0.08]" />
       </div>
 
-      <div className="mt-4 min-h-24 space-y-3">
-        <div className="skeleton-sheen h-3 w-full rounded-full bg-white/[0.08]" />
-        <div className="skeleton-sheen h-3 w-11/12 rounded-full bg-white/[0.075]" />
-        <div className="skeleton-sheen h-3 w-10/12 rounded-full bg-white/[0.07]" />
-        <div className="skeleton-sheen h-3 w-7/12 rounded-full bg-white/[0.06]" />
+      <div className="p-3 pt-4 md:p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="skeleton-sheen h-3 w-32 rounded-full bg-white/[0.08]" />
+            <div className="skeleton-sheen mt-3 h-6 w-11/12 rounded-md bg-white/[0.11]" />
+            <div className="skeleton-sheen mt-2 h-6 w-3/5 rounded-md bg-white/[0.08]" />
+          </div>
+          <div className="skeleton-sheen h-11 w-11 shrink-0 rounded-full border border-white/10 bg-white/[0.08]" />
+        </div>
+
+        <div className="mt-4 min-h-24 space-y-3">
+          <div className="skeleton-sheen h-3 w-full rounded-full bg-white/[0.08]" />
+          <div className="skeleton-sheen h-3 w-11/12 rounded-full bg-white/[0.075]" />
+          <div className="skeleton-sheen h-3 w-10/12 rounded-full bg-white/[0.07]" />
+          <div className="skeleton-sheen h-3 w-7/12 rounded-full bg-white/[0.06]" />
+        </div>
+
+        <div className="skeleton-sheen mt-4 min-h-[72px] rounded-lg border border-white/10 bg-white/[0.035]" />
+
+        <div className="mt-4 flex min-h-7 flex-wrap gap-2">
+          {[0, 1, 2, 3].map((item) => (
+            <span
+              key={item}
+              className="skeleton-sheen h-7 w-20 rounded-full border border-white/10 bg-white/[0.06]"
+            />
+          ))}
+        </div>
+
+        <div className="mt-4 grid min-h-[96px] grid-cols-4 gap-2">
+          {[0, 1, 2, 3].map((item) => (
+            <span
+              key={item}
+              className="preview-loading-sheen aspect-square rounded-md border border-white/10 bg-white/[0.045]"
+            />
+          ))}
+        </div>
+
+        <div className="skeleton-sheen mt-5 h-10 w-44 rounded-md bg-white/[0.12]" />
       </div>
-
-      <div className="skeleton-sheen mt-4 min-h-[72px] rounded-lg border border-white/10 bg-white/[0.035]" />
-
-      <div className="mt-4 flex min-h-7 flex-wrap gap-2">
-        {[0, 1, 2, 3].map((item) => (
-          <span
-            key={item}
-            className="skeleton-sheen h-7 w-20 rounded-full border border-white/10 bg-white/[0.06]"
-          />
-        ))}
-      </div>
-
-      <div className="mt-4 grid min-h-[96px] grid-cols-4 gap-2">
-        {[0, 1, 2, 3].map((item) => (
-          <span
-            key={item}
-            className="preview-loading-sheen aspect-square rounded-md border border-white/10 bg-white/[0.045]"
-          />
-        ))}
-      </div>
-
-      <div className="skeleton-sheen mt-5 h-10 w-44 rounded-md bg-white/[0.12]" />
-    </div>
-  </aside>
-);
+    </aside>
+  );
+};
 
 const PreviewRail = <T,>({
   title,
