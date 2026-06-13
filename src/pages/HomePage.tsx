@@ -842,14 +842,14 @@ const HeroFeaturedArtistPanel = ({
     >
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-      <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
+      <div className="relative isolate aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
         <HeroFeaturedArtistImageSlider slides={featureSlides} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.78))]" />
-        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
+        <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.76))]" />
+        <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
           Featured SATX Artist
         </div>
-        <div className="absolute inset-x-0 bottom-0 p-4">
+        <div className="absolute inset-x-0 bottom-0 z-20 p-4">
           <div className="max-w-md">
             <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl!">
               {artist ? artistName : "Meet the next artist spotlight."}
@@ -978,7 +978,7 @@ const HeroFeaturedArtistImageSlider = ({
   useEffect(() => {
     if (previousIndex === null) return;
 
-    const timeoutId = window.setTimeout(() => setPreviousIndex(null), 940);
+    const timeoutId = window.setTimeout(() => setPreviousIndex(null), 1300);
 
     return () => window.clearTimeout(timeoutId);
   }, [previousIndex]);
@@ -1008,7 +1008,7 @@ const HeroFeaturedArtistImageSlider = ({
 
   if (slides.length === 0) {
     return (
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
+      <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
         <div className="flex h-full items-center justify-center">
           <ImageOff size={38} className="text-white/18" />
         </div>
@@ -1025,7 +1025,7 @@ const HeroFeaturedArtistImageSlider = ({
 
   return (
     <>
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         {slides.map((slide, index) => (
           <HeroFeaturedArtistSlideImage
             key={slide.id}
@@ -1043,7 +1043,7 @@ const HeroFeaturedArtistImageSlider = ({
       </div>
 
       {slides.length > 1 && (
-        <div className="absolute bottom-3 right-3 z-[2] flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 backdrop-blur">
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 backdrop-blur">
           {slides.map((slide, index) => (
             <button
               key={`${slide.id}-dot`}
@@ -1082,20 +1082,27 @@ const HeroFeaturedArtistSlideImage = ({
 
   const stateClassName =
     state === "active"
-      ? "z-[2] translate-x-0 scale-100 opacity-100"
+      ? "z-[2] opacity-100"
       : state === "previous"
-        ? "z-[1] -translate-x-6 scale-[1.015] opacity-0"
-        : "z-0 translate-x-6 scale-[1.015] opacity-0";
+        ? "z-[1] opacity-0"
+        : "z-0 opacity-0";
+  const transform =
+    state === "active"
+      ? "translate3d(0, 0, 0) scale(1)"
+      : state === "previous"
+        ? "translate3d(-2.75%, 0, 0) scale(1.018)"
+        : "translate3d(2.75%, 0, 0) scale(1.018)";
 
   return (
     <div
       className={`absolute inset-0 h-full w-full overflow-hidden bg-black ${stateClassName}`}
       style={
         prefersReducedMotion
-          ? { transition: "none" }
+          ? { transform, transition: "none" }
           : {
+              transform,
               transition:
-                "opacity 760ms cubic-bezier(0.18, 0.88, 0.22, 1), transform 920ms cubic-bezier(0.18, 0.88, 0.22, 1)",
+                "opacity 980ms cubic-bezier(0.22, 1, 0.36, 1), transform 1280ms cubic-bezier(0.16, 1, 0.3, 1)",
               willChange: "opacity, transform",
             }
       }
