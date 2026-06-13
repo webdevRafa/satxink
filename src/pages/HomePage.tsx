@@ -1,7 +1,6 @@
 import {
   type FC,
   type ReactNode,
-  type TransitionEvent,
   useEffect,
   useMemo,
   useRef,
@@ -967,14 +966,22 @@ const HeroFeaturedArtistImageSlider = ({
   slides: FeaturedArtistSlide[];
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isSnapping, setIsSnapping] = useState(false);
+  const [previousIndex, setPreviousIndex] = useState<number | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const slideSignature = slides.map((slide) => slide.url).join("|");
 
   useEffect(() => {
     setActiveIndex(0);
-    setIsSnapping(false);
+    setPreviousIndex(null);
   }, [slideSignature]);
+
+  useEffect(() => {
+    if (previousIndex === null) return;
+
+    const timeoutId = window.setTimeout(() => setPreviousIndex(null), 940);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [previousIndex]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -990,7 +997,10 @@ const HeroFeaturedArtistImageSlider = ({
     if (slides.length <= 1 || prefersReducedMotion) return;
 
     const intervalId = window.setInterval(() => {
-      setActiveIndex((index) => (index >= slides.length ? 1 : index + 1));
+      setActiveIndex((index) => {
+        setPreviousIndex(index);
+        return (index + 1) % slides.length;
+      });
     }, 5200);
 
     return () => window.clearInterval(intervalId);
@@ -1006,47 +1016,30 @@ const HeroFeaturedArtistImageSlider = ({
     );
   }
 
-  const trackSlides =
-    slides.length > 1
-      ? [...slides, { ...slides[0], id: `${slides[0].id}-loop` }]
-      : slides;
-  const activeDotIndex =
-    slides.length > 0 ? activeIndex % slides.length : activeIndex;
+  const showSlide = (nextIndex: number) => {
+    if (nextIndex === activeIndex) return;
 
-  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
-    if (slides.length <= 1 || activeIndex < slides.length) return;
-
-    setIsSnapping(true);
-    setActiveIndex(0);
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => setIsSnapping(false));
-    });
+    setPreviousIndex(activeIndex);
+    setActiveIndex(nextIndex);
   };
 
   return (
     <>
       <div className="absolute inset-0 overflow-hidden">
-        <div
-          className="flex h-full w-full"
-          style={{
-            transform: `translate3d(-${activeIndex * 100}%, 0, 0)`,
-            transition:
-              isSnapping || prefersReducedMotion
-                ? "none"
-                : "transform 920ms cubic-bezier(0.18, 0.88, 0.22, 1)",
-            willChange: "transform",
-          }}
-          onTransitionEnd={handleTransitionEnd}
-        >
-          {trackSlides.map((slide, index) => (
-            <HeroFeaturedArtistSlideImage
-              key={`${slide.id}-${index}`}
-              slide={slide}
-              index={index}
-            />
-          ))}
-        </div>
+        {slides.map((slide, index) => (
+          <HeroFeaturedArtistSlideImage
+            key={slide.id}
+            slide={slide}
+            state={
+              index === activeIndex
+                ? "active"
+                : index === previousIndex
+                  ? "previous"
+                  : "hidden"
+            }
+            prefersReducedMotion={prefersReducedMotion}
+          />
+        ))}
       </div>
 
       {slides.length > 1 && (
@@ -1055,12 +1048,9 @@ const HeroFeaturedArtistImageSlider = ({
             <button
               key={`${slide.id}-dot`}
               type="button"
-              onClick={() => {
-                setIsSnapping(false);
-                setActiveIndex(index);
-              }}
+              onClick={() => showSlide(index)}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                activeDotIndex === index
+                activeIndex === index
                   ? "w-5 bg-white"
                   : "w-1.5 bg-white/35 hover:bg-white/65"
               }`}
@@ -1075,10 +1065,12 @@ const HeroFeaturedArtistImageSlider = ({
 
 const HeroFeaturedArtistSlideImage = ({
   slide,
-  index,
+  state,
+  prefersReducedMotion,
 }: {
   slide: FeaturedArtistSlide;
-  index: number;
+  state: "active" | "previous" | "hidden";
+  prefersReducedMotion: boolean;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -1088,8 +1080,27 @@ const HeroFeaturedArtistSlideImage = ({
     setFailed(false);
   }, [slide.url]);
 
+  const stateClassName =
+    state === "active"
+      ? "z-[2] translate-x-0 scale-100 opacity-100"
+      : state === "previous"
+        ? "z-[1] -translate-x-6 scale-[1.015] opacity-0"
+        : "z-0 translate-x-6 scale-[1.015] opacity-0";
+
   return (
-    <div className="relative h-full min-w-full shrink-0 overflow-hidden bg-black">
+    <div
+      className={`absolute inset-0 h-full w-full overflow-hidden bg-black ${stateClassName}`}
+      style={
+        prefersReducedMotion
+          ? { transition: "none" }
+          : {
+              transition:
+                "opacity 760ms cubic-bezier(0.18, 0.88, 0.22, 1), transform 920ms cubic-bezier(0.18, 0.88, 0.22, 1)",
+              willChange: "opacity, transform",
+            }
+      }
+      aria-hidden={state !== "active"}
+    >
       {failed ? (
         <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
           <ImageOff size={38} className="text-white/18" />
@@ -1106,9 +1117,9 @@ const HeroFeaturedArtistSlideImage = ({
             src={slide.url}
             alt={slide.alt}
             className={`h-full w-full object-cover transition duration-700 ${
-              isLoaded ? "opacity-[0.88]" : "opacity-0"
+              isLoaded ? "opacity-100" : "opacity-0"
             }`}
-            loading={index === 0 ? "eager" : "lazy"}
+            loading="eager"
             decoding="async"
             onLoad={() => setIsLoaded(true)}
             onError={() => setFailed(true)}
