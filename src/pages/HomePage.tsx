@@ -367,6 +367,13 @@ export const HomePage: FC = () => {
             opacity: 0.8;
           }
 
+          @media (min-width: 1024px) {
+            .satx-home-hero-copy {
+              align-self: start;
+              padding-top: clamp(13.5rem, 24svh, 17rem);
+            }
+          }
+
           @keyframes satx-feature-panel-enter {
             from {
               opacity: 0;
@@ -437,7 +444,7 @@ export const HomePage: FC = () => {
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
         <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
-          <div className="max-w-3xl">
+          <div className="satx-home-hero-copy max-w-3xl">
             <h1 className="max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-5xl!">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
