@@ -12,7 +12,6 @@ import {
   ChevronRight,
   ImageOff,
   Layers,
-  MapPin,
   Quote,
   Search,
   Sparkles,
@@ -335,7 +334,7 @@ export const HomePage: FC = () => {
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
-    const delay = prefersReducedMotion ? 0 : 3000;
+    const delay = prefersReducedMotion ? 0 : 800;
     const timeoutId = window.setTimeout(
       () => setIsFeaturedArtistPanelRevealed(true),
       delay
@@ -850,34 +849,49 @@ const HeroFeaturedArtistPanel = ({
         </div>
         <div className="absolute inset-x-0 bottom-0 z-20 p-4">
           <div className="max-w-md">
-            <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl! mb-0!">
-              {artist ? artistName : "Meet the next artist spotlight."}
-            </h2>
-            <p className="mt-1 flex items-center gap-2 text-sm font-medium text-white/60">
-              <MapPin size={15} aria-hidden="true" />
-              <span className="truncate">{shopLabel}</span>
-            </p>
+            <div className="flex gap-2 items-center justify-start">
+              {artist?.avatarUrl && (
+                <img
+                  src={artist.avatarUrl}
+                  alt={artistName}
+                  className="h-11 w-11 shrink-0 rounded-full border border-white/15 object-cover"
+                  loading="lazy"
+                />
+              )}
+              <div className="flex flex-col gap-0">
+                <h2 className="text-2xl! font-semibold leading-tight text-white  mb-0!">
+                  {artist ? artistName : "Meet the next artist spotlight."}
+                </h2>
+                <p className="mt-0 flex items-center gap-2 text-sm font-medium text-white/60">
+                  <span className="truncate">{shopLabel}</span>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-3 pt-4 md:p-4">
+      <div className="px-3 md:px-4 py-1">
+        {visibleStyles.length > 0 && (
+          <div className="mt-0 flex flex-wrap gap-4 py-1">
+            {visibleStyles.map((style) => (
+              <span
+                key={style}
+                className="rounded-full   text-[11px] font-semibold text-white/65"
+              >
+                {style}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="mt-2 text-xl! font-semibold leading-tight text-white md:text-2xl!">
+            <h3 className="mt-5 text-md font-semibold leading-tight text-white">
               {artist
-                ? `A closer look at ${artistName}.`
+                ? `Behind the work.`
                 : "A local spotlight is getting inked in."}
             </h3>
           </div>
-          {artist?.avatarUrl && (
-            <img
-              src={artist.avatarUrl}
-              alt={artistName}
-              className="h-11 w-11 shrink-0 rounded-full border border-white/15 object-cover"
-              loading="lazy"
-            />
-          )}
         </div>
 
         <p className="mt-3 min-h-24 line-clamp-4 text-sm leading-6 text-white/[0.62]">
@@ -885,7 +899,7 @@ const HeroFeaturedArtistPanel = ({
         </p>
 
         {quote && (
-          <blockquote className="mt-4 rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <blockquote className="mt-2 rounded-lg border border-white/10 bg-white/[0.035] p-3">
             <div className="flex items-start gap-2">
               <Quote
                 size={16}
@@ -899,21 +913,8 @@ const HeroFeaturedArtistPanel = ({
           </blockquote>
         )}
 
-        {visibleStyles.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-2">
-            {visibleStyles.map((style) => (
-              <span
-                key={style}
-                className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-1 text-[11px] font-semibold text-white/65"
-              >
-                {style}
-              </span>
-            ))}
-          </div>
-        )}
-
         {previewItems.length > 0 && (
-          <div className="mt-4 grid grid-cols-4 gap-2">
+          <div className="mt-0! grid grid-cols-4 gap-2">
             {previewItems.map((item) => (
               <Link
                 key={`${item.type}-${item.id}`}
