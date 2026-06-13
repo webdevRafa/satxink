@@ -396,6 +396,7 @@ export const HomePage: FC = () => {
           .satx-home-hero-mobile-image {
             position: absolute;
             inset: -12px;
+            min-height: calc(100dvh + 24px);
             background-position: center center;
             background-repeat: no-repeat;
             background-size: cover;
@@ -411,6 +412,12 @@ export const HomePage: FC = () => {
 
           .satx-home-hero-mobile-image--ready {
             opacity: 0.8;
+          }
+
+          .satx-home-hero-mobile-scrim {
+            background:
+              radial-gradient(circle at 72% 30%, rgba(255, 255, 255, 0.12), transparent 32%),
+              linear-gradient(90deg, rgba(0, 0, 0, 0.94), rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.86));
           }
 
           @media (min-width: 1024px) {
@@ -576,7 +583,7 @@ export const HomePage: FC = () => {
           />
         </div>
         <div
-          className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-black md:hidden"
+          className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-black md:hidden"
           aria-hidden="true"
         >
           <div
@@ -592,7 +599,11 @@ export const HomePage: FC = () => {
             }}
           />
         </div>
-        <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
+        <div
+          className="satx-home-hero-mobile-scrim pointer-events-none fixed inset-0 z-[1] md:hidden"
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 z-[1] hidden bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))] md:block" />
         <div className="absolute inset-x-0 top-0 z-[2] h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
