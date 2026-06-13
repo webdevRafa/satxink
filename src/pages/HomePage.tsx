@@ -1100,15 +1100,15 @@ const HeroFeaturedArtistPanel = ({
                 <img
                   src={artist.avatarUrl}
                   alt={artistName}
-                  className="h-11 w-11 shrink-0 rounded-full border border-white/15 object-cover"
+                  className="h-10 md:h-11 w-10 md:w-11 shrink-0 rounded-full border border-white/15 object-cover"
                   loading="lazy"
                 />
               )}
               <div className="flex flex-col gap-0">
-                <h2 className="text-2xl! font-semibold leading-tight text-white  mb-0!">
+                <h2 className="text-lg! md:text-2xl! font-semibold leading-tight text-white  mb-0!">
                   {artist ? artistName : "Meet the next artist spotlight."}
                 </h2>
-                <p className="mt-0 flex items-center gap-2 text-sm font-medium text-white/60">
+                <p className="mt-0 flex items-center gap-2 text-xs! md:text-sm font-medium text-white/60">
                   <span className="truncate">{shopLabel}</span>
                 </p>
               </div>
@@ -1295,7 +1295,7 @@ const HeroFeaturedArtistImageSlider = ({
               key={`${slide.id}-dot`}
               type="button"
               onClick={() => showSlide(index)}
-              className={`p-0! h-[20px] w-[30px] rounded-full transition-all duration-300 border-1 border-transparent  ${
+              className={`p-0! h-[15px] w-[20px] md:h-[20px] md:w-[30px] rounded-full transition-all duration-300 border-1 border-transparent  ${
                 activeIndex === index
                   ? "w-5 border-white! border-1 bg-white/20"
                   : "w-1.5 bg-white/5 hover:bg-white/20"
