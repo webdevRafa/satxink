@@ -126,6 +126,8 @@ function useViewportEntry<T extends Element>() {
 }
 
 export const HomePage: FC = () => {
+  const { targetRef: heroCopyRef, entryCount: heroCopyEntryCount } =
+    useViewportEntry<HTMLDivElement>();
   const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
@@ -319,6 +321,7 @@ export const HomePage: FC = () => {
     ],
     [flashes.length, loading, sheets.length]
   );
+  const isHeroCopyRevealed = heroCopyEntryCount > 0;
 
   return (
     <main className="bg-[#0d0d0d] text-white">
@@ -374,6 +377,93 @@ export const HomePage: FC = () => {
             }
           }
 
+          @keyframes satx-hero-headline-enter {
+            from {
+              opacity: 0;
+              clip-path: inset(0 0 100% 0 round 0.25rem);
+              transform: translate3d(0, 22px, 0) scale(0.985);
+              filter: blur(10px);
+            }
+
+            to {
+              opacity: 1;
+              clip-path: inset(0 0 0 0 round 0.25rem);
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-hero-body-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(-18px, 14px, 0);
+              filter: blur(7px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-hero-action-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(0, 16px, 0) scale(0.96);
+              filter: blur(6px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-hero-stat-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(0, 18px, 0) scale(0.92);
+              filter: blur(6px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          .satx-home-copy-motion {
+            opacity: 0;
+            will-change: opacity, transform, filter, clip-path;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--headline {
+            animation: satx-hero-headline-enter 860ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--body {
+            animation: satx-hero-body-enter 720ms cubic-bezier(0.2, 0.86, 0.24, 1) 300ms both;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--actions {
+            animation: satx-hero-action-enter 680ms cubic-bezier(0.18, 0.9, 0.2, 1) 470ms both;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--stat-0 {
+            animation: satx-hero-stat-enter 620ms cubic-bezier(0.2, 0.86, 0.24, 1) 650ms both;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--stat-1 {
+            animation: satx-hero-stat-enter 620ms cubic-bezier(0.2, 0.86, 0.24, 1) 780ms both;
+          }
+
+          .satx-home-hero-copy[data-revealed="true"] .satx-home-copy-motion--stat-2 {
+            animation: satx-hero-stat-enter 620ms cubic-bezier(0.2, 0.86, 0.24, 1) 910ms both;
+          }
+
           @keyframes satx-feature-panel-enter {
             from {
               opacity: 0;
@@ -402,6 +492,14 @@ export const HomePage: FC = () => {
           }
 
           @media (prefers-reduced-motion: reduce) {
+            .satx-home-copy-motion {
+              animation: none !important;
+              opacity: 1;
+              transform: none;
+              filter: none;
+              clip-path: none;
+            }
+
             .satx-home-feature-panel {
               opacity: 1;
               transform: none;
@@ -444,16 +542,20 @@ export const HomePage: FC = () => {
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
         <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
-          <div className="satx-home-hero-copy max-w-3xl">
-            <h1 className="max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-5xl!">
+          <div
+            ref={heroCopyRef}
+            className="satx-home-hero-copy max-w-3xl"
+            data-revealed={isHeroCopyRevealed}
+          >
+            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-5xl!">
               Find the best tattoo artists in San Antonio, Texas.
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
+            <p className="satx-home-copy-motion satx-home-copy-motion--body mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
               Browse verified artists, discover ready-to-request flash, compare
               styles, and move from discovery to a tattoo request with less
               guesswork.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
                 className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
@@ -474,19 +576,23 @@ export const HomePage: FC = () => {
               ref={heroStatsRef}
               className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
             >
-              {heroStats.map((stat) => (
-                <div key={stat.label} className="flex min-w-0 flex-col">
+              {heroStats.map((stat, index) => (
+                <div
+                  key={stat.label}
+                  className={`satx-home-copy-motion satx-home-copy-motion--stat-${index} flex min-w-0 flex-col`}
+                >
                   <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
                     {stat.label}
                   </dt>
                   <dd className="order-1 text-xl font-semibold leading-none text-white sm:text-2xl">
                     {stat.loading ? (
                       "..."
-                    ) : heroStatsEntryCount > 0 ? (
+                    ) : heroStatsEntryCount > 0 && isHeroCopyRevealed ? (
                       <CountUp
-                        key={`${stat.label}-${heroStatsEntryCount}-${stat.value}`}
+                        key={`${stat.label}-${heroStatsEntryCount}-${isHeroCopyRevealed}-${stat.value}`}
                         end={stat.value}
                         duration={1.4}
+                        delay={0.65 + index * 0.13}
                         separator=","
                         suffix={stat.suffix}
                       />
