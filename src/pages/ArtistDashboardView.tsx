@@ -118,7 +118,24 @@ type HomepageFeatureFormState = {
   quote: string;
   imageUrl: string;
   imageAlt: string;
+  images: HomepageFeatureImage[];
 };
+
+type HomepageFeatureImage = {
+  id: string;
+  imageUrl: string;
+  thumbUrl?: string;
+  webp90Url?: string;
+  fullUrl?: string;
+  imageAlt?: string;
+  thumbPath?: string;
+  previewPath?: string;
+  fullPath?: string;
+  fileName?: string;
+  order?: number;
+};
+
+const HOMEPAGE_FEATURE_IMAGE_LIMIT = 4;
 
 const BOOKING_STATUS_FILTERS: {
   label: string;
@@ -262,6 +279,99 @@ const isValidOptionalUrl = (value: string) => {
   }
 };
 
+const getHomepageFeatureImageUrl = (image?: HomepageFeatureImage | null) =>
+  image?.webp90Url || image?.imageUrl || image?.fullUrl || image?.thumbUrl || "";
+
+const normalizeHomepageFeatureImage = (
+  value: unknown,
+  fallbackAlt = ""
+): HomepageFeatureImage | null => {
+  if (!value || typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  const imageUrl =
+    typeof record.imageUrl === "string"
+      ? record.imageUrl
+      : typeof record.webp90Url === "string"
+        ? record.webp90Url
+        : typeof record.fullUrl === "string"
+          ? record.fullUrl
+          : typeof record.thumbUrl === "string"
+            ? record.thumbUrl
+            : "";
+
+  if (!imageUrl) return null;
+
+  return {
+    id:
+      typeof record.id === "string" && record.id
+        ? record.id
+        : `feature-${Math.random().toString(36).slice(2)}`,
+    imageUrl,
+    thumbUrl: typeof record.thumbUrl === "string" ? record.thumbUrl : undefined,
+    webp90Url:
+      typeof record.webp90Url === "string" ? record.webp90Url : undefined,
+    fullUrl: typeof record.fullUrl === "string" ? record.fullUrl : undefined,
+    imageAlt:
+      typeof record.imageAlt === "string" ? record.imageAlt : fallbackAlt,
+    thumbPath:
+      typeof record.thumbPath === "string" ? record.thumbPath : undefined,
+    previewPath:
+      typeof record.previewPath === "string" ? record.previewPath : undefined,
+    fullPath: typeof record.fullPath === "string" ? record.fullPath : undefined,
+    fileName: typeof record.fileName === "string" ? record.fileName : undefined,
+    order: typeof record.order === "number" ? record.order : undefined,
+  };
+};
+
+const normalizeHomepageFeatureImages = (
+  homepageFeature: DashboardArtist["homepageFeature"],
+  fallbackAlt = ""
+) => {
+  const imageRecords = Array.isArray(homepageFeature?.images)
+    ? homepageFeature.images
+    : [];
+  const images = imageRecords
+    .map((image) => normalizeHomepageFeatureImage(image, fallbackAlt))
+    .filter((image): image is HomepageFeatureImage => Boolean(image))
+    .slice(0, HOMEPAGE_FEATURE_IMAGE_LIMIT);
+
+  if (images.length > 0) return images;
+
+  if (homepageFeature?.imageUrl) {
+    return [
+      {
+        id: "legacy-feature-image",
+        imageUrl: homepageFeature.imageUrl,
+        imageAlt: homepageFeature.imageAlt || fallbackAlt,
+      },
+    ];
+  }
+
+  return [];
+};
+
+const wait = (ms: number) =>
+  new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const waitForStorageUrl = async (
+  storagePath: string,
+  attempts = 24,
+  intervalMs = 1000
+) => {
+  const storageRef = ref(storage, storagePath);
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await getDownloadURL(storageRef);
+    } catch {
+      await wait(intervalMs);
+    }
+  }
+
+  throw new Error(`Processed image was not ready: ${storagePath}`);
+};
+
 const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
   [
     "requests",
@@ -304,42 +414,56 @@ const MOBILE_DASHBOARD_CONTENT_SCROLL_OFFSET = 154;
 
 const createProfileFormState = (
   artist: DashboardArtist | null
-): ArtistProfileFormState => ({
-  displayName: artist?.displayName || artist?.name || "",
-  email: artist?.email || "",
-  avatarUrl: artist?.avatarUrl || "",
-  bio: artist?.bio || "",
-  specialties: getCanonicalTattooStyles(artist?.specialties),
-  socialLinks: {
-    instagram: artist?.socialLinks?.instagram || "",
-    facebook: artist?.socialLinks?.facebook || "",
-    website:
-      (artist?.socialLinks as { website?: string } | undefined)?.website || "",
-  },
-  paymentType: artist?.paymentType || "internal",
-  externalPaymentDetails: {
-    method:
-      (artist as { externalPaymentDetails?: { method?: string } } | null)
-        ?.externalPaymentDetails?.method || "",
-    handle:
-      (artist as { externalPaymentDetails?: { handle?: string } } | null)
-        ?.externalPaymentDetails?.handle || "",
-  },
-  depositPolicy: {
-    amount: String(
-      (artist?.depositPolicy as { amount?: number } | undefined)?.amount ?? ""
-    ),
-    depositRequired: artist?.depositPolicy?.depositRequired ?? true,
-    nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
-  },
-  finalPaymentTiming: artist?.finalPaymentTiming || "after",
-  homepageFeature: {
-    story: artist?.homepageFeature?.story || "",
-    quote: artist?.homepageFeature?.quote || "",
-    imageUrl: artist?.homepageFeature?.imageUrl || "",
-    imageAlt: artist?.homepageFeature?.imageAlt || "",
-  },
-});
+): ArtistProfileFormState => {
+  const displayName = artist?.displayName || artist?.name || "";
+  const homepageFeatureImages = normalizeHomepageFeatureImages(
+    artist?.homepageFeature,
+    displayName
+  );
+  const primaryHomepageImage = homepageFeatureImages[0];
+
+  return {
+    displayName,
+    email: artist?.email || "",
+    avatarUrl: artist?.avatarUrl || "",
+    bio: artist?.bio || "",
+    specialties: getCanonicalTattooStyles(artist?.specialties),
+    socialLinks: {
+      instagram: artist?.socialLinks?.instagram || "",
+      facebook: artist?.socialLinks?.facebook || "",
+      website:
+        (artist?.socialLinks as { website?: string } | undefined)?.website ||
+        "",
+    },
+    paymentType: artist?.paymentType || "internal",
+    externalPaymentDetails: {
+      method:
+        (artist as { externalPaymentDetails?: { method?: string } } | null)
+          ?.externalPaymentDetails?.method || "",
+      handle:
+        (artist as { externalPaymentDetails?: { handle?: string } } | null)
+          ?.externalPaymentDetails?.handle || "",
+    },
+    depositPolicy: {
+      amount: String(
+        (artist?.depositPolicy as { amount?: number } | undefined)?.amount ?? ""
+      ),
+      depositRequired: artist?.depositPolicy?.depositRequired ?? true,
+      nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
+    },
+    finalPaymentTiming: artist?.finalPaymentTiming || "after",
+    homepageFeature: {
+      story: artist?.homepageFeature?.story || "",
+      quote: artist?.homepageFeature?.quote || "",
+      imageUrl:
+        getHomepageFeatureImageUrl(primaryHomepageImage) ||
+        artist?.homepageFeature?.imageUrl ||
+        "",
+      imageAlt: artist?.homepageFeature?.imageAlt || displayName || "",
+      images: homepageFeatureImages,
+    },
+  };
+};
 
 const ArtistDashboardView = () => {
   const [searchParams] = useSearchParams();
@@ -636,39 +760,95 @@ const ArtistDashboardView = () => {
       return;
     }
 
+    if (
+      profileForm.homepageFeature.images.length >= HOMEPAGE_FEATURE_IMAGE_LIMIT
+    ) {
+      toast.error("Remove one homepage image before uploading another.");
+      return;
+    }
+
     setIsUploadingHomepageFeatureImage(true);
 
     try {
-      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
-      const featureRef = ref(
-        storage,
-        `users/${uid}/homepage-feature/${Date.now()}-${safeName}`
-      );
+      const rawExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const ext = rawExt === "jpeg" ? "jpg" : rawExt.replace(/[^a-z0-9]/g, "");
+      const baseName = `homepage_feature_${Date.now()}`;
+      const storageBase = `users/${uid}/homepageFeature/${baseName}`;
+      const originalPath = `${storageBase}.${ext || "jpg"}`;
+      const thumbPath = `${storageBase}_thumb.webp`;
+      const previewPath = `${storageBase}_webp90.webp`;
+      const fullPath = `${storageBase}_full.jpg`;
+      const featureRef = ref(storage, originalPath);
 
       await uploadBytes(featureRef, file, {
         contentType: file.type,
       });
 
-      const imageUrl = await getDownloadURL(featureRef);
+      const [thumbUrl, webp90Url, fullUrl] = await Promise.all([
+        waitForStorageUrl(thumbPath),
+        waitForStorageUrl(previewPath),
+        waitForStorageUrl(fullPath),
+      ]);
+
+      const imageAlt =
+        profileForm.homepageFeature.imageAlt ||
+        profileForm.displayName ||
+        "Featured artist image";
+      const nextImage: HomepageFeatureImage = {
+        id: baseName,
+        imageUrl: webp90Url,
+        thumbUrl,
+        webp90Url,
+        fullUrl,
+        imageAlt,
+        thumbPath,
+        previewPath,
+        fullPath,
+        fileName: baseName,
+      };
 
       updateProfileForm((current) => ({
         ...current,
         homepageFeature: {
           ...current.homepageFeature,
-          imageUrl,
-          imageAlt:
-            current.homepageFeature.imageAlt ||
-            current.displayName ||
-            "Featured artist image",
+          imageUrl:
+            current.homepageFeature.images.length === 0
+              ? getHomepageFeatureImageUrl(nextImage)
+              : current.homepageFeature.imageUrl,
+          imageAlt: current.homepageFeature.imageAlt || imageAlt,
+          images: [...current.homepageFeature.images, nextImage].slice(
+            0,
+            HOMEPAGE_FEATURE_IMAGE_LIMIT
+          ),
         },
       }));
-      toast.success("Homepage feature image ready. Save changes to publish.");
+      toast.success(
+        "Homepage feature image processed. Save changes to publish."
+      );
     } catch (error) {
       console.error("Homepage feature image upload failed:", error);
-      toast.error("Homepage feature image upload failed.");
+      toast.error("Homepage feature image processing failed.");
     } finally {
       setIsUploadingHomepageFeatureImage(false);
     }
+  };
+
+  const handleRemoveHomepageFeatureImage = (image: HomepageFeatureImage) => {
+    updateProfileForm((current) => {
+      const images = current.homepageFeature.images.filter(
+        (item) => item.id !== image.id
+      );
+      const primaryImage = images[0];
+
+      return {
+        ...current,
+        homepageFeature: {
+          ...current.homepageFeature,
+          images,
+          imageUrl: primaryImage ? getHomepageFeatureImageUrl(primaryImage) : "",
+        },
+      };
+    });
   };
 
   const resetProfileForm = () => {
@@ -687,6 +867,29 @@ const ArtistDashboardView = () => {
     const homepageFeatureQuote = profileForm.homepageFeature.quote.trim();
     const homepageFeatureImageAlt =
       profileForm.homepageFeature.imageAlt.trim();
+    const homepageFeatureImages = profileForm.homepageFeature.images
+      .map((image, index) => {
+        const imageUrl = getHomepageFeatureImageUrl(image);
+
+        return {
+          id: image.id,
+          imageUrl,
+          ...(image.thumbUrl ? { thumbUrl: image.thumbUrl } : {}),
+          ...(image.webp90Url || image.imageUrl
+            ? { webp90Url: image.webp90Url || image.imageUrl }
+            : {}),
+          ...(image.fullUrl ? { fullUrl: image.fullUrl } : {}),
+          imageAlt: homepageFeatureImageAlt || image.imageAlt || displayName,
+          ...(image.thumbPath ? { thumbPath: image.thumbPath } : {}),
+          ...(image.previewPath ? { previewPath: image.previewPath } : {}),
+          ...(image.fullPath ? { fullPath: image.fullPath } : {}),
+          ...(image.fileName ? { fileName: image.fileName } : {}),
+          order: index,
+        };
+      })
+      .filter((image) => image.imageUrl)
+      .slice(0, HOMEPAGE_FEATURE_IMAGE_LIMIT);
+    const primaryHomepageImage = homepageFeatureImages[0];
     const nextSlug = slugify(displayName, { lower: true, strict: true });
 
     if (!displayName) {
@@ -764,8 +967,11 @@ const ArtistDashboardView = () => {
       homepageFeature: {
         story: homepageFeatureStory,
         quote: homepageFeatureQuote,
-        imageUrl: profileForm.homepageFeature.imageUrl.trim(),
+        imageUrl:
+          primaryHomepageImage?.imageUrl ||
+          profileForm.homepageFeature.imageUrl.trim(),
         imageAlt: homepageFeatureImageAlt,
+        images: homepageFeatureImages,
         updatedAt: serverTimestamp(),
       },
       profileComplete: true,
@@ -1298,6 +1504,15 @@ const ArtistDashboardView = () => {
   const activeBookingFilterLabel =
     BOOKING_STATUS_FILTERS.find((filter) => filter.value === bookingStatusFilter)
       ?.label || "All";
+  const homepageFeatureImages = profileForm.homepageFeature.images;
+  const primaryHomepageFeatureImage = homepageFeatureImages[0];
+  const primaryHomepageFeatureImageUrl = primaryHomepageFeatureImage
+    ? getHomepageFeatureImageUrl(primaryHomepageFeatureImage)
+    : profileForm.homepageFeature.imageUrl;
+  const homepageFeatureImageCount = homepageFeatureImages.length;
+  const canUploadHomepageFeatureImage =
+    homepageFeatureImageCount < HOMEPAGE_FEATURE_IMAGE_LIMIT &&
+    !isUploadingHomepageFeatureImage;
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -1605,10 +1820,25 @@ const ArtistDashboardView = () => {
                     </div>
 
                     <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
-                      <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-white/10 bg-black">
-                        {profileForm.homepageFeature.imageUrl ? (
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-100">
+                            Feature images
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {homepageFeatureImageCount}/
+                            {HOMEPAGE_FEATURE_IMAGE_LIMIT} slides ready
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                          Slider
+                        </span>
+                      </div>
+
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-black">
+                        {primaryHomepageFeatureImageUrl ? (
                           <img
-                            src={profileForm.homepageFeature.imageUrl}
+                            src={primaryHomepageFeatureImageUrl}
                             alt={
                               profileForm.homepageFeature.imageAlt ||
                               profileForm.displayName ||
@@ -1618,12 +1848,73 @@ const ArtistDashboardView = () => {
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-500">
-                            Upload a vertical or editorial image for the
-                            homepage spotlight.
+                            Upload up to four editorial images for the homepage
+                            spotlight slider.
                           </div>
                         )}
                       </div>
-                      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/25 hover:text-white">
+
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {Array.from({
+                          length: HOMEPAGE_FEATURE_IMAGE_LIMIT,
+                        }).map((_, index) => {
+                          const image = homepageFeatureImages[index];
+                          const imageUrl = image
+                            ? getHomepageFeatureImageUrl(image)
+                            : "";
+
+                          return (
+                            <div
+                              key={image?.id || `homepage-feature-empty-${index}`}
+                              className={`group relative aspect-square overflow-hidden rounded-md border ${
+                                image
+                                  ? "border-white/15 bg-black"
+                                  : "border-dashed border-white/10 bg-white/[0.035]"
+                              }`}
+                            >
+                              {image && imageUrl ? (
+                                <>
+                                  <img
+                                    src={imageUrl}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                  <span className="absolute left-1.5 top-1.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-bold text-white/80">
+                                    {index + 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleRemoveHomepageFeatureImage(
+                                        image
+                                      )
+                                    }
+                                    className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white/80 opacity-0 transition hover:bg-white hover:text-black group-hover:opacity-100"
+                                    aria-label={`Remove homepage image ${
+                                      index + 1
+                                    }`}
+                                  >
+                                    <X size={13} aria-hidden="true" />
+                                  </button>
+                                </>
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-neutral-600">
+                                  {index + 1}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <label
+                        className={`mt-3 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition ${
+                          canUploadHomepageFeatureImage
+                            ? "cursor-pointer border-white/10 text-neutral-200 hover:border-white/25 hover:text-white"
+                            : "cursor-not-allowed border-white/5 text-neutral-500"
+                        }`}
+                      >
                         {isUploadingHomepageFeatureImage ? (
                           <LoaderCircle
                             size={15}
@@ -1634,19 +1925,23 @@ const ArtistDashboardView = () => {
                           <Camera size={15} aria-hidden="true" />
                         )}
                         {isUploadingHomepageFeatureImage
-                          ? "Uploading"
-                          : "Upload image"}
+                          ? "Processing with Sharp"
+                          : homepageFeatureImageCount >=
+                              HOMEPAGE_FEATURE_IMAGE_LIMIT
+                            ? "Four-image limit reached"
+                            : "Upload image"}
                         <input
                           type="file"
                           accept="image/*"
                           className="sr-only"
-                          disabled={isUploadingHomepageFeatureImage}
+                          disabled={!canUploadHomepageFeatureImage}
                           onChange={handleHomepageFeatureFileSelect}
                         />
                       </label>
                       <p className="mt-2 text-xs leading-5 text-neutral-500">
-                        Admin controls who appears on the homepage. This content
-                        is saved to your artist profile.
+                        Admin controls who appears on the homepage. These
+                        images slide in the order shown and are saved to your
+                        artist profile.
                       </p>
                     </div>
                   </div>

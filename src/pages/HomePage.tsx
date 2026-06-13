@@ -1,6 +1,7 @@
 import {
   type FC,
   type ReactNode,
+  type TransitionEvent,
   useEffect,
   useMemo,
   useRef,
@@ -61,11 +62,22 @@ type PublicArtist = {
     quote?: string;
     imageUrl?: string;
     imageAlt?: string;
+    images?: PublicHomepageFeatureImage[];
     updatedAt?: unknown;
   };
   role?: string;
   isVerified?: boolean | "true" | "false";
 } & StripeConnectLike;
+
+type PublicHomepageFeatureImage = {
+  id?: string;
+  imageUrl?: string;
+  thumbUrl?: string | null;
+  webp90Url?: string | null;
+  fullUrl?: string | null;
+  imageAlt?: string;
+  order?: number;
+};
 
 type HomeFlash = Flash & {
   artist?: PublicArtist;
@@ -81,6 +93,12 @@ type FeaturedPreviewItem = {
   imageUrl: string;
   label: string;
   type: "flash" | "sheet";
+};
+
+type FeaturedArtistSlide = {
+  id: string;
+  url: string;
+  alt: string;
 };
 
 type ShopLookup = {
@@ -810,10 +828,7 @@ const HeroFeaturedArtistPanel = ({
     artist?.bio ||
     "A SATX Ink artist spotlight is coming soon. Until then, explore local artists, compare styles, and find the work that feels right.";
   const quote = feature?.quote?.trim();
-  const featureImage = feature?.imageUrl || artist?.avatarUrl || "";
-  const featureImageAlt =
-    feature?.imageAlt?.trim() ||
-    (artist ? `${artistName} featured artist image` : "SATX Ink artist work");
+  const featureSlides = getHomepageFeatureSlides(artist, artistName);
   const shopLabel = artist ? getArtistStudioLabel(artist) : "Featured artist";
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
   const panelVisibilityClass = isRevealed
@@ -829,7 +844,7 @@ const HeroFeaturedArtistPanel = ({
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-        <HeroFeaturedArtistImage src={featureImage} alt={featureImageAlt} />
+        <HeroFeaturedArtistImageSlider slides={featureSlides} />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.78))]" />
         <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
@@ -946,58 +961,42 @@ const HeroFeaturedArtistPanel = ({
   );
 };
 
-const HeroFeaturedArtistImage = ({
-  src,
-  alt,
+const HeroFeaturedArtistImageSlider = ({
+  slides,
 }: {
-  src: string;
-  alt: string;
+  slides: FeaturedArtistSlide[];
 }) => {
-  const [decodedSrc, setDecodedSrc] = useState("");
-  const [failed, setFailed] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isSnapping, setIsSnapping] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const slideSignature = slides.map((slide) => slide.url).join("|");
 
   useEffect(() => {
-    setDecodedSrc("");
-    setFailed(false);
+    setActiveIndex(0);
+    setIsSnapping(false);
+  }, [slideSignature]);
 
-    if (!src) return;
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
-    let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
+    syncPreference();
+    mediaQuery.addEventListener("change", syncPreference);
 
-    const markDecoded = () => {
-      if (!cancelled) setDecodedSrc(src);
-    };
+    return () => mediaQuery.removeEventListener("change", syncPreference);
+  }, []);
 
-    const markFailed = () => {
-      if (!cancelled) setFailed(true);
-    };
+  useEffect(() => {
+    if (slides.length <= 1 || prefersReducedMotion) return;
 
-    image.src = src;
+    const intervalId = window.setInterval(() => {
+      setActiveIndex((index) => (index >= slides.length ? 1 : index + 1));
+    }, 5200);
 
-    if (image.decode) {
-      image
-        .decode()
-        .then(markDecoded)
-        .catch(() => {
-          if (image.complete && image.naturalWidth > 0) {
-            markDecoded();
-          } else {
-            markFailed();
-          }
-        });
-    } else {
-      image.onload = markDecoded;
-      image.onerror = markFailed;
-    }
+    return () => window.clearInterval(intervalId);
+  }, [prefersReducedMotion, slides.length, slideSignature]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
-
-  if (!src || failed) {
+  if (slides.length === 0) {
     return (
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
         <div className="flex h-full items-center justify-center">
@@ -1007,25 +1006,116 @@ const HeroFeaturedArtistImage = ({
     );
   }
 
+  const trackSlides =
+    slides.length > 1
+      ? [...slides, { ...slides[0], id: `${slides[0].id}-loop` }]
+      : slides;
+  const activeDotIndex =
+    slides.length > 0 ? activeIndex % slides.length : activeIndex;
+
+  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (slides.length <= 1 || activeIndex < slides.length) return;
+
+    setIsSnapping(true);
+    setActiveIndex(0);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setIsSnapping(false));
+    });
+  };
+
   return (
     <>
-      <div
-        className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
-          decodedSrc ? "opacity-0" : "opacity-100"
-        }`}
-        aria-hidden="true"
-      />
-      {decodedSrc && (
-        <img
-          key={decodedSrc}
-          src={decodedSrc}
-          alt={alt}
-          className="absolute inset-0 h-full w-full object-cover opacity-[0.88] transition-opacity duration-500"
-          loading="eager"
-          decoding="async"
-        />
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="flex h-full w-full"
+          style={{
+            transform: `translate3d(-${activeIndex * 100}%, 0, 0)`,
+            transition:
+              isSnapping || prefersReducedMotion
+                ? "none"
+                : "transform 920ms cubic-bezier(0.18, 0.88, 0.22, 1)",
+            willChange: "transform",
+          }}
+          onTransitionEnd={handleTransitionEnd}
+        >
+          {trackSlides.map((slide, index) => (
+            <HeroFeaturedArtistSlideImage
+              key={`${slide.id}-${index}`}
+              slide={slide}
+              index={index}
+            />
+          ))}
+        </div>
+      </div>
+
+      {slides.length > 1 && (
+        <div className="absolute bottom-3 right-3 z-[2] flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-2 py-1 backdrop-blur">
+          {slides.map((slide, index) => (
+            <button
+              key={`${slide.id}-dot`}
+              type="button"
+              onClick={() => {
+                setIsSnapping(false);
+                setActiveIndex(index);
+              }}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                activeDotIndex === index
+                  ? "w-5 bg-white"
+                  : "w-1.5 bg-white/35 hover:bg-white/65"
+              }`}
+              aria-label={`Show featured artist image ${index + 1}`}
+            />
+          ))}
+        </div>
       )}
     </>
+  );
+};
+
+const HeroFeaturedArtistSlideImage = ({
+  slide,
+  index,
+}: {
+  slide: FeaturedArtistSlide;
+  index: number;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setFailed(false);
+  }, [slide.url]);
+
+  return (
+    <div className="relative h-full min-w-full shrink-0 overflow-hidden bg-black">
+      {failed ? (
+        <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_34%_18%,rgba(255,255,255,0.12),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018)_48%,rgba(0,0,0,0.38))]">
+          <ImageOff size={38} className="text-white/18" />
+        </div>
+      ) : (
+        <>
+          <div
+            className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
+              isLoaded ? "opacity-0" : "opacity-100"
+            }`}
+            aria-hidden="true"
+          />
+          <img
+            src={slide.url}
+            alt={slide.alt}
+            className={`h-full w-full object-cover transition duration-700 ${
+              isLoaded ? "opacity-[0.88]" : "opacity-0"
+            }`}
+            loading={index === 0 ? "eager" : "lazy"}
+            decoding="async"
+            onLoad={() => setIsLoaded(true)}
+            onError={() => setFailed(true)}
+          />
+        </>
+      )}
+    </div>
   );
 };
 
@@ -1396,6 +1486,59 @@ const getArtistStudioLabel = (artist: PublicArtist) =>
   artist.studioName ||
   getShopIdLabel(artist.shopId) ||
   "San Antonio artist";
+
+const getHomepageFeatureImageUrl = (image: PublicHomepageFeatureImage) =>
+  image.webp90Url || image.imageUrl || image.fullUrl || image.thumbUrl || "";
+
+const getHomepageFeatureSlides = (
+  artist: PublicArtist | null,
+  artistName: string
+): FeaturedArtistSlide[] => {
+  const feature = artist?.homepageFeature;
+  const fallbackAlt = artist
+    ? `${artistName} featured artist image`
+    : "SATX Ink artist work";
+  const featureAlt = feature?.imageAlt?.trim() || fallbackAlt;
+  const images = Array.isArray(feature?.images) ? [...feature.images] : [];
+  const slides = images
+    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+    .map((image, index) => {
+      const url = getHomepageFeatureImageUrl(image);
+      if (!url) return null;
+
+      return {
+        id: image.id || `homepage-feature-${index}`,
+        url,
+        alt: image.imageAlt?.trim() || featureAlt,
+      };
+    })
+    .filter((slide): slide is FeaturedArtistSlide => Boolean(slide))
+    .slice(0, 4);
+
+  if (slides.length > 0) return slides;
+
+  if (feature?.imageUrl) {
+    return [
+      {
+        id: "homepage-feature-legacy",
+        url: feature.imageUrl,
+        alt: featureAlt,
+      },
+    ];
+  }
+
+  if (artist?.avatarUrl) {
+    return [
+      {
+        id: "homepage-feature-avatar",
+        url: artist.avatarUrl,
+        alt: fallbackAlt,
+      },
+    ];
+  }
+
+  return [];
+};
 
 const getShopIdLabel = (shopId?: string) => {
   if (!shopId) return "";
