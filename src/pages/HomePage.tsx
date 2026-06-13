@@ -137,8 +137,32 @@ export const HomePage: FC = () => {
     FeaturedPreviewItem[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] =
+    useState(false);
   const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
     useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = heroImage;
+
+    const markReady = () => {
+      if (!isCancelled) setIsDesktopHeroImageReady(true);
+    };
+
+    if (image.decode) {
+      image.decode().then(markReady).catch(markReady);
+    } else {
+      image.onload = markReady;
+      image.onerror = markReady;
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -324,9 +348,23 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-hero-fixed-image {
+            position: absolute;
+            inset: -12px;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            opacity: 0;
+            filter: blur(3px);
             transform: scale(1.03);
             transform-origin: center;
             backface-visibility: hidden;
+            contain: paint;
+            transition: opacity 420ms ease;
+            will-change: opacity;
+          }
+
+          .satx-home-hero-fixed-image--ready {
+            opacity: 0.8;
           }
 
           @keyframes satx-feature-panel-enter {
@@ -373,13 +411,20 @@ export const HomePage: FC = () => {
 
       <section className="satx-home-hero relative isolate overflow-hidden bg-black pt-30 md:pt-0">
         <div
-          className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block"
+          className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden bg-black md:block"
           aria-hidden="true"
         >
-          <img
-            src={heroImage}
-            alt=""
-            className="satx-home-hero-fixed-image h-full w-full object-cover opacity-80 blur-[3px]"
+          <div
+            className={`satx-home-hero-fixed-image${
+              isDesktopHeroImageReady
+                ? " satx-home-hero-fixed-image--ready"
+                : ""
+            }`}
+            style={{
+              backgroundImage: isDesktopHeroImageReady
+                ? `url(${heroImage})`
+                : undefined,
+            }}
           />
         </div>
         <img
