@@ -141,6 +141,7 @@ export const HomePage: FC = () => {
   const [loading, setLoading] = useState(true);
   const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] =
     useState(false);
+  const [isMobileHeroImageReady, setIsMobileHeroImageReady] = useState(false);
   const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
     useState(false);
 
@@ -152,6 +153,28 @@ export const HomePage: FC = () => {
 
     const markReady = () => {
       if (!isCancelled) setIsDesktopHeroImageReady(true);
+    };
+
+    if (image.decode) {
+      image.decode().then(markReady).catch(markReady);
+    } else {
+      image.onload = markReady;
+      image.onerror = markReady;
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = heroImageMobile;
+
+    const markReady = () => {
+      if (!isCancelled) setIsMobileHeroImageReady(true);
     };
 
     if (image.decode) {
@@ -370,6 +393,26 @@ export const HomePage: FC = () => {
             opacity: 0.8;
           }
 
+          .satx-home-hero-mobile-image {
+            position: absolute;
+            inset: -12px;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            opacity: 0;
+            filter: blur(3px);
+            transform: scale(1.03);
+            transform-origin: center;
+            backface-visibility: hidden;
+            contain: paint;
+            transition: opacity 420ms ease;
+            will-change: opacity;
+          }
+
+          .satx-home-hero-mobile-image--ready {
+            opacity: 0.8;
+          }
+
           @media (min-width: 1024px) {
             .satx-home-hero-copy {
               align-self: start;
@@ -532,11 +575,23 @@ export const HomePage: FC = () => {
             }}
           />
         </div>
-        <img
-          src={heroImageMobile}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-80 blur-[3px] md:hidden"
-        />
+        <div
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-black md:hidden"
+          aria-hidden="true"
+        >
+          <div
+            className={`satx-home-hero-mobile-image${
+              isMobileHeroImageReady
+                ? " satx-home-hero-mobile-image--ready"
+                : ""
+            }`}
+            style={{
+              backgroundImage: isMobileHeroImageReady
+                ? `url(${heroImageMobile})`
+                : undefined,
+            }}
+          />
+        </div>
         <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_78%_28%,rgba(255,255,255,0.12),transparent_28%),linear-gradient(90deg,rgba(0,0,0,0.94),rgba(0,0,0,0.58),rgba(0,0,0,0.86))]" />
         <div className="absolute inset-x-0 top-0 z-[2] h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
