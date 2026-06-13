@@ -137,6 +137,8 @@ export const HomePage: FC = () => {
     FeaturedPreviewItem[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [showFeaturedArtistPanel, setShowFeaturedArtistPanel] =
+    useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -264,6 +266,19 @@ export const HomePage: FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const delay = prefersReducedMotion ? 0 : 3000;
+    const timeoutId = window.setTimeout(
+      () => setShowFeaturedArtistPanel(true),
+      delay
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   const heroStats = useMemo(
     () => [
       { label: "Styles to explore", value: featuredStyles.length, suffix: "+" },
@@ -312,6 +327,34 @@ export const HomePage: FC = () => {
             transform: scale(1.03);
             transform-origin: center;
             backface-visibility: hidden;
+          }
+
+          @keyframes satx-feature-panel-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(34px, 0, 0) scale(0.985);
+              filter: blur(8px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          .satx-home-feature-panel {
+            animation: satx-feature-panel-enter 760ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+            will-change: opacity, transform, filter;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .satx-home-feature-panel {
+              animation: none;
+              opacity: 1;
+              transform: none;
+              filter: none;
+            }
           }
         `}
       </style>
@@ -392,11 +435,18 @@ export const HomePage: FC = () => {
             </dl>
           </div>
 
-          <HeroFeaturedArtistPanel
-            artist={featuredArtist}
-            previewItems={featuredPreviewItems}
-            loading={loading}
-          />
+          {showFeaturedArtistPanel ? (
+            <HeroFeaturedArtistPanel
+              artist={featuredArtist}
+              previewItems={featuredPreviewItems}
+              loading={loading}
+            />
+          ) : (
+            <div
+              className="min-h-[640px] sm:min-h-[660px] lg:self-end"
+              aria-hidden="true"
+            />
+          )}
         </div>
       </section>
 
@@ -534,7 +584,7 @@ const HeroFeaturedArtistPanel = ({
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
 
   return (
-    <aside className="relative min-h-[640px] overflow-hidden rounded-xl  p-3 shadow-2xl shadow-black/40 backdrop-blur-sm sm:min-h-[660px] lg:self-end">
+    <aside className="satx-home-feature-panel relative min-h-[640px] overflow-hidden rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-sm sm:min-h-[660px] lg:self-end">
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
@@ -546,13 +596,13 @@ const HeroFeaturedArtistPanel = ({
         </div>
         <div className="absolute inset-x-0 bottom-0 p-4">
           <div className="max-w-md">
-            <p className="mb-2 flex items-center gap-2 text-sm font-medium text-white/65">
-              <MapPin size={15} aria-hidden="true" />
-              {shopLabel}
-            </p>
             <h2 className="text-2xl! font-semibold leading-tight text-white md:text-3xl!">
               {artist ? artistName : "Meet the next artist spotlight."}
             </h2>
+            <p className="mt-2 flex items-center gap-2 text-sm font-medium text-white/60">
+              <MapPin size={15} aria-hidden="true" />
+              <span className="truncate">{shopLabel}</span>
+            </p>
           </div>
         </div>
       </div>
@@ -635,7 +685,7 @@ const HeroFeaturedArtistPanel = ({
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex min-h-10 items-center gap-2 bg-white  rounded-md border border-white/20 bg-white/[0.09]e px-4 py-2 text-sm font-semibold  text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:bg-white/85"
             >
               View artist profile
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -643,7 +693,7 @@ const HeroFeaturedArtistPanel = ({
           ) : (
             <Link
               to="/artists"
-              className="inline-flex min-h-10 items-center gap-2  rounded-md border border-white/20 bg-white/[0.09]e px-4 py-2 text-sm font-semibold  text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
             >
               Browse local artists
               <ArrowRight size={16} className="text-white!" />
@@ -740,7 +790,7 @@ const HeroFeaturedArtistImage = ({
 
 const HeroFeaturedArtistPanelSkeleton = () => (
   <aside
-    className="relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end"
+    className="satx-home-feature-panel relative min-h-[640px] overflow-hidden rounded-xl border border-white/10 bg-[#101010]/80 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:min-h-[660px] lg:self-end"
     aria-label="Loading featured SATX artist"
   >
     <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
@@ -748,9 +798,8 @@ const HeroFeaturedArtistPanelSkeleton = () => (
     <div className="preview-loading-sheen relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
       <div className="absolute left-3 top-3 h-8 w-48 rounded-full border border-white/10 bg-black/35" />
       <div className="absolute inset-x-4 bottom-4">
-        <div className="mb-3 h-3 w-36 rounded-full bg-white/[0.09]" />
         <div className="h-8 w-3/4 rounded-md bg-white/[0.12]" />
-        <div className="mt-2 h-8 w-1/2 rounded-md bg-white/[0.09]" />
+        <div className="mt-3 h-3 w-36 rounded-full bg-white/[0.09]" />
       </div>
     </div>
 
