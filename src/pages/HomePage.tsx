@@ -939,10 +939,10 @@ const HeroFeaturedArtistPanel = ({
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-[#0b0b0b]! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:bg-white/85"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
             >
               View artist profile
-              <ArrowRight size={16} className="text-[#0b0b0b]!" />
+              <ArrowRight size={17} className="text-white" />
             </Link>
           ) : (
             <Link
