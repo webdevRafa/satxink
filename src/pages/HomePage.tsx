@@ -149,6 +149,10 @@ export const HomePage: FC = () => {
     useViewportEntry<HTMLDListElement>();
   const { targetRef: styleSectionRef, entryCount: styleSectionEntryCount } =
     useViewportEntry<HTMLDivElement>();
+  const {
+    targetRef: marketplaceSectionRef,
+    entryCount: marketplaceSectionEntryCount,
+  } = useViewportEntry<HTMLElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
   const [featuredArtist, setFeaturedArtist] = useState<PublicArtist | null>(
@@ -364,6 +368,7 @@ export const HomePage: FC = () => {
   );
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
   const isStyleSectionRevealed = styleSectionEntryCount > 0;
+  const isMarketplaceSectionRevealed = marketplaceSectionEntryCount > 0;
 
   return (
     <main className="bg-[#0d0d0d] text-white">
@@ -620,6 +625,131 @@ export const HomePage: FC = () => {
             animation-delay: var(--style-chip-delay, 560ms);
           }
 
+          @keyframes satx-market-kicker-enter {
+            from {
+              opacity: 0;
+              letter-spacing: 0.46em;
+              transform: translate3d(-20px, 12px, 0);
+              filter: blur(8px);
+            }
+
+            to {
+              opacity: 1;
+              letter-spacing: 0.22em;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-market-title-enter {
+            from {
+              opacity: 0;
+              clip-path: inset(0 100% 0 0 round 0.25rem);
+              transform: translate3d(0, 22px, 0) scale(0.985);
+              filter: blur(10px);
+            }
+
+            to {
+              opacity: 1;
+              clip-path: inset(0 0 0 0 round 0.25rem);
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-market-body-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(-18px, 14px, 0);
+              filter: blur(7px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-market-cta-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(28px, 10px, 0) scale(0.96);
+              filter: blur(7px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-market-rail-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(0, 22px, 0);
+              filter: blur(8px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-market-card-enter {
+            0% {
+              opacity: 0;
+              transform: translate3d(var(--market-card-x, 44px), 22px, 0) rotateZ(var(--market-card-tilt, 0.45deg)) scale(0.94);
+              filter: blur(11px);
+            }
+
+            64% {
+              opacity: 1;
+            }
+
+            100% {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) rotateZ(0deg) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          .satx-market-motion,
+          .satx-market-rail-motion,
+          .satx-market-card-motion {
+            opacity: 0;
+            will-change: opacity, transform, filter, clip-path;
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-motion--kicker {
+            animation: satx-market-kicker-enter 740ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-motion--title {
+            animation: satx-market-title-enter 900ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-motion--body {
+            animation: satx-market-body-enter 720ms cubic-bezier(0.2, 0.86, 0.24, 1) 390ms both;
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-motion--cta {
+            animation: satx-market-cta-enter 760ms cubic-bezier(0.18, 0.9, 0.2, 1) 520ms both;
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-rail-motion {
+            animation: satx-market-rail-enter 780ms cubic-bezier(0.18, 0.9, 0.2, 1) both;
+            animation-delay: var(--market-rail-delay, 680ms);
+          }
+
+          .satx-market-section[data-revealed="true"] .satx-market-card-motion {
+            animation: satx-market-card-enter 860ms cubic-bezier(0.18, 0.92, 0.2, 1) both;
+            animation-delay: var(--market-card-delay, 760ms);
+          }
+
           @keyframes satx-feature-panel-enter {
             from {
               opacity: 0;
@@ -657,7 +787,10 @@ export const HomePage: FC = () => {
             }
 
             .satx-style-motion,
-            .satx-style-chip-motion {
+            .satx-style-chip-motion,
+            .satx-market-motion,
+            .satx-market-rail-motion,
+            .satx-market-card-motion {
               animation: none !important;
               opacity: 1;
               transform: none;
@@ -842,17 +975,28 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="overflow-hidden bg-[#121212] z-50 relative px-5 py-18 md:px-8">
+      <section
+        ref={marketplaceSectionRef}
+        className="satx-market-section overflow-hidden bg-[#121212] z-50 relative px-5 py-18 md:px-8"
+        data-revealed={isMarketplaceSectionRevealed}
+      >
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <SectionHeader
-              kicker="Flash marketplace"
-              title="Ready-to-request work from SATX artists."
-              body="Browse individual flash pieces when you want one design, or open a full sheet when you want to explore a whole collection."
-            />
+            <div className="max-w-3xl">
+              <p className="satx-market-motion satx-market-motion--kicker text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+                Flash marketplace
+              </p>
+              <h2 className="satx-market-motion satx-market-motion--title mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+                Ready-to-request work from SATX artists.
+              </h2>
+              <p className="satx-market-motion satx-market-motion--body mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
+                Browse individual flash pieces when you want one design, or open
+                a full sheet when you want to explore a whole collection.
+              </p>
+            </div>
             <Link
               to="/flash"
-              className="inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
             >
               Browse marketplace
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -864,6 +1008,7 @@ export const HomePage: FC = () => {
             emptyLabel="No marketplace-ready flash yet."
             items={flashes}
             renderItem={(flash) => <FlashPreviewCard flash={flash} />}
+            railIndex={0}
           />
 
           <PreviewRail
@@ -872,6 +1017,7 @@ export const HomePage: FC = () => {
             items={sheets}
             reverse
             renderItem={(sheet) => <SheetPreviewCard sheet={sheet} />}
+            railIndex={1}
           />
         </div>
       </section>
@@ -902,28 +1048,6 @@ export const HomePage: FC = () => {
     </main>
   );
 };
-
-const SectionHeader = ({
-  kicker,
-  title,
-  body,
-}: {
-  kicker: string;
-  title: string;
-  body: string;
-}) => (
-  <div className="max-w-3xl">
-    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
-      {kicker}
-    </p>
-    <h2 className="mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
-      {title}
-    </h2>
-    <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-      {body}
-    </p>
-  </div>
-);
 
 const HeroFeaturedArtistPanel = ({
   artist,
@@ -1334,17 +1458,23 @@ const PreviewRail = <T,>({
   items,
   renderItem,
   reverse = false,
+  railIndex = 0,
 }: {
   title: string;
   emptyLabel: string;
   items: T[];
   renderItem: (item: T, index: number) => ReactNode;
   reverse?: boolean;
+  railIndex?: number;
 }) => {
   const trackItems = items.length > 0 ? [...items, ...items] : [];
+  const railDelay = 700 + railIndex * 280;
 
   return (
-    <div className="mt-10">
+    <div
+      className="satx-market-rail-motion mt-10"
+      style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
+    >
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-xl! font-semibold text-white">{title}</h3>
         <span className="text-sm text-white/35">
@@ -1363,7 +1493,16 @@ const PreviewRail = <T,>({
             {trackItems.map((item, index) => (
               <div
                 key={index}
-                className="flex w-[220px] shrink-0 snap-start sm:w-[240px]"
+                className="satx-market-card-motion flex w-[220px] shrink-0 snap-start sm:w-[240px]"
+                style={
+                  {
+                    "--market-card-delay": `${
+                      railDelay + 180 + (index % Math.max(items.length, 1)) * 82
+                    }ms`,
+                    "--market-card-x": reverse ? "-48px" : "48px",
+                    "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
+                  } as CSSProperties
+                }
               >
                 {renderItem(item, index)}
               </div>
