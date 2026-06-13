@@ -3093,7 +3093,8 @@ const processArtistMedia = onObjectFinalized(
       (
         !filePath.includes("/gallery/") &&
         !filePath.includes("/flashes/") &&
-        !filePath.includes("/flashSheets/")
+        !filePath.includes("/flashSheets/") &&
+        !filePath.includes("/homepageFeature/")
       ) ||
       filePath.includes("/flashSheets/flashes/")
     ) {
@@ -3108,7 +3109,7 @@ const processArtistMedia = onObjectFinalized(
     }
 
     const parts = filePath.split("/");
-    const mediaType = parts[2]; // "gallery" or "flashes"
+    const mediaType = parts[2]; // "gallery", "flashes", "flashSheets", or "homepageFeature"
     const baseName = path.basename(fileName, path.extname(fileName));
     const bucketDir = path.dirname(filePath);
     const uuid = uuidv4();
@@ -3169,6 +3170,17 @@ const processArtistMedia = onObjectFinalized(
       const thumbUrl = makeUrl(thumbPath);
       const webp90Url = makeUrl(previewPath);
       const fullUrl = makeUrl(fullPath);
+
+      if (mediaType === "homepageFeature") {
+        await bucket.file(filePath).delete().catch(() => {
+          console.log(`Could not delete original homepage feature file: ${filePath}`);
+        });
+
+        console.log(
+          `Processed homepage feature image ${fileName}: ${thumbUrl}, ${webp90Url}, ${fullUrl}.`
+        );
+        return;
+      }
 
       // Find the Firestore document created by UploadModal using fileName
       const snapshot = await db.collection(mediaType).where("fileName", "==", baseName).limit(1).get();

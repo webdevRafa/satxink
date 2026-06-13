@@ -100,19 +100,21 @@ export default function SignupSelection({
               delay={80}
               direction="up"
             >
-              <h1 className="text-3xl font-bold leading-tight text-white ">
+              <h1 className="text-2xl! md:text-3xl! font-bold leading-tight text-white ">
                 San Antonio's Tattoo Hub.
               </h1>
               <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-neutral-200! md:text-lg">
                 Built to connect tattoo ideas with the artists who can bring
                 them to life.
               </p>
-              <div className="mx-auto mt-6 inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-semibold text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur sm:text-sm">
+              <div className="mx-auto mt-6 inline-flex max-w-full items-center gap-2  px-4 py-2 text-xs font-semibold text-neutral-200  backdrop-blur sm:text-sm">
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-primary)] shadow-[0_0_14px_rgba(204,63,50,0.55)]"
                   aria-hidden="true"
                 />
-                <span>Choose whether you're signing up as a client or an artist.</span>
+                <span>
+                  Choose whether you're signing up as a client or an artist.
+                </span>
               </div>
             </ViewportReveal>
 

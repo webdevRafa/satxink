@@ -83,7 +83,7 @@ export const Footer = () => {
 
   return (
     <>
-      <footer className="border-t border-white/10 bg-[#0b0b0b] px-4 pb-20 pt-12 text-sm text-neutral-400">
+      <footer className="border-t border-white/10 bg-[#0b0b0b]/90 relative z-50 backdrop-blur-md px-4 pb-15 pt-5 text-sm text-neutral-400">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.25fr_0.75fr]">
           <section className="space-y-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">

@@ -11,11 +11,26 @@ export type SocialLinks = {
     nonRefundable: boolean;     // Artist’s preference
   };
   
+  export type HomepageFeatureImage = {
+    id: string;
+    imageUrl: string;
+    thumbUrl?: string | null;
+    webp90Url?: string | null;
+    fullUrl?: string | null;
+    imageAlt?: string;
+    thumbPath?: string | null;
+    previewPath?: string | null;
+    fullPath?: string | null;
+    fileName?: string | null;
+    order?: number;
+  };
+
   export type HomepageFeature = {
     story?: string;
     quote?: string;
     imageUrl?: string;
     imageAlt?: string;
+    images?: HomepageFeatureImage[];
     updatedAt?: Date | Timestamp | FieldValue | null;
   };
 
