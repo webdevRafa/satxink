@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type FC,
   type ReactNode,
   useEffect,
@@ -146,6 +147,8 @@ export const HomePage: FC = () => {
     useViewportEntry<HTMLDivElement>();
   const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
+  const { targetRef: styleSectionRef, entryCount: styleSectionEntryCount } =
+    useViewportEntry<HTMLDivElement>();
   const [flashes, setFlashes] = useState<HomeFlash[]>([]);
   const [sheets, setSheets] = useState<HomeFlashSheet[]>([]);
   const [featuredArtist, setFeaturedArtist] = useState<PublicArtist | null>(
@@ -360,6 +363,7 @@ export const HomePage: FC = () => {
     [flashes.length, loading, sheets.length]
   );
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
+  const isStyleSectionRevealed = styleSectionEntryCount > 0;
 
   return (
     <main className="bg-[#0d0d0d] text-white">
@@ -529,6 +533,93 @@ export const HomePage: FC = () => {
             animation: satx-hero-stat-enter 620ms cubic-bezier(0.2, 0.86, 0.24, 1) 910ms both;
           }
 
+          @keyframes satx-style-kicker-enter {
+            from {
+              opacity: 0;
+              letter-spacing: 0.42em;
+              transform: translate3d(-18px, 12px, 0);
+              filter: blur(7px);
+            }
+
+            to {
+              opacity: 1;
+              letter-spacing: 0.22em;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-style-title-enter {
+            from {
+              opacity: 0;
+              clip-path: inset(0 0 100% 0 round 0.25rem);
+              transform: translate3d(0, 24px, 0) scale(0.985);
+              filter: blur(10px);
+            }
+
+            to {
+              opacity: 1;
+              clip-path: inset(0 0 0 0 round 0.25rem);
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-style-body-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(-16px, 14px, 0);
+              filter: blur(7px);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0);
+              filter: blur(0);
+            }
+          }
+
+          @keyframes satx-style-chip-enter {
+            0% {
+              opacity: 0;
+              transform: translate3d(var(--style-chip-x, -24px), 12px, 0) scale(0.94);
+              filter: blur(9px);
+            }
+
+            58% {
+              opacity: 1;
+            }
+
+            100% {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+              filter: blur(0);
+            }
+          }
+
+          .satx-style-motion,
+          .satx-style-chip-motion {
+            opacity: 0;
+            will-change: opacity, transform, filter, clip-path;
+          }
+
+          .satx-style-section[data-revealed="true"] .satx-style-motion--kicker {
+            animation: satx-style-kicker-enter 720ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+          }
+
+          .satx-style-section[data-revealed="true"] .satx-style-motion--title {
+            animation: satx-style-title-enter 860ms cubic-bezier(0.16, 1, 0.3, 1) 190ms both;
+          }
+
+          .satx-style-section[data-revealed="true"] .satx-style-motion--body {
+            animation: satx-style-body-enter 720ms cubic-bezier(0.2, 0.86, 0.24, 1) 360ms both;
+          }
+
+          .satx-style-section[data-revealed="true"] .satx-style-chip-motion {
+            animation: satx-style-chip-enter 760ms cubic-bezier(0.18, 0.92, 0.2, 1) both;
+            animation-delay: var(--style-chip-delay, 560ms);
+          }
+
           @keyframes satx-feature-panel-enter {
             from {
               opacity: 0;
@@ -558,6 +649,15 @@ export const HomePage: FC = () => {
 
           @media (prefers-reduced-motion: reduce) {
             .satx-home-copy-motion {
+              animation: none !important;
+              opacity: 1;
+              transform: none;
+              filter: none;
+              clip-path: none;
+            }
+
+            .satx-style-motion,
+            .satx-style-chip-motion {
               animation: none !important;
               opacity: 1;
               transform: none;
@@ -696,25 +796,47 @@ export const HomePage: FC = () => {
       </section>
 
       <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
-        <div className="mx-auto max-w-7xl">
-          <SectionHeader
-            kicker="Browse by style"
-            title="Start with the look you already know you want."
-            body="Use style as a shortcut into the artist directory, then compare portfolios until something feels right."
-          />
+        <div
+          ref={styleSectionRef}
+          className="satx-style-section mx-auto max-w-7xl"
+          data-revealed={isStyleSectionRevealed}
+        >
+          <div className="max-w-3xl">
+            <p className="satx-style-motion satx-style-motion--kicker text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+              Browse by style
+            </p>
+            <h2 className="satx-style-motion satx-style-motion--title mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+              Start with the look you already know you want.
+            </h2>
+            <p className="satx-style-motion satx-style-motion--body mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
+              Use style as a shortcut into the artist directory, then compare
+              portfolios until something feels right.
+            </p>
+          </div>
+
           <div className="mt-7 flex flex-wrap gap-3">
-            {featuredStyles.map((style) => (
-              <Link
+            {featuredStyles.map((style, index) => (
+              <span
                 key={style}
-                to={`/artists?style=${encodeURIComponent(style)}`}
-                className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+                className="satx-style-chip-motion inline-flex"
+                style={
+                  {
+                    "--style-chip-delay": `${560 + index * 72}ms`,
+                    "--style-chip-x": `${index % 2 === 0 ? -28 : 28}px`,
+                  } as CSSProperties
+                }
               >
-                <Search
-                  size={15}
-                  className="text-white/35 group-hover:text-white/60"
-                />
-                {style}
-              </Link>
+                <Link
+                  to={`/artists?style=${encodeURIComponent(style)}`}
+                  className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm font-semibold text-white/70 transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)]"
+                >
+                  <Search
+                    size={15}
+                    className="text-white/35 transition group-hover:text-white/60"
+                  />
+                  {style}
+                </Link>
+              </span>
             ))}
           </div>
         </div>
