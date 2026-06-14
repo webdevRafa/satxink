@@ -111,6 +111,7 @@ const featuredStyles = FEATURED_TATTOO_STYLES;
 const HOME_FLASH_FETCH_LIMIT = 40;
 const HOME_SHEET_FETCH_LIMIT = 24;
 const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
+const loadedFeaturedArtistSlideUrls = new Set<string>();
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
@@ -1271,9 +1272,16 @@ const HeroFeaturedArtistImageSlider = ({
 
     const image = new Image();
     image.decoding = "async";
+    image.onload = () => loadedFeaturedArtistSlideUrls.add(nextSlide.url);
     image.src = nextSlide.url;
+    if (image.complete && image.naturalWidth > 0) {
+      loadedFeaturedArtistSlideUrls.add(nextSlide.url);
+    }
     if (image.decode) {
-      image.decode().catch(() => undefined);
+      image
+        .decode()
+        .then(() => loadedFeaturedArtistSlideUrls.add(nextSlide.url))
+        .catch(() => undefined);
     }
 
     if (nextSlide.previewUrl && nextSlide.previewUrl !== nextSlide.url) {
@@ -1366,13 +1374,61 @@ const HeroFeaturedArtistSlideImage = ({
   fetchPriority: "high" | "low";
   prefersReducedMotion: boolean;
 }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(() =>
+    loadedFeaturedArtistSlideUrls.has(slide.url)
+  );
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    setIsLoaded(false);
+    let isActive = true;
+    const image = new Image();
+    const markLoaded = () => {
+      loadedFeaturedArtistSlideUrls.add(slide.url);
+      if (isActive) setIsLoaded(true);
+    };
+    const markFailed = () => {
+      if (isActive) setFailed(true);
+    };
+
     setFailed(false);
-  }, [slide.url]);
+
+    if (!shouldLoad) {
+      setIsLoaded(loadedFeaturedArtistSlideUrls.has(slide.url));
+      return () => {
+        isActive = false;
+      };
+    }
+
+    if (loadedFeaturedArtistSlideUrls.has(slide.url)) {
+      setIsLoaded(true);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setIsLoaded(false);
+
+    image.decoding = "async";
+    image.onload = markLoaded;
+    image.onerror = markFailed;
+    image.src = slide.url;
+
+    if (image.complete) {
+      if (image.naturalWidth > 0) {
+        markLoaded();
+      } else {
+        markFailed();
+      }
+    } else if (image.decode) {
+      image.decode().then(markLoaded).catch(() => undefined);
+    }
+
+    return () => {
+      isActive = false;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [shouldLoad, slide.url]);
 
   const stateClassName =
     state === "active"
@@ -1412,8 +1468,12 @@ const HeroFeaturedArtistSlideImage = ({
             <img
               src={slide.previewUrl}
               alt=""
-              className={`absolute inset-0 h-full w-full scale-105 object-cover opacity-45 blur-xl transition-opacity duration-700 ${
-                isLoaded ? "opacity-0" : ""
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+                isLoaded
+                  ? "scale-105 opacity-0 blur-xl"
+                  : state === "active"
+                    ? "scale-[1.02] opacity-80 blur-sm"
+                    : "scale-105 opacity-45 blur-xl"
               }`}
               loading={loading}
               decoding="async"
