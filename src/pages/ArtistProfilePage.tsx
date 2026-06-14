@@ -35,7 +35,10 @@ import {
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  isStripeConnectReady,
+  type StripeConnectLike,
+} from "../utils/stripeConnect";
 import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
@@ -135,7 +138,10 @@ export const ArtistProfilePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
-        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
+        const clientNameParts = getClientNameParts(
+          data,
+          user.displayName || "Client"
+        );
 
         setClient({
           id: user.uid,
@@ -287,7 +293,8 @@ export const ArtistProfilePage = () => {
   const selectedItemIndex = selectedItem
     ? galleryItems.findIndex((item) => item.id === selectedItem.id)
     : -1;
-  const canNavigatePortfolio = galleryItems.length > 1 && selectedItemIndex >= 0;
+  const canNavigatePortfolio =
+    galleryItems.length > 1 && selectedItemIndex >= 0;
 
   const navigatePortfolio = (direction: SlideDirection) => {
     if (!canNavigatePortfolio) return;
@@ -382,7 +389,9 @@ export const ArtistProfilePage = () => {
           ? {
               ...current,
               likedArtists: currentlyFollowing
-                ? current.likedArtists.filter((artistId) => artistId !== artist.id)
+                ? current.likedArtists.filter(
+                    (artistId) => artistId !== artist.id
+                  )
                 : [...new Set([...current.likedArtists, artist.id])],
             }
           : current
@@ -392,7 +401,9 @@ export const ArtistProfilePage = () => {
           ? {
               ...current,
               likedBy: currentlyFollowing
-                ? (current.likedBy || []).filter((clientId) => clientId !== client.id)
+                ? (current.likedBy || []).filter(
+                    (clientId) => clientId !== client.id
+                  )
                 : [...new Set([...(current.likedBy || []), client.id])],
             }
           : current
@@ -426,7 +437,7 @@ export const ArtistProfilePage = () => {
 
   return (
     <div className="mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
-      <div className="relative mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
+      <div className="relative mx-auto mb-10 w-full overflow-hidden bg-gradient-to-b from-[#1c1c1c] to-[#121212]   p-6 shadow-lg">
         <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
             <div className="relative shrink-0">
@@ -435,16 +446,10 @@ export const ArtistProfilePage = () => {
                 alt={artistDisplayName}
                 className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
               />
-              <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-white/10">
-                Artist
-              </span>
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                Artist profile
-              </p>
-              <h1 className="mt-2 text-3xl! font-semibold text-white">
+              <h1 className="mt-2 text-3xl! font-semibold text-white mb-0!">
                 {artistDisplayName}
               </h1>
               {artistShopName &&
@@ -453,9 +458,8 @@ export const ArtistProfilePage = () => {
                     href={shop.mapLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 transition hover:text-white md:justify-start"
+                    className="mt-1 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-200 transition hover:text-white md:justify-start"
                   >
-                    <MapPin size={15} />
                     {artistShopName}
                   </a>
                 ) : (
@@ -464,11 +468,6 @@ export const ArtistProfilePage = () => {
                     {artistShopName}
                   </p>
                 ))}
-              {artist.bio && (
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
-                  {artist.bio}
-                </p>
-              )}
 
               {socialLinks.length > 0 && (
                 <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
@@ -489,16 +488,18 @@ export const ArtistProfilePage = () => {
               )}
 
               {artistStyles.length > 0 && (
-                <ul className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+                <ul className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
                   {artistStyles.map((style) => (
-                    <li
-                      key={style}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
-                    >
+                    <li key={style} className=" text-xs text-neutral-200">
                       {style}
                     </li>
                   ))}
                 </ul>
+              )}
+              {artist.bio && (
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
+                  {artist.bio}
+                </p>
               )}
             </div>
           </div>
@@ -557,12 +558,15 @@ export const ArtistProfilePage = () => {
               </button>
             </div>
           </div>
-          {activeTab === "portfolio" && !galleryLoading && galleryItems.length > 0 && (
-            <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-              <Camera size={15} />
-              {galleryItems.length} piece{galleryItems.length === 1 ? "" : "s"}
-            </span>
-          )}
+          {activeTab === "portfolio" &&
+            !galleryLoading &&
+            galleryItems.length > 0 && (
+              <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
+                <Camera size={15} />
+                {galleryItems.length} piece
+                {galleryItems.length === 1 ? "" : "s"}
+              </span>
+            )}
           {activeTab === "flashSheets" &&
             !flashSheetsLoading &&
             flashSheets.length > 0 && (
@@ -722,33 +726,31 @@ const ArtistHeaderActionCard = ({
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3 shadow-lg">
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={onRequestTattoo}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
-      >
-        <MessageCircle size={16} />
-        Request tattoo
-      </button>
-      <button
-        type="button"
-        onClick={onToggleFollow}
-        disabled={isFollowUpdating}
-        className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-3! py-2.5! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-          isFollowingArtist
-            ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
-            : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
-        }`}
-      >
-        <Heart
-          size={16}
-          className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
-        />
-        {isFollowingArtist ? "Following" : "Follow artist"}
-      </button>
-    </div>
+  <div className=" flex gap-2 absolute bottom-2 right-0 w-[500px]">
+    <button
+      type="button"
+      onClick={onRequestTattoo}
+      className="inline-flex w-full items-center justify-center gap-2 rounded-md  text-xs! font-semibold text-white bg-white/5 transition "
+    >
+      <MessageCircle size={16} />
+      Send your idea
+    </button>
+    <button
+      type="button"
+      onClick={onToggleFollow}
+      disabled={isFollowUpdating}
+      className={`inline-flex w-full items-center justify-center gap-2 rounded-md border text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        isFollowingArtist
+          ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
+          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
+      }`}
+    >
+      <Heart
+        size={16}
+        className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
+      />
+      {isFollowingArtist ? "Following" : "Follow artist"}
+    </button>
   </div>
 );
 
@@ -780,7 +782,8 @@ const getCardPreviewUrl = (item: GalleryItem) =>
 const getLightboxPreviewUrl = (item: GalleryItem) =>
   item.webp90Url || item.thumbUrl || item.fullUrl;
 
-const getSheetPreviewUrl = (sheet: FlashSheet) => sheet.thumbUrl || sheet.imageUrl;
+const getSheetPreviewUrl = (sheet: FlashSheet) =>
+  sheet.thumbUrl || sheet.imageUrl;
 
 const getFlashPreviewUrl = (flash: Flash) =>
   flash.webp90Url || flash.thumbUrl || flash.fullUrl;
@@ -815,7 +818,9 @@ const getArtistSocialLinks = (artist: Artist) =>
 
 const getExternalHref = (url: string) => {
   const trimmedUrl = url.trim();
-  return /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
+  return /^https?:\/\//i.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
 };
 
 const preloadImage = (src?: string) => {
@@ -991,9 +996,7 @@ const FlashSheetCard = ({
     onClick={onOpen}
     className={`group relative overflow-hidden rounded-xl border bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       isSelected ? "border-white/40 ring-1 ring-white/25" : "border-white/10"
-    } ${
-      priority ? "sm:col-span-2 lg:col-span-1" : ""
-    }`}
+    } ${priority ? "sm:col-span-2 lg:col-span-1" : ""}`}
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
       <FadeInImage
@@ -1301,7 +1304,6 @@ const PortfolioLightbox = ({
             <X size={18} />
           </button>
         </div>
-
       </div>
 
       <div
@@ -1515,7 +1517,9 @@ const FlashRequestModal = ({
   onClose: () => void;
 }) => {
   const [description, setDescription] = useState(
-    `I would like to request this flash design: ${flash.title || "Untitled flash"}.`
+    `I would like to request this flash design: ${
+      flash.title || "Untitled flash"
+    }.`
   );
   const [bodyPlacement, setBodyPlacement] = useState("");
   const [size, setSize] = useState("");
@@ -1544,7 +1548,9 @@ const FlashRequestModal = ({
     }
 
     if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
-      toast.error("Latest date must be the same day or after the earliest date.");
+      toast.error(
+        "Latest date must be the same day or after the earliest date."
+      );
       return;
     }
 
@@ -1674,9 +1680,7 @@ const FlashRequestModal = ({
             )}
 
             <label className="block">
-              <span className="mb-1 block text-sm text-white/70">
-                Message
-              </span>
+              <span className="mb-1 block text-sm text-white/70">Message</span>
               <textarea
                 required
                 value={description}
@@ -1750,9 +1754,7 @@ const FlashRequestModal = ({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  From
-                </span>
+                <span className="mb-1 block text-sm text-white/70">From</span>
                 <QuarterHourTimeSelect
                   value={availableTime.from}
                   onChange={(value) =>
@@ -1920,7 +1922,10 @@ const TagMarqueeModal = ({
         style={{ animationDuration: duration }}
       >
         {[...tags, ...tags].map((tag, idx) => (
-          <span key={`${tag}-${idx}`} className="mx-3 text-xs font-medium text-white">
+          <span
+            key={`${tag}-${idx}`}
+            className="mx-3 text-xs font-medium text-white"
+          >
             {tag}
           </span>
         ))}
