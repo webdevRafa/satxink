@@ -876,14 +876,14 @@ export const HomePage: FC = () => {
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 hover:bg-white/[0.14]"
               >
                 Browse artists
                 <ArrowRight size={17} className="text-white" />
               </Link>
               <Link
                 to="/flash"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/80 backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
                 Explore flash
                 <ChevronRight size={17} />
@@ -1149,12 +1149,12 @@ const HeroFeaturedArtistPanel = ({
           </div>
         </div>
 
-        <p className="mt-3 min-h-24 line-clamp-4 text-sm leading-6 text-white/[0.62]">
+        <p className="mt-1 min-h-10 line-clamp-4 text-sm leading-6 text-white/80! mb-4">
           {story}
         </p>
 
         {quote && (
-          <blockquote className="mt-2 rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <blockquote className="mt-2 rounded-lg border border-white/10 bg-white/[0.035] p-3 ">
             <div className="flex items-start gap-2">
               <Quote
                 size={16}
@@ -1183,10 +1183,13 @@ const HeroFeaturedArtistPanel = ({
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
+              className="inline-flex min-h-10 items-center gap-2  px-4 py-2 text-sm font-semibold bg-white/2 hover:bg-white/5 text-neutral-300! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition group"
             >
               View artist profile
-              <ArrowRight size={17} className="text-white" />
+              <ArrowRight
+                size={17}
+                className="text-neutral-300 group-hover:text-white"
+              />
             </Link>
           ) : (
             <Link
