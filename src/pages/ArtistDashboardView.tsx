@@ -1890,12 +1890,16 @@ const ArtistDashboardView = () => {
                                         image
                                       )
                                     }
-                                    className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white/80 opacity-0 transition hover:bg-white hover:text-black group-hover:opacity-100"
+                                    className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-red-300/35 bg-red-950/80 text-red-100 opacity-0 shadow-[0_8px_18px_rgba(0,0,0,0.35)] backdrop-blur transition hover:border-red-200/70 hover:bg-red-500 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/70 group-hover:opacity-100"
                                     aria-label={`Remove homepage image ${
                                       index + 1
                                     }`}
+                                    title={`Remove slide ${index + 1}`}
                                   >
                                     <X size={13} aria-hidden="true" />
+                                    <span className="pointer-events-none absolute right-7 top-1/2 hidden -translate-y-1/2 rounded-full border border-red-300/25 bg-red-950/90 px-2 py-0.5 text-[10px] font-semibold text-red-50 shadow-lg shadow-black/30 sm:group-hover:block">
+                                      Remove
+                                    </span>
                                   </button>
                                 </>
                               ) : (
