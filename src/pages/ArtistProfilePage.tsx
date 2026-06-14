@@ -437,19 +437,22 @@ export const ArtistProfilePage = () => {
 
   return (
     <div className="mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
-      <div className="relative mx-auto mb-10 w-full overflow-hidden bg-gradient-to-b from-[#1c1c1c] to-[#121212]   p-6 shadow-lg">
-        <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
+      <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-b from-[#1c1c1c] via-[#171717] to-[#121212] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] sm:p-6 lg:p-7">
+        <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+        <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
+          <div className="flex min-w-0 flex-col items-center gap-5 text-center md:flex-row md:items-start md:text-left">
             <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-white/5 to-transparent blur-md" />
               <img
                 src={artist.avatarUrl || "/fallback-avatar.jpg"}
                 alt={artistDisplayName}
-                className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
+                className="relative aspect-square h-32 w-32 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] md:h-40 md:w-40"
               />
             </div>
 
             <div className="min-w-0 flex-1">
-              <h1 className="mt-2 text-3xl! font-semibold text-white mb-0!">
+              <h1 className="mt-1 text-3xl! font-semibold leading-tight text-white mb-0!">
                 {artistDisplayName}
               </h1>
               {artistShopName &&
@@ -469,6 +472,19 @@ export const ArtistProfilePage = () => {
                   </p>
                 ))}
 
+              {artistStyles.length > 0 && (
+                <ul className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
+                  {artistStyles.map((style) => (
+                    <li
+                      key={style}
+                      className="inline-flex min-h-7 items-center rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-semibold text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    >
+                      {style}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {socialLinks.length > 0 && (
                 <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
                   {socialLinks.map((link) => (
@@ -487,24 +503,15 @@ export const ArtistProfilePage = () => {
                 </div>
               )}
 
-              {artistStyles.length > 0 && (
-                <ul className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
-                  {artistStyles.map((style) => (
-                    <li key={style} className=" text-xs text-neutral-200">
-                      {style}
-                    </li>
-                  ))}
-                </ul>
-              )}
               {artist.bio && (
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
+                <p className="mt-5 max-w-2xl text-sm leading-6 text-neutral-300 md:text-[15px]">
                   {artist.bio}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="w-full lg:w-[280px]">
+          <div className="w-full self-end lg:justify-self-end">
             <ArtistHeaderActionCard
               isFollowingArtist={isFollowingArtist}
               isFollowUpdating={isFollowUpdating}
@@ -726,11 +733,11 @@ const ArtistHeaderActionCard = ({
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className=" flex gap-2 absolute bottom-2 right-0 w-[500px]">
+  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[380px]">
     <button
       type="button"
       onClick={onRequestTattoo}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-md  text-xs! font-semibold text-white bg-white/5 transition "
+      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4 py-2.5 text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
     >
       <MessageCircle size={16} />
       Send your idea
@@ -739,10 +746,10 @@ const ArtistHeaderActionCard = ({
       type="button"
       onClick={onToggleFollow}
       disabled={isFollowUpdating}
-      className={`inline-flex w-full items-center justify-center gap-2 rounded-md border text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
         isFollowingArtist
           ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
-          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
+          : "border-white/10 bg-black/25 text-white hover:border-white/20 hover:bg-white/[0.08]"
       }`}
     >
       <Heart
