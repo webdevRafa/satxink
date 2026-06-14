@@ -317,6 +317,11 @@ a.bg-white svg {
     linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.022) 42%, rgba(0, 0, 0, 0.2));
 }
 
+.preview-loading-sheen--fill {
+  position: absolute;
+  inset: 0;
+}
+
 .preview-loading-sheen::before {
   content: "";
   position: absolute;

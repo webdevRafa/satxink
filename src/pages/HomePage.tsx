@@ -1422,7 +1422,7 @@ const HeroFeaturedArtistSlideImage = ({
             />
           )}
           <div
-            className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
+            className={`preview-loading-sheen preview-loading-sheen--fill transition-opacity duration-300 ${
               isLoaded ? "opacity-0" : "opacity-100"
             }`}
             aria-hidden="true"
@@ -1452,8 +1452,38 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    let isActive = true;
+    const image = new Image();
+    const markLoaded = () => {
+      if (isActive) setIsLoaded(true);
+    };
+    const markFailed = () => {
+      if (isActive) setFailed(true);
+    };
+
     setIsLoaded(false);
     setFailed(false);
+
+    image.decoding = "async";
+    image.onload = markLoaded;
+    image.onerror = markFailed;
+    image.src = item.imageUrl;
+
+    if (image.complete) {
+      if (image.naturalWidth > 0) {
+        markLoaded();
+      } else {
+        markFailed();
+      }
+    } else if (image.decode) {
+      image.decode().then(markLoaded).catch(() => undefined);
+    }
+
+    return () => {
+      isActive = false;
+      image.onload = null;
+      image.onerror = null;
+    };
   }, [item.imageUrl]);
 
   return (
@@ -1467,7 +1497,7 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
       ) : (
         <>
           <div
-            className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
+            className={`preview-loading-sheen preview-loading-sheen--fill transition-opacity duration-300 ${
               isLoaded ? "opacity-0" : "opacity-100"
             }`}
             aria-hidden="true"
@@ -1478,7 +1508,7 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
             className={`relative z-[1] h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
               isLoaded ? "opacity-[0.86] group-hover:opacity-100" : "opacity-0"
             }`}
-            loading="lazy"
+            loading="eager"
             decoding="async"
             fetchPriority="low"
             onLoad={() => setIsLoaded(true)}
