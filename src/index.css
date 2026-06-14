@@ -292,15 +292,18 @@ a.bg-white svg {
 
 @keyframes preview-loading-flow {
   0% {
-    opacity: 0.12;
-    transform: translateY(-120%);
+    opacity: 0;
+    transform: translate3d(-135%, -18%, 0) rotate(10deg);
   }
-  45% {
-    opacity: 0.42;
+  28% {
+    opacity: 0.72;
+  }
+  58% {
+    opacity: 0.3;
   }
   100% {
-    opacity: 0.12;
-    transform: translateY(120%);
+    opacity: 0;
+    transform: translate3d(135%, 18%, 0) rotate(10deg);
   }
 }
 
@@ -309,31 +312,34 @@ a.bg-white svg {
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.09), transparent 38%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.13), transparent 34%),
+    radial-gradient(circle at 82% 74%, rgba(204, 63, 50, 0.12), transparent 36%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.022) 42%, rgba(0, 0, 0, 0.2));
 }
 
 .preview-loading-sheen::before {
   content: "";
   position: absolute;
-  inset: -55% 0;
+  inset: -65% -45%;
+  z-index: 1;
   background: linear-gradient(
-    180deg,
-    transparent 18%,
-    rgba(255, 255, 255, 0.045) 38%,
-    rgba(255, 255, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.045) 62%,
-    transparent 82%
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.035) 45%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.05) 56%,
+    transparent 64%
   );
-  animation: preview-loading-flow 1.35s ease-in-out infinite;
+  animation: preview-loading-flow 1.55s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   pointer-events: none;
+  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .preview-loading-sheen::before {
     animation: none;
-    opacity: 0.35;
-    transform: translateY(0);
+    opacity: 0.22;
+    transform: translate3d(0, 0, 0) rotate(10deg);
   }
 }
 

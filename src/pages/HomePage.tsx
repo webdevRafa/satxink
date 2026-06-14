@@ -97,6 +97,7 @@ type FeaturedPreviewItem = {
 type FeaturedArtistSlide = {
   id: string;
   url: string;
+  previewUrl: string;
   alt: string;
 };
 
@@ -109,6 +110,7 @@ const featuredStyles = FEATURED_TATTOO_STYLES;
 
 const HOME_FLASH_FETCH_LIMIT = 40;
 const HOME_SHEET_FETCH_LIMIT = 24;
+const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
@@ -218,17 +220,19 @@ export const HomePage: FC = () => {
       try {
         setLoading(true);
 
-        const [flashSnapshot, sheetSnapshot] = await Promise.all([
-          getDocs(
-            query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
-          ),
-          getDocs(
-            query(collection(db, "flashSheets"), limit(HOME_SHEET_FETCH_LIMIT))
-          ),
-        ]);
-        const homepageSettingsSnap = await getDoc(
-          doc(db, "siteSettings", "homepage")
-        );
+        const [flashSnapshot, sheetSnapshot, homepageSettingsSnap] =
+          await Promise.all([
+            getDocs(
+              query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
+            ),
+            getDocs(
+              query(
+                collection(db, "flashSheets"),
+                limit(HOME_SHEET_FETCH_LIMIT)
+              )
+            ),
+            getDoc(doc(db, "siteSettings", "homepage")),
+          ]);
         const homepageSettings = homepageSettingsSnap.data();
         const featuredArtistId =
           typeof homepageSettings?.featuredArtistId === "string"
@@ -1060,18 +1064,22 @@ const HeroFeaturedArtistPanel = ({
   loading: boolean;
   isRevealed: boolean;
 }) => {
+  const artistName = getArtistName(artist || undefined);
+  const featureSlides = useMemo(
+    () => getHomepageFeatureSlides(artist, artistName),
+    [artist, artistName]
+  );
+
   if (loading) {
     return <HeroFeaturedArtistPanelSkeleton isRevealed={isRevealed} />;
   }
 
-  const artistName = getArtistName(artist || undefined);
   const feature = artist?.homepageFeature;
   const story =
     feature?.story?.trim() ||
     artist?.bio ||
     "A SATX Ink artist spotlight is coming soon. Until then, explore local artists, compare styles, and find the work that feels right.";
   const quote = feature?.quote?.trim();
-  const featureSlides = getHomepageFeatureSlides(artist, artistName);
   const shopLabel = artist ? getArtistStudioLabel(artist) : "Featured artist";
   const visibleStyles = artist?.specialties?.filter(Boolean).slice(0, 4) || [];
   const panelVisibilityClass = isRevealed
@@ -1101,7 +1109,8 @@ const HeroFeaturedArtistPanel = ({
                   src={artist.avatarUrl}
                   alt={artistName}
                   className="h-10 md:h-11 w-10 md:w-11 shrink-0 rounded-full border border-white/15 object-cover"
-                  loading="lazy"
+                  loading="eager"
+                  decoding="async"
                 />
               )}
               <div className="flex flex-col gap-0">
@@ -1162,22 +1171,10 @@ const HeroFeaturedArtistPanel = ({
         {previewItems.length > 0 && (
           <div className="mt-0! grid grid-cols-4 gap-2">
             {previewItems.map((item) => (
-              <Link
+              <HeroFeaturedPreviewTile
                 key={`${item.type}-${item.id}`}
-                to={item.href}
-                className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-black"
-                aria-label={item.label}
-              >
-                <img
-                  src={item.imageUrl}
-                  alt=""
-                  className="h-full w-full object-cover opacity-[0.82] transition duration-500 group-hover:scale-105 group-hover:opacity-100"
-                  loading="lazy"
-                />
-                <span className="absolute bottom-1 left-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white/75">
-                  {item.type}
-                </span>
-              </Link>
+                item={item}
+              />
             ))}
           </div>
         )}
@@ -1213,12 +1210,20 @@ const HeroFeaturedArtistImageSlider = ({
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [previousIndex, setPreviousIndex] = useState<number | null>(null);
+  const [autoSlideResetKey, setAutoSlideResetKey] = useState(0);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const slideSignature = slides.map((slide) => slide.url).join("|");
+  const slideSignature = useMemo(
+    () => slides.map((slide) => slide.url).join("|"),
+    [slides]
+  );
+  const nextIndex =
+    slides.length > 1 ? (activeIndex + 1) % slides.length : activeIndex;
+  const nextSlide = slides[nextIndex];
 
   useEffect(() => {
     setActiveIndex(0);
     setPreviousIndex(null);
+    setAutoSlideResetKey((key) => key + 1);
   }, [slideSignature]);
 
   useEffect(() => {
@@ -1242,15 +1247,38 @@ const HeroFeaturedArtistImageSlider = ({
   useEffect(() => {
     if (slides.length <= 1 || prefersReducedMotion) return;
 
-    const intervalId = window.setInterval(() => {
+    const timeoutId = window.setTimeout(() => {
       setActiveIndex((index) => {
         setPreviousIndex(index);
         return (index + 1) % slides.length;
       });
-    }, 5200);
+    }, HERO_FEATURED_ARTIST_SLIDE_DELAY_MS);
 
-    return () => window.clearInterval(intervalId);
-  }, [prefersReducedMotion, slides.length, slideSignature]);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    activeIndex,
+    autoSlideResetKey,
+    prefersReducedMotion,
+    slides.length,
+    slideSignature,
+  ]);
+
+  useEffect(() => {
+    if (!nextSlide || slides.length <= 1) return;
+
+    const image = new Image();
+    image.decoding = "async";
+    image.src = nextSlide.url;
+    if (image.decode) {
+      image.decode().catch(() => undefined);
+    }
+
+    if (nextSlide.previewUrl && nextSlide.previewUrl !== nextSlide.url) {
+      const previewImage = new Image();
+      previewImage.decoding = "async";
+      previewImage.src = nextSlide.previewUrl;
+    }
+  }, [nextSlide, slides.length]);
 
   if (slides.length === 0) {
     return (
@@ -1263,29 +1291,40 @@ const HeroFeaturedArtistImageSlider = ({
   }
 
   const showSlide = (nextIndex: number) => {
-    if (nextIndex === activeIndex) return;
+    setAutoSlideResetKey((key) => key + 1);
+    setActiveIndex((currentIndex) => {
+      if (nextIndex === currentIndex) return currentIndex;
 
-    setPreviousIndex(activeIndex);
-    setActiveIndex(nextIndex);
+      setPreviousIndex(currentIndex);
+      return nextIndex;
+    });
   };
 
   return (
     <>
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        {slides.map((slide, index) => (
-          <HeroFeaturedArtistSlideImage
-            key={slide.id}
-            slide={slide}
-            state={
-              index === activeIndex
-                ? "active"
-                : index === previousIndex
-                ? "previous"
-                : "hidden"
-            }
-            prefersReducedMotion={prefersReducedMotion}
-          />
-        ))}
+        {slides.map((slide, index) => {
+          const state =
+            index === activeIndex
+              ? "active"
+              : index === previousIndex
+              ? "previous"
+              : "hidden";
+
+          return (
+            <HeroFeaturedArtistSlideImage
+              key={slide.id}
+              slide={slide}
+              state={state}
+              shouldLoad={
+                state !== "hidden" || index === nextIndex || slides.length <= 2
+              }
+              loading={index === activeIndex ? "eager" : "lazy"}
+              fetchPriority={index === activeIndex ? "high" : "low"}
+              prefersReducedMotion={prefersReducedMotion}
+            />
+          );
+        })}
       </div>
 
       {slides.length > 1 && (
@@ -1312,10 +1351,16 @@ const HeroFeaturedArtistImageSlider = ({
 const HeroFeaturedArtistSlideImage = ({
   slide,
   state,
+  shouldLoad,
+  loading,
+  fetchPriority,
   prefersReducedMotion,
 }: {
   slide: FeaturedArtistSlide;
   state: "active" | "previous" | "hidden";
+  shouldLoad: boolean;
+  loading: "eager" | "lazy";
+  fetchPriority: "high" | "low";
   prefersReducedMotion: boolean;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -1360,6 +1405,64 @@ const HeroFeaturedArtistSlideImage = ({
         </div>
       ) : (
         <>
+          {shouldLoad && slide.previewUrl && slide.previewUrl !== slide.url && (
+            <img
+              src={slide.previewUrl}
+              alt=""
+              className={`absolute inset-0 h-full w-full scale-105 object-cover opacity-45 blur-xl transition-opacity duration-700 ${
+                isLoaded ? "opacity-0" : ""
+              }`}
+              loading={loading}
+              decoding="async"
+              fetchPriority="low"
+              aria-hidden="true"
+            />
+          )}
+          <div
+            className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
+              isLoaded ? "opacity-0" : "opacity-100"
+            }`}
+            aria-hidden="true"
+          />
+          {shouldLoad && (
+            <img
+              src={slide.url}
+              alt={slide.alt}
+              className={`relative z-[1] h-full w-full object-cover transition duration-700 ${
+                isLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              loading={loading}
+              decoding="async"
+              fetchPriority={fetchPriority}
+              onLoad={() => setIsLoaded(true)}
+              onError={() => setFailed(true)}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setFailed(false);
+  }, [item.imageUrl]);
+
+  return (
+    <Link
+      to={item.href}
+      className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-[#080808]"
+      aria-label={item.label}
+    >
+      {failed ? (
+        <MissingImage />
+      ) : (
+        <>
           <div
             className={`preview-loading-sheen absolute inset-0 transition-opacity duration-300 ${
               isLoaded ? "opacity-0" : "opacity-100"
@@ -1367,19 +1470,23 @@ const HeroFeaturedArtistSlideImage = ({
             aria-hidden="true"
           />
           <img
-            src={slide.url}
-            alt={slide.alt}
-            className={`h-full w-full object-cover transition duration-700 ${
-              isLoaded ? "opacity-100" : "opacity-0"
+            src={item.imageUrl}
+            alt=""
+            className={`relative z-[1] h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
+              isLoaded ? "opacity-[0.86] group-hover:opacity-100" : "opacity-0"
             }`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
+            fetchPriority="low"
             onLoad={() => setIsLoaded(true)}
             onError={() => setFailed(true)}
           />
         </>
       )}
-    </div>
+      <span className="absolute bottom-1 left-1 z-[2] rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white/75">
+        {item.type}
+      </span>
+    </Link>
   );
 };
 
@@ -1667,17 +1774,17 @@ const getFeaturedPreviewItems = (
 const fetchArtistsById = async (artistIds: string[]) => {
   const artistsById: Record<string, PublicArtist> = {};
   const chunks = chunkArray(artistIds, 10);
+  const snapshots = await Promise.all(
+    chunks
+      .filter((chunk) => chunk.length > 0)
+      .map((chunk) =>
+        getDocs(
+          query(collection(db, "users"), where(documentId(), "in", chunk))
+        )
+      )
+  );
 
-  for (const chunk of chunks) {
-    if (!chunk.length) continue;
-
-    const artistsQuery = query(
-      collection(db, "users"),
-      where(documentId(), "in", chunk)
-    );
-
-    const snapshot = await getDocs(artistsQuery);
-
+  snapshots.forEach((snapshot) => {
     snapshot.docs.forEach((artistDoc) => {
       const artist = {
         id: artistDoc.id,
@@ -1688,7 +1795,7 @@ const fetchArtistsById = async (artistIds: string[]) => {
         artistsById[artistDoc.id] = artist;
       }
     });
-  }
+  });
 
   const shopsById = await fetchShopsById(
     Array.from(
@@ -1716,16 +1823,17 @@ const fetchArtistsById = async (artistIds: string[]) => {
 const fetchShopsById = async (shopIds: string[]) => {
   const shopsById: Record<string, ShopLookup> = {};
   const chunks = chunkArray(shopIds, 10);
+  const snapshots = await Promise.all(
+    chunks
+      .filter((chunk) => chunk.length > 0)
+      .map((chunk) =>
+        getDocs(
+          query(collection(db, "shops"), where(documentId(), "in", chunk))
+        )
+      )
+  );
 
-  for (const chunk of chunks) {
-    if (!chunk.length) continue;
-
-    const shopsQuery = query(
-      collection(db, "shops"),
-      where(documentId(), "in", chunk)
-    );
-    const snapshot = await getDocs(shopsQuery);
-
+  snapshots.forEach((snapshot) => {
     snapshot.docs.forEach((shopDoc) => {
       const data = shopDoc.data();
       shopsById[shopDoc.id] = {
@@ -1733,7 +1841,7 @@ const fetchShopsById = async (shopIds: string[]) => {
         name: typeof data.name === "string" ? data.name : undefined,
       };
     });
-  }
+  });
 
   return shopsById;
 };
@@ -1769,6 +1877,9 @@ const getArtistStudioLabel = (artist: PublicArtist) =>
 const getHomepageFeatureImageUrl = (image: PublicHomepageFeatureImage) =>
   image.webp90Url || image.imageUrl || image.fullUrl || image.thumbUrl || "";
 
+const getHomepageFeaturePreviewUrl = (image: PublicHomepageFeatureImage) =>
+  image.thumbUrl || image.webp90Url || image.imageUrl || image.fullUrl || "";
+
 const getHomepageFeatureSlides = (
   artist: PublicArtist | null,
   artistName: string
@@ -1788,6 +1899,7 @@ const getHomepageFeatureSlides = (
       return {
         id: image.id || `homepage-feature-${index}`,
         url,
+        previewUrl: getHomepageFeaturePreviewUrl(image),
         alt: image.imageAlt?.trim() || featureAlt,
       };
     })
@@ -1801,6 +1913,7 @@ const getHomepageFeatureSlides = (
       {
         id: "homepage-feature-legacy",
         url: feature.imageUrl,
+        previewUrl: feature.imageUrl,
         alt: featureAlt,
       },
     ];
@@ -1811,6 +1924,7 @@ const getHomepageFeatureSlides = (
       {
         id: "homepage-feature-avatar",
         url: artist.avatarUrl,
+        previewUrl: artist.avatarUrl,
         alt: fallbackAlt,
       },
     ];
