@@ -434,185 +434,200 @@ export const ArtistProfilePage = () => {
     ? artist.specialties.filter(Boolean)
     : [];
   const socialLinks = getArtistSocialLinks(artist);
+  const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
 
   return (
-    <div className="mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
-      <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-b from-[#1c1c1c] via-[#171717] to-[#121212] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] sm:p-6 lg:p-7">
-        <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+    <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
+      {profileBackdropUrl && (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#0d0d0d]">
+          <div
+            className="absolute inset-[-10%] bg-cover bg-center opacity-[0.18] blur-[34px] saturate-[0.9]"
+            style={{ backgroundImage: `url(${profileBackdropUrl})` }}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 bg-[#0d0d0d]/82" />
+          <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-black/55 to-transparent" />
+        </div>
+      )}
 
-        <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
-          <div className="flex min-w-0 flex-col items-center gap-5 text-center md:flex-row md:items-start md:text-left">
-            <div className="relative shrink-0">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-white/5 to-transparent blur-md" />
-              <img
-                src={artist.avatarUrl || "/fallback-avatar.jpg"}
-                alt={artistDisplayName}
-                className="relative aspect-square h-32 w-32 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] md:h-40 md:w-40"
-              />
-            </div>
+      <div className="relative z-10">
+        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-b from-[#1c1c1c]/95 via-[#171717]/95 to-[#121212]/95 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-sm sm:p-6 lg:p-7">
+          <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-            <div className="min-w-0 flex-1">
-              <h1 className="mt-1 text-3xl! font-semibold leading-tight text-white mb-0!">
-                {artistDisplayName}
-              </h1>
-              {artistShopName &&
-                (shop?.mapLink ? (
-                  <a
-                    href={shop.mapLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-200 transition hover:text-white md:justify-start"
-                  >
-                    {artistShopName}
-                  </a>
-                ) : (
-                  <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
-                    <MapPin size={15} />
-                    {artistShopName}
-                  </p>
-                ))}
+          <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
+            <div className="flex min-w-0 flex-col items-center gap-5 text-center md:flex-row md:items-start md:text-left">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-white/5 to-transparent blur-md" />
+                <img
+                  src={artist.avatarUrl || "/fallback-avatar.jpg"}
+                  alt={artistDisplayName}
+                  className="relative aspect-square h-32 w-32 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] md:h-40 md:w-40"
+                />
+              </div>
 
-              {artistStyles.length > 0 && (
-                <ul className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
-                  {artistStyles.map((style) => (
-                    <li
-                      key={style}
-                      className="inline-flex min-h-7 items-center rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-semibold text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                    >
-                      {style}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {socialLinks.length > 0 && (
-                <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-                  {socialLinks.map((link) => (
+              <div className="min-w-0 flex-1">
+                <h1 className="mt-1 text-3xl! font-semibold leading-tight text-white mb-0!">
+                  {artistDisplayName}
+                </h1>
+                {artistShopName &&
+                  (shop?.mapLink ? (
                     <a
-                      key={link.label}
-                      href={link.href}
+                      href={shop.mapLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={link.label}
-                      title={link.label}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                      className="mt-1 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-200 transition hover:text-white md:justify-start"
                     >
-                      {link.icon}
+                      {artistShopName}
                     </a>
+                  ) : (
+                    <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
+                      <MapPin size={15} />
+                      {artistShopName}
+                    </p>
                   ))}
-                </div>
-              )}
 
-              {artist.bio && (
-                <p className="mt-5 max-w-2xl text-sm leading-6 text-neutral-300 md:text-[15px]">
-                  {artist.bio}
-                </p>
-              )}
+                {artistStyles.length > 0 && (
+                  <ul className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
+                    {artistStyles.map((style) => (
+                      <li
+                        key={style}
+                        className="inline-flex min-h-7 items-center rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-semibold text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                      >
+                        {style}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {socialLinks.length > 0 && (
+                  <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
+                    {socialLinks.map((link) => (
+                      <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={link.label}
+                        title={link.label}
+                        className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
+                      >
+                        {link.icon}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {artist.bio && (
+                  <p className="mt-5 max-w-2xl text-sm leading-6 text-neutral-300 md:text-[15px]">
+                    {artist.bio}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="w-full self-end lg:justify-self-end">
+              <ArtistHeaderActionCard
+                isFollowingArtist={isFollowingArtist}
+                isFollowUpdating={isFollowUpdating}
+                onRequestTattoo={handleRequestTattoo}
+                onToggleFollow={handleToggleFollow}
+              />
             </div>
           </div>
+        </div>
 
-          <div className="w-full self-end lg:justify-self-end">
-            <ArtistHeaderActionCard
-              isFollowingArtist={isFollowingArtist}
-              isFollowUpdating={isFollowUpdating}
-              onRequestTattoo={handleRequestTattoo}
-              onToggleFollow={handleToggleFollow}
+        <div className="mt-10">
+          <div
+            data-aos="fade-up"
+            className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+          >
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-2">
+                Recent work
+              </p>
+              <div
+                className="flex flex-wrap items-center gap-3"
+                role="tablist"
+                aria-label="Artist work"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "portfolio"}
+                  onClick={() => setActiveTab("portfolio")}
+                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                    activeTab === "portfolio"
+                      ? "text-white"
+                      : "text-white/40 hover:text-white/75"
+                  }`}
+                >
+                  Portfolio
+                </button>
+                <span className="h-6 w-px bg-white/15" />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "flashSheets"}
+                  onClick={() => setActiveTab("flashSheets")}
+                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                    activeTab === "flashSheets"
+                      ? "text-white"
+                      : "text-white/40 hover:text-white/75"
+                  }`}
+                >
+                  Flash Sheets
+                </button>
+              </div>
+            </div>
+            {activeTab === "portfolio" &&
+              !galleryLoading &&
+              galleryItems.length > 0 && (
+                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
+                  <Camera size={15} />
+                  {galleryItems.length} piece
+                  {galleryItems.length === 1 ? "" : "s"}
+                </span>
+              )}
+            {activeTab === "flashSheets" &&
+              !flashSheetsLoading &&
+              flashSheets.length > 0 && (
+                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
+                  <Layers size={15} />
+                  {flashSheets.length} sheet
+                  {flashSheets.length === 1 ? "" : "s"}
+                </span>
+              )}
+          </div>
+
+          {activeTab === "portfolio" ? (
+            <PortfolioPanel
+              galleryItems={galleryItems}
+              galleryLoading={galleryLoading}
+              onOpenItem={openPortfolioItem}
             />
-          </div>
+          ) : (
+            <FlashSheetsPanel
+              flashSheets={flashSheets}
+              flashSheetsLoading={flashSheetsLoading}
+              focusedSheetId={focusedSheet?.id}
+              onOpenSheet={handleSelectSheet}
+            />
+          )}
+
+          {activeTab === "flashSheets" && focusedSheet && (
+            <FlashSheetItemsSection
+              sheet={focusedSheet}
+              flashes={sheetFlashes}
+              loading={sheetFlashesLoading}
+              onClose={() => {
+                setFocusedSheet(null);
+                setSheetFlashes([]);
+              }}
+              onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+              onSelectFlash={setSelectedFlash}
+            />
+          )}
         </div>
-      </div>
-
-      <div className="mt-10">
-        <div
-          data-aos="fade-up"
-          className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-        >
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-2">
-              Recent work
-            </p>
-            <div
-              className="flex flex-wrap items-center gap-3"
-              role="tablist"
-              aria-label="Artist work"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "portfolio"}
-                onClick={() => setActiveTab("portfolio")}
-                className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                  activeTab === "portfolio"
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/75"
-                }`}
-              >
-                Portfolio
-              </button>
-              <span className="h-6 w-px bg-white/15" />
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "flashSheets"}
-                onClick={() => setActiveTab("flashSheets")}
-                className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                  activeTab === "flashSheets"
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/75"
-                }`}
-              >
-                Flash Sheets
-              </button>
-            </div>
-          </div>
-          {activeTab === "portfolio" &&
-            !galleryLoading &&
-            galleryItems.length > 0 && (
-              <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                <Camera size={15} />
-                {galleryItems.length} piece
-                {galleryItems.length === 1 ? "" : "s"}
-              </span>
-            )}
-          {activeTab === "flashSheets" &&
-            !flashSheetsLoading &&
-            flashSheets.length > 0 && (
-              <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                <Layers size={15} />
-                {flashSheets.length} sheet
-                {flashSheets.length === 1 ? "" : "s"}
-              </span>
-            )}
-        </div>
-
-        {activeTab === "portfolio" ? (
-          <PortfolioPanel
-            galleryItems={galleryItems}
-            galleryLoading={galleryLoading}
-            onOpenItem={openPortfolioItem}
-          />
-        ) : (
-          <FlashSheetsPanel
-            flashSheets={flashSheets}
-            flashSheetsLoading={flashSheetsLoading}
-            focusedSheetId={focusedSheet?.id}
-            onOpenSheet={handleSelectSheet}
-          />
-        )}
-
-        {activeTab === "flashSheets" && focusedSheet && (
-          <FlashSheetItemsSection
-            sheet={focusedSheet}
-            flashes={sheetFlashes}
-            loading={sheetFlashesLoading}
-            onClose={() => {
-              setFocusedSheet(null);
-              setSheetFlashes([]);
-            }}
-            onPreviewSheet={() => setSelectedSheet(focusedSheet)}
-            onSelectFlash={setSelectedFlash}
-          />
-        )}
       </div>
 
       {selectedItem && (
@@ -785,6 +800,9 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
 
 const getCardPreviewUrl = (item: GalleryItem) =>
   item.thumbUrl || item.webp90Url || item.fullUrl;
+
+const getProfileBackdropUrl = (item?: GalleryItem) =>
+  item?.thumbUrl || item?.webp90Url || "";
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
   item.webp90Url || item.thumbUrl || item.fullUrl;
