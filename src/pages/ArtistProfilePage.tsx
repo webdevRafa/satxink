@@ -451,86 +451,79 @@ export const ArtistProfilePage = () => {
       )}
 
       <div className="relative z-10">
-        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-white/2   shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md p-5">
+        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-5 lg:mb-10">
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-          <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
-            <div className="flex min-w-0 flex-col items-center gap-5 text-center md:flex-row md:items-start md:text-left">
+          <div className="relative z-10 grid gap-5 lg:min-h-[152px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-center">
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5">
               <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-white/5 to-transparent blur-md" />
                 <img
                   src={artist.avatarUrl || "/fallback-avatar.jpg"}
                   alt={artistDisplayName}
-                  className="relative aspect-square h-32 w-32 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] md:h-40 md:w-40"
+                  className="relative aspect-square h-20 w-20 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] sm:h-32 sm:w-32 md:h-40 md:w-40"
                 />
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="">
-                  <div>
-                    {/* flex artist name and ig icon */}
-                    <div className="flex gap-1 mb-0! ">
-                      <h1 className="mt-0 text-3xl!   text-white mb-0!">
-                        {artistDisplayName}
-                      </h1>
-                      {socialLinks.length > 0 && (
-                        <div className="mt-0 flex flex-wrap justify-center gap-1 md:justify-start">
-                          {socialLinks.map((link) => (
-                            <a
-                              key={link.label}
-                              href={link.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={link.label}
-                              title={link.label}
-                              className="flex  items-center h-8 w-8 justify-center rounded-md   text-white hover:bg-white/5 transition ease-in-out duration-300 hover:border-white/25 "
-                            >
-                              {link.icon}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {artistShopName &&
-                      (shop?.mapLink ? (
-                        <a
-                          href={shop.mapLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-0!  text-sm! text-neutral-100 transition hover:text-white "
-                        >
-                          {artistShopName}
-                        </a>
-                      ) : (
-                        <p className="mt-0! inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
-                          <MapPin size={15} />
-                          {artistShopName}
-                        </p>
-                      ))}
-                    {artistStyles.length > 0 && (
-                      <ul className="mt-0! flex gap-5">
-                        {artistStyles.map((style) => (
-                          <li
-                            key={style}
-                            className="inline-flex items-center rounded-full  text-[11px] font-semibold text-neutral-400 "
+              <div className="min-w-0 flex-1 pt-0.5 text-left sm:pt-2 md:pt-4">
+                <div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <h1 className="min-w-0 break-words text-2xl! font-semibold leading-tight text-white sm:text-3xl!">
+                      {artistDisplayName}
+                    </h1>
+                    {socialLinks.length > 0 && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-1">
+                        {socialLinks.map((link) => (
+                          <a
+                            key={link.label}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={link.label}
+                            title={link.label}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-white transition duration-300 ease-in-out hover:bg-white/5 hover:text-white/80"
                           >
-                            {style}
-                          </li>
+                            {link.icon}
+                          </a>
                         ))}
-                      </ul>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                {artist.bio && (
-                  <p className="mt-5 max-w-2xl text-sm leading-6 text-neutral-300 md:text-[15px]">
-                    {artist.bio}
-                  </p>
-                )}
+                  {artistShopName &&
+                    (shop?.mapLink ? (
+                      <a
+                        href={shop.mapLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 inline-flex text-sm! font-medium leading-5 text-neutral-200 transition hover:text-white"
+                      >
+                        {artistShopName}
+                      </a>
+                    ) : (
+                      <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm! font-medium leading-5 text-neutral-300">
+                        <MapPin size={14} />
+                        {artistShopName}
+                      </p>
+                    ))}
+
+                  {artistStyles.length > 0 && (
+                    <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 sm:mt-2">
+                      {artistStyles.map((style) => (
+                        <li
+                          key={style}
+                          className="inline-flex items-center rounded-full text-[11px] font-semibold leading-4 text-neutral-400"
+                        >
+                          {style}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="w-full self-end lg:justify-self-end">
+            <div className="w-full lg:justify-self-end">
               <ArtistHeaderActionCard
                 isFollowingArtist={isFollowingArtist}
                 isFollowUpdating={isFollowUpdating}
@@ -750,20 +743,21 @@ const ArtistHeaderActionCard = ({
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[380px]">
+  <div className="grid w-full grid-cols-2 gap-2 lg:w-[380px]">
     <button
       type="button"
       onClick={onRequestTattoo}
-      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4 py-2.5 text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
+      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.8rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
     >
       <MessageCircle size={16} />
-      Send your idea
+      <span className="sm:hidden">Send idea</span>
+      <span className="hidden sm:inline">Send your idea</span>
     </button>
     <button
       type="button"
       onClick={onToggleFollow}
       disabled={isFollowUpdating}
-      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.8rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
         isFollowingArtist
           ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
           : "border-white/10 bg-black/25 text-white hover:border-white/20 hover:bg-white/[0.08]"
@@ -773,7 +767,14 @@ const ArtistHeaderActionCard = ({
         size={16}
         className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
       />
-      {isFollowingArtist ? "Following" : "Follow artist"}
+      {isFollowingArtist ? (
+        "Following"
+      ) : (
+        <>
+          <span className="sm:hidden">Follow</span>
+          <span className="hidden sm:inline">Follow artist</span>
+        </>
+      )}
     </button>
   </div>
 );
