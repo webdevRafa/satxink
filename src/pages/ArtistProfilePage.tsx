@@ -313,16 +313,20 @@ export const ArtistProfilePage = () => {
   const canNavigatePortfolio =
     galleryItems.length > 1 && selectedItemIndex >= 0;
 
-  const navigatePortfolio = useCallback((direction: SlideDirection) => {
-    if (!canNavigatePortfolio) return;
+  const navigatePortfolio = useCallback(
+    (direction: SlideDirection) => {
+      if (!canNavigatePortfolio) return;
 
-    const offset = direction === "next" ? 1 : -1;
-    const nextIndex =
-      (selectedItemIndex + offset + galleryItems.length) % galleryItems.length;
+      const offset = direction === "next" ? 1 : -1;
+      const nextIndex =
+        (selectedItemIndex + offset + galleryItems.length) %
+        galleryItems.length;
 
-    setSlideDirection(direction);
-    setSelectedItem(galleryItems[nextIndex]);
-  }, [canNavigatePortfolio, galleryItems, selectedItemIndex]);
+      setSlideDirection(direction);
+      setSelectedItem(galleryItems[nextIndex]);
+    },
+    [canNavigatePortfolio, galleryItems, selectedItemIndex]
+  );
 
   const openPortfolioItem = (item: GalleryItem) => {
     setSlideDirection("next");
@@ -811,7 +815,7 @@ const ArtistHeaderActionCard = ({
       type="button"
       onClick={onRequestTattoo}
       disabled={isDisabled}
-      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.8rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
+      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.7rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
     >
       <MessageCircle size={16} />
       <span className="sm:hidden">Send idea</span>
@@ -821,7 +825,7 @@ const ArtistHeaderActionCard = ({
       type="button"
       onClick={onToggleFollow}
       disabled={isDisabled || isFollowUpdating}
-      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.8rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
+      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.7rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
         isFollowingArtist
           ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
           : "border-white/10 bg-black/25 text-white hover:border-white/20 hover:bg-white/[0.08]"
@@ -836,7 +840,7 @@ const ArtistHeaderActionCard = ({
       ) : (
         <>
           <span className="sm:hidden">Follow</span>
-          <span className="hidden sm:inline">Follow artist</span>
+          <span className="hidden sm:inline">Follow</span>
         </>
       )}
     </button>

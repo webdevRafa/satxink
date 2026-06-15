@@ -430,17 +430,9 @@ const RequestTattooModal: React.FC<Props> = ({
 
       <div className="relative z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-4">
-          <img
-            src={artist.avatarUrl || "/default-avatar.png"}
-            alt={artist.name}
-            className="h-12 w-12 rounded-full border border-white/15 object-cover"
-          />
           <div className="min-w-0">
-            <p className="text-xs! uppercase tracking-[0.18em] text-white/45">
-              Tattoo request
-            </p>
-            <h2 className="mt-1 text-xl! font-semibold! leading-tight text-white">
-              Tell {artistName} what you have in mind
+            <h2 className="mt-1 text-xl!  leading-tight text-white">
+              Share your tattoo idea with {artistName}
             </h2>
           </div>
         </div>
@@ -477,7 +469,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     isActive
                       ? "border-white/30 bg-white/[0.095] text-white"
                       : isComplete
-                      ? "border-[#19d69b]/35 bg-[#19d69b]/10 text-white/85 hover:border-[#19d69b]/55"
+                      ? "border-[#19d69b]/5 bg-[#19d69b]/5 text-white/85 hover:border-[#19d69b]/55"
                       : canVisit
                       ? "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white"
                       : "cursor-not-allowed border-white/5 bg-black/20 text-white/25"
@@ -488,7 +480,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       isActive
                         ? "bg-white text-black"
                         : isComplete
-                        ? "bg-[#19d69b] text-black"
+                        ? "bg-[#19d69b]/20 text-black"
                         : "bg-white/[0.07] text-white/55"
                     }`}
                   >
@@ -536,7 +528,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     </span>
                     <textarea
                       required
-                      className="min-h-52 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                      className="min-h-52 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/40"
                       placeholder="Describe the subject, style, mood, and any details that matter."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -556,9 +548,6 @@ const RequestTattooModal: React.FC<Props> = ({
                 </div>
 
                 <aside className="rounded-lg border border-white/10 bg-black/25 p-5">
-                  <p className="text-xs! uppercase tracking-[0.18em] text-[#19d69b]">
-                    Request focus
-                  </p>
                   <p className="mt-3 text-sm! leading-6 text-white/65">
                     A clear idea helps the artist respond with realistic
                     guidance, pricing, and next steps.
@@ -689,7 +678,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     <img
                       src={referencePreviewUrl}
                       alt="Reference preview"
-                      className="absolute inset-0 h-full w-full object-cover opacity-80"
+                      className="absolute inset-0 h-full w-full max-w-[500px] mx-auto object-cover opacity-80"
                     />
                   ) : (
                     <>
