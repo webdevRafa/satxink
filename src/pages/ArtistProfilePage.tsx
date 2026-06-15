@@ -451,7 +451,7 @@ export const ArtistProfilePage = () => {
       )}
 
       <div className="relative z-10">
-        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-white/2  p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-6 lg:p-7">
+        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-white/2   shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md p-5">
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
           <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
@@ -466,56 +466,61 @@ export const ArtistProfilePage = () => {
               </div>
 
               <div className="min-w-0 flex-1">
-                <h1 className="mt-1 text-3xl! font-semibold leading-tight text-white mb-0!">
-                  {artistDisplayName}
-                </h1>
-                {artistShopName &&
-                  (shop?.mapLink ? (
-                    <a
-                      href={shop.mapLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-200 transition hover:text-white md:justify-start"
-                    >
-                      {artistShopName}
-                    </a>
-                  ) : (
-                    <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
-                      <MapPin size={15} />
-                      {artistShopName}
-                    </p>
-                  ))}
-
-                {artistStyles.length > 0 && (
-                  <ul className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
-                    {artistStyles.map((style) => (
-                      <li
-                        key={style}
-                        className="inline-flex min-h-7 items-center rounded-full  px-3 py-1 text-[11px] font-semibold text-neutral-200 "
-                      >
-                        {style}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {socialLinks.length > 0 && (
-                  <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-                    {socialLinks.map((link) => (
-                      <a
-                        key={link.label}
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={link.label}
-                        title={link.label}
-                        className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
-                      >
-                        {link.icon}
-                      </a>
-                    ))}
+                <div className="">
+                  <div>
+                    {/* flex artist name and ig icon */}
+                    <div className="flex gap-1 mb-0! ">
+                      <h1 className="mt-0 text-3xl!   text-white mb-0!">
+                        {artistDisplayName}
+                      </h1>
+                      {socialLinks.length > 0 && (
+                        <div className="mt-0 flex flex-wrap justify-center gap-1 md:justify-start">
+                          {socialLinks.map((link) => (
+                            <a
+                              key={link.label}
+                              href={link.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={link.label}
+                              title={link.label}
+                              className="flex  items-center h-8 w-8 justify-center rounded-md   text-white hover:bg-white/5 transition ease-in-out duration-300 hover:border-white/25 "
+                            >
+                              {link.icon}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {artistShopName &&
+                      (shop?.mapLink ? (
+                        <a
+                          href={shop.mapLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-0!  text-sm! text-neutral-100 transition hover:text-white "
+                        >
+                          {artistShopName}
+                        </a>
+                      ) : (
+                        <p className="mt-0! inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
+                          <MapPin size={15} />
+                          {artistShopName}
+                        </p>
+                      ))}
+                    {artistStyles.length > 0 && (
+                      <ul className="mt-0! flex gap-5">
+                        {artistStyles.map((style) => (
+                          <li
+                            key={style}
+                            className="inline-flex items-center rounded-full  text-[11px] font-semibold text-neutral-400 "
+                          >
+                            {style}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {artist.bio && (
                   <p className="mt-5 max-w-2xl text-sm leading-6 text-neutral-300 md:text-[15px]">
