@@ -441,7 +441,7 @@ export const ArtistProfilePage = () => {
       {profileBackdropUrl && (
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#0d0d0d]">
           <div
-            className="absolute inset-[-10%] bg-cover bg-center opacity-[0.18] blur-[34px] saturate-[0.9]"
+            className="absolute inset-[-10%] bg-cover bg-center opacity-[0.5] blur-[15px] saturate-[2]"
             style={{ backgroundImage: `url(${profileBackdropUrl})` }}
             aria-hidden="true"
           />
@@ -451,7 +451,7 @@ export const ArtistProfilePage = () => {
       )}
 
       <div className="relative z-10">
-        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-b from-[#1c1c1c]/95 via-[#171717]/95 to-[#121212]/95 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-sm sm:p-6 lg:p-7">
+        <div className="relative isolate mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-white/2  p-5 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
           <div className="relative z-10 grid gap-7 lg:min-h-[190px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-end">
@@ -491,7 +491,7 @@ export const ArtistProfilePage = () => {
                     {artistStyles.map((style) => (
                       <li
                         key={style}
-                        className="inline-flex min-h-7 items-center rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[11px] font-semibold text-neutral-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                        className="inline-flex min-h-7 items-center rounded-full  px-3 py-1 text-[11px] font-semibold text-neutral-200 "
                       >
                         {style}
                       </li>
@@ -536,15 +536,12 @@ export const ArtistProfilePage = () => {
           </div>
         </div>
 
-        <div className="mt-10">
+        <div className="mt-10 pb-60">
           <div
             data-aos="fade-up"
             className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
           >
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-2">
-                Recent work
-              </p>
               <div
                 className="flex flex-wrap items-center gap-3"
                 role="tablist"
@@ -561,7 +558,7 @@ export const ArtistProfilePage = () => {
                       : "text-white/40 hover:text-white/75"
                   }`}
                 >
-                  Portfolio
+                  Work
                 </button>
                 <span className="h-6 w-px bg-white/15" />
                 <button
@@ -575,7 +572,7 @@ export const ArtistProfilePage = () => {
                       : "text-white/40 hover:text-white/75"
                   }`}
                 >
-                  Flash Sheets
+                  Flash
                 </button>
               </div>
             </div>
