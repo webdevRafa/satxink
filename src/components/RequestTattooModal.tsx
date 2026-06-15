@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   DollarSign,
   ImageIcon,
+  ImagePlus,
+  Loader2,
   MapPin,
   Ruler,
   Send,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -68,6 +71,17 @@ const availableDayOptions = [
 
 type AvailableTime = { from: string; to: string };
 type RequestStep = "idea" | "details" | "reference" | "schedule" | "review";
+type ReferencePreview = {
+  file: File;
+  url: string;
+};
+type UploadedReferenceImage = {
+  fileName: string;
+  fullUrl: string;
+  thumbUrl: string;
+};
+
+const maxReferenceImages = 3;
 
 const requestFlowSteps: Array<{
   id: RequestStep;
@@ -76,7 +90,7 @@ const requestFlowSteps: Array<{
 }> = [
   { id: "idea", label: "Idea", helper: "Describe the piece" },
   { id: "details", label: "Details", helper: "Placement and size" },
-  { id: "reference", label: "Reference", helper: "Optional image" },
+  { id: "reference", label: "Reference", helper: "Up to 3 images" },
   { id: "schedule", label: "Schedule", helper: "Timing preferences" },
   { id: "review", label: "Review", helper: "Send request" },
 ];
@@ -101,17 +115,29 @@ const RequestTattooModal: React.FC<Props> = ({
     getMonthStart(new Date())
   );
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImages, setReferenceImages] = useState<File[]>([]);
+  const [isAddingReferenceImages, setIsAddingReferenceImages] = useState(false);
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestPanelRef = useRef<HTMLElement | null>(null);
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
+  const progressStepRefs = useRef<Map<RequestStep, HTMLButtonElement>>(
+    new Map()
+  );
+  const referenceAddTimerRef = useRef<number | null>(null);
   const earliestEndTime = getMinimumEndTime(availableTime.from);
 
-  const referencePreviewUrl = useMemo(
-    () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
-    [referenceImage]
+  const referencePreviews = useMemo<ReferencePreview[]>(
+    () =>
+      referenceImages.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [referenceImages]
   );
+  const hasReferenceImages = referenceImages.length > 0;
+  const remainingReferenceSlots = maxReferenceImages - referenceImages.length;
   const clientNameParts = getClientNameParts(client);
   const clientName = formatClientFullName(
     clientNameParts.firstName,
@@ -156,21 +182,46 @@ const RequestTattooModal: React.FC<Props> = ({
 
   useEffect(() => {
     return () => {
-      if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+      referencePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
-  }, [referencePreviewUrl]);
+  }, [referencePreviews]);
+
+  useEffect(() => {
+    return () => {
+      if (referenceAddTimerRef.current !== null) {
+        window.clearTimeout(referenceAddTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const scrollFrame = window.requestAnimationFrame(() => {
       modalBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      progressStepRefs.current.get(activeStep)?.scrollIntoView({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+
+      if (window.matchMedia("(max-width: 640px)").matches) {
+        requestPanelRef.current?.scrollIntoView({
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+          block: "start",
+        });
+      }
     });
 
     return () => window.cancelAnimationFrame(scrollFrame);
   }, [activeStep, isOpen]);
 
   const reset = () => {
+    if (referenceAddTimerRef.current !== null) {
+      window.clearTimeout(referenceAddTimerRef.current);
+      referenceAddTimerRef.current = null;
+    }
+
     setActiveStep("idea");
     setDescription("");
     setBodyPlacement("");
@@ -179,7 +230,8 @@ const RequestTattooModal: React.FC<Props> = ({
     setAvailableTime({ from: "", to: "" });
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setAvailableDays([]);
-    setReferenceImage(null);
+    setReferenceImages([]);
+    setIsAddingReferenceImages(false);
     setBudget("");
     setCustomBudget("");
     setIsSubmitting(false);
@@ -275,6 +327,60 @@ const RequestTattooModal: React.FC<Props> = ({
     setActiveStep("review");
   };
 
+  const handleReferenceImagesChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+
+    if (selectedFiles.length === 0) return;
+
+    if (remainingReferenceSlots <= 0) {
+      toast.error("You can include up to 3 reference images.");
+      return;
+    }
+
+    const imageFiles = selectedFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (imageFiles.length !== selectedFiles.length) {
+      toast.error("Only image files can be added as references.");
+    }
+
+    if (imageFiles.length === 0) return;
+
+    const filesToAdd = imageFiles.slice(0, remainingReferenceSlots);
+    const skippedCount = imageFiles.length - filesToAdd.length;
+
+    if (skippedCount > 0) {
+      toast.error("Only the first 3 reference images can be included.");
+    }
+
+    if (referenceAddTimerRef.current !== null) {
+      window.clearTimeout(referenceAddTimerRef.current);
+    }
+
+    setIsAddingReferenceImages(true);
+    referenceAddTimerRef.current = window.setTimeout(() => {
+      setReferenceImages((current) => [...current, ...filesToAdd]);
+      setIsAddingReferenceImages(false);
+      referenceAddTimerRef.current = null;
+      toast.success(
+        filesToAdd.length === 1
+          ? "Reference image added."
+          : `${filesToAdd.length} reference images added.`
+      );
+    }, 220);
+  };
+
+  const handleRemoveReferenceImage = (indexToRemove: number) => {
+    setReferenceImages((current) =>
+      current.filter((_, index) => index !== indexToRemove)
+    );
+    toast.success("Reference image removed.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -359,23 +465,7 @@ const RequestTattooModal: React.FC<Props> = ({
       reset();
       onClose();
 
-      if (referenceImage) {
-        const fileName = referenceImage.name;
-        const originalRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/originals/${fileName}`
-        );
-        await uploadBytes(originalRef, referenceImage);
-
-        const fullRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/full/${fileName}`
-        );
-        const thumbRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/thumb/${fileName}`
-        );
-
+      if (referenceImages.length > 0) {
         const waitForURL = (
           imageRef: ReturnType<typeof ref>,
           maxRetries = 10,
@@ -397,17 +487,47 @@ const RequestTattooModal: React.FC<Props> = ({
           });
 
         try {
-          const [fullUrl, thumbUrl] = await Promise.all([
-            waitForURL(fullRef),
-            waitForURL(thumbRef),
-          ]);
+          const uploadedReferences: UploadedReferenceImage[] = await Promise.all(
+            referenceImages.map(async (image, index) => {
+              const fileName = getReferenceStorageFileName(image, index);
+              const originalRef = ref(
+                storage,
+                `bookingRequests/${reqRef.id}/originals/${fileName}`
+              );
+
+              await uploadBytes(originalRef, image);
+
+              const fullRef = ref(
+                storage,
+                `bookingRequests/${reqRef.id}/full/${fileName}`
+              );
+              const thumbRef = ref(
+                storage,
+                `bookingRequests/${reqRef.id}/thumb/${fileName}`
+              );
+
+              const [fullUrl, thumbUrl] = await Promise.all([
+                waitForURL(fullRef),
+                waitForURL(thumbRef),
+              ]);
+
+              return {
+                fileName,
+                fullUrl,
+                thumbUrl,
+              };
+            })
+          );
+
+          const primaryReference = uploadedReferences[0];
 
           await updateDoc(reqRef, {
-            fullUrl,
-            thumbUrl,
+            fullUrl: primaryReference.fullUrl,
+            thumbUrl: primaryReference.thumbUrl,
+            referenceImages: uploadedReferences,
           });
         } catch (error) {
-          console.warn("Image not ready after retry:", error);
+          console.warn("Reference image not ready after retry:", error);
         }
       }
     } catch (error) {
@@ -422,7 +542,8 @@ const RequestTattooModal: React.FC<Props> = ({
 
   return (
     <section
-      className="satx-request-flow-shell relative isolate overflow-hidden rounded-lg border border-white/10 bg-[#111111]/82 text-white shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-md"
+      ref={requestPanelRef}
+      className="satx-request-flow-shell relative isolate scroll-mt-24 overflow-hidden rounded-lg border border-white/10 bg-[#111111]/82 text-white shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-md sm:scroll-mt-28"
       aria-label="Tattoo request"
     >
       <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -461,6 +582,13 @@ const RequestTattooModal: React.FC<Props> = ({
               return (
                 <button
                   key={flowStep.id}
+                  ref={(node) => {
+                    if (node) {
+                      progressStepRefs.current.set(flowStep.id, node);
+                    } else {
+                      progressStepRefs.current.delete(flowStep.id);
+                    }
+                  }}
                   type="button"
                   onClick={() => goToStep(flowStep.id)}
                   disabled={!canVisit}
@@ -602,31 +730,33 @@ const RequestTattooModal: React.FC<Props> = ({
                   </label>
                 </div>
 
-                <label className="mt-4 block">
-                  <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
-                    <DollarSign size={15} />
-                    Optional budget
-                  </span>
-                  <CustomSelect
-                    value={budget}
-                    onChange={setBudget}
-                    options={tattooBudgetOptions}
-                    placeholder="Have a budget?"
-                    buttonClassName="focus:border-[#19d69b]"
-                  />
-                </label>
+                <div className="mt-4 w-full max-w-xl">
+                  <label className="block">
+                    <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                      <DollarSign size={15} />
+                      Optional budget
+                    </span>
+                    <CustomSelect
+                      value={budget}
+                      onChange={setBudget}
+                      options={tattooBudgetOptions}
+                      placeholder="Have a budget?"
+                      buttonClassName="focus:border-[#19d69b]"
+                    />
+                  </label>
 
-                {budget === "custom" && (
-                  <input
-                    type="number"
-                    placeholder="Enter your budget (USD)"
-                    value={customBudget}
-                    onChange={(e) => setCustomBudget(e.target.value)}
-                    className="mt-3 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
-                    min={0}
-                    step={5}
-                  />
-                )}
+                  {budget === "custom" && (
+                    <input
+                      type="number"
+                      placeholder="Enter your budget (USD)"
+                      value={customBudget}
+                      onChange={(e) => setCustomBudget(e.target.value)}
+                      className="mt-3 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                      min={0}
+                      step={5}
+                    />
+                  )}
+                </div>
 
                 <div className="mt-5 flex items-center justify-between gap-3">
                   <button
@@ -649,56 +779,143 @@ const RequestTattooModal: React.FC<Props> = ({
             )}
 
             {activeStep === "reference" && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                <div className="mb-5 flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                    <Upload size={19} />
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                      <Upload size={19} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Reference images
+                      </h3>
+                      <p className="text-sm text-white/55">
+                        Optional, but helpful for composition, placement, or
+                        style direction.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Reference image
-                    </h3>
-                    <p className="text-sm text-white/55">
-                      Optional, but helpful for composition or style direction.
-                    </p>
-                  </div>
+                  <span className="inline-flex w-fit items-center rounded-full border border-white/10 bg-black/25 px-3! py-1.5! text-xs! font-semibold text-white/55">
+                    {referenceImages.length}/{maxReferenceImages} added
+                  </span>
                 </div>
 
-                <label className="group relative flex min-h-80 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed border-white/20 bg-black/35 p-5 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setReferenceImage(file);
-                    }}
-                    className="sr-only"
-                  />
-                  {referencePreviewUrl ? (
-                    <img
-                      src={referencePreviewUrl}
-                      alt="Reference preview"
-                      className="absolute inset-0 h-full w-full max-w-[500px] mx-auto object-cover opacity-80"
+                <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.78fr)_minmax(0,1.22fr)]">
+                  <label
+                    className={`group relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed p-5 text-center transition ${
+                      remainingReferenceSlots > 0 && !isAddingReferenceImages
+                        ? "cursor-pointer border-white/20 bg-black/35 hover:border-white/40 hover:bg-white/[0.04]"
+                        : "cursor-not-allowed border-white/10 bg-black/20 opacity-70"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={
+                        remainingReferenceSlots <= 0 || isAddingReferenceImages
+                      }
+                      onChange={handleReferenceImagesChange}
+                      className="sr-only"
                     />
-                  ) : (
-                    <>
-                      <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white">
-                        <Upload size={20} />
-                      </span>
-                      <span className="text-sm font-semibold text-white">
-                        Upload reference
-                      </span>
-                      <span className="mt-1 text-xs text-white/45">
-                        JPG, PNG, or WebP
-                      </span>
-                    </>
-                  )}
-                  {referencePreviewUrl && (
-                    <span className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                      Click to replace image
+                    <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,0.3)] transition group-hover:scale-105">
+                      {isAddingReferenceImages ? (
+                        <Loader2 size={22} className="animate-spin" />
+                      ) : (
+                        <ImagePlus size={22} />
+                      )}
                     </span>
-                  )}
-                </label>
+                    <span className="text-sm! font-semibold text-white">
+                      {remainingReferenceSlots > 0
+                        ? "Add reference images"
+                        : "Reference limit reached"}
+                    </span>
+                    <span className="mt-1 max-w-56 text-xs! leading-5 text-white/45">
+                      {remainingReferenceSlots > 0
+                        ? `Choose up to ${remainingReferenceSlots} more image${
+                            remainingReferenceSlots === 1 ? "" : "s"
+                          }. JPG, PNG, or WebP.`
+                        : "Remove an image to add another reference."}
+                    </span>
+                  </label>
+
+                  <div className="rounded-lg border border-white/10 bg-black/25 p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
+                          Selected references
+                        </p>
+                        <p className="mt-1 text-sm text-white/55">
+                          These will be sent with your idea.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-3">
+                      {referencePreviews.map((preview, index) => (
+                        <div
+                          key={`${preview.file.name}-${preview.file.lastModified}-${index}`}
+                          className="group relative aspect-[4/5] overflow-hidden rounded-lg border border-white/10 bg-[#0d0d0d]"
+                        >
+                          <img
+                            src={preview.url}
+                            alt={`Reference ${index + 1}`}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                            {index === 0 && (
+                              <span className="rounded-full border border-[#19d69b]/35 bg-[#19d69b]/15 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white">
+                                Primary
+                              </span>
+                            )}
+                            <span className="rounded-full border border-white/15 bg-black/55 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white/70 backdrop-blur">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReferenceImage(index)}
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/60 p-0! text-white backdrop-blur transition hover:bg-white/15"
+                            aria-label={`Remove reference ${index + 1}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                          <div className="absolute inset-x-0 bottom-0 p-3">
+                            <p className="truncate text-xs! font-semibold text-white">
+                              {preview.file.name}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {isAddingReferenceImages && (
+                        <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-center">
+                          <Loader2
+                            size={20}
+                            className="mb-3 animate-spin text-white"
+                          />
+                          <p className="text-xs! font-semibold text-white">
+                            Preparing preview
+                          </p>
+                        </div>
+                      )}
+
+                      {!hasReferenceImages && !isAddingReferenceImages && (
+                        <div className="col-span-2 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center xl:col-span-3">
+                          <ImageIcon size={24} className="mb-3 text-white/35" />
+                          <p className="text-sm! font-semibold text-white/75">
+                            No references added yet
+                          </p>
+                          <p className="mt-1 text-xs! leading-5 text-white/45">
+                            You can skip this step or add images that help
+                            explain the idea.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 <div className="mt-5 flex items-center justify-between gap-3">
                   <button
@@ -713,7 +930,7 @@ const RequestTattooModal: React.FC<Props> = ({
                     onClick={() => setActiveStep("schedule")}
                     className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
                   >
-                    {referencePreviewUrl ? "Continue" : "Skip for now"}
+                    {hasReferenceImages ? "Continue" : "Skip for now"}
                     <CalendarDays size={16} />
                   </button>
                 </div>
@@ -834,7 +1051,7 @@ const RequestTattooModal: React.FC<Props> = ({
             {activeStep === "review" && (
               <RequestPreviewPanel
                 artistName={artistName}
-                referencePreviewUrl={referencePreviewUrl}
+                referencePreviews={referencePreviews}
                 description={description}
                 bodyPlacement={bodyPlacement}
                 size={size}
@@ -856,7 +1073,7 @@ const RequestTattooModal: React.FC<Props> = ({
 
 const RequestPreviewPanel = ({
   artistName,
-  referencePreviewUrl,
+  referencePreviews,
   description,
   bodyPlacement,
   size,
@@ -869,7 +1086,7 @@ const RequestPreviewPanel = ({
   onBack,
 }: {
   artistName: string;
-  referencePreviewUrl: string;
+  referencePreviews: ReferencePreview[];
   description: string;
   bodyPlacement: string;
   size: string;
@@ -895,15 +1112,28 @@ const RequestPreviewPanel = ({
         </p>
       </div>
 
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/35 text-white/35">
-        {referencePreviewUrl ? (
-          <img
-            src={referencePreviewUrl}
-            alt="Reference preview"
-            className="h-full w-full object-cover"
-          />
+      <div className="grid w-24 shrink-0 grid-cols-2 gap-1">
+        {referencePreviews.length > 0 ? (
+          referencePreviews.slice(0, 3).map((preview, index) => (
+            <div
+              key={`${preview.file.name}-review-${index}`}
+              className={`overflow-hidden rounded-md border border-white/10 bg-black/35 ${
+                index === 0 && referencePreviews.length === 1
+                  ? "col-span-2 h-20"
+                  : "h-10"
+              }`}
+            >
+              <img
+                src={preview.url}
+                alt={`Reference ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))
         ) : (
-          <ImageIcon size={22} />
+          <div className="col-span-2 flex h-20 items-center justify-center rounded-lg border border-white/10 bg-black/35 text-white/35">
+            <ImageIcon size={22} />
+          </div>
         )}
       </div>
     </div>
@@ -929,6 +1159,16 @@ const RequestPreviewPanel = ({
       <PreviewDetail
         label="Budget"
         value={getBudgetLabel(budget, customBudget)}
+      />
+      <PreviewDetail
+        label="References"
+        value={
+          referencePreviews.length > 0
+            ? `${referencePreviews.length} image${
+                referencePreviews.length === 1 ? "" : "s"
+              } attached`
+            : "No references attached"
+        }
       />
     </div>
 
@@ -1240,5 +1480,13 @@ const hasMinimumTimeWindow = (startTime: string, endTime: string) => {
     endMinutes - startMinutes >= 60
   );
 };
+
+const getReferenceStorageFileName = (file: File, index: number) => {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  return `${index + 1}-${Date.now()}-${safeName}`;
+};
+
+const prefersReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export default RequestTattooModal;
