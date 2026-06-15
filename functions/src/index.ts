@@ -44,6 +44,11 @@ const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
 const FLASH_CHECKOUT_HOLD_SECONDS = 60 * 60;
 
+const getReferenceImageOrder = (reference: { fileName?: string }) => {
+  const order = Number(reference.fileName?.split("-")[0]);
+  return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
+};
+
 const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
   user.role === "artist";
 
@@ -1268,24 +1273,55 @@ const handleImageUpload = onObjectFinalized(async (event) => {
       expires: "03-01-2030",
     });
 
-    // Duplicate-skip check before writing to Firestore
     const firestore = admin.firestore();
     const bookingRef = firestore.collection("bookingRequests").doc(requestId);
-    const docSnap = await bookingRef.get();
-    const docData = docSnap.data();
-    if (docData?.fullUrl && docData?.thumbUrl) {
-      console.log(`Skipping ${fileName} — already processed.`);
-      return;
-    }
+    const referenceImage = {
+      fileName,
+      fullUrl: fullDownloadUrl,
+      thumbUrl: thumbDownloadUrl,
+    };
 
-    await bookingRef.set(
-      {
-        fullUrl: fullDownloadUrl,
-        thumbUrl: thumbDownloadUrl,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    await firestore.runTransaction(async (transaction) => {
+      const docSnap = await transaction.get(bookingRef);
+      const docData = docSnap.data() ?? {};
+      const existingReferences = Array.isArray(docData.referenceImages)
+        ? docData.referenceImages.filter(
+            (reference: admin.firestore.DocumentData) =>
+              typeof reference?.fileName === "string" &&
+              (typeof reference?.fullUrl === "string" ||
+                typeof reference?.thumbUrl === "string")
+          )
+        : [];
+      const mergedReferences = [
+        ...existingReferences.filter(
+          (reference: admin.firestore.DocumentData) =>
+            reference.fileName !== fileName
+        ),
+        referenceImage,
+      ].sort(
+        (
+          a: admin.firestore.DocumentData,
+          b: admin.firestore.DocumentData
+        ) => getReferenceImageOrder(a) - getReferenceImageOrder(b)
+      );
+      const shouldPromoteAsPrimary =
+        !docData.fullUrl || getReferenceImageOrder(referenceImage) === 1;
+
+      transaction.set(
+        bookingRef,
+        {
+          ...(shouldPromoteAsPrimary
+            ? {
+                fullUrl: fullDownloadUrl,
+                thumbUrl: thumbDownloadUrl,
+              }
+            : {}),
+          referenceImages: mergedReferences,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
 
     console.log(`✅ Processed booking request image for requestId: ${requestId}`);
   } catch (err) {

@@ -468,8 +468,8 @@ const RequestTattooModal: React.FC<Props> = ({
       if (referenceImages.length > 0) {
         const waitForURL = (
           imageRef: ReturnType<typeof ref>,
-          maxRetries = 10,
-          delay = 500
+          maxRetries = 24,
+          delay = 1000
         ): Promise<string> =>
           new Promise((resolve, reject) => {
             const attempt = (retries: number) => {
@@ -489,22 +489,21 @@ const RequestTattooModal: React.FC<Props> = ({
         try {
           const uploadedReferences: UploadedReferenceImage[] = await Promise.all(
             referenceImages.map(async (image, index) => {
-              const fileName = getReferenceStorageFileName(image, index);
+              const storageFileName = getReferenceStorageFileName(image, index);
+              const processedFileName =
+                getProcessedReferenceFileName(storageFileName);
               const originalRef = ref(
                 storage,
-                `bookingRequests/${reqRef.id}/originals/${fileName}`
+                `bookingRequests/${reqRef.id}/originals/${storageFileName}`
               );
 
               await uploadBytes(originalRef, image);
 
-              const fullRef = ref(
-                storage,
-                `bookingRequests/${reqRef.id}/full/${fileName}`
+              const processedPaths = getProcessedReferenceStoragePaths(
+                storageFileName
               );
-              const thumbRef = ref(
-                storage,
-                `bookingRequests/${reqRef.id}/thumb/${fileName}`
-              );
+              const fullRef = ref(storage, processedPaths.fullPath);
+              const thumbRef = ref(storage, processedPaths.thumbPath);
 
               const [fullUrl, thumbUrl] = await Promise.all([
                 waitForURL(fullRef),
@@ -512,7 +511,7 @@ const RequestTattooModal: React.FC<Props> = ({
               ]);
 
               return {
-                fileName,
+                fileName: processedFileName,
                 fullUrl,
                 thumbUrl,
               };
@@ -1484,6 +1483,19 @@ const hasMinimumTimeWindow = (startTime: string, endTime: string) => {
 const getReferenceStorageFileName = (file: File, index: number) => {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
   return `${index + 1}-${Date.now()}-${safeName}`;
+};
+
+const getProcessedReferenceFileName = (fileName: string) =>
+  fileName.toLowerCase();
+
+const getProcessedReferenceStoragePaths = (fileName: string) => {
+  const processedFileName = getProcessedReferenceFileName(fileName);
+  const baseName = processedFileName.replace(/\.[^/.]+$/, "");
+
+  return {
+    fullPath: `bookingRequests/full/${baseName}.jpg`,
+    thumbPath: `bookingRequests/thumbs/${baseName}.webp`,
+  };
 };
 
 const prefersReducedMotion = () =>

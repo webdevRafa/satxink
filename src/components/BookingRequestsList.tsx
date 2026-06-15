@@ -2106,14 +2106,20 @@ const getRequestReferenceImages = (
     });
   };
 
-  addReference({
-    fileName: "Primary reference",
-    fullUrl: request.fullUrl,
-    thumbUrl: request.thumbUrl,
-  });
-
   if (Array.isArray(request.referenceImages)) {
-    request.referenceImages.forEach(addReference);
+    [...request.referenceImages]
+      .sort(
+        (a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b)
+      )
+      .forEach(addReference);
+  }
+
+  if (references.length === 0) {
+    addReference({
+      fileName: "Primary reference",
+      fullUrl: request.fullUrl,
+      thumbUrl: request.thumbUrl,
+    });
   }
 
   return references;
@@ -2122,6 +2128,11 @@ const getRequestReferenceImages = (
 const getPrimaryRequestReferenceUrl = (request: BookingRequest) => {
   const primaryReference = getRequestReferenceImages(request)[0];
   return primaryReference?.thumbUrl || primaryReference?.fullUrl || "";
+};
+
+const getRequestReferenceOrder = (reference: RequestReferenceImage) => {
+  const order = Number(reference.fileName?.split("-")[0]);
+  return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
 };
 
 const formatAvailableDaysSummary = (request: BookingRequest) =>
