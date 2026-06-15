@@ -49,6 +49,144 @@ const getReferenceImageOrder = (reference: { fileName?: string }) => {
   return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const BOOKING_REFERENCE_STANDARD_RETENTION_DAYS = 365;
+const BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS = 90;
+const BOOKING_REFERENCE_RETENTION_POLICY_VERSION = 1;
+const BOOKING_REFERENCE_CLEANUP_BATCH_LIMIT = 100;
+const BOOKING_REFERENCE_ALLOWED_PREFIXES = [
+  "bookingRequests/full/",
+  "bookingRequests/thumbs/",
+  "bookingRequests/thumb/",
+];
+const BOOKING_REFERENCE_TERMINAL_STATUSES = new Set([
+  "cancelled",
+  "declined",
+  "expired",
+]);
+
+type BookingReferenceImageData = {
+  fileName?: string;
+  fullUrl?: string;
+  thumbUrl?: string;
+  fullPath?: string;
+  thumbPath?: string;
+};
+
+const getDateFromFirestoreValue = (value: unknown) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+  if (value && typeof value === "object" && "toDate" in value) {
+    const date = (value as { toDate?: () => Date }).toDate?.();
+    if (date instanceof Date && !Number.isNaN(date.getTime())) return date;
+  }
+
+  return null;
+};
+
+const getBookingReferenceRetentionDays = (status: unknown) =>
+  BOOKING_REFERENCE_TERMINAL_STATUSES.has(String(status || ""))
+    ? BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS
+    : BOOKING_REFERENCE_STANDARD_RETENTION_DAYS;
+
+const getBookingReferenceBaseDate = (data: admin.firestore.DocumentData) => {
+  const status = String(data.status || "");
+  const candidates = BOOKING_REFERENCE_TERMINAL_STATUSES.has(status)
+    ? [
+        data.declinedAt,
+        data.expiredAt,
+        data.cancelledAt,
+        data.updatedAt,
+        data.createdAt,
+      ]
+    : status === "offered"
+    ? [data.offeredAt, data.updatedAt, data.createdAt]
+    : [data.createdAt, data.updatedAt];
+
+  for (const candidate of candidates) {
+    const date = getDateFromFirestoreValue(candidate);
+    if (date) return date;
+  }
+
+  return new Date();
+};
+
+const getBookingReferenceCleanupTimestamp = (
+  data: admin.firestore.DocumentData
+) => {
+  const retentionDays = getBookingReferenceRetentionDays(data.status);
+  const baseDate = getBookingReferenceBaseDate(data);
+  return admin.firestore.Timestamp.fromDate(
+    new Date(baseDate.getTime() + retentionDays * DAY_MS)
+  );
+};
+
+const isBookingReferenceStoragePath = (value: unknown) =>
+  typeof value === "string" &&
+  BOOKING_REFERENCE_ALLOWED_PREFIXES.some((prefix) => value.startsWith(prefix));
+
+const getBookingReferenceStoragePathFromUrl = (value: unknown) => {
+  if (typeof value !== "string" || !value) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.hostname === "storage.googleapis.com") {
+      const [, ...pathParts] = url.pathname
+        .split("/")
+        .filter((part) => part.length > 0);
+      const storagePath = decodeURIComponent(pathParts.join("/"));
+      return isBookingReferenceStoragePath(storagePath) ? storagePath : null;
+    }
+
+    if (url.hostname === "firebasestorage.googleapis.com") {
+      const marker = "/o/";
+      const markerIndex = url.pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+
+      const encodedPath = url.pathname.slice(markerIndex + marker.length);
+      const storagePath = decodeURIComponent(encodedPath);
+      return isBookingReferenceStoragePath(storagePath) ? storagePath : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const collectBookingReferenceStoragePaths = (
+  data: admin.firestore.DocumentData
+) => {
+  const paths = new Set<string>();
+  const addPath = (value: unknown) => {
+    if (isBookingReferenceStoragePath(value)) {
+      paths.add(value as string);
+      return;
+    }
+
+    const parsedPath = getBookingReferenceStoragePathFromUrl(value);
+    if (parsedPath) paths.add(parsedPath);
+  };
+
+  if (Array.isArray(data.referenceImages)) {
+    data.referenceImages.forEach((reference: BookingReferenceImageData) => {
+      addPath(reference.fullPath);
+      addPath(reference.thumbPath);
+      addPath(reference.fullUrl);
+      addPath(reference.thumbUrl);
+    });
+  }
+
+  if (data.sourceType !== "flash") {
+    addPath(data.fullPath);
+    addPath(data.thumbPath);
+    addPath(data.fullUrl);
+    addPath(data.thumbUrl);
+  }
+
+  return [...paths];
+};
+
 const userCanConnectPayouts = (user: admin.firestore.DocumentData) =>
   user.role === "artist";
 
@@ -1279,6 +1417,8 @@ const handleImageUpload = onObjectFinalized(async (event) => {
       fileName,
       fullUrl: fullDownloadUrl,
       thumbUrl: thumbDownloadUrl,
+      fullPath: fullResPath,
+      thumbPath,
     };
 
     await firestore.runTransaction(async (transaction) => {
@@ -1306,6 +1446,7 @@ const handleImageUpload = onObjectFinalized(async (event) => {
       );
       const shouldPromoteAsPrimary =
         !docData.fullUrl || getReferenceImageOrder(referenceImage) === 1;
+      const retentionDays = getBookingReferenceRetentionDays(docData.status);
 
       transaction.set(
         bookingRef,
@@ -1314,9 +1455,18 @@ const handleImageUpload = onObjectFinalized(async (event) => {
             ? {
                 fullUrl: fullDownloadUrl,
                 thumbUrl: thumbDownloadUrl,
+                fullPath: fullResPath,
+                thumbPath,
               }
             : {}),
           referenceImages: mergedReferences,
+          referenceCleanupAt: getBookingReferenceCleanupTimestamp({
+            ...docData,
+            referenceImages: mergedReferences,
+          }),
+          referenceRetentionDays: retentionDays,
+          referenceRetentionPolicyVersion:
+            BOOKING_REFERENCE_RETENTION_POLICY_VERSION,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -1330,6 +1480,47 @@ const handleImageUpload = onObjectFinalized(async (event) => {
     await Promise.allSettled([bucket.file(filePath).delete(), fs.unlink(tmpLocal)]);
   }
 });
+
+
+const syncBookingRequestReferenceRetention = onDocumentWritten(
+  "bookingRequests/{requestId}",
+  async (event) => {
+    const afterSnap = event.data?.after;
+    if (!afterSnap?.exists) return;
+
+    const data = afterSnap.data() || {};
+    if (data.referencesDeletedAt) return;
+    if (collectBookingReferenceStoragePaths(data).length === 0) return;
+
+    const cleanupAt = getBookingReferenceCleanupTimestamp(data);
+    const currentCleanupAt = getDateFromFirestoreValue(data.referenceCleanupAt);
+    const retentionDays = getBookingReferenceRetentionDays(data.status);
+    const cleanupIsCurrent =
+      currentCleanupAt &&
+      Math.abs(currentCleanupAt.getTime() - cleanupAt.toDate().getTime()) <
+        DAY_MS;
+
+    if (
+      cleanupIsCurrent &&
+      data.referenceRetentionDays === retentionDays &&
+      data.referenceRetentionPolicyVersion ===
+        BOOKING_REFERENCE_RETENTION_POLICY_VERSION
+    ) {
+      return;
+    }
+
+    await afterSnap.ref.set(
+      {
+        referenceCleanupAt: cleanupAt,
+        referenceRetentionDays: retentionDays,
+        referenceRetentionPolicyVersion:
+          BOOKING_REFERENCE_RETENTION_POLICY_VERSION,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }
+);
 
 
 
@@ -3884,6 +4075,88 @@ const cleanupProcessedEvents = onSchedule("every 24 hours", async () => {
   console.log(`Deleted ${snapshot.size} old processed events.`);
 });
 
+const deleteStoragePathIfPresent = async (storagePath: string) => {
+  try {
+    await bucket.file(storagePath).delete();
+    return true;
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? Number((error as { code?: unknown }).code)
+        : null;
+
+    if (code === 404) return false;
+    throw error;
+  }
+};
+
+const cleanupBookingRequestReferences = onSchedule("every 24 hours", async () => {
+  const firestore = admin.firestore();
+  const now = admin.firestore.Timestamp.now();
+  const snapshot = await firestore
+    .collection("bookingRequests")
+    .where("referenceCleanupAt", "<=", now)
+    .limit(BOOKING_REFERENCE_CLEANUP_BATCH_LIMIT)
+    .get();
+
+  if (snapshot.empty) {
+    console.log("No booking request reference images eligible for cleanup.");
+    return;
+  }
+
+  let cleanedRequests = 0;
+  let deletedFiles = 0;
+  let missingFiles = 0;
+
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data() || {};
+
+    if (data.referencesDeletedAt) {
+      await docSnap.ref.update({
+        referenceCleanupAt: admin.firestore.FieldValue.delete(),
+      });
+      continue;
+    }
+
+    const storagePaths = collectBookingReferenceStoragePaths(data);
+
+    for (const storagePath of storagePaths) {
+      const deleted = await deleteStoragePathIfPresent(storagePath);
+      if (deleted) {
+        deletedFiles += 1;
+      } else {
+        missingFiles += 1;
+      }
+    }
+
+    await docSnap.ref.set(
+      {
+        fullUrl: admin.firestore.FieldValue.delete(),
+        thumbUrl: admin.firestore.FieldValue.delete(),
+        fullPath: admin.firestore.FieldValue.delete(),
+        thumbPath: admin.firestore.FieldValue.delete(),
+        referenceImages: [],
+        referenceCleanupAt: admin.firestore.FieldValue.delete(),
+        referenceImageCountAtCleanup: Array.isArray(data.referenceImages)
+          ? data.referenceImages.length
+          : storagePaths.length > 0
+          ? 1
+          : 0,
+        referenceStoragePathsAtCleanup: storagePaths,
+        referencesDeletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    cleanedRequests += 1;
+  }
+
+  console.log(
+    `Cleaned ${cleanedRequests} booking request reference set(s); deleted ${deletedFiles} file(s), ${missingFiles} already missing.`
+  );
+});
+
 const cleanupExpiredFlashHolds = onSchedule("every 15 minutes", async () => {
   const firestore = admin.firestore();
   const snapshot = await firestore
@@ -3931,6 +4204,7 @@ const cleanupExpiredFlashHolds = onSchedule("every 15 minutes", async () => {
 
 module.exports = {
   handleImageUpload,
+  syncBookingRequestReferenceRetention,
   processAvatar,
   handleOfferImageUpload,
   createStripeConnectAccount,
@@ -3955,6 +4229,7 @@ module.exports = {
   syncArtistMarketplaceProjection,
   rebuildMarketplaceProjection,
   cleanupProcessedEvents,
+  cleanupBookingRequestReferences,
   cleanupExpiredFlashHolds,
   ...transactionalEmail,
 };

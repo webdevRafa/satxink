@@ -26,6 +26,10 @@ import {
   getClientFirstName,
   getFullClientNameTitle,
 } from "../utils/clientDisplayName";
+import {
+  BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS,
+  getBookingReferenceCleanupTimestamp,
+} from "../utils/bookingReferenceRetention";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -36,6 +40,8 @@ type RequestReferenceImage = {
   fileName?: string;
   fullUrl?: string;
   thumbUrl?: string;
+  fullPath?: string;
+  thumbPath?: string;
 };
 
 type BookingRequest = {
@@ -321,6 +327,9 @@ const BookingRequestsList: React.FC<Props> = ({
       await updateDoc(doc(db, "bookingRequests", request.id), {
         status: "declined",
         declinedAt: serverTimestamp(),
+        referenceCleanupAt: getBookingReferenceCleanupTimestamp(
+          BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS
+        ),
       });
       setDeclinedRequestIds((current) => [...current, request.id]);
       onRequestResolved?.(request.id);
@@ -2103,6 +2112,12 @@ const getRequestReferenceImages = (
         typeof reference.fileName === "string" ? reference.fileName : undefined,
       fullUrl,
       thumbUrl,
+      fullPath:
+        typeof reference.fullPath === "string" ? reference.fullPath : undefined,
+      thumbPath:
+        typeof reference.thumbPath === "string"
+          ? reference.thumbPath
+          : undefined,
     });
   };
 

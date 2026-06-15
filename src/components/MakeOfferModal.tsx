@@ -56,6 +56,10 @@ import {
   getFlashRepeatability,
   isFlashAvailableForClients,
 } from "../utils/flashAvailability";
+import {
+  BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
+  getBookingReferenceCleanupTimestamp,
+} from "../utils/bookingReferenceRetention";
 
 type BookingRequest = {
   id: string;
@@ -552,6 +556,9 @@ const MakeOfferModal = ({
         await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
           status: "offered",
           offeredAt: serverTimestamp(),
+          referenceCleanupAt: getBookingReferenceCleanupTimestamp(
+            BOOKING_REFERENCE_STANDARD_RETENTION_DAYS
+          ),
         });
       }
 

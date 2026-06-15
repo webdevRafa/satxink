@@ -39,6 +39,10 @@ import {
   formatClientFullName,
   getClientNameParts,
 } from "../utils/clientDisplayName";
+import {
+  BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
+  getBookingReferenceCleanupTimestamp,
+} from "../utils/bookingReferenceRetention";
 
 interface Props {
   isOpen: boolean;
@@ -79,6 +83,8 @@ type UploadedReferenceImage = {
   fileName: string;
   fullUrl: string;
   thumbUrl: string;
+  fullPath: string;
+  thumbPath: string;
 };
 
 const maxReferenceImages = 3;
@@ -458,6 +464,13 @@ const RequestTattooModal: React.FC<Props> = ({
         availableDays,
         status: "pending",
         createdAt: serverTimestamp(),
+        ...(hasReferenceImages
+          ? {
+              referenceCleanupAt: getBookingReferenceCleanupTimestamp(
+                BOOKING_REFERENCE_STANDARD_RETENTION_DAYS
+              ),
+            }
+          : {}),
       });
 
       toast.success("Request sent!");
@@ -514,6 +527,8 @@ const RequestTattooModal: React.FC<Props> = ({
                 fileName: processedFileName,
                 fullUrl,
                 thumbUrl,
+                fullPath: processedPaths.fullPath,
+                thumbPath: processedPaths.thumbPath,
               };
             })
           );
