@@ -35,7 +35,10 @@ import {
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { Flash } from "../types/Flash";
-import { isStripeConnectReady, type StripeConnectLike } from "../utils/stripeConnect";
+import {
+  isStripeConnectReady,
+  type StripeConnectLike,
+} from "../utils/stripeConnect";
 import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
@@ -135,7 +138,10 @@ export const ArtistProfilePage = () => {
         const clientRef = doc(db, "users", user.uid);
         const clientSnap = await getDoc(clientRef);
         const data = clientSnap.exists() ? clientSnap.data() : {};
-        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
+        const clientNameParts = getClientNameParts(
+          data,
+          user.displayName || "Client"
+        );
 
         setClient({
           id: user.uid,
@@ -287,7 +293,8 @@ export const ArtistProfilePage = () => {
   const selectedItemIndex = selectedItem
     ? galleryItems.findIndex((item) => item.id === selectedItem.id)
     : -1;
-  const canNavigatePortfolio = galleryItems.length > 1 && selectedItemIndex >= 0;
+  const canNavigatePortfolio =
+    galleryItems.length > 1 && selectedItemIndex >= 0;
 
   const navigatePortfolio = (direction: SlideDirection) => {
     if (!canNavigatePortfolio) return;
@@ -382,7 +389,9 @@ export const ArtistProfilePage = () => {
           ? {
               ...current,
               likedArtists: currentlyFollowing
-                ? current.likedArtists.filter((artistId) => artistId !== artist.id)
+                ? current.likedArtists.filter(
+                    (artistId) => artistId !== artist.id
+                  )
                 : [...new Set([...current.likedArtists, artist.id])],
             }
           : current
@@ -392,7 +401,9 @@ export const ArtistProfilePage = () => {
           ? {
               ...current,
               likedBy: currentlyFollowing
-                ? (current.likedBy || []).filter((clientId) => clientId !== client.id)
+                ? (current.likedBy || []).filter(
+                    (clientId) => clientId !== client.id
+                  )
                 : [...new Set([...(current.likedBy || []), client.id])],
             }
           : current
@@ -423,185 +434,195 @@ export const ArtistProfilePage = () => {
     ? artist.specialties.filter(Boolean)
     : [];
   const socialLinks = getArtistSocialLinks(artist);
+  const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
 
   return (
-    <div className="mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
-      <div className="relative mx-auto mb-10 w-full overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-black/20 p-6 shadow-lg">
-        <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
-            <div className="relative shrink-0">
-              <img
-                src={artist.avatarUrl || "/fallback-avatar.jpg"}
-                alt={artistDisplayName}
-                className="aspect-square h-32 w-32 rounded-full border border-white/10 object-cover shadow-lg md:h-40 md:w-40"
-              />
-              <span className="absolute bottom-2 right-1 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-white/10">
-                Artist
-              </span>
-            </div>
+    <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
+      {profileBackdropUrl && (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#0d0d0d]">
+          <div
+            className="absolute inset-[-10%] bg-cover bg-center opacity-[0.5] blur-[15px] saturate-[2]"
+            style={{ backgroundImage: `url(${profileBackdropUrl})` }}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 bg-[#0d0d0d]/82" />
+          <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-black/55 to-transparent" />
+        </div>
+      )}
 
-            <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                Artist profile
-              </p>
-              <h1 className="mt-2 text-3xl! font-semibold text-white">
-                {artistDisplayName}
-              </h1>
-              {artistShopName &&
-                (shop?.mapLink ? (
-                  <a
-                    href={shop.mapLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 transition hover:text-white md:justify-start"
-                  >
-                    <MapPin size={15} />
-                    {artistShopName}
-                  </a>
-                ) : (
-                  <p className="mt-2 inline-flex items-center justify-center gap-2 text-sm! font-medium text-neutral-300 md:justify-start">
-                    <MapPin size={15} />
-                    {artistShopName}
-                  </p>
-                ))}
-              {artist.bio && (
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
-                  {artist.bio}
-                </p>
-              )}
+      <div className="relative z-10">
+        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-5 lg:mb-10">
+          <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-              {socialLinks.length > 0 && (
-                <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-                  {socialLinks.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={link.label}
-                      title={link.label}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-black/20 text-white transition hover:border-white/25 hover:bg-white/[0.08]"
-                    >
-                      {link.icon}
-                    </a>
-                  ))}
+          <div className="relative z-10 grid gap-5 lg:min-h-[152px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-center">
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 via-white/5 to-transparent blur-md" />
+                <img
+                  src={artist.avatarUrl || "/fallback-avatar.jpg"}
+                  alt={artistDisplayName}
+                  className="relative aspect-square h-20 w-20 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] sm:h-32 sm:w-32 md:h-40 md:w-40"
+                />
+              </div>
+
+              <div className="min-w-0 flex-1 pt-0.5 text-left sm:pt-2 md:pt-4">
+                <div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <h1 className="min-w-0 break-words text-2xl! font-semibold leading-tight text-white sm:text-3xl!">
+                      {artistDisplayName}
+                    </h1>
+                    {socialLinks.length > 0 && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-1">
+                        {socialLinks.map((link) => (
+                          <a
+                            key={link.label}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={link.label}
+                            title={link.label}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-white transition duration-300 ease-in-out hover:bg-white/5 hover:text-white/80"
+                          >
+                            {link.icon}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {artistShopName &&
+                    (shop?.mapLink ? (
+                      <a
+                        href={shop.mapLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 inline-flex text-sm! font-medium leading-5 text-neutral-200 transition hover:text-white"
+                      >
+                        {artistShopName}
+                      </a>
+                    ) : (
+                      <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm! font-medium leading-5 text-neutral-300">
+                        <MapPin size={14} />
+                        {artistShopName}
+                      </p>
+                    ))}
+
+                  {artistStyles.length > 0 && (
+                    <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 sm:mt-2">
+                      {artistStyles.map((style) => (
+                        <li
+                          key={style}
+                          className="inline-flex items-center rounded-full text-[11px] font-semibold leading-4 text-neutral-400"
+                        >
+                          {style}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
 
-              {artistStyles.length > 0 && (
-                <ul className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
-                  {artistStyles.map((style) => (
-                    <li
-                      key={style}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
-                    >
-                      {style}
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="w-full lg:justify-self-end">
+              <ArtistHeaderActionCard
+                isFollowingArtist={isFollowingArtist}
+                isFollowUpdating={isFollowUpdating}
+                onRequestTattoo={handleRequestTattoo}
+                onToggleFollow={handleToggleFollow}
+              />
             </div>
           </div>
+        </div>
 
-          <div className="w-full lg:w-[280px]">
-            <ArtistHeaderActionCard
-              isFollowingArtist={isFollowingArtist}
-              isFollowUpdating={isFollowUpdating}
-              onRequestTattoo={handleRequestTattoo}
-              onToggleFollow={handleToggleFollow}
+        <div className="mt-10 pb-60">
+          <div
+            data-aos="fade-up"
+            className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+          >
+            <div>
+              <div
+                className="flex flex-wrap items-center gap-3"
+                role="tablist"
+                aria-label="Artist work"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "portfolio"}
+                  onClick={() => setActiveTab("portfolio")}
+                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                    activeTab === "portfolio"
+                      ? "text-white"
+                      : "text-white/40 hover:text-white/75"
+                  }`}
+                >
+                  Work
+                </button>
+                <span className="h-6 w-px bg-white/15" />
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "flashSheets"}
+                  onClick={() => setActiveTab("flashSheets")}
+                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                    activeTab === "flashSheets"
+                      ? "text-white"
+                      : "text-white/40 hover:text-white/75"
+                  }`}
+                >
+                  Flash
+                </button>
+              </div>
+            </div>
+            {activeTab === "portfolio" &&
+              !galleryLoading &&
+              galleryItems.length > 0 && (
+                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
+                  <Camera size={15} />
+                  {galleryItems.length} piece
+                  {galleryItems.length === 1 ? "" : "s"}
+                </span>
+              )}
+            {activeTab === "flashSheets" &&
+              !flashSheetsLoading &&
+              flashSheets.length > 0 && (
+                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
+                  <Layers size={15} />
+                  {flashSheets.length} sheet
+                  {flashSheets.length === 1 ? "" : "s"}
+                </span>
+              )}
+          </div>
+
+          {activeTab === "portfolio" ? (
+            <PortfolioPanel
+              galleryItems={galleryItems}
+              galleryLoading={galleryLoading}
+              onOpenItem={openPortfolioItem}
             />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <div
-          data-aos="fade-up"
-          className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-        >
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-2">
-              Recent work
-            </p>
-            <div
-              className="flex flex-wrap items-center gap-3"
-              role="tablist"
-              aria-label="Artist work"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "portfolio"}
-                onClick={() => setActiveTab("portfolio")}
-                className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                  activeTab === "portfolio"
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/75"
-                }`}
-              >
-                Portfolio
-              </button>
-              <span className="h-6 w-px bg-white/15" />
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "flashSheets"}
-                onClick={() => setActiveTab("flashSheets")}
-                className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                  activeTab === "flashSheets"
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/75"
-                }`}
-              >
-                Flash Sheets
-              </button>
-            </div>
-          </div>
-          {activeTab === "portfolio" && !galleryLoading && galleryItems.length > 0 && (
-            <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-              <Camera size={15} />
-              {galleryItems.length} piece{galleryItems.length === 1 ? "" : "s"}
-            </span>
+          ) : (
+            <FlashSheetsPanel
+              flashSheets={flashSheets}
+              flashSheetsLoading={flashSheetsLoading}
+              focusedSheetId={focusedSheet?.id}
+              onOpenSheet={handleSelectSheet}
+            />
           )}
-          {activeTab === "flashSheets" &&
-            !flashSheetsLoading &&
-            flashSheets.length > 0 && (
-              <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                <Layers size={15} />
-                {flashSheets.length} sheet
-                {flashSheets.length === 1 ? "" : "s"}
-              </span>
-            )}
+
+          {activeTab === "flashSheets" && focusedSheet && (
+            <FlashSheetItemsSection
+              sheet={focusedSheet}
+              flashes={sheetFlashes}
+              loading={sheetFlashesLoading}
+              onClose={() => {
+                setFocusedSheet(null);
+                setSheetFlashes([]);
+              }}
+              onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+              onSelectFlash={setSelectedFlash}
+            />
+          )}
         </div>
-
-        {activeTab === "portfolio" ? (
-          <PortfolioPanel
-            galleryItems={galleryItems}
-            galleryLoading={galleryLoading}
-            onOpenItem={openPortfolioItem}
-          />
-        ) : (
-          <FlashSheetsPanel
-            flashSheets={flashSheets}
-            flashSheetsLoading={flashSheetsLoading}
-            focusedSheetId={focusedSheet?.id}
-            onOpenSheet={handleSelectSheet}
-          />
-        )}
-
-        {activeTab === "flashSheets" && focusedSheet && (
-          <FlashSheetItemsSection
-            sheet={focusedSheet}
-            flashes={sheetFlashes}
-            loading={sheetFlashesLoading}
-            onClose={() => {
-              setFocusedSheet(null);
-              setSheetFlashes([]);
-            }}
-            onPreviewSheet={() => setSelectedSheet(focusedSheet)}
-            onSelectFlash={setSelectedFlash}
-          />
-        )}
       </div>
 
       {selectedItem && (
@@ -722,33 +743,39 @@ const ArtistHeaderActionCard = ({
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3 shadow-lg">
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={onRequestTattoo}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
-      >
-        <MessageCircle size={16} />
-        Request tattoo
-      </button>
-      <button
-        type="button"
-        onClick={onToggleFollow}
-        disabled={isFollowUpdating}
-        className={`inline-flex w-full items-center justify-center gap-2 rounded-md border px-3! py-2.5! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-          isFollowingArtist
-            ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
-            : "border-white/10 bg-black/25 text-white hover:bg-white/[0.08]"
-        }`}
-      >
-        <Heart
-          size={16}
-          className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
-        />
-        {isFollowingArtist ? "Following" : "Follow artist"}
-      </button>
-    </div>
+  <div className="grid w-full grid-cols-2 gap-2 lg:w-[380px]">
+    <button
+      type="button"
+      onClick={onRequestTattoo}
+      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.8rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
+    >
+      <MessageCircle size={16} />
+      <span className="sm:hidden">Send idea</span>
+      <span className="hidden sm:inline">Send your idea</span>
+    </button>
+    <button
+      type="button"
+      onClick={onToggleFollow}
+      disabled={isFollowUpdating}
+      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.8rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
+        isFollowingArtist
+          ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
+          : "border-white/10 bg-black/25 text-white hover:border-white/20 hover:bg-white/[0.08]"
+      }`}
+    >
+      <Heart
+        size={16}
+        className={isFollowingArtist ? "fill-[#19d69b] text-[#19d69b]" : ""}
+      />
+      {isFollowingArtist ? (
+        "Following"
+      ) : (
+        <>
+          <span className="sm:hidden">Follow</span>
+          <span className="hidden sm:inline">Follow artist</span>
+        </>
+      )}
+    </button>
   </div>
 );
 
@@ -777,10 +804,14 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
 const getCardPreviewUrl = (item: GalleryItem) =>
   item.thumbUrl || item.webp90Url || item.fullUrl;
 
+const getProfileBackdropUrl = (item?: GalleryItem) =>
+  item?.thumbUrl || item?.webp90Url || "";
+
 const getLightboxPreviewUrl = (item: GalleryItem) =>
   item.webp90Url || item.thumbUrl || item.fullUrl;
 
-const getSheetPreviewUrl = (sheet: FlashSheet) => sheet.thumbUrl || sheet.imageUrl;
+const getSheetPreviewUrl = (sheet: FlashSheet) =>
+  sheet.thumbUrl || sheet.imageUrl;
 
 const getFlashPreviewUrl = (flash: Flash) =>
   flash.webp90Url || flash.thumbUrl || flash.fullUrl;
@@ -815,7 +846,9 @@ const getArtistSocialLinks = (artist: Artist) =>
 
 const getExternalHref = (url: string) => {
   const trimmedUrl = url.trim();
-  return /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
+  return /^https?:\/\//i.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
 };
 
 const preloadImage = (src?: string) => {
@@ -991,9 +1024,7 @@ const FlashSheetCard = ({
     onClick={onOpen}
     className={`group relative overflow-hidden rounded-xl border bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       isSelected ? "border-white/40 ring-1 ring-white/25" : "border-white/10"
-    } ${
-      priority ? "sm:col-span-2 lg:col-span-1" : ""
-    }`}
+    } ${priority ? "sm:col-span-2 lg:col-span-1" : ""}`}
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
       <FadeInImage
@@ -1301,7 +1332,6 @@ const PortfolioLightbox = ({
             <X size={18} />
           </button>
         </div>
-
       </div>
 
       <div
@@ -1515,7 +1545,9 @@ const FlashRequestModal = ({
   onClose: () => void;
 }) => {
   const [description, setDescription] = useState(
-    `I would like to request this flash design: ${flash.title || "Untitled flash"}.`
+    `I would like to request this flash design: ${
+      flash.title || "Untitled flash"
+    }.`
   );
   const [bodyPlacement, setBodyPlacement] = useState("");
   const [size, setSize] = useState("");
@@ -1544,7 +1576,9 @@ const FlashRequestModal = ({
     }
 
     if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
-      toast.error("Latest date must be the same day or after the earliest date.");
+      toast.error(
+        "Latest date must be the same day or after the earliest date."
+      );
       return;
     }
 
@@ -1674,9 +1708,7 @@ const FlashRequestModal = ({
             )}
 
             <label className="block">
-              <span className="mb-1 block text-sm text-white/70">
-                Message
-              </span>
+              <span className="mb-1 block text-sm text-white/70">Message</span>
               <textarea
                 required
                 value={description}
@@ -1750,9 +1782,7 @@ const FlashRequestModal = ({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  From
-                </span>
+                <span className="mb-1 block text-sm text-white/70">From</span>
                 <QuarterHourTimeSelect
                   value={availableTime.from}
                   onChange={(value) =>
@@ -1920,7 +1950,10 @@ const TagMarqueeModal = ({
         style={{ animationDuration: duration }}
       >
         {[...tags, ...tags].map((tag, idx) => (
-          <span key={`${tag}-${idx}`} className="mx-3 text-xs font-medium text-white">
+          <span
+            key={`${tag}-${idx}`}
+            className="mx-3 text-xs font-medium text-white"
+          >
             {tag}
           </span>
         ))}

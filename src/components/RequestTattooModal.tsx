@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarDays,
   ChevronLeft,
@@ -133,16 +134,10 @@ const RequestTattooModal: React.FC<Props> = ({
   }, [isOpen, step, scheduleStep]);
 
   useEffect(() => {
-    if (!isOpen || !window.matchMedia("(max-width: 639px)").matches) return;
+    if (!isOpen) return;
 
-    const scrollY = window.scrollY;
     const bodyStyle = document.body.style;
     const htmlStyle = document.documentElement.style;
-    const previousBodyPosition = bodyStyle.position;
-    const previousBodyTop = bodyStyle.top;
-    const previousBodyLeft = bodyStyle.left;
-    const previousBodyRight = bodyStyle.right;
-    const previousBodyWidth = bodyStyle.width;
     const previousBodyOverflow = bodyStyle.overflow;
     const previousBodyOverscroll = bodyStyle.overscrollBehavior;
     const previousHtmlOverflow = htmlStyle.overflow;
@@ -150,25 +145,14 @@ const RequestTattooModal: React.FC<Props> = ({
 
     htmlStyle.overflow = "hidden";
     htmlStyle.overscrollBehavior = "none";
-    bodyStyle.position = "fixed";
-    bodyStyle.top = `-${scrollY}px`;
-    bodyStyle.left = "0";
-    bodyStyle.right = "0";
-    bodyStyle.width = "100%";
     bodyStyle.overflow = "hidden";
     bodyStyle.overscrollBehavior = "none";
 
     return () => {
-      bodyStyle.position = previousBodyPosition;
-      bodyStyle.top = previousBodyTop;
-      bodyStyle.left = previousBodyLeft;
-      bodyStyle.right = previousBodyRight;
-      bodyStyle.width = previousBodyWidth;
       bodyStyle.overflow = previousBodyOverflow;
       bodyStyle.overscrollBehavior = previousBodyOverscroll;
       htmlStyle.overflow = previousHtmlOverflow;
       htmlStyle.overscrollBehavior = previousHtmlOverscroll;
-      window.scrollTo(0, scrollY);
     };
   }, [isOpen]);
 
@@ -387,9 +371,10 @@ const RequestTattooModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
-      <div className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-5xl flex-col overflow-hidden overscroll-none rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] h-dvh overflow-hidden overscroll-none bg-black text-white backdrop-blur-md">
+      <div className="flex h-dvh items-start justify-center overflow-hidden px-0 pb-0 pt-[env(safe-area-inset-top)] sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
+        <div className="relative flex h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-5xl flex-col overflow-hidden overscroll-none rounded-none border-0 bg-[#111111] shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:rounded-lg sm:border sm:border-white/10 lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
           <div className="flex items-center gap-4">
             <img
@@ -418,7 +403,7 @@ const RequestTattooModal: React.FC<Props> = ({
 
         <div
           ref={modalBodyRef}
-          className="overflow-y-auto overscroll-contain p-4 request-modal-scrollbar sm:p-5"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 request-modal-scrollbar sm:p-5"
         >
           {step === 1 && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -880,8 +865,10 @@ const RequestTattooModal: React.FC<Props> = ({
             </form>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
