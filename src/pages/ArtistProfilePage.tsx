@@ -27,7 +27,6 @@ import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
-  Camera,
   ChevronLeft,
   ChevronRight,
   Expand,
@@ -515,11 +514,6 @@ export const ArtistProfilePage = () => {
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
   const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
-  const featuredWorkCount = featuredGalleryItems.length;
-  const workCountLabel =
-    galleryItems.length > FEATURED_WORK_LIMIT
-      ? `${featuredWorkCount} featured of ${galleryItems.length} pieces`
-      : `${galleryItems.length} piece${galleryItems.length === 1 ? "" : "s"}`;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -654,20 +648,7 @@ export const ArtistProfilePage = () => {
                 <div
                   data-aos="fade-up"
                   className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-                >
-                  <h2
-                    id="artist-work-heading"
-                    className="my-0! text-2xl! font-semibold! text-white"
-                  >
-                    Work
-                  </h2>
-                  {!galleryLoading && galleryItems.length > 0 && (
-                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
-                      <Camera size={15} />
-                      {workCountLabel}
-                    </span>
-                  )}
-                </div>
+                ></div>
                 <PortfolioPanel
                   galleryItems={featuredGalleryItems}
                   galleryLoading={galleryLoading}
@@ -1074,7 +1055,8 @@ const PortfolioPanel = ({
   }
 
   const goToPage = (nextPageIndex: number, direction: SlideDirection) => {
-    if (isTransitioning || pageCount <= 1 || nextPageIndex === pageIndex) return;
+    if (isTransitioning || pageCount <= 1 || nextPageIndex === pageIndex)
+      return;
 
     setPreviousItems(visibleItems);
     setTransitionDirection(direction);
@@ -1092,7 +1074,7 @@ const PortfolioPanel = ({
   return (
     <div className="satx-profile-work-carousel">
       <div
-        className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+        className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3  ${
           isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
         }`}
         data-direction={transitionDirection}
@@ -1107,8 +1089,7 @@ const PortfolioPanel = ({
             transitionDirection === "next"
               ? index
               : Math.max(0, transitionSlotCount - 1 - index);
-          const fadeOutDelay =
-            transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
+          const fadeOutDelay = transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
           const fadeInDelay =
             PORTFOLIO_FADE_DURATION_MS +
             Math.max(0, transitionSlotCount - 1) * PORTFOLIO_FADE_STAGGER_MS +
