@@ -115,7 +115,7 @@ type Shop = {
 type SlideDirection = "next" | "prev";
 
 const FEATURED_WORK_LIMIT = 9;
-const PORTFOLIO_SLIDE_DURATION_MS = 640;
+const PORTFOLIO_SLIDE_DURATION_MS = 680;
 const PORTFOLIO_SLIDE_STAGGER_MS = 72;
 const PORTFOLIO_SLIDE_SETTLE_BUFFER_MS = 48;
 
