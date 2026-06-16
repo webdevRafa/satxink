@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   DollarSign,
-  Eye,
   ImageIcon,
+  ImagePlus,
+  Loader2,
   MapPin,
   Ruler,
   Send,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -38,6 +39,10 @@ import {
   formatClientFullName,
   getClientNameParts,
 } from "../utils/clientDisplayName";
+import {
+  BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
+  getBookingReferenceCleanupTimestamp,
+} from "../utils/bookingReferenceRetention";
 
 interface Props {
   isOpen: boolean;
@@ -68,9 +73,33 @@ const availableDayOptions = [
   "Sunday",
 ];
 
-type ScheduleStep = "dates" | "time" | "days" | "preview";
-type PreviewReturnStep = Exclude<ScheduleStep, "preview">;
 type AvailableTime = { from: string; to: string };
+type RequestStep = "idea" | "details" | "reference" | "schedule" | "review";
+type ReferencePreview = {
+  file: File;
+  url: string;
+};
+type UploadedReferenceImage = {
+  fileName: string;
+  fullUrl: string;
+  thumbUrl: string;
+  fullPath: string;
+  thumbPath: string;
+};
+
+const maxReferenceImages = 3;
+
+const requestFlowSteps: Array<{
+  id: RequestStep;
+  label: string;
+  helper: string;
+}> = [
+  { id: "idea", label: "Idea", helper: "Describe the piece" },
+  { id: "details", label: "Details", helper: "Placement and size" },
+  { id: "reference", label: "Reference", helper: "Up to 3 images" },
+  { id: "schedule", label: "Schedule", helper: "Timing preferences" },
+  { id: "review", label: "Review", helper: "Send request" },
+];
 
 const RequestTattooModal: React.FC<Props> = ({
   isOpen,
@@ -79,7 +108,7 @@ const RequestTattooModal: React.FC<Props> = ({
   artist,
   onRequestSent,
 }) => {
-  const [step, setStep] = useState(1);
+  const [activeStep, setActiveStep] = useState<RequestStep>("idea");
   const [description, setDescription] = useState("");
   const [bodyPlacement, setBodyPlacement] = useState("");
   const [size, setSize] = useState("");
@@ -88,25 +117,33 @@ const RequestTattooModal: React.FC<Props> = ({
     from: "",
     to: "",
   });
-  const [scheduleStep, setScheduleStep] = useState<ScheduleStep>("dates");
-  const [previewReturnStep, setPreviewReturnStep] =
-    useState<PreviewReturnStep>("time");
   const [visibleCalendarMonth, setVisibleCalendarMonth] = useState(() =>
     getMonthStart(new Date())
   );
-  const [timingConfirmed, setTimingConfirmed] = useState(false);
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImages, setReferenceImages] = useState<File[]>([]);
+  const [isAddingReferenceImages, setIsAddingReferenceImages] = useState(false);
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestPanelRef = useRef<HTMLElement | null>(null);
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
+  const progressStepRefs = useRef<Map<RequestStep, HTMLButtonElement>>(
+    new Map()
+  );
+  const referenceAddTimerRef = useRef<number | null>(null);
   const earliestEndTime = getMinimumEndTime(availableTime.from);
 
-  const referencePreviewUrl = useMemo(
-    () => (referenceImage ? URL.createObjectURL(referenceImage) : ""),
-    [referenceImage]
+  const referencePreviews = useMemo<ReferencePreview[]>(
+    () =>
+      referenceImages.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [referenceImages]
   );
+  const hasReferenceImages = referenceImages.length > 0;
+  const remainingReferenceSlots = maxReferenceImages - referenceImages.length;
   const clientNameParts = getClientNameParts(client);
   const clientName = formatClientFullName(
     clientNameParts.firstName,
@@ -116,59 +153,91 @@ const RequestTattooModal: React.FC<Props> = ({
   const clientAvatar = client.avatarUrl || "/default-avatar.png";
   const artistName = artist.name || "Artist";
   const todayDateInput = getTodayDateInputValue();
+  const activeStepIndex = requestFlowSteps.findIndex(
+    (flowStep) => flowStep.id === activeStep
+  );
+  const parsedCustomBudget = Number(customBudget);
+  const isCustomBudgetValid =
+    budget !== "custom" ||
+    (!Number.isNaN(parsedCustomBudget) &&
+      parsedCustomBudget > 0 &&
+      parsedCustomBudget <= 5000);
+  const isIdeaComplete = description.trim().length > 0;
+  const areDetailsComplete =
+    Boolean(bodyPlacement.trim() && size) && isCustomBudgetValid;
+  const hasSelectedDateWindow = Boolean(
+    preferredDateRange[0] && preferredDateRange[1]
+  );
+  const hasValidDateWindow =
+    hasSelectedDateWindow &&
+    !hasPastDateInputValue(preferredDateRange, todayDateInput) &&
+    !isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1]);
+  const hasValidTimeWindow = Boolean(
+    availableTime.from &&
+      availableTime.to &&
+      hasMinimumTimeWindow(availableTime.from, availableTime.to)
+  );
+  const isScheduleComplete = hasValidDateWindow && hasValidTimeWindow;
+  const maxReachableStepIndex = !isIdeaComplete
+    ? 0
+    : !areDetailsComplete
+    ? 1
+    : !isScheduleComplete
+    ? 3
+    : 4;
 
   useEffect(() => {
     return () => {
-      if (referencePreviewUrl) URL.revokeObjectURL(referencePreviewUrl);
+      referencePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
-  }, [referencePreviewUrl]);
+  }, [referencePreviews]);
 
   useEffect(() => {
-    if (!isOpen || step !== 2) return;
-
-    const scrollFrame = window.requestAnimationFrame(() => {
-      modalBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    });
-
-    return () => window.cancelAnimationFrame(scrollFrame);
-  }, [isOpen, step, scheduleStep]);
+    return () => {
+      if (referenceAddTimerRef.current !== null) {
+        window.clearTimeout(referenceAddTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const bodyStyle = document.body.style;
-    const htmlStyle = document.documentElement.style;
-    const previousBodyOverflow = bodyStyle.overflow;
-    const previousBodyOverscroll = bodyStyle.overscrollBehavior;
-    const previousHtmlOverflow = htmlStyle.overflow;
-    const previousHtmlOverscroll = htmlStyle.overscrollBehavior;
+    const scrollFrame = window.requestAnimationFrame(() => {
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      progressStepRefs.current.get(activeStep)?.scrollIntoView({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        block: "nearest",
+        inline: "center",
+      });
 
-    htmlStyle.overflow = "hidden";
-    htmlStyle.overscrollBehavior = "none";
-    bodyStyle.overflow = "hidden";
-    bodyStyle.overscrollBehavior = "none";
+      if (window.matchMedia("(max-width: 640px)").matches) {
+        requestPanelRef.current?.scrollIntoView({
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+          block: "start",
+        });
+      }
+    });
 
-    return () => {
-      bodyStyle.overflow = previousBodyOverflow;
-      bodyStyle.overscrollBehavior = previousBodyOverscroll;
-      htmlStyle.overflow = previousHtmlOverflow;
-      htmlStyle.overscrollBehavior = previousHtmlOverscroll;
-    };
-  }, [isOpen]);
+    return () => window.cancelAnimationFrame(scrollFrame);
+  }, [activeStep, isOpen]);
 
   const reset = () => {
-    setStep(1);
+    if (referenceAddTimerRef.current !== null) {
+      window.clearTimeout(referenceAddTimerRef.current);
+      referenceAddTimerRef.current = null;
+    }
+
+    setActiveStep("idea");
     setDescription("");
     setBodyPlacement("");
     setSize("");
     setPreferredDateRange(["", ""]);
     setAvailableTime({ from: "", to: "" });
-    setScheduleStep("dates");
-    setPreviewReturnStep("time");
     setVisibleCalendarMonth(getMonthStart(new Date()));
-    setTimingConfirmed(false);
     setAvailableDays([]);
-    setReferenceImage(null);
+    setReferenceImages([]);
+    setIsAddingReferenceImages(false);
     setBudget("");
     setCustomBudget("");
     setIsSubmitting(false);
@@ -179,13 +248,30 @@ const RequestTattooModal: React.FC<Props> = ({
     onClose();
   };
 
-  const handleNext = () => {
-    if (!description.trim() || !bodyPlacement.trim() || !size) {
-      toast.error("Please add the idea, placement, and size first.");
+  const goToStep = (nextStep: RequestStep) => {
+    const nextIndex = requestFlowSteps.findIndex(
+      (flowStep) => flowStep.id === nextStep
+    );
+
+    if (nextIndex <= maxReachableStepIndex) {
+      setActiveStep(nextStep);
       return;
     }
 
-    setStep(2);
+    if (!isIdeaComplete) {
+      toast.error("Start with the tattoo idea first.");
+      setActiveStep("idea");
+      return;
+    }
+
+    if (!areDetailsComplete) {
+      toast.error("Add placement, size, and a valid custom budget first.");
+      setActiveStep("details");
+      return;
+    }
+
+    toast.error("Confirm your preferred dates and time first.");
+    setActiveStep("schedule");
   };
 
   const handleSelectCalendarDate = (date: Date) => {
@@ -193,55 +279,10 @@ const RequestTattooModal: React.FC<Props> = ({
 
     if (dateValue < todayDateInput) return;
 
-    setTimingConfirmed(false);
     setPreferredDateRange(([start, end]) => {
       if (!start || end || dateValue < start) return [dateValue, ""];
       return [start, dateValue];
     });
-  };
-
-  const handleConfirmDateWindow = () => {
-    if (!preferredDateRange[0] || !preferredDateRange[1]) {
-      toast.error("Pick the first and last day of your ideal window.");
-      return;
-    }
-
-    setScheduleStep("time");
-  };
-
-  const confirmTimingSelection = () => {
-    if (!availableTime.from || !availableTime.to) {
-      toast.error("Choose a preferred start and end time.");
-      return false;
-    }
-
-    if (!hasMinimumTimeWindow(availableTime.from, availableTime.to)) {
-      toast.error("Preferred time windows need to be at least 1 hour.");
-      return false;
-    }
-
-    setTimingConfirmed(true);
-    return true;
-  };
-
-  const handleConfirmTiming = () => {
-    confirmTimingSelection();
-  };
-
-  const handleContinueToAvailableDays = () => {
-    if (!confirmTimingSelection()) return;
-
-    setScheduleStep("days");
-  };
-
-  const handleOpenPreview = (returnStep: PreviewReturnStep) => {
-    if (!timingConfirmed) {
-      toast.error("Confirm your preferred timing before previewing.");
-      return;
-    }
-
-    setPreviewReturnStep(returnStep);
-    setScheduleStep("preview");
   };
 
   const toggleAvailableDay = (day: string) => {
@@ -250,21 +291,140 @@ const RequestTattooModal: React.FC<Props> = ({
     );
   };
 
+  const continueFromIdea = () => {
+    if (!isIdeaComplete) {
+      toast.error("Describe the tattoo idea before continuing.");
+      return;
+    }
+
+    setActiveStep("details");
+  };
+
+  const continueFromDetails = () => {
+    if (!bodyPlacement.trim() || !size) {
+      toast.error("Add placement and size before continuing.");
+      return;
+    }
+
+    if (!isCustomBudgetValid) {
+      toast.error("Please enter a valid custom budget under $5,000.");
+      return;
+    }
+
+    setActiveStep("reference");
+  };
+
+  const continueFromSchedule = () => {
+    if (!hasSelectedDateWindow) {
+      toast.error("Pick the first and last day of your ideal window.");
+      return;
+    }
+
+    if (!hasValidDateWindow) {
+      toast.error("Preferred dates must be today or later and in order.");
+      return;
+    }
+
+    if (!hasValidTimeWindow) {
+      toast.error("Choose a preferred start and end time of at least 1 hour.");
+      return;
+    }
+
+    setActiveStep("review");
+  };
+
+  const handleReferenceImagesChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+
+    if (selectedFiles.length === 0) return;
+
+    if (remainingReferenceSlots <= 0) {
+      toast.error("You can include up to 3 reference images.");
+      return;
+    }
+
+    const imageFiles = selectedFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (imageFiles.length !== selectedFiles.length) {
+      toast.error("Only image files can be added as references.");
+    }
+
+    if (imageFiles.length === 0) return;
+
+    const filesToAdd = imageFiles.slice(0, remainingReferenceSlots);
+    const skippedCount = imageFiles.length - filesToAdd.length;
+
+    if (skippedCount > 0) {
+      toast.error("Only the first 3 reference images can be included.");
+    }
+
+    if (referenceAddTimerRef.current !== null) {
+      window.clearTimeout(referenceAddTimerRef.current);
+    }
+
+    setIsAddingReferenceImages(true);
+    referenceAddTimerRef.current = window.setTimeout(() => {
+      setReferenceImages((current) => [...current, ...filesToAdd]);
+      setIsAddingReferenceImages(false);
+      referenceAddTimerRef.current = null;
+      toast.success(
+        filesToAdd.length === 1
+          ? "Reference image added."
+          : `${filesToAdd.length} reference images added.`
+      );
+    }, 220);
+  };
+
+  const handleRemoveReferenceImage = (indexToRemove: number) => {
+    setReferenceImages((current) =>
+      current.filter((_, index) => index !== indexToRemove)
+    );
+    toast.success("Reference image removed.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!timingConfirmed) {
-      toast.error("Confirm your preferred timing before sending.");
+    if (!isIdeaComplete) {
+      toast.error("Describe the tattoo idea before sending.");
+      setActiveStep("idea");
+      return;
+    }
+
+    if (!areDetailsComplete) {
+      toast.error("Add placement, size, and a valid budget before sending.");
+      setActiveStep("details");
+      return;
+    }
+
+    if (!hasSelectedDateWindow) {
+      toast.error("Pick the first and last day of your ideal window.");
+      setActiveStep("schedule");
       return;
     }
 
     if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
       toast.error("Preferred dates must be today or later.");
+      setActiveStep("schedule");
       return;
     }
 
     if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
-      toast.error("Latest date must be the same day or after the earliest date.");
+      toast.error(
+        "Latest date must be the same day or after the earliest date."
+      );
+      setActiveStep("schedule");
+      return;
+    }
+
+    if (!hasValidTimeWindow) {
+      toast.error("Choose a preferred start and end time of at least 1 hour.");
+      setActiveStep("schedule");
       return;
     }
 
@@ -277,6 +437,7 @@ const RequestTattooModal: React.FC<Props> = ({
 
       if (finalBudget === null) {
         toast.error("Please enter a valid custom budget under $5,000.");
+        setActiveStep("details");
         return;
       }
     } else {
@@ -303,6 +464,13 @@ const RequestTattooModal: React.FC<Props> = ({
         availableDays,
         status: "pending",
         createdAt: serverTimestamp(),
+        ...(hasReferenceImages
+          ? {
+              referenceCleanupAt: getBookingReferenceCleanupTimestamp(
+                BOOKING_REFERENCE_STANDARD_RETENTION_DAYS
+              ),
+            }
+          : {}),
       });
 
       toast.success("Request sent!");
@@ -310,27 +478,11 @@ const RequestTattooModal: React.FC<Props> = ({
       reset();
       onClose();
 
-      if (referenceImage) {
-        const fileName = referenceImage.name;
-        const originalRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/originals/${fileName}`
-        );
-        await uploadBytes(originalRef, referenceImage);
-
-        const fullRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/full/${fileName}`
-        );
-        const thumbRef = ref(
-          storage,
-          `bookingRequests/${reqRef.id}/thumb/${fileName}`
-        );
-
+      if (referenceImages.length > 0) {
         const waitForURL = (
           imageRef: ReturnType<typeof ref>,
-          maxRetries = 10,
-          delay = 500
+          maxRetries = 24,
+          delay = 1000
         ): Promise<string> =>
           new Promise((resolve, reject) => {
             const attempt = (retries: number) => {
@@ -348,17 +500,48 @@ const RequestTattooModal: React.FC<Props> = ({
           });
 
         try {
-          const [fullUrl, thumbUrl] = await Promise.all([
-            waitForURL(fullRef),
-            waitForURL(thumbRef),
-          ]);
+          const uploadedReferences: UploadedReferenceImage[] = await Promise.all(
+            referenceImages.map(async (image, index) => {
+              const storageFileName = getReferenceStorageFileName(image, index);
+              const processedFileName =
+                getProcessedReferenceFileName(storageFileName);
+              const originalRef = ref(
+                storage,
+                `bookingRequests/${reqRef.id}/originals/${storageFileName}`
+              );
+
+              await uploadBytes(originalRef, image);
+
+              const processedPaths = getProcessedReferenceStoragePaths(
+                storageFileName
+              );
+              const fullRef = ref(storage, processedPaths.fullPath);
+              const thumbRef = ref(storage, processedPaths.thumbPath);
+
+              const [fullUrl, thumbUrl] = await Promise.all([
+                waitForURL(fullRef),
+                waitForURL(thumbRef),
+              ]);
+
+              return {
+                fileName: processedFileName,
+                fullUrl,
+                thumbUrl,
+                fullPath: processedPaths.fullPath,
+                thumbPath: processedPaths.thumbPath,
+              };
+            })
+          );
+
+          const primaryReference = uploadedReferences[0];
 
           await updateDoc(reqRef, {
-            fullUrl,
-            thumbUrl,
+            fullUrl: primaryReference.fullUrl,
+            thumbUrl: primaryReference.thumbUrl,
+            referenceImages: uploadedReferences,
           });
         } catch (error) {
-          console.warn("Image not ready after retry:", error);
+          console.warn("Reference image not ready after retry:", error);
         }
       }
     } catch (error) {
@@ -371,71 +554,167 @@ const RequestTattooModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[200] h-dvh overflow-hidden overscroll-none bg-black text-white backdrop-blur-md">
-      <div className="flex h-dvh items-start justify-center overflow-hidden px-0 pb-0 pt-[env(safe-area-inset-top)] sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
-        <div className="relative flex h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-5xl flex-col overflow-hidden overscroll-none rounded-none border-0 bg-[#111111] shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:rounded-lg sm:border sm:border-white/10 lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-4">
-            <img
-              src={artist.avatarUrl || "/default-avatar.png"}
-              alt={artist.name}
-              className="h-12 w-12 rounded-full border border-white/15 object-cover"
-            />
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                Tattoo request
-              </p>
-              <h2 className="mt-1 text-xl! font-semibold! text-white">
-                Tell {artistName} what you have in mind
-              </h2>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-            aria-label="Close request modal"
-          >
-            <X size={18} />
-          </button>
-        </div>
+  return (
+    <section
+      ref={requestPanelRef}
+      className="satx-request-flow-shell relative isolate scroll-mt-24 overflow-hidden rounded-lg border border-white/10 bg-[#111111]/82 text-white shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-md sm:scroll-mt-28"
+      aria-label="Tattoo request"
+    >
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.07),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.035),transparent_44%)]" />
 
-        <div
-          ref={modalBodyRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 request-modal-scrollbar sm:p-5"
+      <div className="relative z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="min-w-0">
+            <h2 className="mt-1 text-xl!  leading-tight text-white">
+              Share your tattoo idea with {artistName}
+            </h2>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+          aria-label="Close request"
         >
-          {step === 1 && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="relative z-10 border-b border-white/10 px-4 py-3 sm:px-5">
+        <div className="request-modal-scrollbar -mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          <div className="flex min-w-max gap-2">
+            {requestFlowSteps.map((flowStep, index) => {
+              const isActive = flowStep.id === activeStep;
+              const canVisit = index <= maxReachableStepIndex;
+              const isComplete =
+                (flowStep.id === "idea" && isIdeaComplete) ||
+                (flowStep.id === "details" && areDetailsComplete) ||
+                (flowStep.id === "reference" && index < activeStepIndex) ||
+                (flowStep.id === "schedule" && isScheduleComplete);
+
+              return (
+                <button
+                  key={flowStep.id}
+                  ref={(node) => {
+                    if (node) {
+                      progressStepRefs.current.set(flowStep.id, node);
+                    } else {
+                      progressStepRefs.current.delete(flowStep.id);
+                    }
+                  }}
+                  type="button"
+                  onClick={() => goToStep(flowStep.id)}
+                  disabled={!canVisit}
+                  aria-current={isActive ? "step" : undefined}
+                  className={`satx-request-progress-step inline-flex min-w-[9.5rem] items-center gap-3 rounded-md border px-3! py-2.5! text-left transition ${
+                    isActive
+                      ? "border-white/30 bg-white/[0.095] text-white"
+                      : isComplete
+                      ? "border-[#19d69b]/5 bg-[#19d69b]/5 text-white/85 hover:border-[#19d69b]/55"
+                      : canVisit
+                      ? "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white"
+                      : "cursor-not-allowed border-white/5 bg-black/20 text-white/25"
+                  }`}
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs! font-bold ${
+                      isActive
+                        ? "bg-white text-black"
+                        : isComplete
+                        ? "bg-[#19d69b]/20 text-black"
+                        : "bg-white/[0.07] text-white/55"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm! font-semibold leading-4">
+                      {flowStep.label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px]! leading-4 text-white/40">
+                      {flowStep.helper}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="relative z-10">
+        <div ref={modalBodyRef} className="p-4 sm:p-5">
+          <div key={activeStep} className="satx-request-step-panel">
+            {activeStep === "idea" && (
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                  <div className="mb-5 flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                      <ImageIcon size={19} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Start with the idea
+                      </h3>
+                      <p className="text-sm text-white/55">
+                        Share the subject, style, mood, and anything that
+                        matters before {artistName} replies.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-white/65">
+                      Tattoo idea
+                    </span>
+                    <textarea
+                      required
+                      className="min-h-52 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/40"
+                      placeholder="Describe the subject, style, mood, and any details that matter."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </label>
+
+                  <div className="mt-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={continueFromIdea}
+                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+                    >
+                      Continue
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                <aside className="rounded-lg border border-white/10 bg-black/25 p-5">
+                  <p className="mt-3 text-sm! leading-6 text-white/65">
+                    A clear idea helps the artist respond with realistic
+                    guidance, pricing, and next steps.
+                  </p>
+                </aside>
+              </div>
+            )}
+
+            {activeStep === "details" && (
               <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                 <div className="mb-5 flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                    <ImageIcon size={19} />
+                    <Ruler size={19} />
                   </div>
                   <div>
                     <h3 className="text-lg! font-semibold! text-white">
-                      Design details
+                      Placement, size, and budget
                     </h3>
                     <p className="text-sm text-white/55">
-                      Share the idea, placement, size, and any budget range.
+                      Add the practical details that shape the request.
                     </p>
                   </div>
                 </div>
 
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-white/65">
-                    Tattoo idea
-                  </span>
-                  <textarea
-                    required
-                    className="min-h-36 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
-                    placeholder="Describe the subject, style, mood, and any details that matter."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </label>
-
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
                       <MapPin size={15} />
@@ -465,211 +744,231 @@ const RequestTattooModal: React.FC<Props> = ({
                   </label>
                 </div>
 
-                <label className="mt-4 block">
-                  <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
-                    <DollarSign size={15} />
-                    Optional budget
-                  </span>
-                  <CustomSelect
-                    value={budget}
-                    onChange={setBudget}
-                    options={tattooBudgetOptions}
-                    placeholder="Have a budget?"
-                    buttonClassName="focus:border-[#19d69b]"
-                  />
-                </label>
+                <div className="mt-4 w-full max-w-xl">
+                  <label className="block">
+                    <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                      <DollarSign size={15} />
+                      Optional budget
+                    </span>
+                    <CustomSelect
+                      value={budget}
+                      onChange={setBudget}
+                      options={tattooBudgetOptions}
+                      placeholder="Have a budget?"
+                      buttonClassName="focus:border-[#19d69b]"
+                    />
+                  </label>
 
-                {budget === "custom" && (
-                  <input
-                    type="number"
-                    placeholder="Enter your budget (USD)"
-                    value={customBudget}
-                    onChange={(e) => setCustomBudget(e.target.value)}
-                    className="mt-3 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
-                    min={0}
-                    step={5}
-                  />
-                )}
+                  {budget === "custom" && (
+                    <input
+                      type="number"
+                      placeholder="Enter your budget (USD)"
+                      value={customBudget}
+                      onChange={(e) => setCustomBudget(e.target.value)}
+                      className="mt-3 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#19d69b]"
+                      min={0}
+                      step={5}
+                    />
+                  )}
+                </div>
+
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep("idea")}
+                    className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={continueFromDetails}
+                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    Continue
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
               </div>
+            )}
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                <div className="mb-5 flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                    <Upload size={19} />
+            {activeStep === "reference" && (
+              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5">
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                      <Upload size={19} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Reference images
+                      </h3>
+                      <p className="text-sm text-white/55">
+                        Optional, but helpful for composition, placement, or
+                        style direction.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Reference image
-                    </h3>
-                    <p className="text-sm text-white/55">
-                      Optional, but helpful for composition or style direction.
-                    </p>
+                  <span className="inline-flex w-fit items-center rounded-full border border-white/10 bg-black/25 px-3! py-1.5! text-xs! font-semibold text-white/55">
+                    {referenceImages.length}/{maxReferenceImages} added
+                  </span>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.78fr)_minmax(0,1.22fr)]">
+                  <label
+                    className={`group relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed p-5 text-center transition ${
+                      remainingReferenceSlots > 0 && !isAddingReferenceImages
+                        ? "cursor-pointer border-white/20 bg-black/35 hover:border-white/40 hover:bg-white/[0.04]"
+                        : "cursor-not-allowed border-white/10 bg-black/20 opacity-70"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={
+                        remainingReferenceSlots <= 0 || isAddingReferenceImages
+                      }
+                      onChange={handleReferenceImagesChange}
+                      className="sr-only"
+                    />
+                    <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,0.3)] transition group-hover:scale-105">
+                      {isAddingReferenceImages ? (
+                        <Loader2 size={22} className="animate-spin" />
+                      ) : (
+                        <ImagePlus size={22} />
+                      )}
+                    </span>
+                    <span className="text-sm! font-semibold text-white">
+                      {remainingReferenceSlots > 0
+                        ? "Add reference images"
+                        : "Reference limit reached"}
+                    </span>
+                    <span className="mt-1 max-w-56 text-xs! leading-5 text-white/45">
+                      {remainingReferenceSlots > 0
+                        ? `Choose up to ${remainingReferenceSlots} more image${
+                            remainingReferenceSlots === 1 ? "" : "s"
+                          }. JPG, PNG, or WebP.`
+                        : "Remove an image to add another reference."}
+                    </span>
+                  </label>
+
+                  <div className="rounded-lg border border-white/10 bg-black/25 p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
+                          Selected references
+                        </p>
+                        <p className="mt-1 text-sm text-white/55">
+                          These will be sent with your idea.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-3">
+                      {referencePreviews.map((preview, index) => (
+                        <div
+                          key={`${preview.file.name}-${preview.file.lastModified}-${index}`}
+                          className="group relative aspect-[4/5] overflow-hidden rounded-lg border border-white/10 bg-[#0d0d0d]"
+                        >
+                          <img
+                            src={preview.url}
+                            alt={`Reference ${index + 1}`}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                            {index === 0 && (
+                              <span className="rounded-full border border-[#19d69b]/35 bg-[#19d69b]/15 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white">
+                                Primary
+                              </span>
+                            )}
+                            <span className="rounded-full border border-white/15 bg-black/55 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white/70 backdrop-blur">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReferenceImage(index)}
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/60 p-0! text-white backdrop-blur transition hover:bg-white/15"
+                            aria-label={`Remove reference ${index + 1}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                          <div className="absolute inset-x-0 bottom-0 p-3">
+                            <p className="truncate text-xs! font-semibold text-white">
+                              {preview.file.name}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {isAddingReferenceImages && (
+                        <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-center">
+                          <Loader2
+                            size={20}
+                            className="mb-3 animate-spin text-white"
+                          />
+                          <p className="text-xs! font-semibold text-white">
+                            Preparing preview
+                          </p>
+                        </div>
+                      )}
+
+                      {!hasReferenceImages && !isAddingReferenceImages && (
+                        <div className="col-span-2 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center xl:col-span-3">
+                          <ImageIcon size={24} className="mb-3 text-white/35" />
+                          <p className="text-sm! font-semibold text-white/75">
+                            No references added yet
+                          </p>
+                          <p className="mt-1 text-xs! leading-5 text-white/45">
+                            You can skip this step or add images that help
+                            explain the idea.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <label className="group relative flex min-h-72 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed border-white/20 bg-black/35 p-5 text-center transition hover:border-white/40 hover:bg-white/[0.04]">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setReferenceImage(file);
-                    }}
-                    className="sr-only"
-                  />
-                  {referencePreviewUrl ? (
-                    <img
-                      src={referencePreviewUrl}
-                      alt="Reference preview"
-                      className="absolute inset-0 h-full w-full object-cover opacity-80"
-                    />
-                  ) : (
-                    <>
-                      <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white">
-                        <Upload size={20} />
-                      </span>
-                      <span className="text-sm font-semibold text-white">
-                        Upload reference
-                      </span>
-                      <span className="mt-1 text-xs text-white/45">
-                        JPG, PNG, or WebP
-                      </span>
-                    </>
-                  )}
-                  {referencePreviewUrl && (
-                    <span className="absolute bottom-4 left-4 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                      Click to replace image
-                    </span>
-                  )}
-                </label>
-
-                <div className="mt-5 flex justify-end">
+                <div className="mt-5 flex items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={handleNext}
-                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                    onClick={() => setActiveStep("details")}
+                    className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
                   >
-                    Continue
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep("schedule")}
+                    className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+                  >
+                    {hasReferenceImages ? "Continue" : "Skip for now"}
                     <CalendarDays size={16} />
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 2 && (
-            <form
-              onSubmit={handleSubmit}
-              className={
-                scheduleStep === "preview"
-                  ? "mx-auto max-w-4xl"
-                  : "grid grid-cols-1 gap-6 lg:grid-cols-[0.9fr_1.1fr]"
-              }
-            >
-              {scheduleStep === "preview" ? (
-                <RequestPreviewPanel
-                  artistName={artistName}
-                  referencePreviewUrl={referencePreviewUrl}
-                  description={description}
-                  bodyPlacement={bodyPlacement}
-                  size={size}
-                  budget={budget}
-                  customBudget={customBudget}
-                  preferredDateRange={preferredDateRange}
-                  availableTime={availableTime}
-                  availableDays={availableDays}
-                  isSubmitting={isSubmitting}
-                  onBack={() => setScheduleStep(previewReturnStep)}
-                />
-              ) : (
-                <>
-              <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                <div className="mb-5 flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                    <CalendarDays size={19} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Preferred timing
-                    </h3>
-                    <p className="text-sm text-white/55">
-                      These details help the artist respond with realistic
-                      appointment options.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative overflow-hidden">
-                  <div
-                    className={`transition-all duration-300 ease-out ${
-                      scheduleStep === "dates"
-                        ? "translate-x-0 opacity-100"
-                        : "pointer-events-none absolute -translate-x-6 opacity-0"
-                    }`}
-                  >
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm! font-semibold text-white">
-                          Pick your ideal window
-                        </p>
-                        <p className="mt-1 text-xs! leading-5 text-white/45">
-                          Choose a first day, then a later day to highlight the
-                          full range.
-                        </p>
-                      </div>
-                      {preferredDateRange[0] && (
-                        <span className="rounded-full border border-white/10 bg-black/30 px-3! py-1.5! text-[11px]! font-semibold text-white/70">
-                          {getDateRangeLabel(preferredDateRange)}
-                        </span>
-                      )}
+            {activeStep === "schedule" && (
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+                  <div className="mb-5 flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+                      <CalendarDays size={19} />
                     </div>
-
-                    <CalendarRangePicker
-                      month={visibleCalendarMonth}
-                      selectedRange={preferredDateRange}
-                      todayDateInput={todayDateInput}
-                      onMonthChange={setVisibleCalendarMonth}
-                      onSelectDate={handleSelectCalendarDate}
-                    />
-
-                    <div className="mt-4 flex items-center justify-between lg:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 lg:hidden"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleConfirmDateWindow}
-                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
-                      >
-                        Confirm dates
-                        <ChevronRight size={15} />
-                      </button>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Preferred timing
+                      </h3>
+                      <p className="text-sm text-white/55">
+                        Pick an ideal date window and a preferred time range.
+                      </p>
                     </div>
                   </div>
 
-                  <div
-                    className={`transition-all duration-300 ease-out ${
-                      scheduleStep === "time"
-                        ? "translate-x-0 opacity-100"
-                        : "pointer-events-none absolute translate-x-6 opacity-0"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTimingConfirmed(false);
-                        setScheduleStep("dates");
-                      }}
-                      className="mb-4 inline-flex items-center gap-2 p-0! text-xs! font-semibold text-white/55 transition hover:text-white"
-                    >
-                      <ChevronLeft size={14} />
-                      Change dates
-                    </button>
-
+                  {preferredDateRange[0] && (
                     <div className="mb-4 rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
                       <p className="text-xs! uppercase tracking-[0.16em] text-[#19d69b]">
                         Selected window
@@ -678,147 +977,57 @@ const RequestTattooModal: React.FC<Props> = ({
                         {getDateRangeLabel(preferredDateRange)}
                       </p>
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-white/65">
-                          From
-                        </span>
-                        <QuarterHourTimeSelect
-                          value={availableTime.from}
-                          onChange={(value) => {
-                            setTimingConfirmed(false);
-                            setAvailableTime((prev) => ({
-                              ...prev,
-                              from: value,
-                              to: hasMinimumTimeWindow(value, prev.to)
-                                ? prev.to
-                                : "",
-                            }));
-                          }}
-                          placeholder="Select time"
-                          buttonClassName="focus:border-[#19d69b]"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-white/65">
-                          To
-                        </span>
-                        <QuarterHourTimeSelect
-                          value={availableTime.to}
-                          onChange={(value) => {
-                            setTimingConfirmed(false);
-                            setAvailableTime((prev) => ({
-                              ...prev,
-                              to: value,
-                            }));
-                          }}
-                          placeholder="Select time"
-                          buttonClassName="focus:border-[#19d69b]"
-                          minTime={earliestEndTime}
-                        />
-                      </label>
-                    </div>
+                  <CalendarRangePicker
+                    month={visibleCalendarMonth}
+                    selectedRange={preferredDateRange}
+                    todayDateInput={todayDateInput}
+                    onMonthChange={setVisibleCalendarMonth}
+                    onSelectDate={handleSelectCalendarDate}
+                  />
 
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleConfirmTiming}
-                        className={`modal-action-button hidden items-center justify-center gap-2 rounded-lg! px-3! py-2! text-xs! font-semibold transition lg:inline-flex ${
-                          timingConfirmed
-                            ? "bg-[#19d69b] text-black hover:bg-[#34e8ad]"
-                            : "bg-white text-black hover:bg-white/85"
-                        }`}
-                      >
-                        {timingConfirmed ? "Timing confirmed" : "Confirm timing"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleContinueToAvailableDays}
-                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 lg:hidden"
-                      >
-                        Continue
-                        <ChevronRight size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`transition-all duration-300 ease-out lg:hidden ${
-                      scheduleStep === "days"
-                        ? "translate-x-0 opacity-100"
-                        : "pointer-events-none absolute translate-x-6 opacity-0"
-                    }`}
-                  >
-                    <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div className="rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
-                        <p className="text-xs! uppercase tracking-[0.16em] text-[#19d69b]">
-                          Selected window
-                        </p>
-                        <p className="mt-1 text-sm! font-semibold text-white">
-                          {getDateRangeLabel(preferredDateRange)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-                        <p className="text-xs! uppercase tracking-[0.16em] text-white/40">
-                          Preferred time
-                        </p>
-                        <p className="mt-1 text-sm! font-semibold text-white">
-                          {getTimeRangeLabel(availableTime)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Days that usually work
-                    </h3>
-                    <p className="mt-1 text-sm text-white/55">
-                      Select any days you are normally available. You can
-                      confirm exact times after the artist replies.
-                    </p>
-
-                    <AvailableDaysSelector
-                      availableDays={availableDays}
-                      onToggleDay={toggleAvailableDay}
-                    />
-
-                    <div className="mt-6 grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setScheduleStep("time")}
-                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenPreview("days")}
-                        className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.05] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                      >
-                        Preview
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || !timingConfirmed}
-                        className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isSubmitting ? "Sending..." : "Send request"}
-                        <Send size={16} />
-                      </button>
-                    </div>
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-white/65">
+                        From
+                      </span>
+                      <QuarterHourTimeSelect
+                        value={availableTime.from}
+                        onChange={(value) => {
+                          setAvailableTime((prev) => ({
+                            ...prev,
+                            from: value,
+                            to: hasMinimumTimeWindow(value, prev.to)
+                              ? prev.to
+                              : "",
+                          }));
+                        }}
+                        placeholder="Select time"
+                        buttonClassName="focus:border-[#19d69b]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-white/65">
+                        To
+                      </span>
+                      <QuarterHourTimeSelect
+                        value={availableTime.to}
+                        onChange={(value) => {
+                          setAvailableTime((prev) => ({
+                            ...prev,
+                            to: value,
+                          }));
+                        }}
+                        placeholder="Select time"
+                        buttonClassName="focus:border-[#19d69b]"
+                        minTime={earliestEndTime}
+                      />
+                    </label>
                   </div>
                 </div>
-              </div>
 
-              <div className="hidden rounded-lg border border-white/10 bg-white/[0.035] p-5 lg:block">
-                <div
-                  className={`transition duration-300 ${
-                    timingConfirmed
-                      ? ""
-                      : "lg:pointer-events-none lg:select-none lg:opacity-45"
-                  }`}
-                >
+                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                   <h3 className="text-lg! font-semibold! text-white">
                     Days that usually work
                   </h3>
@@ -831,50 +1040,54 @@ const RequestTattooModal: React.FC<Props> = ({
                     availableDays={availableDays}
                     onToggleDay={toggleAvailableDay}
                   />
-                </div>
 
-                <div className="mt-6 grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenPreview("time")}
-                    disabled={!timingConfirmed}
-                    className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.05] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    Preview
-                    <Eye size={14} />
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !timingConfirmed}
-                    className="modal-action-button inline-flex items-center justify-center gap-1.5 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSubmitting ? "Sending..." : "Send request"}
-                    <Send size={16} />
-                  </button>
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep("reference")}
+                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={continueFromSchedule}
+                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+                    >
+                      Review
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
                 </div>
               </div>
-                </>
-              )}
-            </form>
-          )}
+            )}
+
+            {activeStep === "review" && (
+              <RequestPreviewPanel
+                artistName={artistName}
+                referencePreviews={referencePreviews}
+                description={description}
+                bodyPlacement={bodyPlacement}
+                size={size}
+                budget={budget}
+                customBudget={customBudget}
+                preferredDateRange={preferredDateRange}
+                availableTime={availableTime}
+                availableDays={availableDays}
+                isSubmitting={isSubmitting}
+                onBack={() => setActiveStep("schedule")}
+              />
+            )}
+          </div>
         </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+      </form>
+    </section>
   );
 };
 
 const RequestPreviewPanel = ({
   artistName,
-  referencePreviewUrl,
+  referencePreviews,
   description,
   bodyPlacement,
   size,
@@ -887,7 +1100,7 @@ const RequestPreviewPanel = ({
   onBack,
 }: {
   artistName: string;
-  referencePreviewUrl: string;
+  referencePreviews: ReferencePreview[];
   description: string;
   bodyPlacement: string;
   size: string;
@@ -913,15 +1126,28 @@ const RequestPreviewPanel = ({
         </p>
       </div>
 
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/35 text-white/35">
-        {referencePreviewUrl ? (
-          <img
-            src={referencePreviewUrl}
-            alt="Reference preview"
-            className="h-full w-full object-cover"
-          />
+      <div className="grid w-24 shrink-0 grid-cols-2 gap-1">
+        {referencePreviews.length > 0 ? (
+          referencePreviews.slice(0, 3).map((preview, index) => (
+            <div
+              key={`${preview.file.name}-review-${index}`}
+              className={`overflow-hidden rounded-md border border-white/10 bg-black/35 ${
+                index === 0 && referencePreviews.length === 1
+                  ? "col-span-2 h-20"
+                  : "h-10"
+              }`}
+            >
+              <img
+                src={preview.url}
+                alt={`Reference ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))
         ) : (
-          <ImageIcon size={22} />
+          <div className="col-span-2 flex h-20 items-center justify-center rounded-lg border border-white/10 bg-black/35 text-white/35">
+            <ImageIcon size={22} />
+          </div>
         )}
       </div>
     </div>
@@ -947,6 +1173,16 @@ const RequestPreviewPanel = ({
       <PreviewDetail
         label="Budget"
         value={getBudgetLabel(budget, customBudget)}
+      />
+      <PreviewDetail
+        label="References"
+        value={
+          referencePreviews.length > 0
+            ? `${referencePreviews.length} image${
+                referencePreviews.length === 1 ? "" : "s"
+              } attached`
+            : "No references attached"
+        }
       />
     </div>
 
@@ -1073,7 +1309,8 @@ const CalendarRangePicker = ({
   });
   const [start, end] = selectedRange;
   const canGoPrevious =
-    formatDateInputValue(month) > formatDateInputValue(getMonthStart(new Date()));
+    formatDateInputValue(month) >
+    formatDateInputValue(getMonthStart(new Date()));
 
   return (
     <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
@@ -1126,9 +1363,9 @@ const CalendarRangePicker = ({
               className={`h-8 rounded-md p-0! text-xs! font-semibold transition disabled:cursor-not-allowed disabled:opacity-25 ${
                 isSelected
                   ? "bg-[#19d69b] text-black shadow-[0_0_20px_rgba(25,214,155,0.22)]"
-                : isInRange
+                  : isInRange
                   ? "bg-[#19d69b]/18 text-white"
-                : !isCurrentMonth
+                  : !isCurrentMonth
                   ? "border border-white/5 bg-white/[0.015] text-white/32 hover:border-[#19d69b]/30 hover:bg-[#19d69b]/10 hover:text-white/80"
                   : "border border-white/10 bg-white/[0.025] text-white/70 hover:border-[#19d69b]/45 hover:bg-[#19d69b]/10 hover:text-white"
               }`}
@@ -1207,10 +1444,7 @@ const getBudgetLabel = (budget: string, customBudget: string) => {
   return getOptionLabel(tattooBudgetOptions, budget) || "No budget shared";
 };
 
-const getTimeRangeLabel = ({
-  from,
-  to,
-}: AvailableTime) => {
+const getTimeRangeLabel = ({ from, to }: AvailableTime) => {
   if (!from || !to) return "No time picked";
 
   return `${formatFriendlyTime(from)} - ${formatFriendlyTime(to)}`;
@@ -1260,5 +1494,26 @@ const hasMinimumTimeWindow = (startTime: string, endTime: string) => {
     endMinutes - startMinutes >= 60
   );
 };
+
+const getReferenceStorageFileName = (file: File, index: number) => {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  return `${index + 1}-${Date.now()}-${safeName}`;
+};
+
+const getProcessedReferenceFileName = (fileName: string) =>
+  fileName.toLowerCase();
+
+const getProcessedReferenceStoragePaths = (fileName: string) => {
+  const processedFileName = getProcessedReferenceFileName(fileName);
+  const baseName = processedFileName.replace(/\.[^/.]+$/, "");
+
+  return {
+    fullPath: `bookingRequests/full/${baseName}.jpg`,
+    thumbPath: `bookingRequests/thumbs/${baseName}.webp`,
+  };
+};
+
+const prefersReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export default RequestTattooModal;

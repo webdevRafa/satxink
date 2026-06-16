@@ -1,4 +1,10 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useParams } from "react-router-dom";
 import {
   addDoc,
@@ -126,6 +132,9 @@ export const ArtistProfilePage = () => {
   const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [isRequestTransitioning, setIsRequestTransitioning] = useState(false);
+  const requestFlowTopRef = useRef<HTMLDivElement | null>(null);
+  const requestOpenTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -206,6 +215,14 @@ export const ArtistProfilePage = () => {
 
     fetchArtist();
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (requestOpenTimerRef.current !== null) {
+        window.clearTimeout(requestOpenTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -296,16 +313,20 @@ export const ArtistProfilePage = () => {
   const canNavigatePortfolio =
     galleryItems.length > 1 && selectedItemIndex >= 0;
 
-  const navigatePortfolio = (direction: SlideDirection) => {
-    if (!canNavigatePortfolio) return;
+  const navigatePortfolio = useCallback(
+    (direction: SlideDirection) => {
+      if (!canNavigatePortfolio) return;
 
-    const offset = direction === "next" ? 1 : -1;
-    const nextIndex =
-      (selectedItemIndex + offset + galleryItems.length) % galleryItems.length;
+      const offset = direction === "next" ? 1 : -1;
+      const nextIndex =
+        (selectedItemIndex + offset + galleryItems.length) %
+        galleryItems.length;
 
-    setSlideDirection(direction);
-    setSelectedItem(galleryItems[nextIndex]);
-  };
+      setSlideDirection(direction);
+      setSelectedItem(galleryItems[nextIndex]);
+    },
+    [canNavigatePortfolio, galleryItems, selectedItemIndex]
+  );
 
   const openPortfolioItem = (item: GalleryItem) => {
     setSlideDirection("next");
@@ -333,7 +354,7 @@ export const ArtistProfilePage = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedItem, selectedSheet, selectedItemIndex, galleryItems.length]);
+  }, [selectedItem, selectedSheet, navigatePortfolio]);
 
   const handleSelectSheet = (sheet: FlashSheet) => {
     setFocusedSheet(sheet);
@@ -351,7 +372,33 @@ export const ArtistProfilePage = () => {
       return;
     }
 
-    setIsRequestModalOpen(true);
+    if (requestOpenTimerRef.current !== null) {
+      window.clearTimeout(requestOpenTimerRef.current);
+    }
+
+    setIsRequestTransitioning(true);
+    requestOpenTimerRef.current = window.setTimeout(() => {
+      setIsRequestModalOpen(true);
+      setIsRequestTransitioning(false);
+      requestOpenTimerRef.current = null;
+
+      window.requestAnimationFrame(() => {
+        requestFlowTopRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }, 180);
+  };
+
+  const handleCloseRequestFlow = () => {
+    if (requestOpenTimerRef.current !== null) {
+      window.clearTimeout(requestOpenTimerRef.current);
+      requestOpenTimerRef.current = null;
+    }
+
+    setIsRequestTransitioning(false);
+    setIsRequestModalOpen(false);
   };
 
   const handleToggleFollow = async () => {
@@ -435,6 +482,7 @@ export const ArtistProfilePage = () => {
     : [];
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
+  const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -523,10 +571,18 @@ export const ArtistProfilePage = () => {
               </div>
             </div>
 
-            <div className="w-full lg:justify-self-end">
+            <div
+              className={`w-full transition-all duration-300 ease-out lg:justify-self-end ${
+                isRequestFlowActive
+                  ? "pointer-events-none -translate-y-2 opacity-0 blur-sm"
+                  : "translate-y-0 opacity-100 blur-0"
+              }`}
+              aria-hidden={isRequestFlowActive}
+            >
               <ArtistHeaderActionCard
                 isFollowingArtist={isFollowingArtist}
                 isFollowUpdating={isFollowUpdating}
+                isDisabled={isRequestFlowActive}
                 onRequestTattoo={handleRequestTattoo}
                 onToggleFollow={handleToggleFollow}
               />
@@ -534,93 +590,116 @@ export const ArtistProfilePage = () => {
           </div>
         </div>
 
-        <div className="mt-10 pb-60">
-          <div
-            data-aos="fade-up"
-            className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-          >
-            <div>
-              <div
-                className="flex flex-wrap items-center gap-3"
-                role="tablist"
-                aria-label="Artist work"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === "portfolio"}
-                  onClick={() => setActiveTab("portfolio")}
-                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                    activeTab === "portfolio"
-                      ? "text-white"
-                      : "text-white/40 hover:text-white/75"
-                  }`}
-                >
-                  Work
-                </button>
-                <span className="h-6 w-px bg-white/15" />
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === "flashSheets"}
-                  onClick={() => setActiveTab("flashSheets")}
-                  className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                    activeTab === "flashSheets"
-                      ? "text-white"
-                      : "text-white/40 hover:text-white/75"
-                  }`}
-                >
-                  Flash
-                </button>
-              </div>
-            </div>
-            {activeTab === "portfolio" &&
-              !galleryLoading &&
-              galleryItems.length > 0 && (
-                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                  <Camera size={15} />
-                  {galleryItems.length} piece
-                  {galleryItems.length === 1 ? "" : "s"}
-                </span>
-              )}
-            {activeTab === "flashSheets" &&
-              !flashSheetsLoading &&
-              flashSheets.length > 0 && (
-                <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70">
-                  <Layers size={15} />
-                  {flashSheets.length} sheet
-                  {flashSheets.length === 1 ? "" : "s"}
-                </span>
-              )}
-          </div>
-
-          {activeTab === "portfolio" ? (
-            <PortfolioPanel
-              galleryItems={galleryItems}
-              galleryLoading={galleryLoading}
-              onOpenItem={openPortfolioItem}
+        <div
+          ref={requestFlowTopRef}
+          className="mt-8 scroll-mt-24 pb-60 lg:mt-10"
+        >
+          {isRequestModalOpen && client ? (
+            <RequestTattooModal
+              isOpen={isRequestModalOpen}
+              onClose={handleCloseRequestFlow}
+              client={client}
+              artist={{
+                id: artist.id,
+                name: artistDisplayName,
+                avatarUrl: artist.avatarUrl,
+                studioName: artistShopName,
+              }}
             />
           ) : (
-            <FlashSheetsPanel
-              flashSheets={flashSheets}
-              flashSheetsLoading={flashSheetsLoading}
-              focusedSheetId={focusedSheet?.id}
-              onOpenSheet={handleSelectSheet}
-            />
-          )}
+            <div
+              className={`satx-profile-work-shell ${
+                isRequestTransitioning ? "satx-profile-work-shell--exiting" : ""
+              }`}
+            >
+              <div
+                data-aos="fade-up"
+                className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+              >
+                <div>
+                  <div
+                    className="flex flex-wrap items-center gap-3"
+                    role="tablist"
+                    aria-label="Artist work"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === "portfolio"}
+                      onClick={() => setActiveTab("portfolio")}
+                      className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                        activeTab === "portfolio"
+                          ? "text-white"
+                          : "text-white/40 hover:text-white/75"
+                      }`}
+                    >
+                      Work
+                    </button>
+                    <span className="h-6 w-px bg-white/15" />
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === "flashSheets"}
+                      onClick={() => setActiveTab("flashSheets")}
+                      className={`px-0! py-0! text-2xl! font-semibold! transition ${
+                        activeTab === "flashSheets"
+                          ? "text-white"
+                          : "text-white/40 hover:text-white/75"
+                      }`}
+                    >
+                      Flash
+                    </button>
+                  </div>
+                </div>
+                {activeTab === "portfolio" &&
+                  !galleryLoading &&
+                  galleryItems.length > 0 && (
+                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
+                      <Camera size={15} />
+                      {galleryItems.length} piece
+                      {galleryItems.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                {activeTab === "flashSheets" &&
+                  !flashSheetsLoading &&
+                  flashSheets.length > 0 && (
+                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
+                      <Layers size={15} />
+                      {flashSheets.length} sheet
+                      {flashSheets.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+              </div>
 
-          {activeTab === "flashSheets" && focusedSheet && (
-            <FlashSheetItemsSection
-              sheet={focusedSheet}
-              flashes={sheetFlashes}
-              loading={sheetFlashesLoading}
-              onClose={() => {
-                setFocusedSheet(null);
-                setSheetFlashes([]);
-              }}
-              onPreviewSheet={() => setSelectedSheet(focusedSheet)}
-              onSelectFlash={setSelectedFlash}
-            />
+              {activeTab === "portfolio" ? (
+                <PortfolioPanel
+                  galleryItems={galleryItems}
+                  galleryLoading={galleryLoading}
+                  onOpenItem={openPortfolioItem}
+                />
+              ) : (
+                <FlashSheetsPanel
+                  flashSheets={flashSheets}
+                  flashSheetsLoading={flashSheetsLoading}
+                  focusedSheetId={focusedSheet?.id}
+                  onOpenSheet={handleSelectSheet}
+                />
+              )}
+
+              {activeTab === "flashSheets" && focusedSheet && (
+                <FlashSheetItemsSection
+                  sheet={focusedSheet}
+                  flashes={sheetFlashes}
+                  loading={sheetFlashesLoading}
+                  onClose={() => {
+                    setFocusedSheet(null);
+                    setSheetFlashes([]);
+                  }}
+                  onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+                  onSelectFlash={setSelectedFlash}
+                />
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -655,20 +734,6 @@ export const ArtistProfilePage = () => {
           artist={artist}
           client={client}
           onClose={() => setSelectedFlash(null)}
-        />
-      )}
-
-      {client && (
-        <RequestTattooModal
-          isOpen={isRequestModalOpen}
-          onClose={() => setIsRequestModalOpen(false)}
-          client={client}
-          artist={{
-            id: artist.id,
-            name: artistDisplayName,
-            avatarUrl: artist.avatarUrl,
-            studioName: artistShopName,
-          }}
         />
       )}
     </div>
@@ -735,11 +800,13 @@ const ArtistProfilePageSkeleton = () => (
 const ArtistHeaderActionCard = ({
   isFollowingArtist,
   isFollowUpdating,
+  isDisabled = false,
   onRequestTattoo,
   onToggleFollow,
 }: {
   isFollowingArtist: boolean;
   isFollowUpdating: boolean;
+  isDisabled?: boolean;
   onRequestTattoo: () => void;
   onToggleFollow: () => void;
 }) => (
@@ -747,7 +814,8 @@ const ArtistHeaderActionCard = ({
     <button
       type="button"
       onClick={onRequestTattoo}
-      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.8rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
+      disabled={isDisabled}
+      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.7rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
     >
       <MessageCircle size={16} />
       <span className="sm:hidden">Send idea</span>
@@ -756,8 +824,8 @@ const ArtistHeaderActionCard = ({
     <button
       type="button"
       onClick={onToggleFollow}
-      disabled={isFollowUpdating}
-      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.8rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
+      disabled={isDisabled || isFollowUpdating}
+      className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.7rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
         isFollowingArtist
           ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
           : "border-white/10 bg-black/25 text-white hover:border-white/20 hover:bg-white/[0.08]"
@@ -772,7 +840,7 @@ const ArtistHeaderActionCard = ({
       ) : (
         <>
           <span className="sm:hidden">Follow</span>
-          <span className="hidden sm:inline">Follow artist</span>
+          <span className="hidden sm:inline">Follow</span>
         </>
       )}
     </button>

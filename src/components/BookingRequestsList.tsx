@@ -26,10 +26,22 @@ import {
   getClientFirstName,
   getFullClientNameTitle,
 } from "../utils/clientDisplayName";
+import {
+  BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS,
+  getBookingReferenceCleanupTimestamp,
+} from "../utils/bookingReferenceRetention";
 
 type FirestoreTimestampLike = {
   seconds?: number;
   toDate?: () => Date;
+};
+
+type RequestReferenceImage = {
+  fileName?: string;
+  fullUrl?: string;
+  thumbUrl?: string;
+  fullPath?: string;
+  thumbPath?: string;
 };
 
 type BookingRequest = {
@@ -50,6 +62,7 @@ type BookingRequest = {
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
   thumbUrl?: string;
+  referenceImages?: RequestReferenceImage[];
   budget?: string | number;
   createdAt?: Date | FirestoreTimestampLike | null;
   sourceType?: string;
@@ -314,6 +327,9 @@ const BookingRequestsList: React.FC<Props> = ({
       await updateDoc(doc(db, "bookingRequests", request.id), {
         status: "declined",
         declinedAt: serverTimestamp(),
+        referenceCleanupAt: getBookingReferenceCleanupTimestamp(
+          BOOKING_REFERENCE_TERMINAL_RETENTION_DAYS
+        ),
       });
       setDeclinedRequestIds((current) => [...current, request.id]);
       onRequestResolved?.(request.id);
@@ -835,7 +851,7 @@ const RequestRow = ({
   onMakeOffer: () => void;
   onPrepareOffer: () => void;
 }) => {
-  const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const previewUrl = getPrimaryRequestReferenceUrl(request);
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
   const canPrepareOffer = request.sourceType !== "flash";
   const clientName = request.clientName || "Client";
@@ -1007,7 +1023,7 @@ const RequestMobileCard = ({
   onMakeOffer: () => void;
   onPrepareOffer: () => void;
 }) => {
-  const previewUrl = request.thumbUrl || request.fullUrl || "";
+  const previewUrl = getPrimaryRequestReferenceUrl(request);
   const isPreparingOffer = request.offerPreparationStatus === "preparing";
   const canPrepareOffer = request.sourceType !== "flash";
   const clientName = request.clientName || "Client";
@@ -1442,6 +1458,105 @@ const LoadAwareZoomImage = ({
   );
 };
 
+const RequestReferenceGallery = ({ request }: { request: BookingRequest }) => {
+  const references = useMemo(() => getRequestReferenceImages(request), [request]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectedReference = references[selectedIndex] || references[0];
+  const selectedUrl =
+    selectedReference?.fullUrl || selectedReference?.thumbUrl || "";
+  const hasMultipleReferences = references.length > 1;
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [request.id]);
+
+  useEffect(() => {
+    if (selectedIndex > references.length - 1) {
+      setSelectedIndex(0);
+    }
+  }, [references.length, selectedIndex]);
+
+  if (!selectedUrl) {
+    return (
+      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
+        <ImageIcon size={34} />
+        <span>No reference image uploaded</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-[360px] flex-col bg-black sm:min-h-[420px]">
+      <div className="relative flex min-h-[330px] flex-1 items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_44%)]"
+          aria-hidden="true"
+        />
+        <LoadAwareZoomImage
+          src={selectedUrl}
+          alt={`Tattoo request reference ${selectedIndex + 1}`}
+          className="relative h-full max-h-[64vh] min-h-[330px] w-full object-contain sm:min-h-[420px]"
+          loadingLabel="Loading reference"
+          errorLabel="Reference image unavailable"
+        />
+      </div>
+
+      <div className="border-t border-white/10 bg-[#0b0b0b] p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+              Client references
+            </p>
+            <p className="mt-1 text-sm text-neutral-400">
+              {references.length} image{references.length === 1 ? "" : "s"}{" "}
+              attached
+            </p>
+          </div>
+          {hasMultipleReferences && (
+            <p className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-xs font-semibold text-white/60">
+              {selectedIndex + 1} of {references.length}
+            </p>
+          )}
+        </div>
+
+        {hasMultipleReferences && (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {references.map((reference, index) => {
+              const thumbnailUrl = reference.thumbUrl || reference.fullUrl;
+              const isSelected = index === selectedIndex;
+
+              return (
+                <button
+                  key={`${reference.fileName || thumbnailUrl}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedIndex(index)}
+                  className={`group relative aspect-[4/3] overflow-hidden rounded-md border p-0! transition ${
+                    isSelected
+                      ? "border-white/60 bg-white/[0.08]"
+                      : "border-white/10 bg-white/[0.03] hover:border-white/30"
+                  }`}
+                  aria-label={`View reference image ${index + 1}`}
+                  aria-pressed={isSelected}
+                >
+                  <img
+                    src={thumbnailUrl}
+                    alt={`Reference thumbnail ${index + 1}`}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full border border-white/15 bg-black/65 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur">
+                    {index + 1}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const RequestDetailsDialog = ({
   request,
   isDeclining,
@@ -1526,22 +1641,7 @@ const RequestDetailsDialog = ({
 
                   <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                      {request.fullUrl || request.thumbUrl ? (
-                        <div className="relative min-h-[360px] overflow-hidden bg-black sm:min-h-[420px]">
-                          <LoadAwareZoomImage
-                            src={request.fullUrl || request.thumbUrl || ""}
-                            alt="Tattoo request reference"
-                            className="h-full max-h-[72vh] min-h-[360px] w-full object-contain sm:min-h-[420px]"
-                            loadingLabel="Loading reference"
-                            errorLabel="Reference image unavailable"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
-                          <ImageIcon size={34} />
-                          <span>No reference image uploaded</span>
-                        </div>
-                      )}
+                      <RequestReferenceGallery request={request} />
                     </div>
 
                     <div className="p-5 pb-28 sm:p-6">
@@ -1987,6 +2087,68 @@ const formatFlashPrice = (price?: number | null) =>
 
 const formatRequestType = (request: BookingRequest) =>
   request.sourceType === "flash" ? "Flash" : "Custom";
+
+const getRequestReferenceImages = (
+  request?: BookingRequest | null
+): RequestReferenceImage[] => {
+  if (!request) return [];
+
+  const references: RequestReferenceImage[] = [];
+  const seen = new Set<string>();
+  const addReference = (reference: RequestReferenceImage) => {
+    const fullUrl =
+      typeof reference.fullUrl === "string" ? reference.fullUrl : undefined;
+    const thumbUrl =
+      typeof reference.thumbUrl === "string" ? reference.thumbUrl : undefined;
+
+    if (!fullUrl && !thumbUrl) return;
+
+    const key = `${fullUrl || ""}|${thumbUrl || ""}`;
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    references.push({
+      fileName:
+        typeof reference.fileName === "string" ? reference.fileName : undefined,
+      fullUrl,
+      thumbUrl,
+      fullPath:
+        typeof reference.fullPath === "string" ? reference.fullPath : undefined,
+      thumbPath:
+        typeof reference.thumbPath === "string"
+          ? reference.thumbPath
+          : undefined,
+    });
+  };
+
+  if (Array.isArray(request.referenceImages)) {
+    [...request.referenceImages]
+      .sort(
+        (a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b)
+      )
+      .forEach(addReference);
+  }
+
+  if (references.length === 0) {
+    addReference({
+      fileName: "Primary reference",
+      fullUrl: request.fullUrl,
+      thumbUrl: request.thumbUrl,
+    });
+  }
+
+  return references;
+};
+
+const getPrimaryRequestReferenceUrl = (request: BookingRequest) => {
+  const primaryReference = getRequestReferenceImages(request)[0];
+  return primaryReference?.thumbUrl || primaryReference?.fullUrl || "";
+};
+
+const getRequestReferenceOrder = (reference: RequestReferenceImage) => {
+  const order = Number(reference.fileName?.split("-")[0]);
+  return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
+};
 
 const formatAvailableDaysSummary = (request: BookingRequest) =>
   request.availableDays?.length
