@@ -399,6 +399,38 @@ export const ArtistProfilePage = () => {
   const canNavigatePortfolio =
     featuredGalleryItems.length > 1 && selectedItemIndex >= 0;
 
+  const refreshPortfolioItem = useCallback(async (itemId: string) => {
+    try {
+      const itemRef = doc(db, "gallery", itemId);
+      const itemSnap = await getDoc(itemRef);
+      if (!itemSnap.exists()) return;
+
+      const updatedItem = {
+        id: itemSnap.id,
+        ...itemSnap.data(),
+      } as GalleryItem;
+
+      setSelectedItem((currentItem) => {
+        if (!currentItem || currentItem.id !== updatedItem.id) {
+          return currentItem;
+        }
+
+        if (
+          getPortfolioLightboxUrl(updatedItem) !==
+            getPortfolioLightboxUrl(currentItem) ||
+          getLightboxPreviewUrl(updatedItem) !==
+            getLightboxPreviewUrl(currentItem)
+        ) {
+          setModalLoading(true);
+        }
+
+        return updatedItem;
+      });
+    } catch (err) {
+      console.error("Failed to refresh portfolio item:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!selectedItem) return;
 
@@ -417,6 +449,9 @@ export const ArtistProfilePage = () => {
         JSON.stringify(selectedItem.tags || []);
 
     if (hasUpdatedImage || hasUpdatedMetadata) {
+      if (hasUpdatedImage) {
+        setModalLoading(true);
+      }
       setSelectedItem(updatedItem);
     }
   }, [featuredGalleryItems, selectedItem]);
@@ -431,14 +466,24 @@ export const ArtistProfilePage = () => {
         featuredGalleryItems.length;
 
       setSlideDirection(direction);
-      setSelectedItem(featuredGalleryItems[nextIndex]);
+      const nextItem = featuredGalleryItems[nextIndex];
+      setModalLoading(true);
+      setSelectedItem(nextItem);
+      void refreshPortfolioItem(nextItem.id);
     },
-    [canNavigatePortfolio, featuredGalleryItems, selectedItemIndex]
+    [
+      canNavigatePortfolio,
+      featuredGalleryItems,
+      refreshPortfolioItem,
+      selectedItemIndex,
+    ]
   );
 
   const openPortfolioItem = (item: GalleryItem) => {
     setSlideDirection("next");
+    setModalLoading(true);
     setSelectedItem(item);
+    void refreshPortfolioItem(item.id);
   };
 
   useEffect(() => {
