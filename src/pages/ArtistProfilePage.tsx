@@ -1067,7 +1067,7 @@ const scrollRequestFlowIntoView = (
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.webp90Url || item.thumbUrl || item.fullUrl;
+  item.webp90Url || item.thumbUrl || item.fullUrl || item.originalWebp90Url || "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
   item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
@@ -2026,45 +2026,63 @@ const LightboxImageFrame = ({
   loadingLabel: string;
   slideClass?: string;
   onImageLoad: () => void;
-}) => (
-  <div
-    className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
-    onClick={(event) => event.stopPropagation()}
-  >
-    <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
-      <img
-        src={previewUrl}
-        alt=""
-        aria-hidden="true"
-        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-          isLoading ? "opacity-100" : "opacity-0"
-        }`}
-        decoding="async"
-      />
-      <img
-        src={fullUrl}
-        alt={alt}
-        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-          isLoading ? "opacity-0" : "opacity-100"
-        }`}
-        decoding="async"
-        onLoad={onImageLoad}
-        onError={onImageLoad}
-      />
-    </div>
+}) => {
+  const fullImageRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const image = fullImageRef.current;
+    if (!image) return;
+
+    if (image.complete) {
+      onImageLoad();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(onImageLoad, 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [fullUrl, imageKey, onImageLoad]);
+
+  return (
     <div
-      className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
-        isLoading ? "opacity-25 animate-pulse" : "opacity-0"
-      }`}
-    />
-    {isLoading && (
-      <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
-        <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-        {loadingLabel}
+      className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
+        <img
+          src={previewUrl}
+          alt=""
+          aria-hidden="true"
+          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+            isLoading ? "opacity-100" : "opacity-0"
+          }`}
+          decoding="async"
+        />
+        <img
+          ref={fullImageRef}
+          src={fullUrl}
+          alt={alt}
+          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+            isLoading ? "opacity-0" : "opacity-100"
+          }`}
+          decoding="async"
+          onLoad={onImageLoad}
+          onError={onImageLoad}
+        />
       </div>
-    )}
-  </div>
-);
+      <div
+        className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
+          isLoading ? "opacity-25 animate-pulse" : "opacity-0"
+        }`}
+      />
+      {isLoading && (
+        <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
+          <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+          {loadingLabel}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FlashRequestModal = ({
   flash,
