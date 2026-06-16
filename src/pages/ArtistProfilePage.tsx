@@ -16,6 +16,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
@@ -250,30 +251,31 @@ export const ArtistProfilePage = () => {
   }, []);
 
   useEffect(() => {
-    const fetchGallery = async () => {
-      if (!id) return;
+    if (!id) return;
 
-      setGalleryLoading(true);
-      try {
-        const galleryQuery = query(
-          collection(db, "gallery"),
-          where("artistId", "==", id)
-        );
-        const snapshot = await getDocs(galleryQuery);
+    setGalleryLoading(true);
+    const galleryQuery = query(
+      collection(db, "gallery"),
+      where("artistId", "==", id)
+    );
+    const unsubscribe = onSnapshot(
+      galleryQuery,
+      (snapshot) => {
         const items = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
           .filter((item) => item.status !== "processing")
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
         setGalleryItems(items);
-      } catch (err) {
+        setGalleryLoading(false);
+      },
+      (err) => {
         console.error("Failed to fetch artist gallery:", err);
-      } finally {
         setGalleryLoading(false);
       }
-    };
+    );
 
-    fetchGallery();
+    return () => unsubscribe();
   }, [id]);
 
   useEffect(() => {
@@ -396,6 +398,28 @@ export const ArtistProfilePage = () => {
     : -1;
   const canNavigatePortfolio =
     featuredGalleryItems.length > 1 && selectedItemIndex >= 0;
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const updatedItem = featuredGalleryItems.find(
+      (item) => item.id === selectedItem.id
+    );
+    if (!updatedItem) return;
+
+    const hasUpdatedImage =
+      getPortfolioLightboxUrl(updatedItem) !==
+        getPortfolioLightboxUrl(selectedItem) ||
+      getLightboxPreviewUrl(updatedItem) !== getLightboxPreviewUrl(selectedItem);
+    const hasUpdatedMetadata =
+      updatedItem.caption !== selectedItem.caption ||
+      JSON.stringify(updatedItem.tags || []) !==
+        JSON.stringify(selectedItem.tags || []);
+
+    if (hasUpdatedImage || hasUpdatedMetadata) {
+      setSelectedItem(updatedItem);
+    }
+  }, [featuredGalleryItems, selectedItem]);
 
   const navigatePortfolio = useCallback(
     (direction: SlideDirection) => {
@@ -1735,7 +1759,7 @@ const PortfolioLightbox = ({
 
       <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
         <LightboxImageFrame
-          imageKey={item.id}
+          imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
           fullUrl={getPortfolioLightboxUrl(item)}
           previewUrl={getLightboxPreviewUrl(item)}
           alt={item.caption || "Full portfolio view"}
