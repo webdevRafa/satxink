@@ -115,9 +115,9 @@ type Shop = {
 type SlideDirection = "next" | "prev";
 
 const FEATURED_WORK_LIMIT = 9;
-const PORTFOLIO_FLIP_DURATION_MS = 760;
-const PORTFOLIO_FLIP_STAGGER_MS = 80;
-const PORTFOLIO_FLIP_SETTLE_BUFFER_MS = 24;
+const PORTFOLIO_SLIDE_DURATION_MS = 640;
+const PORTFOLIO_SLIDE_STAGGER_MS = 72;
+const PORTFOLIO_SLIDE_SETTLE_BUFFER_MS = 48;
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -997,16 +997,16 @@ const PortfolioPanel = ({
   const [previousItems, setPreviousItems] = useState<GalleryItem[] | null>(
     null
   );
-  const [flipDirection, setFlipDirection] =
+  const [slideDirection, setSlideDirection] =
     useState<SlideDirection>("next");
-  const flipTimerRef = useRef<number | null>(null);
+  const slideTimerRef = useRef<number | null>(null);
   const pageCount = Math.max(1, Math.ceil(galleryItems.length / itemsPerPage));
   const visibleItems = getPortfolioPageItems(
     galleryItems,
     pageIndex,
     itemsPerPage
   );
-  const isFlipping = Boolean(previousItems);
+  const isSliding = Boolean(previousItems);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1028,25 +1028,25 @@ const PortfolioPanel = ({
   useEffect(() => {
     if (!previousItems) return;
 
-    if (flipTimerRef.current !== null) {
-      window.clearTimeout(flipTimerRef.current);
+    if (slideTimerRef.current !== null) {
+      window.clearTimeout(slideTimerRef.current);
     }
 
-    const flipSettleTime =
-      PORTFOLIO_FLIP_DURATION_MS +
+    const slideSettleTime =
+      PORTFOLIO_SLIDE_DURATION_MS +
       Math.max(0, Math.min(visibleItems.length, previousItems.length) - 1) *
-        PORTFOLIO_FLIP_STAGGER_MS +
-      PORTFOLIO_FLIP_SETTLE_BUFFER_MS;
+        PORTFOLIO_SLIDE_STAGGER_MS +
+      PORTFOLIO_SLIDE_SETTLE_BUFFER_MS;
 
-    flipTimerRef.current = window.setTimeout(() => {
+    slideTimerRef.current = window.setTimeout(() => {
       setPreviousItems(null);
-      flipTimerRef.current = null;
-    }, flipSettleTime);
+      slideTimerRef.current = null;
+    }, slideSettleTime);
 
     return () => {
-      if (flipTimerRef.current !== null) {
-        window.clearTimeout(flipTimerRef.current);
-        flipTimerRef.current = null;
+      if (slideTimerRef.current !== null) {
+        window.clearTimeout(slideTimerRef.current);
+        slideTimerRef.current = null;
       }
     };
   }, [previousItems, visibleItems.length]);
@@ -1063,10 +1063,10 @@ const PortfolioPanel = ({
   }
 
   const goToPage = (nextPageIndex: number, direction: SlideDirection) => {
-    if (isFlipping || pageCount <= 1 || nextPageIndex === pageIndex) return;
+    if (isSliding || pageCount <= 1 || nextPageIndex === pageIndex) return;
 
     setPreviousItems(visibleItems);
-    setFlipDirection(direction);
+    setSlideDirection(direction);
     setPageIndex(nextPageIndex);
   };
 
@@ -1082,9 +1082,9 @@ const PortfolioPanel = ({
     <div className="satx-profile-work-carousel">
       <div
         className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
-          isFlipping ? "satx-profile-work-carousel-grid--flipping" : ""
+          isSliding ? "satx-profile-work-carousel-grid--sliding" : ""
         }`}
-        data-direction={flipDirection}
+        data-direction={slideDirection}
       >
         {visibleItems.map((item, index) => {
           const previousItem = previousItems?.[index];
@@ -1095,13 +1095,13 @@ const PortfolioPanel = ({
           return (
             <div
               key={`${pageIndex}-${item.id}`}
-              className={`satx-profile-work-flip-slot ${
-                isSlotFlipping ? "satx-profile-work-flip-slot--active" : ""
+              className={`satx-profile-work-slide-slot ${
+                isSlotFlipping ? "satx-profile-work-slide-slot--active" : ""
               }`}
               style={
                 {
-                  "--satx-flip-delay": `${
-                    index * PORTFOLIO_FLIP_STAGGER_MS
+                  "--satx-slide-delay": `${
+                    index * PORTFOLIO_SLIDE_STAGGER_MS + (index % 2) * 14
                   }ms`,
                 } as CSSProperties
               }
@@ -1132,7 +1132,7 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToPreviousPage}
-            disabled={isFlipping}
+            disabled={isSliding}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Previous portfolio page"
           >
@@ -1147,7 +1147,7 @@ const PortfolioPanel = ({
                 onClick={() =>
                   goToPage(index, index > pageIndex ? "next" : "prev")
                 }
-                disabled={isFlipping}
+                disabled={isSliding}
                 className={`h-2.5 rounded-full p-0! transition ${
                   index === pageIndex
                     ? "w-8 bg-white"
@@ -1162,7 +1162,7 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToNextPage}
-            disabled={isFlipping}
+            disabled={isSliding}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Next portfolio page"
           >
@@ -1247,7 +1247,6 @@ const PortfolioCard = ({
 }) => (
   <button
     type="button"
-    data-aos="fade-up"
     onClick={onOpen}
     onMouseEnter={() => preloadImage(item.fullUrl || item.webp90Url)}
     onFocus={() => preloadImage(item.fullUrl || item.webp90Url)}
