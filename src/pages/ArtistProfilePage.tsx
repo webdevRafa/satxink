@@ -117,7 +117,7 @@ type SlideDirection = "next" | "prev";
 const FEATURED_WORK_LIMIT = 9;
 const PORTFOLIO_FLIP_DURATION_MS = 760;
 const PORTFOLIO_FLIP_STAGGER_MS = 80;
-const PORTFOLIO_FLIP_SETTLE_BUFFER_MS = 80;
+const PORTFOLIO_FLIP_SETTLE_BUFFER_MS = 24;
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -1251,7 +1251,7 @@ const PortfolioCard = ({
     onClick={onOpen}
     onMouseEnter={() => preloadImage(item.fullUrl || item.webp90Url)}
     onFocus={() => preloadImage(item.fullUrl || item.webp90Url)}
-    className={`group relative overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
+    className={`group relative block w-full overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       priority ? "sm:col-span-2 lg:col-span-1" : ""
     }`}
   >
