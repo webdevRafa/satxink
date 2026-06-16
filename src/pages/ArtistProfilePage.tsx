@@ -1133,6 +1133,7 @@ const PortfolioPanel = ({
                   <PortfolioCard
                     item={previousItem}
                     priority={false}
+                    disableImageFade
                     onOpen={() => onOpenItem(previousItem)}
                   />
                 </div>
@@ -1142,6 +1143,7 @@ const PortfolioPanel = ({
                   <PortfolioCard
                     item={item}
                     priority={pageIndex === 0 && index === 0}
+                    disableImageFade={isTransitioning}
                     onOpen={() => onOpenItem(item)}
                   />
                 </div>
@@ -1269,10 +1271,12 @@ const PortfolioSkeleton = ({ count = 6 }: { count?: number }) => (
 const PortfolioCard = ({
   item,
   priority,
+  disableImageFade = false,
   onOpen,
 }: {
   item: GalleryItem;
   priority: boolean;
+  disableImageFade?: boolean;
   onOpen: () => void;
 }) => (
   <button
@@ -1290,6 +1294,7 @@ const PortfolioCard = ({
         alt={item.caption || "Tattoo portfolio piece"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         loading={priority ? "eager" : "lazy"}
+        disableFade={disableImageFade}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
       <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100">
@@ -1378,25 +1383,44 @@ const FadeInImage = ({
   alt,
   className,
   loading = "lazy",
+  disableFade = false,
 }: {
   src: string;
   alt: string;
   className: string;
   loading?: "eager" | "lazy";
+  disableFade?: boolean;
 }) => {
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(disableFade);
+  const previousSrcRef = useRef(src);
+
+  useEffect(() => {
+    if (previousSrcRef.current !== src) {
+      previousSrcRef.current = src;
+      setLoaded(disableFade);
+      return;
+    }
+
+    if (disableFade) {
+      setLoaded(true);
+    }
+  }, [src, disableFade]);
+
+  const isVisible = disableFade || loaded;
 
   return (
     <>
-      <div
-        className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.04),rgba(255,255,255,0.11),rgba(255,255,255,0.04))] bg-[length:220%_100%] transition-opacity duration-300 ${
-          loaded ? "opacity-0" : "opacity-100 animate-pulse"
-        }`}
-      />
+      {!disableFade && (
+        <div
+          className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.04),rgba(255,255,255,0.11),rgba(255,255,255,0.04))] bg-[length:220%_100%] transition-opacity duration-300 ${
+            loaded ? "opacity-0" : "opacity-100 animate-pulse"
+          }`}
+        />
+      )}
       <img
         src={src}
         alt={alt}
-        className={`${className} ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`${className} ${isVisible ? "opacity-100" : "opacity-0"}`}
         loading={loading}
         decoding="async"
         onLoad={() => setLoaded(true)}
