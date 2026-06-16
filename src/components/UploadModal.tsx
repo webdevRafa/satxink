@@ -53,6 +53,9 @@ const UploadModal: React.FC<Props> = ({
 }) => {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
+  const [originalGalleryFile, setOriginalGalleryFile] = useState<File | null>(
+    null
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captionOrTitle, setCaptionOrTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -66,6 +69,7 @@ const UploadModal: React.FC<Props> = ({
   const [isUploading, setIsUploading] = useState(false);
 
   const isFlashUpload = collectionType === "flashes";
+  const isGalleryUpload = collectionType === "gallery";
   const sheetRelationshipOptions: SelectOption[] = availableSheets.map(
     (sheet) => ({
       value: sheet.id,
@@ -81,6 +85,7 @@ const UploadModal: React.FC<Props> = ({
   const parsedFlashPrice = parsePositivePrice(priceInput);
   const canPublish =
     Boolean(croppedFile) &&
+    (!isGalleryUpload || Boolean(originalGalleryFile)) &&
     (!isLinkingExistingSheet || Boolean(selectedSheetId)) &&
     (!isFlashUpload || parsedFlashPrice !== null);
 
@@ -111,6 +116,7 @@ const UploadModal: React.FC<Props> = ({
   const resetAndClose = () => {
     setCropSrc(null);
     setCroppedFile(null);
+    setOriginalGalleryFile(null);
     setPreviewUrl(null);
     setCaptionOrTitle("");
     setDescription("");
@@ -128,6 +134,7 @@ const UploadModal: React.FC<Props> = ({
     if (!selected) return;
 
     setCroppedFile(null);
+    setOriginalGalleryFile(isGalleryUpload ? selected : null);
     setPreviewUrl(null);
 
     const reader = new FileReader();
@@ -136,7 +143,13 @@ const UploadModal: React.FC<Props> = ({
   };
 
   const handleFinalUpload = async () => {
-    if (!canPublish || !croppedFile || isUploading) return;
+    if (
+      !canPublish ||
+      !croppedFile ||
+      (isGalleryUpload && !originalGalleryFile) ||
+      isUploading
+    )
+      return;
     if (isFlashUpload && !artistStripeConnectReady) {
       console.error("Stripe Connect is required before uploading flash.");
       return;
@@ -147,8 +160,11 @@ const UploadModal: React.FC<Props> = ({
     try {
       const timestamp = Date.now();
       const ext = croppedFile.name.split(".").pop() || "jpg";
+      const originalExt =
+        originalGalleryFile?.name.split(".").pop()?.toLowerCase() || ext;
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
+      const originalUniqueName = `${baseName}.${originalExt}`;
       const price = isFlashUpload ? parsedFlashPrice : null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
@@ -165,6 +181,7 @@ const UploadModal: React.FC<Props> = ({
           : null,
         marketplaceVisible: isFlashUpload ? artistStripeConnectReady : null,
         fileName: baseName,
+        ...(isGalleryUpload ? { originalFileName: baseName } : {}),
         timestamp,
         isAvailable: isFlashUpload ? true : null,
         repeatability: isFlashUpload ? repeatability : null,
@@ -175,10 +192,24 @@ const UploadModal: React.FC<Props> = ({
         createdAt: serverTimestamp(),
       });
 
-      await uploadBytes(
-        ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
-        croppedFile
-      );
+      const uploadTasks = [
+        uploadBytes(
+          ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
+          croppedFile
+        ),
+      ];
+
+      if (isGalleryUpload && originalGalleryFile) {
+        uploadTasks.push(
+          uploadBytes(
+            ref(storage, `users/${uid}/galleryOriginals/${originalUniqueName}`),
+            originalGalleryFile,
+            { contentType: originalGalleryFile.type || "image/jpeg" }
+          )
+        );
+      }
+
+      await Promise.all(uploadTasks);
 
       onUploadComplete();
       resetAndClose();

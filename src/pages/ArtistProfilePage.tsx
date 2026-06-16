@@ -788,6 +788,10 @@ export const ArtistProfilePage = () => {
           onImageLoad={() => setModalLoading(false)}
           onNext={() => navigatePortfolio("next")}
           onPrev={() => navigatePortfolio("prev")}
+          onRequestTattoo={() => {
+            setSelectedItem(null);
+            window.requestAnimationFrame(handleRequestTattoo);
+          }}
           onClose={() => setSelectedItem(null)}
         />
       )}
@@ -994,7 +998,10 @@ const scrollRequestFlowIntoView = (
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.webp90Url || item.thumbUrl || item.fullUrl;
+  item.originalWebp90Url || item.webp90Url || item.thumbUrl || item.fullUrl;
+
+const getPortfolioLightboxUrl = (item: GalleryItem) =>
+  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
 
 const getSheetPreviewUrl = (sheet: FlashSheet) =>
   sheet.thumbUrl || sheet.imageUrl;
@@ -1390,8 +1397,8 @@ const PortfolioCard = ({
   <button
     type="button"
     onClick={onOpen}
-    onMouseEnter={() => preloadImage(item.fullUrl || item.webp90Url)}
-    onFocus={() => preloadImage(item.fullUrl || item.webp90Url)}
+    onMouseEnter={() => preloadImage(getPortfolioLightboxUrl(item))}
+    onFocus={() => preloadImage(getPortfolioLightboxUrl(item))}
     className={`group relative block w-full overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       priority ? "sm:col-span-2 lg:col-span-1" : ""
     }`}
@@ -1667,6 +1674,7 @@ const PortfolioLightbox = ({
   onImageLoad,
   onNext,
   onPrev,
+  onRequestTattoo,
   onClose,
 }: {
   item: GalleryItem;
@@ -1677,6 +1685,7 @@ const PortfolioLightbox = ({
   onImageLoad: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onRequestTattoo: () => void;
   onClose: () => void;
 }) => {
   const slideClass =
@@ -1727,11 +1736,11 @@ const PortfolioLightbox = ({
       <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
         <LightboxImageFrame
           imageKey={item.id}
-          fullUrl={item.fullUrl || item.webp90Url}
+          fullUrl={getPortfolioLightboxUrl(item)}
           previewUrl={getLightboxPreviewUrl(item)}
           alt={item.caption || "Full portfolio view"}
           isLoading={modalLoading}
-          loadingLabel="Loading full resolution"
+          loadingLabel="Loading portfolio piece"
           slideClass={slideClass}
           onImageLoad={onImageLoad}
         />
@@ -1824,6 +1833,17 @@ const PortfolioLightbox = ({
               <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
             </div>
           )}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestTattoo();
+            }}
+            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-3! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:w-auto"
+          >
+            <MessageCircle size={16} />
+            Send your idea
+          </button>
         </div>
       </div>
     </div>

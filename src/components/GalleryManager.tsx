@@ -165,9 +165,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
   const handleDelete = async (item: GalleryItem) => {
     await deleteDoc(doc(db, "gallery", item.id));
-    const paths = [item.thumbPath, item.previewPath, item.fullPath].filter(
-      Boolean
-    );
+    const paths = [
+      item.thumbPath,
+      item.previewPath,
+      item.fullPath,
+      item.originalPreviewPath,
+    ].filter((path): path is string => Boolean(path));
     await Promise.allSettled(
       paths.map((path) => deleteObject(ref(storage, path)))
     );
@@ -455,11 +458,11 @@ const PortfolioLightbox = ({
       <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
         <LightboxImageFrame
           imageKey={item.id}
-          fullUrl={item.fullUrl || item.webp90Url}
+          fullUrl={getPortfolioLightboxUrl(item)}
           previewUrl={getLightboxPreviewUrl(item)}
           alt={item.caption || "Full portfolio view"}
           isLoading={modalLoading}
-          loadingLabel="Loading full resolution"
+          loadingLabel="Loading portfolio piece"
           slideClass={slideClass}
           onImageLoad={onImageLoad}
         />
@@ -807,7 +810,10 @@ const EditGalleryItemModal = ({
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.webp90Url || item.thumbUrl || item.fullUrl;
+  item.originalWebp90Url || item.webp90Url || item.thumbUrl || item.fullUrl;
+
+const getPortfolioLightboxUrl = (item: GalleryItem) =>
+  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
 
 const getArtistDisplayName = (artist: GalleryArtistInfo) =>
   artist.displayName || "Artist";

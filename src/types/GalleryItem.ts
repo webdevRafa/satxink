@@ -8,12 +8,15 @@ export type GalleryItem = {
   // Public URLs for frontend display
   thumbUrl: string;                // 300px WebP thumbnail
   webp90Url: string;               // 1080px WebP (90% quality preview)
-  fullUrl: string;                 // Full-resolution image
+  fullUrl: string;                 // Full-resolution cropped image
+  originalWebp90Url?: string;      // 1080px WebP preview of the uncropped upload
 
   // Storage paths for internal cleanup or migration
   thumbPath: string;               // Firebase Storage path to thumbnail
   previewPath: string;             // Firebase Storage path to preview
   fullPath: string;                // Firebase Storage path to full image
+  originalPreviewPath?: string;    // Firebase Storage path to uncropped preview
+  originalFileName?: string;       // Original preview processing key
 
   caption?: string;                // Optional artist-provided caption
   tags?: string[];                 // Optional: for search/filter
