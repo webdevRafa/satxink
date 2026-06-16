@@ -115,7 +115,9 @@ type Shop = {
 type SlideDirection = "next" | "prev";
 
 const FEATURED_WORK_LIMIT = 9;
-const PORTFOLIO_FLIP_DURATION_MS = 720;
+const PORTFOLIO_FLIP_DURATION_MS = 760;
+const PORTFOLIO_FLIP_STAGGER_MS = 80;
+const PORTFOLIO_FLIP_SETTLE_BUFFER_MS = 80;
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -1020,16 +1022,26 @@ const PortfolioPanel = ({
   }, [pageCount]);
 
   useEffect(() => {
+    galleryItems.forEach((item) => preloadImage(getCardPreviewUrl(item)));
+  }, [galleryItems]);
+
+  useEffect(() => {
     if (!previousItems) return;
 
     if (flipTimerRef.current !== null) {
       window.clearTimeout(flipTimerRef.current);
     }
 
+    const flipSettleTime =
+      PORTFOLIO_FLIP_DURATION_MS +
+      Math.max(0, Math.min(visibleItems.length, previousItems.length) - 1) *
+        PORTFOLIO_FLIP_STAGGER_MS +
+      PORTFOLIO_FLIP_SETTLE_BUFFER_MS;
+
     flipTimerRef.current = window.setTimeout(() => {
       setPreviousItems(null);
       flipTimerRef.current = null;
-    }, PORTFOLIO_FLIP_DURATION_MS);
+    }, flipSettleTime);
 
     return () => {
       if (flipTimerRef.current !== null) {
@@ -1037,7 +1049,7 @@ const PortfolioPanel = ({
         flipTimerRef.current = null;
       }
     };
-  }, [previousItems]);
+  }, [previousItems, visibleItems.length]);
 
   if (galleryLoading) return <PortfolioSkeleton count={3} />;
 
@@ -1051,7 +1063,7 @@ const PortfolioPanel = ({
   }
 
   const goToPage = (nextPageIndex: number, direction: SlideDirection) => {
-    if (pageCount <= 1 || nextPageIndex === pageIndex) return;
+    if (isFlipping || pageCount <= 1 || nextPageIndex === pageIndex) return;
 
     setPreviousItems(visibleItems);
     setFlipDirection(direction);
@@ -1076,20 +1088,25 @@ const PortfolioPanel = ({
       >
         {visibleItems.map((item, index) => {
           const previousItem = previousItems?.[index];
+          const isSlotFlipping = Boolean(
+            previousItem && previousItem.id !== item.id
+          );
 
           return (
             <div
               key={`${pageIndex}-${item.id}`}
               className={`satx-profile-work-flip-slot ${
-                isFlipping ? "satx-profile-work-flip-slot--active" : ""
+                isSlotFlipping ? "satx-profile-work-flip-slot--active" : ""
               }`}
               style={
                 {
-                  "--satx-flip-delay": `${index * 80}ms`,
+                  "--satx-flip-delay": `${
+                    index * PORTFOLIO_FLIP_STAGGER_MS
+                  }ms`,
                 } as CSSProperties
               }
             >
-              {previousItem && previousItem.id !== item.id && (
+              {isSlotFlipping && previousItem && (
                 <div className="satx-profile-work-card-face satx-profile-work-card-face--previous">
                   <PortfolioCard
                     item={previousItem}
@@ -1115,7 +1132,8 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToPreviousPage}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1]"
+            disabled={isFlipping}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Previous portfolio page"
           >
             <ChevronLeft size={18} />
@@ -1129,10 +1147,11 @@ const PortfolioPanel = ({
                 onClick={() =>
                   goToPage(index, index > pageIndex ? "next" : "prev")
                 }
+                disabled={isFlipping}
                 className={`h-2.5 rounded-full p-0! transition ${
                   index === pageIndex
                     ? "w-8 bg-white"
-                    : "w-2.5 bg-white/25 hover:bg-white/45"
+                    : "w-2.5 bg-white/25 hover:bg-white/45 disabled:hover:bg-white/25"
                 }`}
                 aria-label={`Show portfolio page ${index + 1}`}
                 aria-current={index === pageIndex ? "page" : undefined}
@@ -1143,7 +1162,8 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToNextPage}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1]"
+            disabled={isFlipping}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Next portfolio page"
           >
             <ChevronRight size={18} />

@@ -139,6 +139,7 @@ a.bg-white svg {
 }
 
 .satx-profile-work-carousel-grid {
+  content-visibility: visible;
   perspective: 1400px;
 }
 
@@ -146,10 +147,12 @@ a.bg-white svg {
   min-width: 0;
   position: relative;
   transform-style: preserve-3d;
+  transform: translateZ(0);
 }
 
 .satx-profile-work-card-face {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   transform-origin: center center;
   transform-style: preserve-3d;
 }
@@ -167,104 +170,49 @@ a.bg-white svg {
 }
 
 .satx-profile-work-carousel-grid--flipping
-  .satx-profile-work-flip-slot--active
-  .satx-profile-work-card-face {
+  .satx-profile-work-flip-slot--active {
   animation-delay: var(--satx-flip-delay, 0ms);
-  animation-duration: 720ms;
+  animation-duration: 760ms;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity, transform, filter;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.12, 1);
+  will-change: transform;
 }
 
 .satx-profile-work-carousel-grid--flipping[data-direction="next"]
-  .satx-profile-work-card-face--previous {
-  animation-name: satx-profile-work-flip-out-next;
+  .satx-profile-work-flip-slot--active {
+  animation-name: satx-profile-work-spin-next;
 }
 
 .satx-profile-work-carousel-grid--flipping[data-direction="next"]
   .satx-profile-work-card-face--current {
-  animation-name: satx-profile-work-flip-in-next;
+  transform: rotateY(180deg) translateZ(1px);
 }
 
 .satx-profile-work-carousel-grid--flipping[data-direction="prev"]
-  .satx-profile-work-card-face--previous {
-  animation-name: satx-profile-work-flip-out-prev;
+  .satx-profile-work-flip-slot--active {
+  animation-name: satx-profile-work-spin-prev;
 }
 
 .satx-profile-work-carousel-grid--flipping[data-direction="prev"]
   .satx-profile-work-card-face--current {
-  animation-name: satx-profile-work-flip-in-prev;
+  transform: rotateY(-180deg) translateZ(1px);
 }
 
-@keyframes satx-profile-work-flip-out-next {
+@keyframes satx-profile-work-spin-next {
   0% {
-    filter: brightness(1);
-    opacity: 1;
-    transform: rotateY(0deg) translateZ(0);
-  }
-  48% {
-    filter: brightness(0.82);
-    opacity: 0.92;
-    transform: rotateY(92deg) translateZ(18px) scale(0.985);
+    transform: translateZ(0) rotateY(0deg);
   }
   100% {
-    filter: brightness(0.55);
-    opacity: 0;
-    transform: rotateY(180deg) translateZ(0) scale(0.97);
+    transform: translateZ(0) rotateY(180deg);
   }
 }
 
-@keyframes satx-profile-work-flip-in-next {
+@keyframes satx-profile-work-spin-prev {
   0% {
-    filter: brightness(0.6);
-    opacity: 0;
-    transform: rotateY(-180deg) translateZ(0) scale(0.97);
-  }
-  52% {
-    filter: brightness(0.9);
-    opacity: 0.96;
-    transform: rotateY(-88deg) translateZ(18px) scale(0.985);
+    transform: translateZ(0) rotateY(0deg);
   }
   100% {
-    filter: brightness(1);
-    opacity: 1;
-    transform: rotateY(0deg) translateZ(0) scale(1);
-  }
-}
-
-@keyframes satx-profile-work-flip-out-prev {
-  0% {
-    filter: brightness(1);
-    opacity: 1;
-    transform: rotateY(0deg) translateZ(0);
-  }
-  48% {
-    filter: brightness(0.82);
-    opacity: 0.92;
-    transform: rotateY(-92deg) translateZ(18px) scale(0.985);
-  }
-  100% {
-    filter: brightness(0.55);
-    opacity: 0;
-    transform: rotateY(-180deg) translateZ(0) scale(0.97);
-  }
-}
-
-@keyframes satx-profile-work-flip-in-prev {
-  0% {
-    filter: brightness(0.6);
-    opacity: 0;
-    transform: rotateY(180deg) translateZ(0) scale(0.97);
-  }
-  52% {
-    filter: brightness(0.9);
-    opacity: 0.96;
-    transform: rotateY(88deg) translateZ(18px) scale(0.985);
-  }
-  100% {
-    filter: brightness(1);
-    opacity: 1;
-    transform: rotateY(0deg) translateZ(0) scale(1);
+    transform: translateZ(0) rotateY(-180deg);
   }
 }
 
@@ -317,7 +265,7 @@ a.bg-white svg {
 @media (prefers-reduced-motion: reduce) {
   .satx-profile-work-shell--exiting,
   .satx-profile-work-carousel-grid--flipping
-    .satx-profile-work-card-face,
+    .satx-profile-work-flip-slot--active,
   .satx-request-flow-shell,
   .satx-request-step-panel {
     animation: none;
@@ -328,6 +276,11 @@ a.bg-white svg {
 
   .satx-profile-work-card-face--previous {
     display: none;
+  }
+
+  .satx-profile-work-carousel-grid--flipping
+    .satx-profile-work-card-face--current {
+    transform: none;
   }
 }
 .animate-scroll {
