@@ -624,7 +624,7 @@ export const ArtistProfilePage = () => {
 
         <div
           ref={requestFlowTopRef}
-          className="mt-8 scroll-mt-24 pb-60 lg:mt-10"
+          className="mt-6 scroll-mt-24 pb-60 lg:mt-8"
         >
           {isRequestModalOpen && client ? (
             <RequestTattooModal
@@ -644,11 +644,7 @@ export const ArtistProfilePage = () => {
                 isRequestTransitioning ? "satx-profile-work-shell--exiting" : ""
               }`}
             >
-              <section aria-labelledby="artist-work-heading">
-                <div
-                  data-aos="fade-up"
-                  className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-                ></div>
+              <section aria-label="Artist portfolio">
                 <PortfolioPanel
                   galleryItems={featuredGalleryItems}
                   galleryLoading={galleryLoading}
@@ -1071,112 +1067,145 @@ const PortfolioPanel = ({
     goToPage((pageIndex - 1 + pageCount) % pageCount, "prev");
   };
 
+  const arrowButtonClassName =
+    "flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white shadow-[0_14px_38px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45";
+
+  const pageDots = (
+    <div className="flex items-center justify-center gap-2">
+      {Array.from({ length: pageCount }).map((_, index) => (
+        <button
+          key={index}
+          type="button"
+          onClick={() => goToPage(index, index > pageIndex ? "next" : "prev")}
+          disabled={isTransitioning}
+          className={`h-2.5 rounded-full p-0! transition ${
+            index === pageIndex
+              ? "w-8 bg-white"
+              : "w-2.5 bg-white/25 hover:bg-white/45 disabled:hover:bg-white/25"
+          }`}
+          aria-label={`Show portfolio page ${index + 1}`}
+          aria-current={index === pageIndex ? "page" : undefined}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <div className="satx-profile-work-carousel">
-      <div
-        className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3  ${
-          isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
-        }`}
-        data-direction={transitionDirection}
-      >
-        {Array.from({ length: transitionSlotCount }).map((_, index) => {
-          const item = visibleItems[index];
-          const previousItem = previousItems?.[index];
-          const isSlotTransitioning = Boolean(
-            previousItems && item?.id !== previousItem?.id
-          );
-          const transitionOrder =
-            transitionDirection === "next"
-              ? index
-              : Math.max(0, transitionSlotCount - 1 - index);
-          const fadeOutDelay = transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
-          const fadeInDelay =
-            PORTFOLIO_FADE_DURATION_MS +
-            Math.max(0, transitionSlotCount - 1) * PORTFOLIO_FADE_STAGGER_MS +
-            PORTFOLIO_FADE_PHASE_GAP_MS +
-            fadeOutDelay;
-
-          return (
-            <div
-              key={`${pageIndex}-${item?.id || previousItem?.id || index}`}
-              className={`satx-profile-work-fade-slot ${
-                isSlotTransitioning ? "satx-profile-work-fade-slot--active" : ""
-              }`}
-              style={
-                {
-                  "--satx-fade-out-delay": `${fadeOutDelay}ms`,
-                  "--satx-fade-in-delay": `${fadeInDelay}ms`,
-                } as CSSProperties
-              }
-            >
-              {isSlotTransitioning && previousItem && (
-                <div className="satx-profile-work-card-face satx-profile-work-card-face--previous">
-                  <PortfolioCard
-                    item={previousItem}
-                    priority={false}
-                    disableImageFade
-                    onOpen={() => onOpenItem(previousItem)}
-                  />
-                </div>
-              )}
-              {item && (
-                <div className="satx-profile-work-card-face satx-profile-work-card-face--current">
-                  <PortfolioCard
-                    item={item}
-                    priority={pageIndex === 0 && index === 0}
-                    disableImageFade={isTransitioning}
-                    onOpen={() => onOpenItem(item)}
-                  />
-                </div>
-              )}
-              {!item && previousItem && (
-                <div
-                  className="satx-profile-work-card-face satx-profile-work-card-face--current satx-profile-work-card-face--placeholder"
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {pageCount > 1 && (
-        <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="relative">
+        {pageCount > 1 && (
           <button
             type="button"
             onClick={goToPreviousPage}
             disabled={isTransitioning}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
+            className={`${arrowButtonClassName} absolute -left-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Previous portfolio page"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
+
+        <div
+          className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+            isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
+          }`}
+          data-direction={transitionDirection}
+        >
+          {Array.from({ length: transitionSlotCount }).map((_, index) => {
+            const item = visibleItems[index];
+            const previousItem = previousItems?.[index];
+            const isSlotTransitioning = Boolean(
+              previousItems && item?.id !== previousItem?.id
+            );
+            const transitionOrder =
+              transitionDirection === "next"
+                ? index
+                : Math.max(0, transitionSlotCount - 1 - index);
+            const fadeOutDelay = transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
+            const fadeInDelay =
+              PORTFOLIO_FADE_DURATION_MS +
+              Math.max(0, transitionSlotCount - 1) * PORTFOLIO_FADE_STAGGER_MS +
+              PORTFOLIO_FADE_PHASE_GAP_MS +
+              fadeOutDelay;
+
+            return (
+              <div
+                key={`${pageIndex}-${item?.id || previousItem?.id || index}`}
+                className={`satx-profile-work-fade-slot ${
+                  isSlotTransitioning
+                    ? "satx-profile-work-fade-slot--active"
+                    : ""
+                }`}
+                style={
+                  {
+                    "--satx-fade-out-delay": `${fadeOutDelay}ms`,
+                    "--satx-fade-in-delay": `${fadeInDelay}ms`,
+                  } as CSSProperties
+                }
+              >
+                {isSlotTransitioning && previousItem && (
+                  <div className="satx-profile-work-card-face satx-profile-work-card-face--previous">
+                    <PortfolioCard
+                      item={previousItem}
+                      priority={false}
+                      disableImageFade
+                      onOpen={() => onOpenItem(previousItem)}
+                    />
+                  </div>
+                )}
+                {item && (
+                  <div className="satx-profile-work-card-face satx-profile-work-card-face--current">
+                    <PortfolioCard
+                      item={item}
+                      priority={pageIndex === 0 && index === 0}
+                      disableImageFade={isTransitioning}
+                      onOpen={() => onOpenItem(item)}
+                    />
+                  </div>
+                )}
+                {!item && previousItem && (
+                  <div
+                    className="satx-profile-work-card-face satx-profile-work-card-face--current satx-profile-work-card-face--placeholder"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {pageCount > 1 && (
+          <button
+            type="button"
+            onClick={goToNextPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} absolute -right-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Next portfolio page"
+          >
+            <ChevronRight size={18} />
+          </button>
+        )}
+      </div>
+
+      {pageCount > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-3 xl:justify-center">
+          <button
+            type="button"
+            onClick={goToPreviousPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} xl:hidden`}
             aria-label="Previous portfolio page"
           >
             <ChevronLeft size={18} />
           </button>
 
-          <div className="flex items-center justify-center gap-2">
-            {Array.from({ length: pageCount }).map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() =>
-                  goToPage(index, index > pageIndex ? "next" : "prev")
-                }
-                disabled={isTransitioning}
-                className={`h-2.5 rounded-full p-0! transition ${
-                  index === pageIndex
-                    ? "w-8 bg-white"
-                    : "w-2.5 bg-white/25 hover:bg-white/45 disabled:hover:bg-white/25"
-                }`}
-                aria-label={`Show portfolio page ${index + 1}`}
-                aria-current={index === pageIndex ? "page" : undefined}
-              />
-            ))}
-          </div>
+          {pageDots}
 
           <button
             type="button"
             onClick={goToNextPage}
             disabled={isTransitioning}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
+            className={`${arrowButtonClassName} xl:hidden`}
             aria-label="Next portfolio page"
           >
             <ChevronRight size={18} />
