@@ -145,6 +145,7 @@ a.bg-white svg {
 
 .satx-request-flow-shell {
   animation: satx-request-flow-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  contain: layout paint;
   transform-origin: top center;
 }
 
@@ -157,13 +158,18 @@ a.bg-white svg {
   contain: layout paint;
 }
 
+.satx-request-flow-shell button,
+.satx-request-flow-shell label {
+  touch-action: manipulation;
+}
+
 @media (max-width: 640px) {
   .satx-request-flow-shell {
-    animation-duration: 180ms;
+    animation: none;
   }
 
   .satx-request-step-panel {
-    animation-duration: 140ms;
+    animation: none;
   }
 
   @keyframes satx-request-step-enter {

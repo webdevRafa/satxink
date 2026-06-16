@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, memo, useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -87,6 +87,7 @@ type UploadedReferenceImage = {
 };
 
 const maxReferenceImages = 3;
+const referencePreviewMaxEdge = 720;
 
 const requestFlowSteps: Array<{
   id: RequestStep;
@@ -121,6 +122,9 @@ const RequestTattooModal: React.FC<Props> = ({
   );
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
+  const [referencePreviews, setReferencePreviews] = useState<
+    ReferencePreview[]
+  >([]);
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,17 +133,12 @@ const RequestTattooModal: React.FC<Props> = ({
   const progressStepRefs = useRef<Map<RequestStep, HTMLButtonElement>>(
     new Map()
   );
+  const referencePreviewsRef = useRef<ReferencePreview[]>([]);
   const earliestEndTime = getMinimumEndTime(availableTime.from);
 
-  const referencePreviews = useMemo<ReferencePreview[]>(
-    () =>
-      referenceImages.map((file) => ({
-        file,
-        url: URL.createObjectURL(file),
-      })),
-    [referenceImages]
-  );
   const hasReferenceImages = referenceImages.length > 0;
+  const isPreparingReferencePreviews =
+    referenceImages.length > referencePreviews.length;
   const remainingReferenceSlots = maxReferenceImages - referenceImages.length;
   const clientNameParts = getClientNameParts(client);
   const clientName = formatClientFullName(
@@ -184,10 +183,61 @@ const RequestTattooModal: React.FC<Props> = ({
     : 4;
 
   useEffect(() => {
-    return () => {
-      referencePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    let isCurrent = true;
+
+    const syncReferencePreviews = async () => {
+      const currentFiles = new Set(referenceImages);
+      const currentPreviews = referencePreviewsRef.current;
+      const preservedPreviews = currentPreviews.filter((preview) =>
+        currentFiles.has(preview.file)
+      );
+      const removedPreviews = currentPreviews.filter(
+        (preview) => !currentFiles.has(preview.file)
+      );
+
+      revokeReferencePreviewUrls(removedPreviews);
+
+      referencePreviewsRef.current = orderReferencePreviews(
+        referenceImages,
+        preservedPreviews
+      );
+      setReferencePreviews(referencePreviewsRef.current);
+
+      const previewedFiles = new Set(
+        referencePreviewsRef.current.map((preview) => preview.file)
+      );
+      const filesToPreview = referenceImages.filter(
+        (file) => !previewedFiles.has(file)
+      );
+
+      for (const file of filesToPreview) {
+        await waitForAnimationFrame();
+
+        const preview = await createReferencePreview(file);
+
+        if (!isCurrent) {
+          URL.revokeObjectURL(preview.url);
+          return;
+        }
+
+        referencePreviewsRef.current = orderReferencePreviews(referenceImages, [
+          ...referencePreviewsRef.current,
+          preview,
+        ]);
+        setReferencePreviews(referencePreviewsRef.current);
+      }
     };
-  }, [referencePreviews]);
+
+    syncReferencePreviews();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [referenceImages]);
+
+  useEffect(() => {
+    return () => revokeReferencePreviewUrls(referencePreviewsRef.current);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -199,11 +249,13 @@ const RequestTattooModal: React.FC<Props> = ({
         prefersReducedMotion() || isCompactViewport ? "auto" : "smooth";
 
       modalBodyRef.current?.scrollTo({ top: 0, behavior });
-      progressStepRefs.current.get(activeStep)?.scrollIntoView({
-        behavior,
-        block: "nearest",
-        inline: "center",
-      });
+      if (!isCompactViewport) {
+        progressStepRefs.current.get(activeStep)?.scrollIntoView({
+          behavior,
+          block: "nearest",
+          inline: "center",
+        });
+      }
 
       if (isCompactViewport) {
         const panelRect = requestPanelRef.current?.getBoundingClientRect();
@@ -224,6 +276,9 @@ const RequestTattooModal: React.FC<Props> = ({
   }, [activeStep, isOpen]);
 
   const reset = () => {
+    revokeReferencePreviewUrls(referencePreviewsRef.current);
+    referencePreviewsRef.current = [];
+
     setActiveStep("idea");
     setDescription("");
     setBodyPlacement("");
@@ -233,6 +288,7 @@ const RequestTattooModal: React.FC<Props> = ({
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setAvailableDays([]);
     setReferenceImages([]);
+    setReferencePreviews([]);
     setBudget("");
     setCustomBudget("");
     setIsSubmitting(false);
@@ -286,12 +342,13 @@ const RequestTattooModal: React.FC<Props> = ({
     );
   };
 
-  const continueFromIdea = () => {
-    if (!isIdeaComplete) {
+  const continueFromIdea = (nextDescription = description) => {
+    if (!nextDescription.trim()) {
       toast.error("Describe the tattoo idea before continuing.");
       return;
     }
 
+    setDescription(nextDescription);
     setActiveStep("details");
   };
 
@@ -547,7 +604,7 @@ const RequestTattooModal: React.FC<Props> = ({
       aria-label="Tattoo request"
     >
       <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.07),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.035),transparent_44%)]" />
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.07),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.035),transparent_44%)] sm:block" />
 
       <div className="relative z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-4">
@@ -568,8 +625,8 @@ const RequestTattooModal: React.FC<Props> = ({
       </div>
 
       <div className="relative z-10 border-b border-white/10 px-4 py-3 sm:px-5">
-        <div className="request-modal-scrollbar -mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-          <div className="flex min-w-max gap-2">
+        <div className="request-modal-scrollbar -mx-2 px-2 pb-1 sm:mx-0 sm:overflow-x-auto sm:px-0">
+          <div className="grid grid-cols-5 gap-1 sm:flex sm:min-w-max sm:gap-2">
             {requestFlowSteps.map((flowStep, index) => {
               const isActive = flowStep.id === activeStep;
               const canVisit = index <= maxReachableStepIndex;
@@ -593,7 +650,7 @@ const RequestTattooModal: React.FC<Props> = ({
                   onClick={() => goToStep(flowStep.id)}
                   disabled={!canVisit}
                   aria-current={isActive ? "step" : undefined}
-                  className={`satx-request-progress-step inline-flex min-w-[9.5rem] items-center gap-3 rounded-md border px-3! py-2.5! text-left transition ${
+                  className={`satx-request-progress-step inline-flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-1.5! py-2! text-center transition sm:min-w-[9.5rem] sm:flex-row sm:justify-start sm:gap-3 sm:px-3! sm:py-2.5! sm:text-left ${
                     isActive
                       ? "border-white/30 bg-white/[0.095] text-white"
                       : isComplete
@@ -602,9 +659,9 @@ const RequestTattooModal: React.FC<Props> = ({
                       ? "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white"
                       : "cursor-not-allowed border-white/5 bg-black/20 text-white/25"
                   }`}
-                >
+                  >
                   <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs! font-bold ${
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px]! font-bold sm:h-7 sm:w-7 sm:text-xs! ${
                       isActive
                         ? "bg-white text-black"
                         : isComplete
@@ -615,10 +672,10 @@ const RequestTattooModal: React.FC<Props> = ({
                     {index + 1}
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm! font-semibold leading-4">
+                    <span className="block truncate text-[11px]! font-semibold leading-4 sm:text-sm!">
                       {flowStep.label}
                     </span>
-                    <span className="mt-0.5 block text-[11px]! leading-4 text-white/40">
+                    <span className="mt-0.5 hidden text-[11px]! leading-4 text-white/40 sm:block">
                       {flowStep.helper}
                     </span>
                   </span>
@@ -633,55 +690,12 @@ const RequestTattooModal: React.FC<Props> = ({
         <div ref={modalBodyRef} className="p-4 sm:p-5">
           <div key={activeStep} className="satx-request-step-panel">
             {activeStep === "idea" && (
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                  <div className="mb-5 flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                      <ImageIcon size={19} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg! font-semibold! text-white">
-                        Start with the idea
-                      </h3>
-                      <p className="text-sm text-white/55">
-                        Share the subject, style, mood, and anything that
-                        matters before {artistName} replies.
-                      </p>
-                    </div>
-                  </div>
-
-                  <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium text-white/65">
-                      Tattoo idea
-                    </span>
-                    <textarea
-                      required
-                      className="min-h-52 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/40"
-                      placeholder="Describe the subject, style, mood, and any details that matter."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </label>
-
-                  <div className="mt-5 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={continueFromIdea}
-                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
-                    >
-                      Continue
-                      <ChevronRight size={15} />
-                    </button>
-                  </div>
-                </div>
-
-                <aside className="rounded-lg border border-white/10 bg-black/25 p-5">
-                  <p className="mt-3 text-sm! leading-6 text-white/65">
-                    A clear idea helps the artist respond with realistic
-                    guidance, pricing, and next steps.
-                  </p>
-                </aside>
-              </div>
+              <IdeaStepPanel
+                artistName={artistName}
+                initialDescription={description}
+                onCommitDescription={setDescription}
+                onContinue={continueFromIdea}
+              />
             )}
 
             {activeStep === "details" && (
@@ -885,6 +899,15 @@ const RequestTattooModal: React.FC<Props> = ({
                         </div>
                       ))}
 
+                      {isPreparingReferencePreviews && (
+                        <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] px-4 text-center">
+                          <ImageIcon size={22} className="mb-3 text-white/35" />
+                          <p className="text-xs! font-semibold text-white">
+                            Optimizing preview
+                          </p>
+                        </div>
+                      )}
+
                       {!hasReferenceImages && (
                         <div className="col-span-2 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center xl:col-span-3">
                           <ImageIcon size={24} className="mb-3 text-white/35" />
@@ -1054,6 +1077,82 @@ const RequestTattooModal: React.FC<Props> = ({
     </section>
   );
 };
+
+const IdeaStepPanel = memo(
+  ({
+    artistName,
+    initialDescription,
+    onCommitDescription,
+    onContinue,
+  }: {
+    artistName: string;
+    initialDescription: string;
+    onCommitDescription: (description: string) => void;
+    onContinue: (description: string) => void;
+  }) => {
+    const [draftDescription, setDraftDescription] =
+      useState(initialDescription);
+
+    useEffect(() => {
+      setDraftDescription(initialDescription);
+    }, [initialDescription]);
+
+    return (
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
+              <ImageIcon size={19} />
+            </div>
+            <div>
+              <h3 className="text-lg! font-semibold! text-white">
+                Start with the idea
+              </h3>
+              <p className="text-sm text-white/55">
+                Share the subject, style, mood, and anything that matters
+                before {artistName} replies.
+              </p>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-white/65">
+              Tattoo idea
+            </span>
+            <textarea
+              required
+              className="min-h-52 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/40"
+              placeholder="Describe the subject, style, mood, and any details that matter."
+              value={draftDescription}
+              onBlur={() => onCommitDescription(draftDescription)}
+              onChange={(event) => setDraftDescription(event.target.value)}
+            />
+          </label>
+
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onContinue(draftDescription)}
+              className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+            >
+              Continue
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+
+        <aside className="hidden rounded-lg border border-white/10 bg-black/25 p-5 lg:block">
+          <p className="mt-3 text-sm! leading-6 text-white/65">
+            A clear idea helps the artist respond with realistic guidance,
+            pricing, and next steps.
+          </p>
+        </aside>
+      </div>
+    );
+  }
+);
+
+IdeaStepPanel.displayName = "IdeaStepPanel";
 
 const RequestPreviewPanel = ({
   artistName,
@@ -1466,6 +1565,84 @@ const hasMinimumTimeWindow = (startTime: string, endTime: string) => {
     endMinutes - startMinutes >= 60
   );
 };
+
+const orderReferencePreviews = (
+  files: File[],
+  previews: ReferencePreview[]
+) =>
+  files
+    .map((file) => previews.find((preview) => preview.file === file))
+    .filter((preview): preview is ReferencePreview => Boolean(preview));
+
+const revokeReferencePreviewUrls = (previews: ReferencePreview[]) => {
+  previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+};
+
+const waitForAnimationFrame = () =>
+  new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+
+const createReferencePreview = async (
+  file: File
+): Promise<ReferencePreview> => {
+  const sourceUrl = URL.createObjectURL(file);
+
+  if (!("createImageBitmap" in window)) {
+    return { file, url: sourceUrl };
+  }
+
+  let bitmap: ImageBitmap | null = null;
+
+  try {
+    bitmap = await createImageBitmap(file);
+
+    const { width, height } = getReferencePreviewDimensions(
+      bitmap.width,
+      bitmap.height
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) return { file, url: sourceUrl };
+
+    context.drawImage(bitmap, 0, 0, width, height);
+
+    const previewBlob = await canvasToBlob(canvas);
+    if (!previewBlob) return { file, url: sourceUrl };
+
+    URL.revokeObjectURL(sourceUrl);
+
+    return {
+      file,
+      url: URL.createObjectURL(previewBlob),
+    };
+  } catch {
+    return { file, url: sourceUrl };
+  } finally {
+    bitmap?.close();
+  }
+};
+
+const getReferencePreviewDimensions = (width: number, height: number) => {
+  const longestEdge = Math.max(width, height);
+  const scale =
+    longestEdge > referencePreviewMaxEdge
+      ? referencePreviewMaxEdge / longestEdge
+      : 1;
+
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement) =>
+  new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.82);
+  });
 
 const getReferenceStorageFileName = (file: File, index: number) => {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");

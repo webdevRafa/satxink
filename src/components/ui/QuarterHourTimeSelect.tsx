@@ -1,5 +1,6 @@
 import CustomSelect from "./CustomSelect";
 import { quarterHourTimeOptions } from "../../utils/timeOptions";
+import { useMemo } from "react";
 
 type QuarterHourTimeSelectProps = {
   value: string;
@@ -17,20 +18,26 @@ const QuarterHourTimeSelect = ({
   className = "",
   buttonClassName = "",
   minTime,
-}: QuarterHourTimeSelectProps) => (
-  <CustomSelect
-    value={value}
-    onChange={onChange}
-    options={
+}: QuarterHourTimeSelectProps) => {
+  const options = useMemo(
+    () =>
       minTime
         ? quarterHourTimeOptions.filter((option) => option.value >= minTime)
-        : quarterHourTimeOptions
-    }
-    placeholder={placeholder}
-    className={className}
-    buttonClassName={buttonClassName}
-    optionsClassName="max-h-64"
-  />
-);
+        : quarterHourTimeOptions,
+    [minTime]
+  );
+
+  return (
+    <CustomSelect
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      className={className}
+      buttonClassName={buttonClassName}
+      optionsClassName="max-h-64"
+    />
+  );
+};
 
 export default QuarterHourTimeSelect;
