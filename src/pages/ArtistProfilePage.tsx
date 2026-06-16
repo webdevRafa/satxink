@@ -72,6 +72,8 @@ const flashSizeOptions = [
   { value: "Large", label: "Large" },
 ];
 
+const profileBackdropMediaQuery = "(min-width: 768px)";
+
 interface Artist {
   id: string;
   name?: string;
@@ -133,6 +135,9 @@ export const ArtistProfilePage = () => {
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isRequestTransitioning, setIsRequestTransitioning] = useState(false);
+  const [showProfileBackdrop, setShowProfileBackdrop] = useState(() =>
+    canShowProfileBackdrop()
+  );
   const requestFlowTopRef = useRef<HTMLDivElement | null>(null);
   const requestOpenTimerRef = useRef<number | null>(null);
 
@@ -222,6 +227,18 @@ export const ArtistProfilePage = () => {
         window.clearTimeout(requestOpenTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(profileBackdropMediaQuery);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setShowProfileBackdrop(event.matches);
+    };
+
+    setShowProfileBackdrop(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
   useEffect(() => {
@@ -376,18 +393,23 @@ export const ArtistProfilePage = () => {
       window.clearTimeout(requestOpenTimerRef.current);
     }
 
+    const shouldOpenImmediately =
+      isCompactProfileViewport() || prefersReducedProfileMotion();
+
+    if (shouldOpenImmediately) {
+      setIsRequestTransitioning(false);
+      setIsRequestModalOpen(true);
+      scrollRequestFlowIntoView(requestFlowTopRef, "auto");
+      return;
+    }
+
     setIsRequestTransitioning(true);
     requestOpenTimerRef.current = window.setTimeout(() => {
       setIsRequestModalOpen(true);
       setIsRequestTransitioning(false);
       requestOpenTimerRef.current = null;
 
-      window.requestAnimationFrame(() => {
-        requestFlowTopRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
+      scrollRequestFlowIntoView(requestFlowTopRef, "smooth");
     }, 180);
   };
 
@@ -486,7 +508,7 @@ export const ArtistProfilePage = () => {
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
-      {profileBackdropUrl && (
+      {showProfileBackdrop && profileBackdropUrl && (
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#0d0d0d]">
           <div
             className="absolute inset-[-10%] bg-cover bg-center opacity-[0.5] blur-[15px] saturate-[2]"
@@ -509,6 +531,7 @@ export const ArtistProfilePage = () => {
                 <img
                   src={artist.avatarUrl || "/fallback-avatar.jpg"}
                   alt={artistDisplayName}
+                  decoding="async"
                   className="relative aspect-square h-20 w-20 rounded-full border border-white/15 object-cover shadow-[0_18px_38px_rgba(0,0,0,0.4)] sm:h-32 sm:w-32 md:h-40 md:w-40"
                 />
               </div>
@@ -574,7 +597,7 @@ export const ArtistProfilePage = () => {
             <div
               className={`w-full transition-all duration-300 ease-out lg:justify-self-end ${
                 isRequestFlowActive
-                  ? "pointer-events-none -translate-y-2 opacity-0 blur-sm"
+                  ? "pointer-events-none -translate-y-2 opacity-0 sm:blur-sm"
                   : "translate-y-0 opacity-100 blur-0"
               }`}
               aria-hidden={isRequestFlowActive}
@@ -875,6 +898,30 @@ const getCardPreviewUrl = (item: GalleryItem) =>
 const getProfileBackdropUrl = (item?: GalleryItem) =>
   item?.thumbUrl || item?.webp90Url || "";
 
+const canShowProfileBackdrop = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia(profileBackdropMediaQuery).matches;
+
+const isCompactProfileViewport = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(max-width: 767px)").matches;
+
+const prefersReducedProfileMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const scrollRequestFlowIntoView = (
+  targetRef: { current: HTMLDivElement | null },
+  behavior: ScrollBehavior
+) => {
+  window.requestAnimationFrame(() => {
+    targetRef.current?.scrollIntoView({
+      behavior,
+      block: "start",
+    });
+  });
+};
+
 const getLightboxPreviewUrl = (item: GalleryItem) =>
   item.webp90Url || item.thumbUrl || item.fullUrl;
 
@@ -946,7 +993,7 @@ const PortfolioPanel = ({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {galleryItems.map((item, index) => (
         <PortfolioCard
           key={item.id}
@@ -982,7 +1029,7 @@ const FlashSheetsPanel = ({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {flashSheets.map((sheet, index) => (
         <FlashSheetCard
           key={sheet.id}
