@@ -27,6 +27,7 @@ import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Expand,
@@ -144,7 +145,9 @@ export const ArtistProfilePage = () => {
     canShowProfileBackdrop()
   );
   const requestFlowTopRef = useRef<HTMLDivElement | null>(null);
+  const flashSectionRef = useRef<HTMLElement | null>(null);
   const requestOpenTimerRef = useRef<number | null>(null);
+  const [shouldPromptForFlash, setShouldPromptForFlash] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -329,6 +332,61 @@ export const ArtistProfilePage = () => {
     fetchSheetFlashes();
   }, [focusedSheet, id, artist]);
 
+  const updateFlashCueVisibility = useCallback(() => {
+    const section = flashSectionRef.current;
+    const hasFlashSheets = !flashSheetsLoading && flashSheets.length > 0;
+    const hasOverlayOpen = Boolean(
+      selectedItem ||
+        selectedSheet ||
+        selectedFlash ||
+        isRequestModalOpen ||
+        isRequestTransitioning
+    );
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches;
+
+    if (!section || !hasFlashSheets || hasOverlayOpen || !isDesktop) {
+      setShouldPromptForFlash(false);
+      return;
+    }
+
+    const rect = section.getBoundingClientRect();
+    const viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+
+    setShouldPromptForFlash(rect.top > viewportHeight - 128);
+  }, [
+    flashSheets.length,
+    flashSheetsLoading,
+    isRequestModalOpen,
+    isRequestTransitioning,
+    selectedFlash,
+    selectedItem,
+    selectedSheet,
+  ]);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    const scheduleVisibilityCheck = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updateFlashCueVisibility);
+    };
+
+    scheduleVisibilityCheck();
+    window.addEventListener("scroll", scheduleVisibilityCheck, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleVisibilityCheck);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", scheduleVisibilityCheck);
+      window.removeEventListener("resize", scheduleVisibilityCheck);
+    };
+  }, [updateFlashCueVisibility]);
+
   const featuredGalleryItems = useMemo(
     () => galleryItems.slice(0, FEATURED_WORK_LIMIT),
     [galleryItems]
@@ -390,6 +448,16 @@ export const ArtistProfilePage = () => {
         .getElementById("flash-sheet-items")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
+  };
+
+  const handleViewFlashCue = () => {
+    setShouldPromptForFlash(false);
+    window.requestAnimationFrame(() => {
+      flashSectionRef.current?.scrollIntoView({
+        behavior: prefersReducedProfileMotion() ? "auto" : "smooth",
+        block: "start",
+      });
+    });
   };
 
   const handleRequestTattoo = () => {
@@ -514,6 +582,15 @@ export const ArtistProfilePage = () => {
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
   const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
+  const flashSheetCountLabel = `${flashSheets.length} sheet${
+    flashSheets.length === 1 ? "" : "s"
+  }`;
+  const shouldShowFlashCue =
+    shouldPromptForFlash &&
+    !isRequestFlowActive &&
+    !selectedItem &&
+    !selectedSheet &&
+    !selectedFlash;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -653,6 +730,7 @@ export const ArtistProfilePage = () => {
               </section>
 
               <section
+                ref={flashSectionRef}
                 aria-labelledby="artist-flash-heading"
                 className="mt-10 border-t border-white/10 pt-8"
               >
@@ -731,6 +809,26 @@ export const ArtistProfilePage = () => {
           client={client}
           onClose={() => setSelectedFlash(null)}
         />
+      )}
+
+      {shouldShowFlashCue && (
+        <button
+          type="button"
+          onClick={handleViewFlashCue}
+          className="satx-profile-flash-cue fixed bottom-6 right-6 z-30 hidden items-center gap-3 overflow-hidden rounded-full border border-white/12 bg-[#121212]/88 px-3.5 py-2.5 text-left text-white shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:border-white/25 hover:bg-[#181818]/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 lg:flex"
+          aria-label={`View flash designs, ${flashSheetCountLabel}`}
+        >
+          <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07]">
+            <Layers size={15} />
+          </span>
+          <span className="relative min-w-0 leading-tight">
+            <span className="block text-sm font-semibold">Flash available</span>
+            <span className="block text-xs text-white/55">
+              {flashSheetCountLabel}
+            </span>
+          </span>
+          <ChevronDown className="relative shrink-0 text-white/65" size={16} />
+        </button>
       )}
     </div>
   );
