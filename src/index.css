@@ -142,21 +142,19 @@ a.bg-white svg {
   content-visibility: visible;
 }
 
-.satx-profile-work-slide-slot {
+.satx-profile-work-fade-slot {
   border-radius: 0.75rem;
   contain: paint;
   isolation: isolate;
   min-width: 0;
   overflow: hidden;
   position: relative;
-  transform: translateZ(0);
 }
 
 .satx-profile-work-card-face {
   transform-origin: center center;
-  transform: translate3d(0, 0, 0);
   width: 100%;
-  will-change: transform, opacity;
+  will-change: opacity;
 }
 
 .satx-profile-work-card-face--previous {
@@ -171,76 +169,47 @@ a.bg-white svg {
   z-index: 1;
 }
 
-.satx-profile-work-carousel-grid--sliding
-  .satx-profile-work-slide-slot--active
+.satx-profile-work-card-face--placeholder {
+  aspect-ratio: 4 / 5;
+}
+
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
   .satx-profile-work-card-face {
-  animation-delay: var(--satx-slide-delay, 0ms);
-  animation-duration: 640ms;
+  animation-duration: 220ms;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-timing-function: ease;
 }
 
-.satx-profile-work-carousel-grid--sliding[data-direction="next"]
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
   .satx-profile-work-card-face--previous {
-  animation-name: satx-profile-work-slide-out-next;
+  animation-delay: var(--satx-fade-out-delay, 0ms);
+  animation-name: satx-profile-work-fade-out;
 }
 
-.satx-profile-work-carousel-grid--sliding[data-direction="next"]
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
   .satx-profile-work-card-face--current {
-  animation-name: satx-profile-work-slide-in-next;
+  animation-delay: var(--satx-fade-in-delay, 0ms);
+  animation-name: satx-profile-work-fade-in;
 }
 
-.satx-profile-work-carousel-grid--sliding[data-direction="prev"]
-  .satx-profile-work-card-face--previous {
-  animation-name: satx-profile-work-slide-out-prev;
-}
-
-.satx-profile-work-carousel-grid--sliding[data-direction="prev"]
-  .satx-profile-work-card-face--current {
-  animation-name: satx-profile-work-slide-in-prev;
-}
-
-@keyframes satx-profile-work-slide-out-next {
+@keyframes satx-profile-work-fade-out {
   0% {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
   100% {
-    opacity: 0.88;
-    transform: translate3d(112%, 0, 0);
+    opacity: 0;
   }
 }
 
-@keyframes satx-profile-work-slide-in-next {
+@keyframes satx-profile-work-fade-in {
   0% {
-    opacity: 0.86;
-    transform: translate3d(-112%, 0, 0);
+    opacity: 0;
   }
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes satx-profile-work-slide-out-prev {
-  0% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    opacity: 0.88;
-    transform: translate3d(-112%, 0, 0);
-  }
-}
-
-@keyframes satx-profile-work-slide-in-prev {
-  0% {
-    opacity: 0.86;
-    transform: translate3d(112%, 0, 0);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -292,7 +261,7 @@ a.bg-white svg {
 
 @media (prefers-reduced-motion: reduce) {
   .satx-profile-work-shell--exiting,
-  .satx-profile-work-carousel-grid--sliding
+  .satx-profile-work-carousel-grid--fading
     .satx-profile-work-card-face,
   .satx-request-flow-shell,
   .satx-request-step-panel {

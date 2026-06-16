@@ -115,9 +115,10 @@ type Shop = {
 type SlideDirection = "next" | "prev";
 
 const FEATURED_WORK_LIMIT = 9;
-const PORTFOLIO_SLIDE_DURATION_MS = 640;
-const PORTFOLIO_SLIDE_STAGGER_MS = 72;
-const PORTFOLIO_SLIDE_SETTLE_BUFFER_MS = 48;
+const PORTFOLIO_FADE_DURATION_MS = 220;
+const PORTFOLIO_FADE_STAGGER_MS = 90;
+const PORTFOLIO_FADE_PHASE_GAP_MS = 40;
+const PORTFOLIO_FADE_SETTLE_BUFFER_MS = 48;
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
@@ -997,16 +998,19 @@ const PortfolioPanel = ({
   const [previousItems, setPreviousItems] = useState<GalleryItem[] | null>(
     null
   );
-  const [slideDirection, setSlideDirection] =
+  const [transitionDirection, setTransitionDirection] =
     useState<SlideDirection>("next");
-  const slideTimerRef = useRef<number | null>(null);
+  const fadeTimerRef = useRef<number | null>(null);
   const pageCount = Math.max(1, Math.ceil(galleryItems.length / itemsPerPage));
   const visibleItems = getPortfolioPageItems(
     galleryItems,
     pageIndex,
     itemsPerPage
   );
-  const isSliding = Boolean(previousItems);
+  const transitionSlotCount = previousItems
+    ? Math.max(visibleItems.length, previousItems.length)
+    : visibleItems.length;
+  const isTransitioning = Boolean(previousItems);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1028,25 +1032,32 @@ const PortfolioPanel = ({
   useEffect(() => {
     if (!previousItems) return;
 
-    if (slideTimerRef.current !== null) {
-      window.clearTimeout(slideTimerRef.current);
+    if (fadeTimerRef.current !== null) {
+      window.clearTimeout(fadeTimerRef.current);
     }
 
-    const slideSettleTime =
-      PORTFOLIO_SLIDE_DURATION_MS +
-      Math.max(0, Math.min(visibleItems.length, previousItems.length) - 1) *
-        PORTFOLIO_SLIDE_STAGGER_MS +
-      PORTFOLIO_SLIDE_SETTLE_BUFFER_MS;
+    const transitionedItemCount = Math.max(
+      visibleItems.length,
+      previousItems.length
+    );
+    const fadeOutPhaseTime =
+      PORTFOLIO_FADE_DURATION_MS +
+      Math.max(0, transitionedItemCount - 1) * PORTFOLIO_FADE_STAGGER_MS;
+    const fadeSettleTime =
+      fadeOutPhaseTime +
+      PORTFOLIO_FADE_PHASE_GAP_MS +
+      fadeOutPhaseTime +
+      PORTFOLIO_FADE_SETTLE_BUFFER_MS;
 
-    slideTimerRef.current = window.setTimeout(() => {
+    fadeTimerRef.current = window.setTimeout(() => {
       setPreviousItems(null);
-      slideTimerRef.current = null;
-    }, slideSettleTime);
+      fadeTimerRef.current = null;
+    }, fadeSettleTime);
 
     return () => {
-      if (slideTimerRef.current !== null) {
-        window.clearTimeout(slideTimerRef.current);
-        slideTimerRef.current = null;
+      if (fadeTimerRef.current !== null) {
+        window.clearTimeout(fadeTimerRef.current);
+        fadeTimerRef.current = null;
       }
     };
   }, [previousItems, visibleItems.length]);
@@ -1063,10 +1074,10 @@ const PortfolioPanel = ({
   }
 
   const goToPage = (nextPageIndex: number, direction: SlideDirection) => {
-    if (isSliding || pageCount <= 1 || nextPageIndex === pageIndex) return;
+    if (isTransitioning || pageCount <= 1 || nextPageIndex === pageIndex) return;
 
     setPreviousItems(visibleItems);
-    setSlideDirection(direction);
+    setTransitionDirection(direction);
     setPageIndex(nextPageIndex);
   };
 
@@ -1082,31 +1093,42 @@ const PortfolioPanel = ({
     <div className="satx-profile-work-carousel">
       <div
         className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
-          isSliding ? "satx-profile-work-carousel-grid--sliding" : ""
+          isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
         }`}
-        data-direction={slideDirection}
+        data-direction={transitionDirection}
       >
-        {visibleItems.map((item, index) => {
+        {Array.from({ length: transitionSlotCount }).map((_, index) => {
+          const item = visibleItems[index];
           const previousItem = previousItems?.[index];
-          const isSlotFlipping = Boolean(
-            previousItem && previousItem.id !== item.id
+          const isSlotTransitioning = Boolean(
+            previousItems && item?.id !== previousItem?.id
           );
+          const transitionOrder =
+            transitionDirection === "next"
+              ? index
+              : Math.max(0, transitionSlotCount - 1 - index);
+          const fadeOutDelay =
+            transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
+          const fadeInDelay =
+            PORTFOLIO_FADE_DURATION_MS +
+            Math.max(0, transitionSlotCount - 1) * PORTFOLIO_FADE_STAGGER_MS +
+            PORTFOLIO_FADE_PHASE_GAP_MS +
+            fadeOutDelay;
 
           return (
             <div
-              key={`${pageIndex}-${item.id}`}
-              className={`satx-profile-work-slide-slot ${
-                isSlotFlipping ? "satx-profile-work-slide-slot--active" : ""
+              key={`${pageIndex}-${item?.id || previousItem?.id || index}`}
+              className={`satx-profile-work-fade-slot ${
+                isSlotTransitioning ? "satx-profile-work-fade-slot--active" : ""
               }`}
               style={
                 {
-                  "--satx-slide-delay": `${
-                    index * PORTFOLIO_SLIDE_STAGGER_MS + (index % 2) * 14
-                  }ms`,
+                  "--satx-fade-out-delay": `${fadeOutDelay}ms`,
+                  "--satx-fade-in-delay": `${fadeInDelay}ms`,
                 } as CSSProperties
               }
             >
-              {isSlotFlipping && previousItem && (
+              {isSlotTransitioning && previousItem && (
                 <div className="satx-profile-work-card-face satx-profile-work-card-face--previous">
                   <PortfolioCard
                     item={previousItem}
@@ -1115,13 +1137,21 @@ const PortfolioPanel = ({
                   />
                 </div>
               )}
-              <div className="satx-profile-work-card-face satx-profile-work-card-face--current">
-                <PortfolioCard
-                  item={item}
-                  priority={pageIndex === 0 && index === 0}
-                  onOpen={() => onOpenItem(item)}
+              {item && (
+                <div className="satx-profile-work-card-face satx-profile-work-card-face--current">
+                  <PortfolioCard
+                    item={item}
+                    priority={pageIndex === 0 && index === 0}
+                    onOpen={() => onOpenItem(item)}
+                  />
+                </div>
+              )}
+              {!item && previousItem && (
+                <div
+                  className="satx-profile-work-card-face satx-profile-work-card-face--current satx-profile-work-card-face--placeholder"
+                  aria-hidden="true"
                 />
-              </div>
+              )}
             </div>
           );
         })}
@@ -1132,7 +1162,7 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToPreviousPage}
-            disabled={isSliding}
+            disabled={isTransitioning}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Previous portfolio page"
           >
@@ -1147,7 +1177,7 @@ const PortfolioPanel = ({
                 onClick={() =>
                   goToPage(index, index > pageIndex ? "next" : "prev")
                 }
-                disabled={isSliding}
+                disabled={isTransitioning}
                 className={`h-2.5 rounded-full p-0! transition ${
                   index === pageIndex
                     ? "w-8 bg-white"
@@ -1162,7 +1192,7 @@ const PortfolioPanel = ({
           <button
             type="button"
             onClick={goToNextPage}
-            disabled={isSliding}
+            disabled={isTransitioning}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45"
             aria-label="Next portfolio page"
           >
