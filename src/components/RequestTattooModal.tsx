@@ -6,7 +6,6 @@ import {
   DollarSign,
   ImageIcon,
   ImagePlus,
-  Loader2,
   MapPin,
   Ruler,
   Send,
@@ -122,7 +121,6 @@ const RequestTattooModal: React.FC<Props> = ({
   );
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
-  const [isAddingReferenceImages, setIsAddingReferenceImages] = useState(false);
   const [budget, setBudget] = useState("");
   const [customBudget, setCustomBudget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,7 +129,6 @@ const RequestTattooModal: React.FC<Props> = ({
   const progressStepRefs = useRef<Map<RequestStep, HTMLButtonElement>>(
     new Map()
   );
-  const referenceAddTimerRef = useRef<number | null>(null);
   const earliestEndTime = getMinimumEndTime(availableTime.from);
 
   const referencePreviews = useMemo<ReferencePreview[]>(
@@ -193,29 +190,33 @@ const RequestTattooModal: React.FC<Props> = ({
   }, [referencePreviews]);
 
   useEffect(() => {
-    return () => {
-      if (referenceAddTimerRef.current !== null) {
-        window.clearTimeout(referenceAddTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isOpen) return;
 
     const scrollFrame = window.requestAnimationFrame(() => {
-      modalBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      const isCompactViewport = window.matchMedia("(max-width: 640px)")
+        .matches;
+      const behavior =
+        prefersReducedMotion() || isCompactViewport ? "auto" : "smooth";
+
+      modalBodyRef.current?.scrollTo({ top: 0, behavior });
       progressStepRefs.current.get(activeStep)?.scrollIntoView({
-        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        behavior,
         block: "nearest",
         inline: "center",
       });
 
-      if (window.matchMedia("(max-width: 640px)").matches) {
-        requestPanelRef.current?.scrollIntoView({
-          behavior: prefersReducedMotion() ? "auto" : "smooth",
-          block: "start",
-        });
+      if (isCompactViewport) {
+        const panelRect = requestPanelRef.current?.getBoundingClientRect();
+        const shouldRestorePanelTop =
+          panelRect &&
+          (panelRect.top < 64 || panelRect.top > window.innerHeight * 0.24);
+
+        if (shouldRestorePanelTop) {
+          requestPanelRef.current?.scrollIntoView({
+            behavior: "auto",
+            block: "start",
+          });
+        }
       }
     });
 
@@ -223,11 +224,6 @@ const RequestTattooModal: React.FC<Props> = ({
   }, [activeStep, isOpen]);
 
   const reset = () => {
-    if (referenceAddTimerRef.current !== null) {
-      window.clearTimeout(referenceAddTimerRef.current);
-      referenceAddTimerRef.current = null;
-    }
-
     setActiveStep("idea");
     setDescription("");
     setBodyPlacement("");
@@ -237,7 +233,6 @@ const RequestTattooModal: React.FC<Props> = ({
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setAvailableDays([]);
     setReferenceImages([]);
-    setIsAddingReferenceImages(false);
     setBudget("");
     setCustomBudget("");
     setIsSubmitting(false);
@@ -363,21 +358,12 @@ const RequestTattooModal: React.FC<Props> = ({
       toast.error("Only the first 3 reference images can be included.");
     }
 
-    if (referenceAddTimerRef.current !== null) {
-      window.clearTimeout(referenceAddTimerRef.current);
-    }
-
-    setIsAddingReferenceImages(true);
-    referenceAddTimerRef.current = window.setTimeout(() => {
-      setReferenceImages((current) => [...current, ...filesToAdd]);
-      setIsAddingReferenceImages(false);
-      referenceAddTimerRef.current = null;
-      toast.success(
-        filesToAdd.length === 1
-          ? "Reference image added."
-          : `${filesToAdd.length} reference images added.`
-      );
-    }, 220);
+    setReferenceImages((current) => [...current, ...filesToAdd]);
+    toast.success(
+      filesToAdd.length === 1
+        ? "Reference image added."
+        : `${filesToAdd.length} reference images added.`
+    );
   };
 
   const handleRemoveReferenceImage = (indexToRemove: number) => {
@@ -557,7 +543,7 @@ const RequestTattooModal: React.FC<Props> = ({
   return (
     <section
       ref={requestPanelRef}
-      className="satx-request-flow-shell relative isolate scroll-mt-24 overflow-hidden rounded-lg border border-white/10 bg-[#111111]/82 text-white shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-md sm:scroll-mt-28"
+      className="satx-request-flow-shell relative isolate scroll-mt-24 overflow-hidden rounded-lg border border-white/10 bg-[#111111]/94 text-white shadow-[0_18px_58px_rgba(0,0,0,0.36)] sm:scroll-mt-28 sm:bg-[#111111]/86 sm:shadow-[0_28px_90px_rgba(0,0,0,0.42)] sm:backdrop-blur-md"
       aria-label="Tattoo request"
     >
       <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -817,7 +803,7 @@ const RequestTattooModal: React.FC<Props> = ({
                 <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.78fr)_minmax(0,1.22fr)]">
                   <label
                     className={`group relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed p-5 text-center transition ${
-                      remainingReferenceSlots > 0 && !isAddingReferenceImages
+                      remainingReferenceSlots > 0
                         ? "cursor-pointer border-white/20 bg-black/35 hover:border-white/40 hover:bg-white/[0.04]"
                         : "cursor-not-allowed border-white/10 bg-black/20 opacity-70"
                     }`}
@@ -826,18 +812,12 @@ const RequestTattooModal: React.FC<Props> = ({
                       type="file"
                       accept="image/*"
                       multiple
-                      disabled={
-                        remainingReferenceSlots <= 0 || isAddingReferenceImages
-                      }
+                      disabled={remainingReferenceSlots <= 0}
                       onChange={handleReferenceImagesChange}
                       className="sr-only"
                     />
                     <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,0.3)] transition group-hover:scale-105">
-                      {isAddingReferenceImages ? (
-                        <Loader2 size={22} className="animate-spin" />
-                      ) : (
-                        <ImagePlus size={22} />
-                      )}
+                      <ImagePlus size={22} />
                     </span>
                     <span className="text-sm! font-semibold text-white">
                       {remainingReferenceSlots > 0
@@ -874,6 +854,8 @@ const RequestTattooModal: React.FC<Props> = ({
                           <img
                             src={preview.url}
                             alt={`Reference ${index + 1}`}
+                            decoding="async"
+                            loading="lazy"
                             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
@@ -883,14 +865,14 @@ const RequestTattooModal: React.FC<Props> = ({
                                 Primary
                               </span>
                             )}
-                            <span className="rounded-full border border-white/15 bg-black/55 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white/70 backdrop-blur">
+                            <span className="rounded-full border border-white/15 bg-black/55 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white/70 sm:backdrop-blur">
                               {index + 1}
                             </span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveReferenceImage(index)}
-                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/60 p-0! text-white backdrop-blur transition hover:bg-white/15"
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/60 p-0! text-white transition hover:bg-white/15 sm:backdrop-blur"
                             aria-label={`Remove reference ${index + 1}`}
                           >
                             <Trash2 size={15} />
@@ -903,19 +885,7 @@ const RequestTattooModal: React.FC<Props> = ({
                         </div>
                       ))}
 
-                      {isAddingReferenceImages && (
-                        <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] text-center">
-                          <Loader2
-                            size={20}
-                            className="mb-3 animate-spin text-white"
-                          />
-                          <p className="text-xs! font-semibold text-white">
-                            Preparing preview
-                          </p>
-                        </div>
-                      )}
-
-                      {!hasReferenceImages && !isAddingReferenceImages && (
+                      {!hasReferenceImages && (
                         <div className="col-span-2 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center xl:col-span-3">
                           <ImageIcon size={24} className="mb-3 text-white/35" />
                           <p className="text-sm! font-semibold text-white/75">
@@ -1140,6 +1110,8 @@ const RequestPreviewPanel = ({
               <img
                 src={preview.url}
                 alt={`Reference ${index + 1}`}
+                decoding="async"
+                loading="lazy"
                 className="h-full w-full object-cover"
               />
             </div>

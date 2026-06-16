@@ -103,7 +103,6 @@ a.bg-white svg {
 @keyframes satx-profile-work-exit {
   to {
     opacity: 0;
-    filter: blur(8px);
     transform: translate3d(0, 14px, 0);
   }
 }
@@ -111,12 +110,10 @@ a.bg-white svg {
 @keyframes satx-request-flow-enter {
   from {
     opacity: 0;
-    filter: blur(12px);
     transform: translate3d(0, 18px, 0) scale(0.985);
   }
   to {
     opacity: 1;
-    filter: blur(0);
     transform: translate3d(0, 0, 0) scale(1);
   }
 }
@@ -124,12 +121,10 @@ a.bg-white svg {
 @keyframes satx-request-step-enter {
   from {
     opacity: 0;
-    filter: blur(8px);
     transform: translate3d(16px, 0, 0);
   }
   to {
     opacity: 1;
-    filter: blur(0);
     transform: translate3d(0, 0, 0);
   }
 }
@@ -138,38 +133,46 @@ a.bg-white svg {
   transform-origin: top center;
 }
 
+.satx-profile-work-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: 960px;
+}
+
 .satx-profile-work-shell--exiting {
   animation: satx-profile-work-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
   pointer-events: none;
-  will-change: opacity, filter, transform;
 }
 
 .satx-request-flow-shell {
-  animation: satx-request-flow-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: satx-request-flow-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transform-origin: top center;
-  will-change: opacity, filter, transform;
 }
 
 .satx-request-step-panel {
-  animation: satx-request-step-enter 380ms cubic-bezier(0.22, 1, 0.36, 1)
+  animation: satx-request-step-enter 240ms cubic-bezier(0.22, 1, 0.36, 1)
     both;
-  will-change: opacity, filter, transform;
 }
 
 .satx-request-progress-step {
-  transform: translateZ(0);
+  contain: layout paint;
 }
 
 @media (max-width: 640px) {
+  .satx-request-flow-shell {
+    animation-duration: 180ms;
+  }
+
+  .satx-request-step-panel {
+    animation-duration: 140ms;
+  }
+
   @keyframes satx-request-step-enter {
     from {
       opacity: 0;
-      filter: blur(8px);
       transform: translate3d(0, 12px, 0);
     }
     to {
       opacity: 1;
-      filter: blur(0);
       transform: translate3d(0, 0, 0);
     }
   }
@@ -180,7 +183,6 @@ a.bg-white svg {
   .satx-request-flow-shell,
   .satx-request-step-panel {
     animation: none;
-    filter: none;
     opacity: 1;
     transform: none;
   }
