@@ -281,16 +281,20 @@ const normalizeUrl = (value: string) => {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 };
 
-const isValidOptionalUrl = (value: string) => {
-  if (!value.trim()) return true;
+const INSTAGRAM_PROFILE_BASE = "https://instagram.com/";
 
-  try {
-    new URL(normalizeUrl(value));
-    return true;
-  } catch {
-    return false;
-  }
+const getInstagramHandle = (value: string) => {
+  const withoutDomain = value
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^(www\.)?instagram\.com\//i, "");
+  const pathOnly = withoutDomain.replace(/^@+/, "").replace(/^\/+/, "");
+
+  return pathOnly.split(/[/?#]/)[0].replace(/[^a-zA-Z0-9._]/g, "");
 };
+
+const getInstagramUrlFromHandle = (handle: string) =>
+  handle ? `${INSTAGRAM_PROFILE_BASE}${handle}` : "";
 
 const getHomepageFeatureImageUrl = (image?: HomepageFeatureImage | null) =>
   image?.webp90Url || image?.imageUrl || image?.fullUrl || image?.thumbUrl || "";
@@ -449,7 +453,7 @@ const createProfileFormState = (
         "",
     },
     homepageFeature: {
-      story: artist?.homepageFeature?.story || "",
+      story: artist?.homepageFeature?.story || artist?.bio || "",
       quote: artist?.homepageFeature?.quote || "",
       imageUrl:
         getHomepageFeatureImageUrl(primaryHomepageImage) ||
@@ -836,8 +840,9 @@ const ArtistDashboardView = () => {
       ]);
 
       const imageAlt =
-        profileForm.homepageFeature.imageAlt ||
-        profileForm.displayName ||
+        profileForm.displayName.trim() ||
+        artist?.displayName ||
+        artist?.name ||
         "Featured artist image";
       const nextImage: HomepageFeatureImage = {
         id: baseName,
@@ -860,7 +865,7 @@ const ArtistDashboardView = () => {
             current.homepageFeature.images.length === 0
               ? getHomepageFeatureImageUrl(nextImage)
               : current.homepageFeature.imageUrl,
-          imageAlt: current.homepageFeature.imageAlt || imageAlt,
+          imageAlt,
           images: [...current.homepageFeature.images, nextImage].slice(
             0,
             HOMEPAGE_FEATURE_IMAGE_LIMIT
@@ -912,11 +917,11 @@ const ArtistDashboardView = () => {
 
     const displayName = profileForm.displayName.trim();
     const email = profileForm.email.trim();
-    const bio = profileForm.bio.trim();
     const homepageFeatureStory = profileForm.homepageFeature.story.trim();
-    const homepageFeatureQuote = profileForm.homepageFeature.quote.trim();
-    const homepageFeatureImageAlt =
-      profileForm.homepageFeature.imageAlt.trim();
+    const homepageFeatureImageAlt = displayName;
+    const instagramHandle = getInstagramHandle(
+      profileForm.socialLinks.instagram
+    );
     const homepageFeatureImages = profileForm.homepageFeature.images
       .map((image, index) => {
         const imageUrl = getHomepageFeatureImageUrl(image);
@@ -952,18 +957,8 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    if (!bio) {
-      toast.error("Bio is required.");
-      return;
-    }
-
     if (profileForm.specialties.length === 0) {
       toast.error("Choose at least one specialty.");
-      return;
-    }
-
-    if (!isValidOptionalUrl(profileForm.socialLinks.instagram)) {
-      toast.error("Enter a valid Instagram link.");
       return;
     }
 
@@ -980,15 +975,15 @@ const ArtistDashboardView = () => {
       displayName,
       slug: nextSlug,
       email,
-      bio,
+      bio: homepageFeatureStory,
       specialties: profileForm.specialties,
       socialLinks: {
         ...(artist?.socialLinks || {}),
-        instagram: normalizeUrl(profileForm.socialLinks.instagram),
+        instagram: getInstagramUrlFromHandle(instagramHandle),
       },
       homepageFeature: {
         story: homepageFeatureStory,
-        quote: homepageFeatureQuote,
+        quote: "",
         imageUrl:
           primaryHomepageImage?.imageUrl ||
           profileForm.homepageFeature.imageUrl.trim(),
@@ -1335,7 +1330,7 @@ const ArtistDashboardView = () => {
   const profileCompletionItems = [
     Boolean(profileForm.displayName.trim()),
     Boolean(profileForm.email.trim()),
-    Boolean(profileForm.bio.trim()),
+    Boolean(profileForm.homepageFeature.story.trim()),
     Boolean(profileForm.avatarUrl.trim()),
     profileForm.specialties.length > 0,
     Boolean(profileForm.socialLinks.instagram.trim()),
@@ -1579,6 +1574,11 @@ const ArtistDashboardView = () => {
   const canUploadHomepageFeatureImage =
     homepageFeatureImageCount < HOMEPAGE_FEATURE_IMAGE_LIMIT &&
     !isUploadingHomepageFeatureImage;
+  const instagramHandle = getInstagramHandle(
+    profileForm.socialLinks.instagram
+  );
+  const profilePreviewStory = profileForm.homepageFeature.story.trim();
+  const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
 
   return (
     <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
@@ -1626,7 +1626,7 @@ const ArtistDashboardView = () => {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:hidden">
                 <div className="min-w-44">
                   <div className="flex items-center justify-between text-xs text-neutral-400">
                     <span>Profile strength</span>
@@ -1652,11 +1652,19 @@ const ArtistDashboardView = () => {
                   type="button"
                   onClick={handleSaveProfile}
                   disabled={isSaveDisabled}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    profileSaveButtonIsActive
+                      ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                      : "border border-white/10 bg-white/[0.04] text-neutral-500"
+                  }`}
                 >
                   <Save
                     size={16}
-                    className="text-[#0b0b0b]!"
+                    className={
+                      profileSaveButtonIsActive
+                        ? "text-white"
+                        : "text-neutral-500"
+                    }
                     aria-hidden="true"
                   />
                   {isSavingProfile ? "Saving..." : "Save changes"}
@@ -1813,49 +1821,37 @@ const ArtistDashboardView = () => {
                   </div>
 
                   <label className="mt-4 block space-y-2">
-                    <span className="text-sm font-medium text-neutral-200">
-                      Bio
-                    </span>
-                    <textarea
-                      value={profileForm.bio}
-                      onChange={(event) =>
-                        updateProfileForm({ bio: event.target.value })
-                      }
-                      rows={5}
-                      maxLength={700}
-                      className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                      placeholder="Tell clients about your style, process, and booking vibe."
-                    />
-                    <span className="block text-right text-xs text-neutral-500">
-                      {profileForm.bio.length}/700
-                    </span>
-                  </label>
-
-                  <label className="mt-4 block space-y-2">
                     <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                       <Instagram size={15} aria-hidden="true" />
                       Instagram
                     </span>
-                    <input
-                      type="text"
-                      inputMode="url"
-                      autoCapitalize="none"
-                      value={profileForm.socialLinks.instagram}
-                      onChange={(event) =>
-                        updateProfileForm((current) => ({
-                          ...current,
-                          socialLinks: {
-                            ...current.socialLinks,
-                            instagram: event.target.value,
-                          },
-                        }))
-                      }
-                      className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                      placeholder="instagram.com/artist"
-                    />
-                    <span className="block text-xs text-neutral-500">
-                      Facebook and website links stay preserved if they already
-                      exist, but Instagram is the only editable social link here.
+                    <span className="flex min-w-0 rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
+                      <span className="shrink-0 border-r border-white/10 px-3 py-2 text-xs text-neutral-500 sm:text-sm">
+                        {INSTAGRAM_PROFILE_BASE}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="text"
+                        autoCapitalize="none"
+                        autoComplete="off"
+                        value={instagramHandle}
+                        onChange={(event) => {
+                          const nextHandle = getInstagramHandle(
+                            event.target.value
+                          );
+
+                          updateProfileForm((current) => ({
+                            ...current,
+                            socialLinks: {
+                              ...current.socialLinks,
+                              instagram:
+                                getInstagramUrlFromHandle(nextHandle),
+                            },
+                          }));
+                        }}
+                        className="min-w-0 flex-1 bg-transparent px-3 py-2 text-white outline-none"
+                        placeholder="artist"
+                      />
                     </span>
                   </label>
                 </section>
@@ -1907,52 +1903,6 @@ const ArtistDashboardView = () => {
                           {profileForm.homepageFeature.story.length}/520
                         </span>
                       </label>
-
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          Optional quote
-                        </span>
-                        <input
-                          type="text"
-                          value={profileForm.homepageFeature.quote}
-                          maxLength={180}
-                          onChange={(event) =>
-                            updateProfileForm((current) => ({
-                              ...current,
-                              homepageFeature: {
-                                ...current.homepageFeature,
-                                quote: event.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          placeholder="A short line about your work, process, or style."
-                        />
-                        <span className="block text-right text-xs text-neutral-500">
-                          {profileForm.homepageFeature.quote.length}/180
-                        </span>
-                      </label>
-
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          Image alt text
-                        </span>
-                        <input
-                          type="text"
-                          value={profileForm.homepageFeature.imageAlt}
-                          onChange={(event) =>
-                            updateProfileForm((current) => ({
-                              ...current,
-                              homepageFeature: {
-                                ...current.homepageFeature,
-                                imageAlt: event.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          placeholder="Describe the image for accessibility."
-                        />
-                      </label>
                     </div>
 
                     <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
@@ -1976,7 +1926,6 @@ const ArtistDashboardView = () => {
                           <img
                             src={primaryHomepageFeatureImageUrl}
                             alt={
-                              profileForm.homepageFeature.imageAlt ||
                               profileForm.displayName ||
                               "Artist spotlight preview"
                             }
@@ -2150,8 +2099,9 @@ const ArtistDashboardView = () => {
                 )}
               </div>
 
-              <aside className="h-fit rounded-lg border border-white/10 bg-[#101010] p-5 xl:sticky xl:top-28">
-                <div className="flex items-center gap-4">
+              <aside className="h-fit space-y-4 xl:sticky xl:top-28">
+                <div className="rounded-lg border border-white/10 bg-[#101010] p-5">
+                  <div className="flex items-center gap-4">
                   <img
                     src={
                       profileForm.avatarUrl.trim() ||
@@ -2172,8 +2122,8 @@ const ArtistDashboardView = () => {
                 </div>
 
                 <p className="mt-5 line-clamp-5 text-sm leading-6 text-neutral-300">
-                  {profileForm.bio ||
-                    "Your bio preview will appear here as clients browse your profile."}
+                  {profilePreviewStory ||
+                    "Your artist spotlight story will appear here as clients browse your profile."}
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -2197,10 +2147,57 @@ const ArtistDashboardView = () => {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-neutral-400">Instagram</span>
                     <span className="max-w-[180px] truncate text-white">
-                      {profileForm.socialLinks.instagram
-                        ? normalizeUrl(profileForm.socialLinks.instagram)
+                      {instagramHandle
+                        ? getInstagramUrlFromHandle(instagramHandle)
                         : "Not added"}
                     </span>
+                  </div>
+                </div>
+                </div>
+
+                <div className="hidden rounded-lg border border-white/10 bg-white/[0.03] p-5 xl:block">
+                  <div className="flex items-center justify-between text-xs text-neutral-400">
+                    <span>Profile strength</span>
+                    <span>{profileCompletion}%</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full transition-all ${profileStrengthColor}`}
+                      style={{ width: `${profileCompletion}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    <button
+                      type="button"
+                      onClick={resetProfileForm}
+                      disabled={!isProfileDirty || isSavingProfile}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <RefreshCcw size={16} aria-hidden="true" />
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveProfile}
+                      disabled={isSaveDisabled}
+                      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        profileSaveButtonIsActive
+                          ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                          : "border border-white/10 bg-white/[0.04] text-neutral-500"
+                      }`}
+                    >
+                      <Save
+                        size={16}
+                        className={
+                          profileSaveButtonIsActive
+                            ? "text-white"
+                            : "text-neutral-500"
+                        }
+                        aria-hidden="true"
+                      />
+                      {isSavingProfile ? "Saving..." : "Save changes"}
+                    </button>
                   </div>
                 </div>
               </aside>
