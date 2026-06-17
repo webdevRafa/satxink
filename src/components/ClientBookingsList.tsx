@@ -24,6 +24,15 @@ interface Props {
   clientId: string;
 }
 
+const getFinalPaymentTermsLabel = (booking: Booking) => {
+  if (booking.finalPaymentTiming !== "before") {
+    return "After appointment";
+  }
+
+  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
+  return `${deadlineHours} hours before`;
+};
+
 const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -130,7 +139,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
         toast.success("Payment confirmation sent to the artist.");
         setSelectedBooking(null);
       } catch (error) {
-        console.error("External payment confirmation failed:", error);
+        console.error("Direct payment confirmation failed:", error);
         toast.error("Could not confirm the payment.");
       }
       return;
@@ -193,10 +202,10 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
         lastPaidSessionNumber: sessionNumber,
         updatedAt: serverTimestamp(),
       });
-      toast.success("External payment confirmed.");
+      toast.success("Direct payment confirmed.");
       setSelectedBooking(null);
     } catch (error) {
-      console.error("External payment confirmation failed:", error);
+      console.error("Direct payment confirmation failed:", error);
       toast.error("Could not confirm the payment.");
     }
   };
@@ -204,7 +213,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const handleDisputeExternalPayment = async (booking: Booking) => {
     const reason =
       window.prompt("Briefly describe the issue with this payment.")?.trim() ||
-      "Client reported an issue with the external payment.";
+      "Client reported an issue with the direct payment.";
 
     try {
       await setDoc(
@@ -229,7 +238,7 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
       toast.success("Issue reported.");
       setSelectedBooking(null);
     } catch (error) {
-      console.error("External payment dispute failed:", error);
+      console.error("Direct payment dispute failed:", error);
       toast.error("Could not report the issue.");
     }
   };
@@ -592,7 +601,8 @@ const BookingDetailsDialog = ({
                         <DetailTile icon={<CalendarDays size={17} />} label="Appointment" value={formatAppointment(booking.selectedDate)} />
                         <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${booking.price}`} />
                         <DetailTile icon={<DollarSign size={17} />} label="Deposit" value={`$${booking.depositAmount}`} />
-                        <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "External"} />
+                        <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "Direct"} />
+                        <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel(booking)} />
                         {isMultiSessionBooking(booking) && (
                           <>
                             <DetailTile
@@ -629,15 +639,15 @@ const BookingDetailsDialog = ({
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <p className="text-sm font-semibold text-white">
-                              In-shop balance
+                              Direct balance
                             </p>
                             <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                               The remaining{" "}
                               <span className="font-semibold text-white">
                                 ${getRemainingBalance(booking)}
                               </span>{" "}
-                              is paid directly to the artist after the session.
-                              Status:{" "}
+                              is paid directly to the artist outside SATX Ink
+                              checkout. Status:{" "}
                               <span className="font-semibold capitalize text-white">
                                 {(booking.remainingPaymentStatus || "due").replace("_", " ")}
                               </span>

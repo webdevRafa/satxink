@@ -42,6 +42,15 @@ const DECLINE_REASON_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const getFinalPaymentTermsLabel = (offer: Offer) => {
+  if (offer.finalPaymentTiming !== "before") {
+    return "Remaining balance is settled after the appointment.";
+  }
+
+  const deadlineHours = offer.finalPaymentDeadlineHours === 48 ? 48 : 24;
+  return `Remaining balance is due ${deadlineHours} hours before the appointment.`;
+};
+
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(null);
   const [isResponding, setIsResponding] = useState(false);
@@ -461,6 +470,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       label="Remaining artist balance"
                       value={`$${remainingAmount}`}
                     />
+                    <CheckoutSummaryRow
+                      label="Final payment terms"
+                      value={getFinalPaymentTermsLabel(offer)}
+                    />
                   </div>
 
                   {canChooseExternalRemaining && (
@@ -481,11 +494,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                           onSelect={() => setRemainingPaymentMethod("stripe")}
                         />
                         <PaymentChoice
-                          title="Pay remaining balance at the shop"
+                          title="Settle remaining balance directly"
                           description={
                             isMultiSessionOffer
                               ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
-                              : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist after the session."
+                              : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist."
                           }
                           amount={`$${remainingAmount}`}
                           checked={remainingPaymentMethod === "external"}
@@ -498,11 +511,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                           artist quote and collected with today's deposit
                           checkout. The remaining artist balance is confirmed by
                           both you and the artist after the session.
-                          {offer.externalRemainingPaymentNote && (
-                            <span className="mt-2 block text-white">
-                              Artist note: {offer.externalRemainingPaymentNote}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>

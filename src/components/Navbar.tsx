@@ -1,15 +1,15 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import logo from "../assets/satx-short-sep.svg";
-import { signInWithGoogle, signOutUser, auth } from "../firebase/auth";
+import { signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import { AuthProviderSignInButtons } from "./GoogleSignupButton";
 import {
   ArrowRight,
   Image,
   LogOut,
-  LogIn,
   Search,
   Users,
   Info,
@@ -67,6 +67,8 @@ export const Navbar = () => {
     Boolean(auth.currentUser)
   );
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showSignInOptions, setShowSignInOptions] = useState(false);
+  const signInMenuRef = useRef<HTMLDivElement | null>(null);
 
   const firestoreAvatarUrl = userDoc?.avatarUrl?.trim() || "";
   const avatarLabel =
@@ -106,11 +108,8 @@ export const Navbar = () => {
 
   const handleLogout = () => {
     setIsOpen(false);
+    setShowSignInOptions(false);
     signOutUser(navigate);
-  };
-  const handleLogin = () => {
-    setIsOpen(false);
-    signInWithGoogle(navigate);
   };
   useEffect(() => {
     const handleScroll = () => {
@@ -166,6 +165,7 @@ export const Navbar = () => {
       setUser(firebaseUser);
       setUserRole(null);
       setUserDoc(null);
+      if (firebaseUser) setShowSignInOptions(false);
 
       if (firebaseUser) {
         setIsUserDocLoading(true);
@@ -181,6 +181,30 @@ export const Navbar = () => {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!showSignInOptions) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        signInMenuRef.current &&
+        !signInMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowSignInOptions(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowSignInOptions(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showSignInOptions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -278,7 +302,8 @@ export const Navbar = () => {
               </Link>
             ) : (
               <div
-                className={`flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
+                ref={signInMenuRef}
+                className={`relative flex items-center gap-1.5 rounded-full border p-1 transition duration-300 ${
                   isScrolled
                     ? "border-white/10 bg-white/[0.035]"
                     : "border-white/[0.08] bg-black/[0.10]"
@@ -298,11 +323,22 @@ export const Navbar = () => {
                 </NavLink>
                 <button
                   type="button"
-                  onClick={handleLogin}
+                  onClick={() => setShowSignInOptions((current) => !current)}
+                  aria-expanded={showSignInOptions}
                   className="inline-flex h-8 shrink-0 items-center rounded-full! px-3.5! py-0! text-sm! font-semibold! whitespace-nowrap text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
                 >
                   Sign in
                 </button>
+                {showSignInOptions && (
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-lg border border-white/10 bg-[#101010]/98 p-3 shadow-2xl shadow-black/45 backdrop-blur-xl">
+                    <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                      Continue with
+                    </p>
+                    <AuthProviderSignInButtons
+                      onComplete={() => setShowSignInOptions(false)}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -408,14 +444,23 @@ export const Navbar = () => {
                     <UserPlus size={15} aria-hidden="true" />
                     Client signup
                   </Link>
-                  <button
-                    type="button"
-                    onClick={handleLogin}
-                    className="flex h-10! items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3! py-0! text-xs! font-semibold text-white transition hover:bg-white/10"
+                  <Link
+                    to="/signup/artist"
+                    onClick={() => setIsOpen(false)}
+                    className="flex h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white transition hover:bg-white/10"
                   >
-                    <LogIn size={15} aria-hidden="true" />
-                    Login
-                  </button>
+                    <UserPlus size={15} aria-hidden="true" />
+                    Artist signup
+                  </Link>
+                </div>
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                    Already have an account?
+                  </span>
+                  <AuthProviderSignInButtons
+                    className="mt-3"
+                    onComplete={() => setIsOpen(false)}
+                  />
                 </div>
               </section>
             )}

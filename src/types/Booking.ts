@@ -1,5 +1,9 @@
 import { Timestamp } from "firebase/firestore";
 import type { FlashAvailabilityStatus, FlashRepeatability } from "./Flash";
+import type {
+    ExternalPaymentMethod,
+    FinalPaymentDeadlineHours,
+} from "./PaymentPreferences";
 
 export type RemainingPaymentMethod = "stripe" | "external";
 export type RemainingPaymentStatus =
@@ -66,6 +70,7 @@ export type Booking = {
     remainingPaymentStatus?: RemainingPaymentStatus;
     externalRemainingAmount?: number;
     externalRemainingAmountCents?: number;
+    externalRemainingPaymentMethods?: ExternalPaymentMethod[];
     externalRemainingPaymentNote?: string;
     externalRemainingDisputeReason?: string;
     stripeCheckoutSessionId?: string;
@@ -81,6 +86,7 @@ export type Booking = {
     };
   
     finalPaymentTiming: "before" | "after";
+    finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
     projectType?: "single_session" | "multi_session";
     estimatedSessionCount?: number;
     estimatedSessionPrice?: number;

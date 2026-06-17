@@ -3319,6 +3319,7 @@ const processArtistMedia = onObjectFinalized(
       !filePath.startsWith("users/") ||
       (
         !filePath.includes("/gallery/") &&
+        !filePath.includes("/galleryOriginals/") &&
         !filePath.includes("/flashes/") &&
         !filePath.includes("/flashSheets/") &&
         !filePath.includes("/homepageFeature/")
@@ -3336,7 +3337,7 @@ const processArtistMedia = onObjectFinalized(
     }
 
     const parts = filePath.split("/");
-    const mediaType = parts[2]; // "gallery", "flashes", "flashSheets", or "homepageFeature"
+    const mediaType = parts[2]; // "gallery", "galleryOriginals", "flashes", "flashSheets", or "homepageFeature"
     const baseName = path.basename(fileName, path.extname(fileName));
     const bucketDir = path.dirname(filePath);
     const uuid = uuidv4();
@@ -3345,6 +3346,10 @@ const processArtistMedia = onObjectFinalized(
     const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
     const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
     const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`);
+    const tempOriginalPreview = path.join(
+      os.tmpdir(),
+      `${baseName}_original_webp90.webp`
+    );
 
     try {
       // Download the uploaded original to a temp directory
@@ -3357,6 +3362,57 @@ const processArtistMedia = onObjectFinalized(
           ? getImageMegapixels(sourceWidth, sourceHeight)
           : null;
       const sourceFileSizeBytes = getStorageObjectSizeBytes(event.data.size);
+
+      if (mediaType === "galleryOriginals") {
+        const snapshot = await db.collection("gallery").where("fileName", "==", baseName).limit(1).get();
+
+        if (snapshot.empty) {
+          console.warn(`No gallery doc found for original preview ${baseName}`);
+          await bucket.file(filePath).delete().catch(() => {
+            console.log(`Could not delete orphaned gallery original file: ${filePath}`);
+          });
+          return;
+        }
+
+        const docRef = snapshot.docs[0].ref;
+        const docData = snapshot.docs[0].data();
+
+        if (docData.originalWebp90Url || docData.originalPreviewPath) {
+          console.log(`Skipping original preview for ${baseName} - already processed.`);
+          await bucket.file(filePath).delete().catch(() => {
+            console.log(`Could not delete duplicate gallery original file: ${filePath}`);
+          });
+          return;
+        }
+
+        await sharp(tempOriginal)
+          .resize({ width: 1080, withoutEnlargement: true })
+          .webp({ quality: 90 })
+          .toFile(tempOriginalPreview);
+
+        const originalPreviewPath = `${bucketDir}/${baseName}_webp90.webp`;
+        await bucket.upload(tempOriginalPreview, {
+          destination: originalPreviewPath,
+          metadata: { contentType: "image/webp", metadata: { firebaseStorageDownloadTokens: uuid } },
+        });
+
+        const originalWebp90Url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+          originalPreviewPath
+        )}?alt=media&token=${uuid}`;
+
+        await docRef.update({
+          originalWebp90Url,
+          originalPreviewPath,
+          originalFileName: baseName,
+        });
+
+        await bucket.file(filePath).delete().catch(() => {
+          console.log(`Could not delete raw gallery original file: ${filePath}`);
+        });
+
+        console.log(`Processed uncropped gallery preview for ${baseName}.`);
+        return;
+      }
 
       // Process three image sizes: 300px thumb, 1080px webp, full JPEG
       await sharp(tempOriginal)
@@ -3466,6 +3522,7 @@ const processArtistMedia = onObjectFinalized(
         fs.unlink(tempThumb),
         fs.unlink(tempWebp90),
         fs.unlink(tempFull),
+        fs.unlink(tempOriginalPreview),
       ]);
     }
   }

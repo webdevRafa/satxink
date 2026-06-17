@@ -1,4 +1,8 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
+import type {
+  ExternalPaymentMethod,
+  FinalPaymentDeadlineHours,
+} from "./PaymentPreferences";
 
 
 export type SocialLinks = {
@@ -50,8 +54,14 @@ export type SocialLinks = {
     isVerified?: boolean | "true" | "false";
     profileComplete: boolean;
     paymentType: "internal" | "external";
+    externalPaymentMethods?: ExternalPaymentMethod[];
+    externalPaymentDetails?: {
+      method: string;
+      handle: string;
+    } | null;
     depositPolicy: DepositPolicy;
     finalPaymentTiming: "before" | "after";
+    finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
     stripeConnect?: {
       accountId?: string;
       chargesEnabled?: boolean;

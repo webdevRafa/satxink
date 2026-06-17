@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { FirebaseError } from "firebase/app";
 import {
   getAdditionalUserInfo,
   getAuth,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithPopup,
   type UserCredential,
 } from "firebase/auth";
@@ -14,12 +16,18 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { LoaderCircle } from "lucide-react";
+import { FaApple } from "react-icons/fa";
+import { FcGoogle } from "react-icons/fc";
+import type { IconType } from "react-icons";
 
 import { app } from "../firebase/firebaseConfig";
-import google from "../assets/web_light_sq_SU.svg";
 import { splitFullName } from "../utils/clientDisplayName";
 
 type SignupRole = "client" | "artist";
+type AuthProviderKey = "google" | "apple";
+type AuthButtonAction = "signup" | "signin";
 
 type SignupButtonProps = {
   role: SignupRole;
@@ -29,10 +37,40 @@ type AuthProviderSignupButtonsProps = SignupButtonProps & {
   className?: string;
 };
 
+type AuthProviderSignInButtonsProps = {
+  className?: string;
+  compact?: boolean;
+  onComplete?: () => void;
+};
+
 type ProfileRecord = Record<string, unknown>;
+
+type AuthProviderMeta = {
+  key: AuthProviderKey;
+  providerId: string;
+  name: string;
+  icon: IconType;
+};
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+const AUTH_PROVIDER_ORDER: AuthProviderKey[] = ["google", "apple"];
+
+const AUTH_PROVIDER_META: Record<AuthProviderKey, AuthProviderMeta> = {
+  google: {
+    key: "google",
+    providerId: "google.com",
+    name: "Google",
+    icon: FcGoogle,
+  },
+  apple: {
+    key: "apple",
+    providerId: "apple.com",
+    name: "Apple",
+    icon: FaApple,
+  },
+};
 
 const getProfileValue = (profile: unknown, key: string) => {
   if (!profile || typeof profile !== "object") return "";
@@ -40,19 +78,104 @@ const getProfileValue = (profile: unknown, key: string) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
+const getObjectNamePart = (value: unknown, keys: string[]) => {
+  if (!value || typeof value !== "object") return "";
+  const record = value as ProfileRecord;
+
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
+};
+
+const getProfileDisplayName = (profile: unknown) => {
+  const directName =
+    getProfileValue(profile, "name") || getProfileValue(profile, "displayName");
+  if (directName) return directName;
+
+  if (!profile || typeof profile !== "object") return "";
+
+  const profileRecord = profile as ProfileRecord;
+  const nestedName = profileRecord.name;
+  const firstName =
+    getObjectNamePart(nestedName, ["firstName", "givenName", "given_name"]) ||
+    getProfileValue(profile, "firstName") ||
+    getProfileValue(profile, "givenName") ||
+    getProfileValue(profile, "given_name");
+  const lastName =
+    getObjectNamePart(nestedName, ["lastName", "familyName", "family_name"]) ||
+    getProfileValue(profile, "lastName") ||
+    getProfileValue(profile, "familyName") ||
+    getProfileValue(profile, "family_name");
+
+  return [firstName, lastName].filter(Boolean).join(" ").trim();
+};
+
+const createPopupProvider = (providerKey: AuthProviderKey) => {
+  if (providerKey === "apple") {
+    const provider = new OAuthProvider(AUTH_PROVIDER_META.apple.providerId);
+    provider.addScope("email");
+    provider.addScope("name");
+    return provider;
+  }
+
+  return new GoogleAuthProvider();
+};
+
 const getCredentialDisplayName = (result: UserCredential) => {
-  const googleProfile = result.user.providerData.find(
-    (provider) => provider.providerId === "google.com"
+  const additionalInfo = getAdditionalUserInfo(result);
+  const providerId =
+    additionalInfo?.providerId ||
+    result.providerId ||
+    result.user.providerData[0]?.providerId ||
+    "";
+  const providerProfile = result.user.providerData.find(
+    (provider) => provider.providerId === providerId
   );
-  const profile = getAdditionalUserInfo(result)?.profile;
+  const profileDisplayName = getProfileDisplayName(additionalInfo?.profile);
 
   return (
     result.user.displayName ||
-    googleProfile?.displayName ||
-    getProfileValue(profile, "name") ||
+    providerProfile?.displayName ||
+    profileDisplayName ||
     ""
   );
 };
+
+const getAuthErrorMessage = (error: unknown) => {
+  if (!(error instanceof FirebaseError)) {
+    return "Sign-in failed. Please try again.";
+  }
+
+  switch (error.code) {
+    case "auth/account-exists-with-different-credential":
+      return "That email is already connected to a different sign-in method. Try the provider you used before.";
+    case "auth/operation-not-allowed":
+      return "This sign-in provider is not enabled yet. Check the Firebase auth settings.";
+    case "auth/unauthorized-domain":
+      return "This domain is not authorized for that sign-in provider yet.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in popup. Allow popups for SATX Ink and try again.";
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return "";
+    default:
+      return "Sign-in failed. Please try again.";
+  }
+};
+
+const reportAuthError = (error: unknown, context: string) => {
+  console.error(`${context} failed:`, error);
+  const message = getAuthErrorMessage(error);
+  if (message) toast.error(message);
+};
+
+const signInWithSatxProvider = (providerKey: AuthProviderKey) =>
+  signInWithPopup(auth, createPopupProvider(providerKey));
 
 const createClientProfile = (role: SignupRole, result: UserCredential) => {
   const user = result.user;
@@ -112,6 +235,14 @@ const createArtistProfile = (result: UserCredential) => {
     featured: false,
     isVerified: false,
     phoneNumber: user.phoneNumber || "",
+    paymentType: "internal",
+    depositPolicy: {
+      amount: 0,
+      depositRequired: true,
+      nonRefundable: true,
+    },
+    finalPaymentTiming: "before",
+    finalPaymentDeadlineHours: 24,
     portfolioUrls: [],
     profileComplete: false,
     role: "artist",
@@ -126,59 +257,119 @@ const createArtistProfile = (result: UserCredential) => {
   };
 };
 
-const useGoogleSignup = (role: SignupRole) => {
-  const navigate = useNavigate();
-  const [isSigningIn, setIsSigningIn] = useState(false);
-
-  const handleGoogleSignup = async () => {
-    setIsSigningIn(true);
-
-    try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      const userRef = doc(db, "users", result.user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        if (role === "client") {
-          await setDoc(userRef, createClientProfile(role, result));
-          navigate("/client-profile-setup");
-          return;
-        }
-
-        await setDoc(userRef, createArtistProfile(result));
-        return;
-      }
-
-      const data = userSnap.data();
-      const isComplete = data?.profileComplete ?? false;
-
-      if (role === "client") {
-        navigate(isComplete ? "/dashboard" : "/client-profile-setup");
-      }
-    } catch (error) {
-      console.error("Google signup failed:", error);
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
-  return { isSigningIn, handleGoogleSignup };
-};
-
-export const GoogleSignupButton = ({ role }: SignupButtonProps) => {
-  const { isSigningIn, handleGoogleSignup } = useGoogleSignup(role);
+const ProviderAuthButton = ({
+  action,
+  activeProvider,
+  compact = false,
+  disabled,
+  onClick,
+  providerKey,
+}: {
+  action: AuthButtonAction;
+  activeProvider: AuthProviderKey | null;
+  compact?: boolean;
+  disabled?: boolean;
+  onClick: (providerKey: AuthProviderKey) => void;
+  providerKey: AuthProviderKey;
+}) => {
+  const meta = AUTH_PROVIDER_META[providerKey];
+  const Icon = meta.icon;
+  const isBusy = activeProvider === providerKey;
+  const buttonLabel =
+    action === "signup"
+      ? `Sign up with ${meta.name}`
+      : `Continue with ${meta.name}`;
+  const busyLabel =
+    action === "signup"
+      ? `Signing up with ${meta.name}`
+      : `Signing in with ${meta.name}`;
 
   return (
     <button
       type="button"
-      onClick={handleGoogleSignup}
-      disabled={isSigningIn}
-      className="mx-auto flex items-center justify-center transition duration-300 ease-in-out hover:scale-105 focus:outline-none disabled:pointer-events-none disabled:opacity-60"
-      style={{ height: "40px", width: "auto" }}
-      aria-label={isSigningIn ? "Signing up with Google" : "Sign up with Google"}
+      onClick={() => onClick(providerKey)}
+      disabled={disabled}
+      className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-white/35 disabled:pointer-events-none disabled:opacity-55 ${
+        compact ? "w-full justify-start" : "w-full justify-center sm:w-[210px]"
+      } ${
+        providerKey === "apple"
+          ? "border-white/20 bg-[#050505] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[#161616]"
+          : "border-[#747775] bg-white text-[#1f1f1f] hover:bg-neutral-100"
+      }`}
+      aria-label={isBusy ? busyLabel : buttonLabel}
     >
-      <img src={google} alt="Sign up with Google" className="h-10 w-auto" />
+      {isBusy ? (
+        <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+      ) : (
+        <Icon size={19} aria-hidden="true" />
+      )}
+      <span className="truncate">{isBusy ? busyLabel : buttonLabel}</span>
     </button>
+  );
+};
+
+const useAuthProviderSignup = (role: SignupRole) => {
+  const navigate = useNavigate();
+  const [activeProvider, setActiveProvider] = useState<AuthProviderKey | null>(
+    null
+  );
+
+  const handleProviderSignup = async (providerKey: AuthProviderKey) => {
+    setActiveProvider(providerKey);
+
+    try {
+      const result = await signInWithSatxProvider(providerKey);
+      const userRef = doc(db, "users", result.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        toast.success("Welcome back");
+        navigate("/dashboard");
+        return;
+      }
+
+      if (role === "client") {
+        await setDoc(userRef, createClientProfile(role, result));
+        navigate("/client-profile-setup");
+        return;
+      }
+
+      await setDoc(userRef, createArtistProfile(result));
+    } catch (error) {
+      reportAuthError(error, `${AUTH_PROVIDER_META[providerKey].name} signup`);
+    } finally {
+      setActiveProvider(null);
+    }
+  };
+
+  return { activeProvider, handleProviderSignup };
+};
+
+export const GoogleSignupButton = ({ role }: SignupButtonProps) => {
+  const { activeProvider, handleProviderSignup } = useAuthProviderSignup(role);
+
+  return (
+    <ProviderAuthButton
+      action="signup"
+      activeProvider={activeProvider}
+      disabled={Boolean(activeProvider)}
+      onClick={handleProviderSignup}
+      providerKey="google"
+    />
+  );
+};
+
+export const AppleSignupButton = ({ role }: SignupButtonProps) => {
+  const { activeProvider, handleProviderSignup } = useAuthProviderSignup(role);
+
+  return (
+    <ProviderAuthButton
+      action="signup"
+      activeProvider={activeProvider}
+      disabled={Boolean(activeProvider)}
+      onClick={handleProviderSignup}
+      providerKey="apple"
+    />
   );
 };
 
@@ -186,9 +377,66 @@ export const AuthProviderSignupButtons = ({
   role,
   className = "",
 }: AuthProviderSignupButtonsProps) => {
+  const { activeProvider, handleProviderSignup } = useAuthProviderSignup(role);
+
   return (
-    <div className={`flex items-center justify-center ${className}`}>
-      <GoogleSignupButton role={role} />
+    <div
+      className={`mx-auto flex w-full max-w-[450px] flex-col items-center justify-center gap-3 sm:flex-row ${className}`}
+    >
+      {AUTH_PROVIDER_ORDER.map((providerKey) => (
+        <ProviderAuthButton
+          key={providerKey}
+          action="signup"
+          activeProvider={activeProvider}
+          disabled={Boolean(activeProvider)}
+          onClick={handleProviderSignup}
+          providerKey={providerKey}
+        />
+      ))}
+    </div>
+  );
+};
+
+export const AuthProviderSignInButtons = ({
+  className = "",
+  compact = true,
+  onComplete,
+}: AuthProviderSignInButtonsProps) => {
+  const navigate = useNavigate();
+  const [activeProvider, setActiveProvider] = useState<AuthProviderKey | null>(
+    null
+  );
+
+  const handleProviderSignIn = async (providerKey: AuthProviderKey) => {
+    setActiveProvider(providerKey);
+
+    try {
+      const result = await signInWithSatxProvider(providerKey);
+      const userRef = doc(db, "users", result.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      onComplete?.();
+      navigate(userSnap.exists() ? "/dashboard" : "/signup");
+    } catch (error) {
+      reportAuthError(error, `${AUTH_PROVIDER_META[providerKey].name} sign-in`);
+    } finally {
+      setActiveProvider(null);
+    }
+  };
+
+  return (
+    <div className={`grid gap-2 ${className}`}>
+      {AUTH_PROVIDER_ORDER.map((providerKey) => (
+        <ProviderAuthButton
+          key={providerKey}
+          action="signin"
+          activeProvider={activeProvider}
+          compact={compact}
+          disabled={Boolean(activeProvider)}
+          onClick={handleProviderSignIn}
+          providerKey={providerKey}
+        />
+      ))}
     </div>
   );
 };

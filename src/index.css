@@ -107,6 +107,17 @@ a.bg-white svg {
   }
 }
 
+@keyframes satx-profile-flash-cue-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 @keyframes satx-request-flow-enter {
   from {
     opacity: 0;
@@ -133,9 +144,104 @@ a.bg-white svg {
   transform-origin: top center;
 }
 
+.satx-profile-flash-cue {
+  animation: satx-profile-flash-cue-in 220ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
+.satx-profile-flash-cue::before {
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.18),
+    transparent 34%,
+    rgba(255, 255, 255, 0.08)
+  );
+  border-radius: inherit;
+  content: "";
+  inset: 1px;
+  opacity: 0.42;
+  pointer-events: none;
+  position: absolute;
+}
+
 .satx-profile-work-grid {
   content-visibility: auto;
   contain-intrinsic-size: 960px;
+}
+
+.satx-profile-work-carousel-grid {
+  content-visibility: visible;
+}
+
+.satx-profile-work-fade-slot {
+  border-radius: 0.75rem;
+  contain: paint;
+  isolation: isolate;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.satx-profile-work-card-face {
+  transform-origin: center center;
+  width: 100%;
+  will-change: opacity;
+}
+
+.satx-profile-work-card-face--previous {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.satx-profile-work-card-face--current {
+  position: relative;
+  z-index: 1;
+}
+
+.satx-profile-work-card-face--placeholder {
+  aspect-ratio: 4 / 5;
+}
+
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
+  .satx-profile-work-card-face {
+  animation-duration: 220ms;
+  animation-fill-mode: both;
+  animation-timing-function: ease;
+}
+
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
+  .satx-profile-work-card-face--previous {
+  animation-delay: var(--satx-fade-out-delay, 0ms);
+  animation-name: satx-profile-work-fade-out;
+}
+
+.satx-profile-work-carousel-grid--fading
+  .satx-profile-work-fade-slot--active
+  .satx-profile-work-card-face--current {
+  animation-delay: var(--satx-fade-in-delay, 0ms);
+  animation-name: satx-profile-work-fade-in;
+}
+
+@keyframes satx-profile-work-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes satx-profile-work-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .satx-profile-work-shell--exiting {
@@ -145,6 +251,7 @@ a.bg-white svg {
 
 .satx-request-flow-shell {
   animation: satx-request-flow-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  contain: layout paint;
   transform-origin: top center;
 }
 
@@ -157,13 +264,18 @@ a.bg-white svg {
   contain: layout paint;
 }
 
+.satx-request-flow-shell button,
+.satx-request-flow-shell label {
+  touch-action: manipulation;
+}
+
 @media (max-width: 640px) {
   .satx-request-flow-shell {
-    animation-duration: 180ms;
+    animation: none;
   }
 
   .satx-request-step-panel {
-    animation-duration: 140ms;
+    animation: none;
   }
 
   @keyframes satx-request-step-enter {
@@ -180,11 +292,19 @@ a.bg-white svg {
 
 @media (prefers-reduced-motion: reduce) {
   .satx-profile-work-shell--exiting,
+  .satx-profile-flash-cue,
+  .satx-profile-work-carousel-grid--fading
+    .satx-profile-work-card-face,
   .satx-request-flow-shell,
   .satx-request-step-panel {
     animation: none;
+    filter: none;
     opacity: 1;
     transform: none;
+  }
+
+  .satx-profile-work-card-face--previous {
+    display: none;
   }
 }
 .animate-scroll {

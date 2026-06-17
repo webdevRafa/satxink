@@ -124,8 +124,8 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
               <span>as a Client</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
-              Start with Google, then create a short taste profile so SATX Ink
-              can make browsing feel more personal.
+              Start with Google or Apple, then create a short taste profile so
+              SATX Ink can make browsing feel more personal.
             </p>
 
             <div className="mt-7 flex justify-center">
@@ -133,9 +133,8 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
             </div>
 
             <p className="mx-auto mt-6 max-w-md text-xs! leading-5 text-neutral-500!">
-              We collect your first name, last name, profile picture, and email
-              from Google to set up your account. By signing up, you agree to
-              our{" "}
+              We use the name and email from your sign-in provider to set up
+              your account. By signing up, you agree to our{" "}
               <Link
                 to="/terms"
                 target="_blank"

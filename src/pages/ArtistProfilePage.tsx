@@ -1,7 +1,9 @@
 import {
+  type CSSProperties,
   type FormEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -14,6 +16,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
@@ -25,7 +28,7 @@ import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
-  Camera,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Expand,
@@ -111,14 +114,18 @@ type Shop = {
   mapLink?: string;
 };
 type SlideDirection = "next" | "prev";
-type ArtistWorkTab = "portfolio" | "flashSheets";
+
+const FEATURED_WORK_LIMIT = 9;
+const PORTFOLIO_FADE_DURATION_MS = 220;
+const PORTFOLIO_FADE_STAGGER_MS = 90;
+const PORTFOLIO_FADE_PHASE_GAP_MS = 40;
+const PORTFOLIO_FADE_SETTLE_BUFFER_MS = 48;
 
 export const ArtistProfilePage = () => {
   const { id } = useParams();
   const [artist, setArtist] = useState<StripeReadyArtist | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [client, setClient] = useState<ClientProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<ArtistWorkTab>("portfolio");
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [flashSheets, setFlashSheets] = useState<FlashSheet[]>([]);
@@ -139,7 +146,9 @@ export const ArtistProfilePage = () => {
     canShowProfileBackdrop()
   );
   const requestFlowTopRef = useRef<HTMLDivElement | null>(null);
+  const flashSectionRef = useRef<HTMLElement | null>(null);
   const requestOpenTimerRef = useRef<number | null>(null);
+  const [shouldPromptForFlash, setShouldPromptForFlash] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -242,30 +251,31 @@ export const ArtistProfilePage = () => {
   }, []);
 
   useEffect(() => {
-    const fetchGallery = async () => {
-      if (!id) return;
+    if (!id) return;
 
-      setGalleryLoading(true);
-      try {
-        const galleryQuery = query(
-          collection(db, "gallery"),
-          where("artistId", "==", id)
-        );
-        const snapshot = await getDocs(galleryQuery);
+    setGalleryLoading(true);
+    const galleryQuery = query(
+      collection(db, "gallery"),
+      where("artistId", "==", id)
+    );
+    const unsubscribe = onSnapshot(
+      galleryQuery,
+      (snapshot) => {
         const items = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
           .filter((item) => item.status !== "processing")
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
         setGalleryItems(items);
-      } catch (err) {
+        setGalleryLoading(false);
+      },
+      (err) => {
         console.error("Failed to fetch artist gallery:", err);
-      } finally {
         setGalleryLoading(false);
       }
-    };
+    );
 
-    fetchGallery();
+    return () => unsubscribe();
   }, [id]);
 
   useEffect(() => {
@@ -324,11 +334,127 @@ export const ArtistProfilePage = () => {
     fetchSheetFlashes();
   }, [focusedSheet, id, artist]);
 
+  const updateFlashCueVisibility = useCallback(() => {
+    const section = flashSectionRef.current;
+    const hasFlashSheets = !flashSheetsLoading && flashSheets.length > 0;
+    const hasOverlayOpen = Boolean(
+      selectedItem ||
+        selectedSheet ||
+        selectedFlash ||
+        isRequestModalOpen ||
+        isRequestTransitioning
+    );
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches;
+
+    if (!section || !hasFlashSheets || hasOverlayOpen || !isDesktop) {
+      setShouldPromptForFlash(false);
+      return;
+    }
+
+    const rect = section.getBoundingClientRect();
+    const viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+
+    setShouldPromptForFlash(rect.top > viewportHeight - 128);
+  }, [
+    flashSheets.length,
+    flashSheetsLoading,
+    isRequestModalOpen,
+    isRequestTransitioning,
+    selectedFlash,
+    selectedItem,
+    selectedSheet,
+  ]);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    const scheduleVisibilityCheck = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(updateFlashCueVisibility);
+    };
+
+    scheduleVisibilityCheck();
+    window.addEventListener("scroll", scheduleVisibilityCheck, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleVisibilityCheck);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", scheduleVisibilityCheck);
+      window.removeEventListener("resize", scheduleVisibilityCheck);
+    };
+  }, [updateFlashCueVisibility]);
+
+  const featuredGalleryItems = useMemo(
+    () => galleryItems.slice(0, FEATURED_WORK_LIMIT),
+    [galleryItems]
+  );
   const selectedItemIndex = selectedItem
-    ? galleryItems.findIndex((item) => item.id === selectedItem.id)
+    ? featuredGalleryItems.findIndex((item) => item.id === selectedItem.id)
     : -1;
   const canNavigatePortfolio =
-    galleryItems.length > 1 && selectedItemIndex >= 0;
+    featuredGalleryItems.length > 1 && selectedItemIndex >= 0;
+
+  const refreshPortfolioItem = useCallback(async (itemId: string) => {
+    try {
+      const itemRef = doc(db, "gallery", itemId);
+      const itemSnap = await getDoc(itemRef);
+      if (!itemSnap.exists()) return;
+
+      const updatedItem = {
+        id: itemSnap.id,
+        ...itemSnap.data(),
+      } as GalleryItem;
+
+      setSelectedItem((currentItem) => {
+        if (!currentItem || currentItem.id !== updatedItem.id) {
+          return currentItem;
+        }
+
+        if (
+          getPortfolioLightboxUrl(updatedItem) !==
+            getPortfolioLightboxUrl(currentItem) ||
+          getLightboxPreviewUrl(updatedItem) !==
+            getLightboxPreviewUrl(currentItem)
+        ) {
+          setModalLoading(true);
+        }
+
+        return updatedItem;
+      });
+    } catch (err) {
+      console.error("Failed to refresh portfolio item:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const updatedItem = featuredGalleryItems.find(
+      (item) => item.id === selectedItem.id
+    );
+    if (!updatedItem) return;
+
+    const hasUpdatedImage =
+      getPortfolioLightboxUrl(updatedItem) !==
+        getPortfolioLightboxUrl(selectedItem) ||
+      getLightboxPreviewUrl(updatedItem) !== getLightboxPreviewUrl(selectedItem);
+    const hasUpdatedMetadata =
+      updatedItem.caption !== selectedItem.caption ||
+      JSON.stringify(updatedItem.tags || []) !==
+        JSON.stringify(selectedItem.tags || []);
+
+    if (hasUpdatedImage || hasUpdatedMetadata) {
+      if (hasUpdatedImage) {
+        setModalLoading(true);
+      }
+      setSelectedItem(updatedItem);
+    }
+  }, [featuredGalleryItems, selectedItem]);
 
   const navigatePortfolio = useCallback(
     (direction: SlideDirection) => {
@@ -336,18 +462,28 @@ export const ArtistProfilePage = () => {
 
       const offset = direction === "next" ? 1 : -1;
       const nextIndex =
-        (selectedItemIndex + offset + galleryItems.length) %
-        galleryItems.length;
+        (selectedItemIndex + offset + featuredGalleryItems.length) %
+        featuredGalleryItems.length;
 
       setSlideDirection(direction);
-      setSelectedItem(galleryItems[nextIndex]);
+      const nextItem = featuredGalleryItems[nextIndex];
+      setModalLoading(true);
+      setSelectedItem(nextItem);
+      void refreshPortfolioItem(nextItem.id);
     },
-    [canNavigatePortfolio, galleryItems, selectedItemIndex]
+    [
+      canNavigatePortfolio,
+      featuredGalleryItems,
+      refreshPortfolioItem,
+      selectedItemIndex,
+    ]
   );
 
   const openPortfolioItem = (item: GalleryItem) => {
     setSlideDirection("next");
+    setModalLoading(true);
     setSelectedItem(item);
+    void refreshPortfolioItem(item.id);
   };
 
   useEffect(() => {
@@ -381,6 +517,16 @@ export const ArtistProfilePage = () => {
         .getElementById("flash-sheet-items")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
+  };
+
+  const handleViewFlashCue = () => {
+    setShouldPromptForFlash(false);
+    window.requestAnimationFrame(() => {
+      flashSectionRef.current?.scrollIntoView({
+        behavior: prefersReducedProfileMotion() ? "auto" : "smooth",
+        block: "start",
+      });
+    });
   };
 
   const handleRequestTattoo = () => {
@@ -505,6 +651,15 @@ export const ArtistProfilePage = () => {
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
   const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
+  const flashSheetCountLabel = `${flashSheets.length} sheet${
+    flashSheets.length === 1 ? "" : "s"
+  }`;
+  const shouldShowFlashCue =
+    shouldPromptForFlash &&
+    !isRequestFlowActive &&
+    !selectedItem &&
+    !selectedSheet &&
+    !selectedFlash;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -615,7 +770,7 @@ export const ArtistProfilePage = () => {
 
         <div
           ref={requestFlowTopRef}
-          className="mt-8 scroll-mt-24 pb-60 lg:mt-10"
+          className="mt-6 scroll-mt-24 pb-60 lg:mt-8"
         >
           {isRequestModalOpen && client ? (
             <RequestTattooModal
@@ -635,81 +790,46 @@ export const ArtistProfilePage = () => {
                 isRequestTransitioning ? "satx-profile-work-shell--exiting" : ""
               }`}
             >
-              <div
-                data-aos="fade-up"
-                className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+              <section aria-label="Artist portfolio">
+                <PortfolioPanel
+                  galleryItems={featuredGalleryItems}
+                  galleryLoading={galleryLoading}
+                  onOpenItem={openPortfolioItem}
+                />
+              </section>
+
+              <section
+                ref={flashSectionRef}
+                aria-labelledby="artist-flash-heading"
+                className="mt-10 border-t border-white/10 pt-8"
               >
-                <div>
-                  <div
-                    className="flex flex-wrap items-center gap-3"
-                    role="tablist"
-                    aria-label="Artist work"
+                <div
+                  data-aos="fade-up"
+                  className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+                >
+                  <h2
+                    id="artist-flash-heading"
+                    className="my-0! text-2xl! font-semibold! text-white"
                   >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "portfolio"}
-                      onClick={() => setActiveTab("portfolio")}
-                      className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                        activeTab === "portfolio"
-                          ? "text-white"
-                          : "text-white/40 hover:text-white/75"
-                      }`}
-                    >
-                      Work
-                    </button>
-                    <span className="h-6 w-px bg-white/15" />
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "flashSheets"}
-                      onClick={() => setActiveTab("flashSheets")}
-                      className={`px-0! py-0! text-2xl! font-semibold! transition ${
-                        activeTab === "flashSheets"
-                          ? "text-white"
-                          : "text-white/40 hover:text-white/75"
-                      }`}
-                    >
-                      Flash
-                    </button>
-                  </div>
-                </div>
-                {activeTab === "portfolio" &&
-                  !galleryLoading &&
-                  galleryItems.length > 0 && (
-                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
-                      <Camera size={15} />
-                      {galleryItems.length} piece
-                      {galleryItems.length === 1 ? "" : "s"}
-                    </span>
-                  )}
-                {activeTab === "flashSheets" &&
-                  !flashSheetsLoading &&
-                  flashSheets.length > 0 && (
+                    Flash
+                  </h2>
+                  {!flashSheetsLoading && flashSheets.length > 0 && (
                     <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
                       <Layers size={15} />
                       {flashSheets.length} sheet
                       {flashSheets.length === 1 ? "" : "s"}
                     </span>
                   )}
-              </div>
-
-              {activeTab === "portfolio" ? (
-                <PortfolioPanel
-                  galleryItems={galleryItems}
-                  galleryLoading={galleryLoading}
-                  onOpenItem={openPortfolioItem}
-                />
-              ) : (
+                </div>
                 <FlashSheetsPanel
                   flashSheets={flashSheets}
                   flashSheetsLoading={flashSheetsLoading}
                   focusedSheetId={focusedSheet?.id}
                   onOpenSheet={handleSelectSheet}
                 />
-              )}
+              </section>
 
-              {activeTab === "flashSheets" && focusedSheet && (
+              {focusedSheet && (
                 <FlashSheetItemsSection
                   sheet={focusedSheet}
                   flashes={sheetFlashes}
@@ -737,6 +857,10 @@ export const ArtistProfilePage = () => {
           onImageLoad={() => setModalLoading(false)}
           onNext={() => navigatePortfolio("next")}
           onPrev={() => navigatePortfolio("prev")}
+          onRequestTattoo={() => {
+            setSelectedItem(null);
+            window.requestAnimationFrame(handleRequestTattoo);
+          }}
           onClose={() => setSelectedItem(null)}
         />
       )}
@@ -758,6 +882,26 @@ export const ArtistProfilePage = () => {
           client={client}
           onClose={() => setSelectedFlash(null)}
         />
+      )}
+
+      {shouldShowFlashCue && (
+        <button
+          type="button"
+          onClick={handleViewFlashCue}
+          className="satx-profile-flash-cue fixed bottom-6 right-6 z-30 hidden items-center gap-3 overflow-hidden rounded-full border border-white/12 bg-[#121212]/88 px-3.5 py-2.5 text-left text-white shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:border-white/25 hover:bg-[#181818]/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 lg:flex"
+          aria-label={`View flash designs, ${flashSheetCountLabel}`}
+        >
+          <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07]">
+            <Layers size={15} />
+          </span>
+          <span className="relative min-w-0 leading-tight">
+            <span className="block text-sm font-semibold">Flash available</span>
+            <span className="block text-xs text-white/55">
+              {flashSheetCountLabel}
+            </span>
+          </span>
+          <ChevronDown className="relative shrink-0 text-white/65" size={16} />
+        </button>
       )}
     </div>
   );
@@ -923,7 +1067,10 @@ const scrollRequestFlowIntoView = (
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.webp90Url || item.thumbUrl || item.fullUrl;
+  item.webp90Url || item.thumbUrl || item.fullUrl || item.originalWebp90Url || "";
+
+const getPortfolioLightboxUrl = (item: GalleryItem) =>
+  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
 
 const getSheetPreviewUrl = (sheet: FlashSheet) =>
   sheet.thumbUrl || sheet.imageUrl;
@@ -972,6 +1119,22 @@ const preloadImage = (src?: string) => {
   image.src = src;
 };
 
+const getPortfolioItemsPerPage = () => {
+  if (typeof window === "undefined") return 3;
+  if (window.matchMedia("(min-width: 1024px)").matches) return 3;
+  if (window.matchMedia("(min-width: 640px)").matches) return 2;
+  return 1;
+};
+
+const getPortfolioPageItems = (
+  galleryItems: GalleryItem[],
+  pageIndex: number,
+  itemsPerPage: number
+) => {
+  const startIndex = pageIndex * itemsPerPage;
+  return galleryItems.slice(startIndex, startIndex + itemsPerPage);
+};
+
 const PortfolioPanel = ({
   galleryItems,
   galleryLoading,
@@ -981,7 +1144,76 @@ const PortfolioPanel = ({
   galleryLoading: boolean;
   onOpenItem: (item: GalleryItem) => void;
 }) => {
-  if (galleryLoading) return <PortfolioSkeleton />;
+  const [itemsPerPage, setItemsPerPage] = useState(getPortfolioItemsPerPage);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [previousItems, setPreviousItems] = useState<GalleryItem[] | null>(
+    null
+  );
+  const [transitionDirection, setTransitionDirection] =
+    useState<SlideDirection>("next");
+  const fadeTimerRef = useRef<number | null>(null);
+  const pageCount = Math.max(1, Math.ceil(galleryItems.length / itemsPerPage));
+  const visibleItems = getPortfolioPageItems(
+    galleryItems,
+    pageIndex,
+    itemsPerPage
+  );
+  const transitionSlotCount = previousItems
+    ? Math.max(visibleItems.length, previousItems.length)
+    : visibleItems.length;
+  const isTransitioning = Boolean(previousItems);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setItemsPerPage(getPortfolioItemsPerPage());
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    setPageIndex((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
+
+  useEffect(() => {
+    galleryItems.forEach((item) => preloadImage(getCardPreviewUrl(item)));
+  }, [galleryItems]);
+
+  useEffect(() => {
+    if (!previousItems) return;
+
+    if (fadeTimerRef.current !== null) {
+      window.clearTimeout(fadeTimerRef.current);
+    }
+
+    const transitionedItemCount = Math.max(
+      visibleItems.length,
+      previousItems.length
+    );
+    const fadeOutPhaseTime =
+      PORTFOLIO_FADE_DURATION_MS +
+      Math.max(0, transitionedItemCount - 1) * PORTFOLIO_FADE_STAGGER_MS;
+    const fadeSettleTime =
+      fadeOutPhaseTime +
+      PORTFOLIO_FADE_PHASE_GAP_MS +
+      fadeOutPhaseTime +
+      PORTFOLIO_FADE_SETTLE_BUFFER_MS;
+
+    fadeTimerRef.current = window.setTimeout(() => {
+      setPreviousItems(null);
+      fadeTimerRef.current = null;
+    }, fadeSettleTime);
+
+    return () => {
+      if (fadeTimerRef.current !== null) {
+        window.clearTimeout(fadeTimerRef.current);
+        fadeTimerRef.current = null;
+      }
+    };
+  }, [previousItems, visibleItems.length]);
+
+  if (galleryLoading) return <PortfolioSkeleton count={3} />;
 
   if (galleryItems.length === 0) {
     return (
@@ -992,16 +1224,168 @@ const PortfolioPanel = ({
     );
   }
 
-  return (
-    <div className="satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {galleryItems.map((item, index) => (
-        <PortfolioCard
-          key={item.id}
-          item={item}
-          priority={index === 0}
-          onOpen={() => onOpenItem(item)}
+  const goToPage = (nextPageIndex: number, direction: SlideDirection) => {
+    if (isTransitioning || pageCount <= 1 || nextPageIndex === pageIndex)
+      return;
+
+    setPreviousItems(visibleItems);
+    setTransitionDirection(direction);
+    setPageIndex(nextPageIndex);
+  };
+
+  const goToNextPage = () => {
+    goToPage((pageIndex + 1) % pageCount, "next");
+  };
+
+  const goToPreviousPage = () => {
+    goToPage((pageIndex - 1 + pageCount) % pageCount, "prev");
+  };
+
+  const arrowButtonClassName =
+    "flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white shadow-[0_14px_38px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45";
+
+  const pageDots = (
+    <div className="flex items-center justify-center gap-2">
+      {Array.from({ length: pageCount }).map((_, index) => (
+        <button
+          key={index}
+          type="button"
+          onClick={() => goToPage(index, index > pageIndex ? "next" : "prev")}
+          disabled={isTransitioning}
+          className={`h-2.5 rounded-full p-0! transition ${
+            index === pageIndex
+              ? "w-8 bg-white"
+              : "w-2.5 bg-white/25 hover:bg-white/45 disabled:hover:bg-white/25"
+          }`}
+          aria-label={`Show portfolio page ${index + 1}`}
+          aria-current={index === pageIndex ? "page" : undefined}
         />
       ))}
+    </div>
+  );
+
+  return (
+    <div className="satx-profile-work-carousel">
+      <div className="relative">
+        {pageCount > 1 && (
+          <button
+            type="button"
+            onClick={goToPreviousPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} absolute -left-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Previous portfolio page"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
+
+        <div
+          className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+            isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
+          }`}
+          data-direction={transitionDirection}
+        >
+          {Array.from({ length: transitionSlotCount }).map((_, index) => {
+            const item = visibleItems[index];
+            const previousItem = previousItems?.[index];
+            const isSlotTransitioning = Boolean(
+              previousItems && item?.id !== previousItem?.id
+            );
+            const transitionOrder =
+              transitionDirection === "next"
+                ? index
+                : Math.max(0, transitionSlotCount - 1 - index);
+            const fadeOutDelay = transitionOrder * PORTFOLIO_FADE_STAGGER_MS;
+            const fadeInDelay =
+              PORTFOLIO_FADE_DURATION_MS +
+              Math.max(0, transitionSlotCount - 1) * PORTFOLIO_FADE_STAGGER_MS +
+              PORTFOLIO_FADE_PHASE_GAP_MS +
+              fadeOutDelay;
+
+            return (
+              <div
+                key={`${pageIndex}-${item?.id || previousItem?.id || index}`}
+                className={`satx-profile-work-fade-slot ${
+                  isSlotTransitioning
+                    ? "satx-profile-work-fade-slot--active"
+                    : ""
+                }`}
+                style={
+                  {
+                    "--satx-fade-out-delay": `${fadeOutDelay}ms`,
+                    "--satx-fade-in-delay": `${fadeInDelay}ms`,
+                  } as CSSProperties
+                }
+              >
+                {isSlotTransitioning && previousItem && (
+                  <div className="satx-profile-work-card-face satx-profile-work-card-face--previous">
+                    <PortfolioCard
+                      item={previousItem}
+                      priority={false}
+                      disableImageFade
+                      onOpen={() => onOpenItem(previousItem)}
+                    />
+                  </div>
+                )}
+                {item && (
+                  <div className="satx-profile-work-card-face satx-profile-work-card-face--current">
+                    <PortfolioCard
+                      item={item}
+                      priority={pageIndex === 0 && index === 0}
+                      disableImageFade={isTransitioning}
+                      onOpen={() => onOpenItem(item)}
+                    />
+                  </div>
+                )}
+                {!item && previousItem && (
+                  <div
+                    className="satx-profile-work-card-face satx-profile-work-card-face--current satx-profile-work-card-face--placeholder"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {pageCount > 1 && (
+          <button
+            type="button"
+            onClick={goToNextPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} absolute -right-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Next portfolio page"
+          >
+            <ChevronRight size={18} />
+          </button>
+        )}
+      </div>
+
+      {pageCount > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-3 xl:justify-center">
+          <button
+            type="button"
+            onClick={goToPreviousPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} xl:hidden`}
+            aria-label="Previous portfolio page"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          {pageDots}
+
+          <button
+            type="button"
+            onClick={goToNextPage}
+            disabled={isTransitioning}
+            className={`${arrowButtonClassName} xl:hidden`}
+            aria-label="Next portfolio page"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -1057,9 +1441,9 @@ const EmptyWorkState = ({
   </div>
 );
 
-const PortfolioSkeleton = () => (
+const PortfolioSkeleton = ({ count = 6 }: { count?: number }) => (
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    {Array.from({ length: 6 }).map((_, index) => (
+    {Array.from({ length: count }).map((_, index) => (
       <div
         key={index}
         className="h-[320px] animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
@@ -1071,19 +1455,20 @@ const PortfolioSkeleton = () => (
 const PortfolioCard = ({
   item,
   priority,
+  disableImageFade = false,
   onOpen,
 }: {
   item: GalleryItem;
   priority: boolean;
+  disableImageFade?: boolean;
   onOpen: () => void;
 }) => (
   <button
     type="button"
-    data-aos="fade-up"
     onClick={onOpen}
-    onMouseEnter={() => preloadImage(item.fullUrl || item.webp90Url)}
-    onFocus={() => preloadImage(item.fullUrl || item.webp90Url)}
-    className={`group relative overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
+    onMouseEnter={() => preloadImage(getPortfolioLightboxUrl(item))}
+    onFocus={() => preloadImage(getPortfolioLightboxUrl(item))}
+    className={`group relative block w-full overflow-hidden rounded-xl border border-white/10 bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
       priority ? "sm:col-span-2 lg:col-span-1" : ""
     }`}
   >
@@ -1093,6 +1478,7 @@ const PortfolioCard = ({
         alt={item.caption || "Tattoo portfolio piece"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         loading={priority ? "eager" : "lazy"}
+        disableFade={disableImageFade}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
       <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100">
@@ -1181,25 +1567,44 @@ const FadeInImage = ({
   alt,
   className,
   loading = "lazy",
+  disableFade = false,
 }: {
   src: string;
   alt: string;
   className: string;
   loading?: "eager" | "lazy";
+  disableFade?: boolean;
 }) => {
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(disableFade);
+  const previousSrcRef = useRef(src);
+
+  useEffect(() => {
+    if (previousSrcRef.current !== src) {
+      previousSrcRef.current = src;
+      setLoaded(disableFade);
+      return;
+    }
+
+    if (disableFade) {
+      setLoaded(true);
+    }
+  }, [src, disableFade]);
+
+  const isVisible = disableFade || loaded;
 
   return (
     <>
-      <div
-        className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.04),rgba(255,255,255,0.11),rgba(255,255,255,0.04))] bg-[length:220%_100%] transition-opacity duration-300 ${
-          loaded ? "opacity-0" : "opacity-100 animate-pulse"
-        }`}
-      />
+      {!disableFade && (
+        <div
+          className={`absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.04),rgba(255,255,255,0.11),rgba(255,255,255,0.04))] bg-[length:220%_100%] transition-opacity duration-300 ${
+            loaded ? "opacity-0" : "opacity-100 animate-pulse"
+          }`}
+        />
+      )}
       <img
         src={src}
         alt={alt}
-        className={`${className} ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`${className} ${isVisible ? "opacity-100" : "opacity-0"}`}
         loading={loading}
         decoding="async"
         onLoad={() => setLoaded(true)}
@@ -1338,6 +1743,7 @@ const PortfolioLightbox = ({
   onImageLoad,
   onNext,
   onPrev,
+  onRequestTattoo,
   onClose,
 }: {
   item: GalleryItem;
@@ -1348,6 +1754,7 @@ const PortfolioLightbox = ({
   onImageLoad: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onRequestTattoo: () => void;
   onClose: () => void;
 }) => {
   const slideClass =
@@ -1397,12 +1804,12 @@ const PortfolioLightbox = ({
 
       <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
         <LightboxImageFrame
-          imageKey={item.id}
-          fullUrl={item.fullUrl || item.webp90Url}
+          imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
+          fullUrl={getPortfolioLightboxUrl(item)}
           previewUrl={getLightboxPreviewUrl(item)}
           alt={item.caption || "Full portfolio view"}
           isLoading={modalLoading}
-          loadingLabel="Loading full resolution"
+          loadingLabel="Loading portfolio piece"
           slideClass={slideClass}
           onImageLoad={onImageLoad}
         />
@@ -1495,6 +1902,17 @@ const PortfolioLightbox = ({
               <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
             </div>
           )}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRequestTattoo();
+            }}
+            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-3! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:w-auto"
+          >
+            <MessageCircle size={16} />
+            Send your idea
+          </button>
         </div>
       </div>
     </div>
@@ -1608,45 +2026,63 @@ const LightboxImageFrame = ({
   loadingLabel: string;
   slideClass?: string;
   onImageLoad: () => void;
-}) => (
-  <div
-    className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
-    onClick={(event) => event.stopPropagation()}
-  >
-    <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
-      <img
-        src={previewUrl}
-        alt=""
-        aria-hidden="true"
-        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-          isLoading ? "opacity-100" : "opacity-0"
-        }`}
-        decoding="async"
-      />
-      <img
-        src={fullUrl}
-        alt={alt}
-        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-          isLoading ? "opacity-0" : "opacity-100"
-        }`}
-        decoding="async"
-        onLoad={onImageLoad}
-        onError={onImageLoad}
-      />
-    </div>
+}) => {
+  const fullImageRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const image = fullImageRef.current;
+    if (!image) return;
+
+    if (image.complete) {
+      onImageLoad();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(onImageLoad, 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [fullUrl, imageKey, onImageLoad]);
+
+  return (
     <div
-      className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
-        isLoading ? "opacity-25 animate-pulse" : "opacity-0"
-      }`}
-    />
-    {isLoading && (
-      <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
-        <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-        {loadingLabel}
+      className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
+        <img
+          src={previewUrl}
+          alt=""
+          aria-hidden="true"
+          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+            isLoading ? "opacity-100" : "opacity-0"
+          }`}
+          decoding="async"
+        />
+        <img
+          ref={fullImageRef}
+          src={fullUrl}
+          alt={alt}
+          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+            isLoading ? "opacity-0" : "opacity-100"
+          }`}
+          decoding="async"
+          onLoad={onImageLoad}
+          onError={onImageLoad}
+        />
       </div>
-    )}
-  </div>
-);
+      <div
+        className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_55%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_45%,transparent_70%)] transition-opacity duration-300 ${
+          isLoading ? "opacity-25 animate-pulse" : "opacity-0"
+        }`}
+      />
+      {isLoading && (
+        <div className="absolute inset-x-0 bottom-5 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-white/10 bg-black/55 px-4 py-2 text-sm text-white/75 shadow-lg backdrop-blur-md">
+          <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+          {loadingLabel}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FlashRequestModal = ({
   flash,

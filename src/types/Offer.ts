@@ -1,4 +1,8 @@
 import type { FlashAvailabilityStatus, FlashRepeatability } from "./Flash";
+import type {
+  ExternalPaymentMethod,
+  FinalPaymentDeadlineHours,
+} from "./PaymentPreferences";
 
 export type Offer = {
     id: string;
@@ -47,7 +51,9 @@ clientAvatar?: string;
       method: string;
     };
     finalPaymentTiming: "before" | "after";
+    finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
     allowExternalRemainingPayment?: boolean;
+    externalRemainingPaymentMethods?: ExternalPaymentMethod[];
     externalRemainingPaymentNote?: string;
     projectType?: "single_session" | "multi_session";
     estimatedSessionCount?: number;

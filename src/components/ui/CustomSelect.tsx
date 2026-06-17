@@ -108,6 +108,28 @@ const PortaledOptions = ({
   optionsStyle: CSSProperties;
   updateOptionsPosition: () => void;
 }) => {
+  const optionsRef = useRef<HTMLUListElement | null>(null);
+  const positionFrameRef = useRef<number | null>(null);
+
+  const scheduleOptionsPositionUpdate = useCallback(
+    (event?: Event) => {
+      if (
+        event?.target instanceof Node &&
+        optionsRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      if (positionFrameRef.current !== null) return;
+
+      positionFrameRef.current = window.requestAnimationFrame(() => {
+        positionFrameRef.current = null;
+        updateOptionsPosition();
+      });
+    },
+    [updateOptionsPosition]
+  );
+
   useLayoutEffect(() => {
     if (open) updateOptionsPosition();
   }, [open, updateOptionsPosition]);
@@ -115,19 +137,30 @@ const PortaledOptions = ({
   useEffect(() => {
     if (!open) return undefined;
 
-    window.addEventListener("resize", updateOptionsPosition);
-    window.addEventListener("scroll", updateOptionsPosition, true);
+    window.addEventListener("resize", scheduleOptionsPositionUpdate, {
+      passive: true,
+    });
+    window.addEventListener("scroll", scheduleOptionsPositionUpdate, {
+      capture: true,
+      passive: true,
+    });
 
     return () => {
-      window.removeEventListener("resize", updateOptionsPosition);
-      window.removeEventListener("scroll", updateOptionsPosition, true);
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
+      }
+
+      window.removeEventListener("resize", scheduleOptionsPositionUpdate);
+      window.removeEventListener("scroll", scheduleOptionsPositionUpdate, true);
     };
-  }, [open, updateOptionsPosition]);
+  }, [open, scheduleOptionsPositionUpdate]);
 
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <Listbox.Options
+      ref={optionsRef}
       style={optionsStyle}
       className={`shop-picker-scrollbar overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-1 text-white shadow-2xl shadow-black ring-1 ring-black/60 focus:outline-none ${optionsClassName}`}
     >

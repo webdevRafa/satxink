@@ -136,7 +136,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           offerId,
           price: offerData.price,
           depositAmount,
-          paymentType: offerData.paymentType,
+          paymentType: "internal",
           projectType: isMultiSessionProject ? "multi_session" : "single_session",
           estimatedSessionCount,
           estimatedSessionPrice: isMultiSessionProject
@@ -154,20 +154,17 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           pendingSessionPaymentAmountCents: 0,
           pendingSessionNumber: null,
           lastPaidSessionNumber: 0,
-          externalPaymentDetails:
-            offerData.paymentType === "external"
-              ? offerData.externalPaymentDetails ?? null
-              : null,
           finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
+          finalPaymentDeadlineHours:
+            offerData.finalPaymentTiming === "before"
+              ? offerData.finalPaymentDeadlineHours ?? 24
+              : null,
           remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
           remainingPaymentStatus: usesExternalRemaining ? "due" : "not_due",
           externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
           externalRemainingAmountCents: usesExternalRemaining
             ? Math.round(remainingAmount * 100)
             : 0,
-          externalRemainingPaymentNote: usesExternalRemaining
-            ? offerData.externalRemainingPaymentNote ?? ""
-            : "",
           sessionStatus: "not_started",
           shopId: offerData.shopId ?? null,
           shopName: offerData.shopName ?? shopData.name ?? "Unavailable",
