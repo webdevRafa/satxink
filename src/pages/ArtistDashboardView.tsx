@@ -3170,60 +3170,76 @@ const PaymentPreferencesPanel = ({
             an offer's remaining balance.
           </p>
           <div className="mt-3 overflow-hidden rounded-lg border border-white/[0.08]">
-            {form.externalPaymentMethods.map((method) => (
-              <div
-                key={method.method}
-                className={`grid gap-2 border-b border-white/[0.06] px-3 py-2.5 transition last:border-b-0 md:grid-cols-[170px_minmax(0,1fr)] md:items-center ${
-                  method.enabled
-                    ? "bg-white/[0.035]"
-                    : "bg-black/20"
-                }`}
-              >
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={method.enabled}
-                    onChange={(event) =>
-                      updateExternalMethod(method.method, {
-                        enabled: event.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)]"
-                  />
-                  <span className="text-sm font-semibold text-white">
-                    {method.label}
-                  </span>
-                </label>
+            {form.externalPaymentMethods.map((method) => {
+              const previewHandle = method.enabled
+                ? normalizeExternalPaymentHandle(method.method, method.handle)
+                : "";
+
+              return (
                 <div
-                  className={`flex h-10 min-w-0 overflow-hidden rounded-md border bg-black/35 transition ${
-                    method.enabled
-                      ? "border-white/10 focus-within:border-[var(--color-primary)]"
-                      : "border-white/[0.06] opacity-45"
+                  key={method.method}
+                  className={`grid gap-2 border-b border-white/[0.06] px-3 py-2.5 transition last:border-b-0 md:grid-cols-[170px_minmax(0,1fr)] md:items-start ${
+                    method.enabled ? "bg-white/[0.035]" : "bg-black/20"
                   }`}
                 >
-                  {method.inputPrefix && (
-                    <span className="flex shrink-0 items-center border-r border-white/[0.08] px-3 text-sm font-semibold text-neutral-400">
-                      {method.inputPrefix}
+                  <label className="flex items-center gap-3 md:min-h-10">
+                    <input
+                      type="checkbox"
+                      checked={method.enabled}
+                      onChange={(event) =>
+                        updateExternalMethod(method.method, {
+                          enabled: event.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)]"
+                    />
+                    <span className="text-sm font-semibold text-white">
+                      {method.label}
                     </span>
-                  )}
-                  <input
-                    type="text"
-                    value={method.handle}
-                    disabled={!method.enabled}
-                    onChange={(event) =>
-                      updateExternalMethod(method.method, {
-                        handle: cleanExternalPaymentHandleInput(
-                          method.method,
-                          event.target.value
-                        ),
-                      })
-                    }
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
-                    placeholder={method.placeholder}
-                  />
+                  </label>
+                  <div className="min-w-0 space-y-2">
+                    <div
+                      className={`flex h-10 min-w-0 overflow-hidden rounded-md border bg-black/35 transition ${
+                        method.enabled
+                          ? "border-white/10 focus-within:border-[var(--color-primary)]"
+                          : "border-white/[0.06] opacity-45"
+                      }`}
+                    >
+                      {method.inputPrefix && (
+                        <span className="flex shrink-0 items-center border-r border-white/[0.08] px-3 text-sm font-semibold text-neutral-400">
+                          {method.inputPrefix}
+                        </span>
+                      )}
+                      <input
+                        type="text"
+                        value={method.handle}
+                        disabled={!method.enabled}
+                        onChange={(event) =>
+                          updateExternalMethod(method.method, {
+                            handle: cleanExternalPaymentHandleInput(
+                              method.method,
+                              event.target.value
+                            ),
+                          })
+                        }
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
+                        placeholder={method.placeholder}
+                      />
+                    </div>
+                    {previewHandle && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                          Clients see
+                        </span>
+                        <span className="max-w-full truncate rounded-full border border-emerald-300/20 bg-emerald-300/[0.08] px-2.5 py-1 text-xs font-semibold text-emerald-50">
+                          {previewHandle}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
