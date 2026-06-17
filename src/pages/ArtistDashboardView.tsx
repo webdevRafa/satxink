@@ -1654,7 +1654,7 @@ const ArtistDashboardView = () => {
                   disabled={isSaveDisabled}
                   className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     profileSaveButtonIsActive
-                      ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                      ? "border border-white/70 bg-gradient-to-b from-white via-white to-neutral-200 text-[#111] shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:from-white hover:to-neutral-100"
                       : "border border-white/10 bg-white/[0.04] text-neutral-500"
                   }`}
                 >
@@ -1662,7 +1662,7 @@ const ArtistDashboardView = () => {
                     size={16}
                     className={
                       profileSaveButtonIsActive
-                        ? "text-white"
+                        ? "text-[#111]"
                         : "text-neutral-500"
                     }
                     aria-hidden="true"
@@ -1672,7 +1672,7 @@ const ArtistDashboardView = () => {
               </div>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-6">
                 <div
                   role="tablist"
@@ -2099,7 +2099,8 @@ const ArtistDashboardView = () => {
                 )}
               </div>
 
-              <aside className="h-fit space-y-4 xl:sticky xl:top-28">
+              <aside className="h-fit xl:self-start">
+                <div className="space-y-4 xl:sticky xl:top-28">
                 <div className="rounded-lg border border-white/10 bg-[#101010] p-5">
                   <div className="flex items-center gap-4">
                   <img
@@ -2183,7 +2184,7 @@ const ArtistDashboardView = () => {
                       disabled={isSaveDisabled}
                       className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                         profileSaveButtonIsActive
-                          ? "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]"
+                          ? "border border-white/70 bg-gradient-to-b from-white via-white to-neutral-200 text-[#111] shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:from-white hover:to-neutral-100"
                           : "border border-white/10 bg-white/[0.04] text-neutral-500"
                       }`}
                     >
@@ -2191,7 +2192,7 @@ const ArtistDashboardView = () => {
                         size={16}
                         className={
                           profileSaveButtonIsActive
-                            ? "text-white"
+                            ? "text-[#111]"
                             : "text-neutral-500"
                         }
                         aria-hidden="true"
@@ -2199,6 +2200,7 @@ const ArtistDashboardView = () => {
                       {isSavingProfile ? "Saving..." : "Save changes"}
                     </button>
                   </div>
+                </div>
                 </div>
               </aside>
             </div>
