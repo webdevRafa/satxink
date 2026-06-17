@@ -16,7 +16,6 @@ import {
   X,
 } from "lucide-react";
 import type { Offer } from "../types/Offer";
-import type { ExternalPaymentMethod } from "../types/PaymentPreferences";
 import { functions } from "../firebase/firebaseConfig";
 import {
   calculateClientPaymentBreakdown,
@@ -42,29 +41,6 @@ const DECLINE_REASON_OPTIONS = [
   { value: "changed_mind", label: "Changed my mind" },
   { value: "other", label: "Other" },
 ];
-
-const getExternalRemainingPaymentMethods = (
-  offer: Offer
-): ExternalPaymentMethod[] => {
-  if (Array.isArray(offer.externalRemainingPaymentMethods)) {
-    const methods = offer.externalRemainingPaymentMethods.filter((method) =>
-      method.handle?.trim()
-    );
-    if (methods.length) return methods;
-  }
-
-  if (offer.externalPaymentDetails?.method && offer.externalPaymentDetails.handle) {
-    return [
-      {
-        method: offer.externalPaymentDetails.method,
-        label: offer.externalPaymentDetails.method,
-        handle: offer.externalPaymentDetails.handle,
-      },
-    ];
-  }
-
-  return [];
-};
 
 const getFinalPaymentTermsLabel = (offer: Offer) => {
   if (offer.finalPaymentTiming !== "before") {
@@ -109,15 +85,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       : estimatedSessionCount > 1
       ? Math.ceil(remainingAmount / estimatedSessionCount)
       : remainingAmount;
-  const externalRemainingPaymentMethods =
-    getExternalRemainingPaymentMethods(offer);
-  const externalPaymentMethodSummary = externalRemainingPaymentMethods
-    .map((method) => method.label)
-    .join(", ");
   const canChooseExternalRemaining =
     offer.paymentType === "internal" &&
     Boolean(offer.allowExternalRemainingPayment) &&
-    externalRemainingPaymentMethods.length > 0 &&
     depositAmount > 0 &&
     remainingAmount > 0;
   const checkoutPreview =
@@ -524,11 +494,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                           onSelect={() => setRemainingPaymentMethod("stripe")}
                         />
                         <PaymentChoice
-                          title="Pay remaining balance externally"
+                          title="Settle remaining balance directly"
                           description={
                             isMultiSessionOffer
-                              ? `Pay the deposit on SATX Ink today, then settle each session installment with the artist through ${externalPaymentMethodSummary}.`
-                              : `Pay the deposit on SATX Ink today, then settle the remaining artist balance with the artist through ${externalPaymentMethodSummary}.`
+                              ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
+                              : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist."
                           }
                           amount={`$${remainingAmount}`}
                           checked={remainingPaymentMethod === "external"}
@@ -541,14 +511,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                           artist quote and collected with today's deposit
                           checkout. The remaining artist balance is confirmed by
                           both you and the artist after the session.
-                          <span className="mt-2 block text-white">
-                            Available methods: {externalPaymentMethodSummary}.
-                          </span>
-                          {offer.externalRemainingPaymentNote && (
-                            <span className="mt-2 block text-white">
-                              Artist note: {offer.externalRemainingPaymentNote}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>

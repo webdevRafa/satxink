@@ -23,26 +23,6 @@ import {
 
 type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 
-const getExternalPaymentMethodSummary = (booking: Booking) => {
-  const methods = Array.isArray(booking.externalRemainingPaymentMethods)
-    ? booking.externalRemainingPaymentMethods.filter((method) =>
-        method.handle?.trim()
-      )
-    : [];
-
-  if (methods.length) {
-    return methods
-      .map((method) => `${method.label}: ${method.handle}`)
-      .join(" · ");
-  }
-
-  if (booking.externalPaymentDetails?.method && booking.externalPaymentDetails.handle) {
-    return `${booking.externalPaymentDetails.method}: ${booking.externalPaymentDetails.handle}`;
-  }
-
-  return "Confirm payment details with your artist.";
-};
-
 const getFinalPaymentTermsLabel = (booking: Booking) => {
   if (booking.finalPaymentTiming !== "before") return "After appointment";
   const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
@@ -301,7 +281,7 @@ const PaymentPage = () => {
                   title: "Pay deposit",
                   description:
                     usesExternalRemaining
-                      ? "Confirm the appointment now and pay the artist balance through the artist's external methods."
+                      ? "Confirm the appointment now and settle the artist balance directly with the artist."
                       : "Confirm the appointment now and pay the artist balance later.",
                   breakdown: depositBreakdown,
                 },
@@ -371,7 +351,7 @@ const PaymentPage = () => {
                     ? isPlatformFeeCheckout
                       ? "Platform fee due"
                       : usesExternalRemaining
-                      ? "External balance"
+                      ? "Direct balance"
                       : isMultiSession
                       ? `Pay ${sessionPaymentLabel}`
                       : "Pay remaining balance"
@@ -446,7 +426,7 @@ const PaymentPage = () => {
                   ) : usesExternalRemaining && (
                     <p className="mt-2 text-sm leading-6 text-emerald-50/75">
                       Both you and the artist will be able to confirm the
-                      external payment after the session is completed.
+                      direct payment after the session is completed.
                     </p>
                   )}
                 </div>
@@ -509,7 +489,7 @@ const PaymentPage = () => {
               {paymentMode === "deposit" && usesExternalRemaining && (
                 <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
                   <p className="text-sm font-semibold text-amber-50">
-                    Deposit now, balance externally
+                    Deposit now, settle balance directly
                   </p>
                   <p className="mt-1 text-sm leading-6 text-amber-50/80">
                     SATX Ink's platform fee is calculated from the full artist
@@ -519,12 +499,6 @@ const PaymentPage = () => {
                     </span>{" "}
                     is paid directly to the artist and confirmed after the
                     session.
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-amber-50/90">
-                    Available methods:{" "}
-                    <span className="font-semibold text-white">
-                      {getExternalPaymentMethodSummary(booking)}
-                    </span>
                   </p>
                 </div>
               )}
@@ -547,10 +521,10 @@ const PaymentPage = () => {
               label="Payment"
               value={
                 usesExternalRemaining
-                  ? "Stripe deposit + external balance"
+                  ? "Stripe deposit + direct balance"
                   : isInternalPayment
                   ? "Stripe checkout"
-                  : "External payment"
+                  : "Direct payment"
               }
             />
             <DetailTile
@@ -592,7 +566,7 @@ const PaymentPage = () => {
                   isPlatformFeeCheckout
                     ? "Artist amount"
                     : externalBalanceDue
-                    ? "External balance"
+                    ? "Direct balance"
                     :
                   paymentMode === "full"
                     ? "Full artist amount"
@@ -664,18 +638,15 @@ const PaymentPage = () => {
             </p>
           </div>
 
-          {booking.paymentType === "external" && booking.externalPaymentDetails ? (
+          {booking.paymentType === "external" ? (
             <div className="mt-5 rounded-lg border border-white/10 bg-black/25 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
                 <Store size={17} />
-                External payment instructions
+                Direct payment instructions
               </div>
-              <p className="mt-3 text-sm capitalize text-neutral-300">
-                {booking.externalPaymentDetails.method}
-              </p>
-              <p className="mt-1 text-lg font-semibold text-white">
-                {booking.externalPaymentDetails.handle ||
-                  "Contact your artist for payment details."}
+              <p className="mt-3 text-sm leading-6 text-neutral-300">
+                Settle this payment directly with your artist outside SATX Ink
+                checkout.
               </p>
             </div>
           ) : (

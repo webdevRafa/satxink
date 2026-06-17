@@ -236,8 +236,6 @@ const createArtistProfile = (result: UserCredential) => {
     isVerified: false,
     phoneNumber: user.phoneNumber || "",
     paymentType: "internal",
-    externalPaymentMethods: [],
-    externalPaymentDetails: null,
     depositPolicy: {
       amount: 0,
       depositRequired: true,

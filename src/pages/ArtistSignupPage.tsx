@@ -441,8 +441,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           role: "artist",
           createdAt: serverTimestamp(),
           paymentType,
-          externalPaymentMethods: [],
-          externalPaymentDetails: null,
           depositPolicy: {
             amount: 0,
             depositRequired: true,

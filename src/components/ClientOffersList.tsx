@@ -97,35 +97,10 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
             : isMultiSessionProject
             ? Math.ceil(remainingAmount / estimatedSessionCount)
             : remainingAmount;
-        const externalRemainingPaymentMethods = Array.isArray(
-          offerData.externalRemainingPaymentMethods
-        )
-          ? offerData.externalRemainingPaymentMethods.filter((method) =>
-              method.handle?.trim()
-            )
-          : [];
-        const legacyExternalRemainingPaymentMethods =
-          offerData.externalPaymentDetails?.method &&
-          offerData.externalPaymentDetails.handle
-            ? [
-                {
-                  method: offerData.externalPaymentDetails.method,
-                  label: offerData.externalPaymentDetails.method,
-                  handle: offerData.externalPaymentDetails.handle,
-                },
-              ]
-            : [];
-        const availableExternalRemainingPaymentMethods =
-          externalRemainingPaymentMethods.length > 0
-            ? externalRemainingPaymentMethods
-            : legacyExternalRemainingPaymentMethods;
-        const hasExternalRemainingPaymentDetails =
-          availableExternalRemainingPaymentMethods.length > 0;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
           offerData.allowExternalRemainingPayment === true &&
           remainingPaymentMethod === "external" &&
-          hasExternalRemainingPaymentDetails &&
           depositAmount > 0 &&
           remainingAmount > 0;
         let flashRepeatability = offerData.flashRepeatability;
@@ -161,7 +136,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           offerId,
           price: offerData.price,
           depositAmount,
-          paymentType: offerData.paymentType,
+          paymentType: "internal",
           projectType: isMultiSessionProject ? "multi_session" : "single_session",
           estimatedSessionCount,
           estimatedSessionPrice: isMultiSessionProject
@@ -179,10 +154,6 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           pendingSessionPaymentAmountCents: 0,
           pendingSessionNumber: null,
           lastPaidSessionNumber: 0,
-          externalPaymentDetails:
-            offerData.paymentType === "external"
-              ? offerData.externalPaymentDetails ?? null
-              : null,
           finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
           finalPaymentDeadlineHours:
             offerData.finalPaymentTiming === "before"
@@ -194,12 +165,6 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           externalRemainingAmountCents: usesExternalRemaining
             ? Math.round(remainingAmount * 100)
             : 0,
-          externalRemainingPaymentMethods: usesExternalRemaining
-            ? availableExternalRemainingPaymentMethods
-            : [],
-          externalRemainingPaymentNote: usesExternalRemaining
-            ? offerData.externalRemainingPaymentNote ?? ""
-            : "",
           sessionStatus: "not_started",
           shopId: offerData.shopId ?? null,
           shopName: offerData.shopName ?? shopData.name ?? "Unavailable",

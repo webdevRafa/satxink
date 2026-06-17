@@ -584,7 +584,7 @@ const ClientDashboardView = () => {
         toast.success("Payment confirmation sent to the artist.");
         setSelectedSession(null);
       } catch (error) {
-        console.error("External payment confirmation failed:", error);
+        console.error("Direct payment confirmation failed:", error);
         toast.error("Could not confirm the payment.");
       }
       return;
@@ -655,10 +655,10 @@ const ClientDashboardView = () => {
         lastPaidSessionNumber: sessionNumber,
         updatedAt: serverTimestamp(),
       });
-      toast.success("External payment confirmed.");
+      toast.success("Direct payment confirmed.");
       setSelectedSession(null);
     } catch (error) {
-      console.error("External payment confirmation failed:", error);
+      console.error("Direct payment confirmation failed:", error);
       toast.error("Could not confirm the payment.");
     }
   };
@@ -666,7 +666,7 @@ const ClientDashboardView = () => {
   const handleDisputeExternalPayment = async (booking: ClientDashboardBooking) => {
     const reason =
       window.prompt("Briefly describe the issue with this payment.")?.trim() ||
-      "Client reported an issue with the external payment.";
+      "Client reported an issue with the direct payment.";
 
     try {
       await setDoc(
@@ -691,7 +691,7 @@ const ClientDashboardView = () => {
       toast.success("Issue reported.");
       setSelectedSession(null);
     } catch (error) {
-      console.error("External payment dispute failed:", error);
+      console.error("Direct payment dispute failed:", error);
       toast.error("Could not report the issue.");
     }
   };

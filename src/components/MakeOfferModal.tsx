@@ -60,10 +60,7 @@ import {
   BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
   getBookingReferenceCleanupTimestamp,
 } from "../utils/bookingReferenceRetention";
-import type {
-  ExternalPaymentMethod,
-  FinalPaymentDeadlineHours,
-} from "../types/PaymentPreferences";
+import type { FinalPaymentDeadlineHours } from "../types/PaymentPreferences";
 
 type BookingRequest = {
   id: string;
@@ -103,11 +100,6 @@ type OfferArtist = {
   avatarUrl?: string;
   shopId?: string;
   paymentType?: "internal" | "external";
-  externalPaymentMethods?: ExternalPaymentMethod[];
-  externalPaymentDetails?: {
-    method?: string;
-    handle?: string;
-  } | null;
   depositPolicy?: {
     amount?: number;
   };
@@ -119,34 +111,6 @@ type ShopDetails = {
   name?: string;
   address?: string;
   mapLink?: string;
-};
-
-const getArtistExternalPaymentMethods = (
-  artist: OfferArtist | null
-): ExternalPaymentMethod[] => {
-  const savedMethods = Array.isArray(artist?.externalPaymentMethods)
-    ? artist.externalPaymentMethods.filter((method) => method.handle?.trim())
-    : [];
-
-  if (savedMethods.length) {
-    return savedMethods.map((method) => ({
-      method: method.method,
-      label: method.label || method.method,
-      handle: method.handle.trim(),
-    }));
-  }
-
-  if (artist?.externalPaymentDetails?.method && artist.externalPaymentDetails.handle) {
-    return [
-      {
-        method: artist.externalPaymentDetails.method,
-        label: artist.externalPaymentDetails.method,
-        handle: artist.externalPaymentDetails.handle.trim(),
-      },
-    ];
-  }
-
-  return [];
 };
 
 type Props = {
@@ -241,22 +205,10 @@ const MakeOfferModal = ({
     effectiveOfferPrice - Number(depositAmount || 0),
     0
   );
-  const artistExternalPaymentMethods = useMemo(
-    () => getArtistExternalPaymentMethods(artist),
-    [artist]
-  );
-  const hasArtistExternalPaymentMethods =
-    artistExternalPaymentMethods.length > 0;
   const canAllowExternalRemainingPayment =
-    (artist?.paymentType ?? "internal") === "internal" &&
-    hasArtistExternalPaymentMethods &&
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
-  const shouldShowRemainingPaymentChoice =
-    (artist?.paymentType ?? "internal") === "internal" &&
-    canAllowExternalRemainingPayment;
-  const externalPaymentMethodSummary =
-    artistExternalPaymentMethods.map((method) => method.label).join(", ");
+  const shouldShowRemainingPaymentChoice = canAllowExternalRemainingPayment;
   const sessionEstimate =
     !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
@@ -371,10 +323,6 @@ const MakeOfferModal = ({
       : Number(offerPrice || 0);
 
   const getDraftValidationError = () => {
-    if (artist.paymentType && !["internal", "external"].includes(artist.paymentType)) {
-      return "Set a valid payment type before sending an offer.";
-    }
-
     const submissionOfferPrice = getSubmissionOfferPrice();
 
     if (!submissionOfferPrice || submissionOfferPrice <= 0) {
@@ -566,7 +514,6 @@ const MakeOfferModal = ({
             ? Boolean(selectedRequest.isFromSheet)
             : null,
         paymentType: "internal",
-        externalPaymentDetails: null,
         depositPolicy: {
           amount: depositAmount,
           depositRequired: true,
@@ -579,11 +526,6 @@ const MakeOfferModal = ({
             : null,
         allowExternalRemainingPayment:
           canAllowExternalRemainingPayment && allowExternalRemainingPayment,
-        externalRemainingPaymentMethods:
-          canAllowExternalRemainingPayment && allowExternalRemainingPayment
-            ? artistExternalPaymentMethods
-            : [],
-        externalRemainingPaymentNote: "",
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
@@ -973,7 +915,7 @@ const MakeOfferModal = ({
                             htmlFor="allow-external-remaining-payment"
                             className="cursor-pointer text-sm font-semibold text-white"
                           >
-                            Allow external payment for remaining balance
+                            Allow direct settlement for remaining balance
                           </label>
                           {canAllowExternalRemainingPayment && (
                             <span
@@ -1007,8 +949,8 @@ const MakeOfferModal = ({
                                   balance later through Stripe and the payout
                                   goes to your Stripe Connect account. If this
                                   is on, the client can choose to settle the
-                                  remaining balance directly with you through
-                                  your saved external methods.
+                                  remaining balance directly with you outside
+                                  SATX Ink checkout.
                                 </span>
                               )}
                             </span>
@@ -1025,7 +967,8 @@ const MakeOfferModal = ({
                               Math.round(remainingArtistBalance * 100)
                             )}
                           </span>{" "}
-                          through {externalPaymentMethodSummary || "your saved methods"}.
+                          directly with you at the shop or however you and the
+                          client arrange it.
                         </label>
                       </div>
                     </div>
@@ -1523,28 +1466,17 @@ const OfferPreview = ({
   dateOptions: { date: string; time: string }[];
   message: string;
 }) => {
-  const isInternalPayment = (artist.paymentType ?? "internal") === "internal";
-  const artistExternalPaymentMethods = getArtistExternalPaymentMethods(artist);
-  const externalPaymentMethodSummary = artistExternalPaymentMethods
-    .map((method) => method.label)
-    .join(", ");
   const finalPaymentTermsLabel =
     artist.finalPaymentTiming === "before"
       ? `Remaining balance due ${artist.finalPaymentDeadlineHours === 48 ? 48 : 24} hours before appointment.`
       : "Remaining balance can be settled after the appointment.";
-  const todayClientPayment = isInternalPayment
-    ? formatMoneyFromCents(paymentPreview.clientTotalCents)
-    : formatMoneyFromCents(Math.round(depositAmount * 100));
-  const artistReceivesToday = isInternalPayment
-    ? formatMoneyFromCents(paymentPreview.artistAmountCents)
-    : formatMoneyFromCents(Math.round(depositAmount * 100));
+  const todayClientPayment = formatMoneyFromCents(paymentPreview.clientTotalCents);
+  const artistReceivesToday = formatMoneyFromCents(paymentPreview.artistAmountCents);
   const laterPaymentLabel =
     remainingArtistBalance <= 0
       ? "No later balance"
-      : !isInternalPayment
-      ? "Client pays the remaining balance through your external payment method."
       : allowExternalRemainingPayment
-      ? `Client can choose external payment through ${externalPaymentMethodSummary}.`
+      ? "Client can choose to settle the remaining balance directly with you."
       : "Client pays the remaining balance later through Stripe.";
 
   return (
@@ -1591,22 +1523,16 @@ const OfferPreview = ({
                   value={formatMoneyFromCents(Math.round(depositAmount * 100))}
                   note="Amount you are asking the client to reserve today."
                 />
-                {isInternalPayment && (
-                  <>
-                    <ReceiptLine
-                      label="SATX Ink fee"
-                      value={formatMoneyFromCents(
-                        paymentPreview.platformFeeCents
-                      )}
-                      note="Platform fee calculated from the full artist quote."
-                    />
-                    <ReceiptLine
-                      label="Estimated Stripe fee"
-                      value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
-                      note="Estimated processing cost for today's checkout."
-                    />
-                  </>
-                )}
+                <ReceiptLine
+                  label="SATX Ink fee"
+                  value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
+                  note="Platform fee calculated from the full artist quote."
+                />
+                <ReceiptLine
+                  label="Estimated Stripe fee"
+                  value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
+                  note="Estimated processing cost for today's checkout."
+                />
                 <ReceiptLine
                   label="Client pays today"
                   value={todayClientPayment}
