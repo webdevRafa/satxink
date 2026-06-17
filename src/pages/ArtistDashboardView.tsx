@@ -177,6 +177,40 @@ const PROFILE_SETTING_TABS: {
   { label: "Specialties", value: "specialties" },
 ];
 
+const getPrimaryAccountProviderId = (
+  providerData: { providerId: string }[] = []
+) =>
+  providerData.find((provider) => provider.providerId === "apple.com")
+    ?.providerId ||
+  providerData.find((provider) => provider.providerId === "google.com")
+    ?.providerId ||
+  providerData[0]?.providerId ||
+  "";
+
+const getAccountProviderCopy = (providerId: string) => {
+  if (providerId === "apple.com") {
+    return {
+      accountLabel: "Apple account",
+      fallbackEmailLabel: "Signed in with Apple",
+      managedLabel: "Managed by Apple",
+    };
+  }
+
+  if (providerId === "google.com") {
+    return {
+      accountLabel: "Google account",
+      fallbackEmailLabel: "Signed in with Google",
+      managedLabel: "Managed by Google",
+    };
+  }
+
+  return {
+    accountLabel: "Connected account",
+    fallbackEmailLabel: "Signed in securely",
+    managedLabel: "Managed by sign-in provider",
+  };
+};
+
 const PROJECT_PAYMENT_FOLLOW_UP_STATUSES = [
   "due",
   "disputed",
@@ -527,6 +561,7 @@ const ArtistDashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
+  const [accountProviderId, setAccountProviderId] = useState("");
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
     createProfileFormState(null)
   );
@@ -612,6 +647,7 @@ const ArtistDashboardView = () => {
       if (user) {
         setUid(user.uid);
         setAccountEmail(user.email || "");
+        setAccountProviderId(getPrimaryAccountProviderId(user.providerData));
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
@@ -634,6 +670,7 @@ const ArtistDashboardView = () => {
       } else {
         setUid(null);
         setAccountEmail("");
+        setAccountProviderId("");
       }
     });
 
@@ -1576,6 +1613,7 @@ const ArtistDashboardView = () => {
   );
   const profilePreviewStory = profileForm.homepageFeature.story.trim();
   const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
+  const accountProviderCopy = getAccountProviderCopy(accountProviderId);
 
   return (
     <div
@@ -1766,15 +1804,15 @@ const ArtistDashboardView = () => {
                     <div className="space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                         <Mail size={15} aria-hidden="true" />
-                        Google account
+                        {accountProviderCopy.accountLabel}
                       </span>
                       <div className="flex min-h-10 flex-col items-start gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                         <span className="min-w-0 max-w-full truncate text-neutral-300">
-                          {accountEmail || "Signed in with Google"}
+                          {accountEmail || accountProviderCopy.fallbackEmailLabel}
                         </span>
                         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
                           <ShieldCheck size={13} aria-hidden="true" />
-                          Managed by Google
+                          {accountProviderCopy.managedLabel}
                         </span>
                       </div>
                     </div>

@@ -580,15 +580,15 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               direction="up"
             >
               <p className="mx-auto max-w-lg text-sm leading-6 text-neutral-300 sm:text-base">
-                Start with Google, then complete a guided profile setup for
-                shop, style, and bio.
+                Start with Google or Apple, then complete a guided profile
+                setup for shop, style, and bio.
               </p>
 
               <AuthProviderSignupButtons className="mt-6" role="artist" />
 
               <p className="mx-auto mt-5 max-w-md text-xs! leading-5 text-neutral-500!">
-                We only collect your name, profile picture, and email from
-                Google to set up your account. By signing up, you agree to our{" "}
+                We use the name and email from your sign-in provider to set up
+                your account. By signing up, you agree to our{" "}
                 <Link
                   to="/terms"
                   target="_blank"
