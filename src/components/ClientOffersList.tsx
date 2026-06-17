@@ -91,12 +91,25 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         const estimatedSessionCount = isMultiSessionProject
           ? Math.max(Number(offerData.estimatedSessionCount || 2), 2)
           : 1;
+        const laterSessionCount = isMultiSessionProject
+          ? Math.max(estimatedSessionCount - 1, 1)
+          : 1;
         const estimatedSessionPrice =
           isMultiSessionProject && Number(offerData.estimatedSessionPrice || 0) > 0
             ? Number(offerData.estimatedSessionPrice)
             : isMultiSessionProject
-            ? Math.ceil(remainingAmount / estimatedSessionCount)
+            ? Math.ceil(remainingAmount / laterSessionCount)
             : remainingAmount;
+        const sessionInstallmentTiming =
+          offerData.sessionInstallmentTiming === "before_session"
+            ? "before_session"
+            : "after_session";
+        const estimatedHoursPerSession =
+          isMultiSessionProject &&
+          typeof offerData.estimatedHoursPerSession === "number" &&
+          offerData.estimatedHoursPerSession > 0
+            ? offerData.estimatedHoursPerSession
+            : null;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
           offerData.allowExternalRemainingPayment === true &&
@@ -138,16 +151,19 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           depositAmount,
           paymentType: "internal",
           projectType: isMultiSessionProject ? "multi_session" : "single_session",
+          depositApplication: offerData.depositApplication || "project_credit",
           estimatedSessionCount,
           estimatedSessionPrice: isMultiSessionProject
             ? estimatedSessionPrice
             : null,
+          estimatedHoursPerSession,
           sessionPaymentPlan: isMultiSessionProject
             ? "per_session"
             : "single_balance",
           sessionScheduling: isMultiSessionProject
             ? "first_session_now_rest_later"
             : "single_session",
+          sessionInstallmentTiming,
           activeSessionNumber: 1,
           completedSessionCount: 0,
           pendingSessionPaymentAmount: 0,
@@ -160,7 +176,8 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
               ? offerData.finalPaymentDeadlineHours ?? 24
               : null,
           remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
-          remainingPaymentStatus: usesExternalRemaining ? "due" : "not_due",
+          remainingPaymentStatus:
+            usesExternalRemaining && !isMultiSessionProject ? "due" : "not_due",
           externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
           externalRemainingAmountCents: usesExternalRemaining
             ? Math.round(remainingAmount * 100)

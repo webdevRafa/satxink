@@ -51,6 +51,7 @@ import type {
   FlashAvailabilityStatus,
   FlashRepeatability,
 } from "../types/Flash";
+import type { SessionInstallmentTiming } from "../types/Booking";
 import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
@@ -173,6 +174,9 @@ const MakeOfferModal = ({
     useState(false);
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
+  const [estimatedHoursPerSession, setEstimatedHoursPerSession] = useState("");
+  const [sessionInstallmentTiming, setSessionInstallmentTiming] =
+    useState<SessionInstallmentTiming>("after_session");
   const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
   const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
     useState(0);
@@ -209,10 +213,23 @@ const MakeOfferModal = ({
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
   const shouldShowRemainingPaymentChoice = canAllowExternalRemainingPayment;
+  const laterSessionCount =
+    !isFlashRequest && isMultiSessionProject
+      ? Math.max(estimatedSessionCount - 1, 1)
+      : 1;
   const sessionEstimate =
     !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
-      ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
+      ? Math.ceil(remainingArtistBalance / laterSessionCount)
       : remainingArtistBalance;
+  const parsedEstimatedHoursPerSession = Number(estimatedHoursPerSession);
+  const normalizedEstimatedHoursPerSession =
+    !isFlashRequest &&
+    isMultiSessionProject &&
+    estimatedHoursPerSession.trim() &&
+    Number.isFinite(parsedEstimatedHoursPerSession) &&
+    parsedEstimatedHoursPerSession > 0
+      ? parsedEstimatedHoursPerSession
+      : null;
   const paymentPreview = useMemo(
     () =>
       calculateClientPaymentBreakdown(Number(depositAmount || 0), {
@@ -306,6 +323,8 @@ const MakeOfferModal = ({
     setIsRemainingPaymentHelpOpen(false);
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
+    setEstimatedHoursPerSession("");
+    setSessionInstallmentTiming("after_session");
     setIsPreviewingOffer(false);
     setCustomOfferStepIndex(0);
     setFurthestCustomOfferStepIndex(0);
@@ -357,6 +376,15 @@ const MakeOfferModal = ({
 
       if (remainingArtistBalance <= 0) {
         return "Multi-session projects need a remaining balance after the deposit.";
+      }
+
+      if (
+        estimatedHoursPerSession.trim() &&
+        (!Number.isFinite(parsedEstimatedHoursPerSession) ||
+          parsedEstimatedHoursPerSession <= 0 ||
+          parsedEstimatedHoursPerSession > 16)
+      ) {
+        return "Estimated hours per session must be between 0 and 16.";
       }
     }
 
@@ -527,16 +555,23 @@ const MakeOfferModal = ({
         allowExternalRemainingPayment:
           canAllowExternalRemainingPayment && allowExternalRemainingPayment,
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
+        depositApplication: "project_credit",
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
           : 1,
         estimatedSessionPrice: submitAsMultiSession ? sessionEstimate : null,
+        estimatedHoursPerSession: submitAsMultiSession
+          ? normalizedEstimatedHoursPerSession
+          : null,
         sessionPaymentPlan: submitAsMultiSession
           ? "per_session"
           : "single_balance",
         sessionScheduling: submitAsMultiSession
           ? "first_session_now_rest_later"
           : "single_session",
+        sessionInstallmentTiming: submitAsMultiSession
+          ? sessionInstallmentTiming
+          : "after_session",
         ...additionalOfferData,
         status: "pending",
         createdAt: serverTimestamp(),
@@ -729,6 +764,8 @@ const MakeOfferModal = ({
                 }
                 sessionCount={estimatedSessionCount}
                 sessionEstimate={sessionEstimate}
+                estimatedHoursPerSession={normalizedEstimatedHoursPerSession}
+                sessionInstallmentTiming={sessionInstallmentTiming}
                 dateOptions={completedDateOptions}
                 message={offerMessage}
               />
@@ -1034,7 +1071,8 @@ const MakeOfferModal = ({
                 </div>
 
                 {isMultiSessionProject && (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="mt-4 space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-neutral-200">
                         Estimated sessions
@@ -1052,9 +1090,26 @@ const MakeOfferModal = ({
                         className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
                       />
                     </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-neutral-200">
+                        Hours per session
+                      </span>
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="16"
+                        step="0.5"
+                        value={estimatedHoursPerSession}
+                        onChange={(event) =>
+                          setEstimatedHoursPerSession(event.target.value)
+                        }
+                        placeholder="Optional"
+                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                      />
+                    </label>
                     <div className="space-y-2">
                       <span className="text-sm font-medium text-neutral-200">
-                        Estimated per session
+                        Later session estimate
                       </span>
                       <div className="flex min-h-11 items-center text-sm font-semibold text-white">
                         {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
@@ -1064,8 +1119,52 @@ const MakeOfferModal = ({
                         {formatMoneyFromCents(
                           Math.round(remainingArtistBalance * 100)
                         )}{" "}
-                        balance.
+                        balance after session 1.
                       </p>
+                    </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+                      <p className="text-sm font-semibold text-white">
+                        Later installment timing
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-neutral-500">
+                        The deposit reserves and credits the first appointment. Choose when later session installments become due.
+                      </p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setSessionInstallmentTiming("after_session")}
+                          className={`rounded-md border p-3! text-left transition ${
+                            sessionInstallmentTiming === "after_session"
+                              ? "border-emerald-300/45 bg-emerald-300/10"
+                              : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold text-white">
+                            Due after each session
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                            Completing a session creates the next installment follow-up.
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSessionInstallmentTiming("before_session")}
+                          className={`rounded-md border p-3! text-left transition ${
+                            sessionInstallmentTiming === "before_session"
+                              ? "border-emerald-300/45 bg-emerald-300/10"
+                              : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold text-white">
+                            Due before later sessions
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                            Sessions 2+ stay locked until the requested installment is paid.
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1293,6 +1392,16 @@ const MakeOfferModal = ({
                                 : "Single session"
                             }
                           />
+                          {isMultiSessionProject && (
+                            <PreviewTile
+                              label="Later installments"
+                              value={
+                                sessionInstallmentTiming === "before_session"
+                                  ? "Due before sessions"
+                                  : "Due after sessions"
+                              }
+                            />
+                          )}
                         </div>
 
                         <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
@@ -1447,6 +1556,8 @@ const OfferPreview = ({
   allowExternalRemainingPayment,
   sessionCount,
   sessionEstimate,
+  estimatedHoursPerSession,
+  sessionInstallmentTiming,
   dateOptions,
   message,
 }: {
@@ -1463,6 +1574,8 @@ const OfferPreview = ({
   allowExternalRemainingPayment: boolean;
   sessionCount: number;
   sessionEstimate: number;
+  estimatedHoursPerSession: number | null;
+  sessionInstallmentTiming: SessionInstallmentTiming;
   dateOptions: { date: string; time: string }[];
   message: string;
 }) => {
@@ -1586,7 +1699,7 @@ const OfferPreview = ({
                 </p>
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <PreviewTile
                 label="Offer type"
                 value={
@@ -1602,11 +1715,29 @@ const OfferPreview = ({
                 value={isMultiSessionProject ? `${sessionCount}` : "1"}
               />
               <PreviewTile
-                label="Estimated per session"
+                label="Later session estimate"
                 value={
                   isMultiSessionProject
                     ? formatMoneyFromCents(Math.round(sessionEstimate * 100))
                     : "Not split"
+                }
+              />
+              <PreviewTile
+                label="Hours per session"
+                value={
+                  isMultiSessionProject && estimatedHoursPerSession
+                    ? `${estimatedHoursPerSession} hr`
+                    : "Optional"
+                }
+              />
+              <PreviewTile
+                label="Installments"
+                value={
+                  isMultiSessionProject
+                    ? sessionInstallmentTiming === "before_session"
+                      ? "Before later sessions"
+                      : "After sessions"
+                    : "Single balance"
                 }
               />
             </div>

@@ -909,6 +909,168 @@ const renderSessionCompleteEmail = (
   );
 };
 
+const getAmendmentTitle = (amendment: admin.firestore.DocumentData) => {
+  if (amendment.type === "add_sessions") return "Add sessions / adjust scope";
+  if (amendment.type === "schedule_next_session") return "Schedule next session";
+  if (amendment.type === "pause_project") return "Pause project";
+  if (amendment.type === "resume_project") return "Resume project";
+  return "Project change";
+};
+
+const getAmendmentSummary = (amendment: admin.firestore.DocumentData) => {
+  if (amendment.type === "add_sessions") {
+    return `${Number(amendment.additionalSessionCount || 0)} added session(s) for ${formatMoneyFromCents(amendment.addedArtistAmountCents)}. Proposed total: ${formatMoneyFromCents(amendment.proposedPriceCents)}.`;
+  }
+
+  if (amendment.type === "schedule_next_session") {
+    return `Proposed appointment: ${formatAppointment(amendment.proposedSelectedDate)}.`;
+  }
+
+  if (amendment.type === "pause_project") {
+    return firstString(amendment.pausedUntil)
+      ? `Pause until ${firstString(amendment.pausedUntil)}.`
+      : "Pause this project for now.";
+  }
+
+  if (amendment.type === "resume_project") {
+    return "Resume this project.";
+  }
+
+  return "A project change was proposed.";
+};
+
+const renderProjectAmendmentEmail = (
+  bookingId: string,
+  amendmentId: string,
+  booking: admin.firestore.DocumentData,
+  amendment: admin.firestore.DocumentData,
+  client: admin.firestore.DocumentData | null,
+  artist: admin.firestore.DocumentData | null
+): EmailTemplate => {
+  const proposedByRole = firstString(amendment.proposedByRole, "artist");
+  const recipientRole = proposedByRole === "artist" ? "client" : "artist";
+  const title = getAmendmentTitle(amendment);
+
+  return buildEmail(`Project change needs your review`, {
+    preview: `A ${title.toLowerCase()} proposal is waiting on SATX Ink.`,
+    eyebrow: "Project change",
+    headline: `A project change needs your review.`,
+    body: `${proposedByRole === "artist" ? getArtistName(booking, artist) : getClientName(booking, client)} proposed: ${getAmendmentSummary(amendment)}`,
+    avatarUrl:
+      recipientRole === "client"
+        ? getArtistAvatar(booking, artist)
+        : firstString(client?.avatarUrl, booking.clientAvatar),
+    avatarAlt: recipientRole === "client" ? getArtistName(booking, artist) : getClientName(booking, client),
+    heroImageUrl: firstString(booking.sampleImageUrl),
+    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
+    sections: [
+      {
+        title: "Proposal",
+        rows: [
+          { label: "Project", value: bookingId },
+          { label: "Change", value: title },
+          { label: "Client", value: getClientName(booking, client) },
+          { label: "Artist", value: getArtistName(booking, artist) },
+          { label: "Message", value: getString(amendment, "message") },
+        ],
+      },
+    ],
+    cta: {
+      label: "Review project",
+      href: getAbsoluteUrl(
+        recipientRole === "client"
+          ? "/dashboard?tab=bookings"
+          : "/artist-dashboard?tab=projects"
+      ),
+    },
+    footerNote: `Booking ID: ${bookingId} - Amendment ID: ${amendmentId}`,
+  });
+};
+
+const renderProjectAmendmentResponseEmail = (
+  bookingId: string,
+  amendmentId: string,
+  booking: admin.firestore.DocumentData,
+  amendment: admin.firestore.DocumentData,
+  client: admin.firestore.DocumentData | null,
+  artist: admin.firestore.DocumentData | null
+): EmailTemplate => {
+  const status = firstString(amendment.status, "updated");
+  const title = getAmendmentTitle(amendment);
+
+  return buildEmail(`Project change ${status}`, {
+    preview: `Your ${title.toLowerCase()} proposal was ${status}.`,
+    eyebrow: "Project update",
+    headline: `Your project change was ${status}.`,
+    body: `The ${title.toLowerCase()} proposal for ${getClientName(booking, client)} and ${getArtistName(booking, artist)} was ${status}.`,
+    avatarUrl: getArtistAvatar(booking, artist),
+    avatarAlt: getArtistName(booking, artist),
+    heroImageUrl: firstString(booking.sampleImageUrl),
+    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
+    sections: [
+      {
+        title: "Proposal",
+        rows: [
+          { label: "Change", value: title },
+          { label: "Status", value: status },
+          { label: "Summary", value: getAmendmentSummary(amendment) },
+        ],
+      },
+    ],
+    cta: {
+      label: "View project",
+      href: getAbsoluteUrl(
+        amendment.proposedByRole === "artist"
+          ? "/artist-dashboard?tab=projects"
+          : "/dashboard?tab=bookings"
+      ),
+    },
+    footerNote: `Booking ID: ${bookingId} - Amendment ID: ${amendmentId}`,
+  });
+};
+
+const renderSessionPaymentRequestedEmail = (
+  bookingId: string,
+  sessionId: string,
+  booking: admin.firestore.DocumentData,
+  session: admin.firestore.DocumentData,
+  client: admin.firestore.DocumentData | null,
+  artist: admin.firestore.DocumentData | null
+): EmailTemplate => {
+  const artistName = getArtistName(booking, artist);
+  const sessionNumber = Number(session.sessionNumber || booking.pendingSessionNumber || 1);
+  const amountDue = formatMoneyFromCents(session.amountDueCents);
+
+  return buildEmail(`Session payment requested`, {
+    preview: `${artistName} requested ${amountDue} for session ${sessionNumber}.`,
+    eyebrow: "Payment requested",
+    headline: `Session ${sessionNumber} payment requested.`,
+    body: `${artistName} requested the next project installment before this session can begin.`,
+    avatarUrl: getArtistAvatar(booking, artist),
+    avatarAlt: artistName,
+    heroImageUrl: firstString(booking.sampleImageUrl),
+    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
+    sections: [
+      {
+        title: "Payment details",
+        rows: [
+          { label: "Client", value: getClientName(booking, client) },
+          { label: "Artist", value: artistName },
+          { label: "Session", value: `${sessionNumber}` },
+          { label: "Amount due", value: amountDue },
+          { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
+          { label: "Note", value: getString(session, "note") },
+        ],
+      },
+    ],
+    cta: {
+      label: "Open payment",
+      href: getAbsoluteUrl(`/payment/${bookingId}`),
+    },
+    footerNote: `Booking ID: ${bookingId} - Session ID: ${sessionId}`,
+  });
+};
+
 const sendClientWelcome = async (
   uid: string,
   user: admin.firestore.DocumentData
@@ -1129,6 +1291,137 @@ export const sendSessionCompletedEmail = onDocumentWritten(
       from: "bookings",
       to: getUserEmail(client),
       ...renderSessionCompleteEmail(
+        event.params.bookingId,
+        event.params.sessionId,
+        booking,
+        after,
+        client,
+        artist
+      ),
+    });
+  }
+);
+
+export const sendProjectAmendmentCreatedEmail = onDocumentCreated(
+  {
+    document: "bookings/{bookingId}/amendments/{amendmentId}",
+    region: EMAIL_REGION,
+    secrets: [RESEND_API_KEY],
+  },
+  async (event) => {
+    const amendment = event.data?.data();
+    if (!amendment || amendment.status !== "proposed") return;
+
+    const bookingSnap = await getDb()
+      .collection("bookings")
+      .doc(event.params.bookingId)
+      .get();
+    if (!bookingSnap.exists) return;
+
+    const booking = bookingSnap.data() || {};
+    const proposedByRole = firstString(amendment.proposedByRole, "artist");
+    const recipientId =
+      proposedByRole === "artist"
+        ? firstString(booking.clientId)
+        : firstString(booking.artistId);
+    const [recipient, client, artist] = await Promise.all([
+      getUser(recipientId),
+      getUser(firstString(booking.clientId)),
+      getUser(firstString(booking.artistId)),
+    ]);
+
+    await sendTransactionalEmail({
+      eventKey: `project-amendment-created-${event.params.bookingId}-${event.params.amendmentId}`,
+      from: "bookings",
+      to: getUserEmail(recipient),
+      ...renderProjectAmendmentEmail(
+        event.params.bookingId,
+        event.params.amendmentId,
+        booking,
+        amendment,
+        client,
+        artist
+      ),
+    });
+  }
+);
+
+export const sendProjectAmendmentResponseEmail = onDocumentUpdated(
+  {
+    document: "bookings/{bookingId}/amendments/{amendmentId}",
+    region: EMAIL_REGION,
+    secrets: [RESEND_API_KEY],
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+    if (before.status === after.status || after.status === "proposed") return;
+
+    const bookingSnap = await getDb()
+      .collection("bookings")
+      .doc(event.params.bookingId)
+      .get();
+    if (!bookingSnap.exists) return;
+
+    const booking = bookingSnap.data() || {};
+    const [recipient, client, artist] = await Promise.all([
+      getUser(firstString(after.proposedById)),
+      getUser(firstString(booking.clientId)),
+      getUser(firstString(booking.artistId)),
+    ]);
+
+    await sendTransactionalEmail({
+      eventKey: `project-amendment-response-${event.params.bookingId}-${event.params.amendmentId}-${after.status}`,
+      from: "bookings",
+      to: getUserEmail(recipient),
+      ...renderProjectAmendmentResponseEmail(
+        event.params.bookingId,
+        event.params.amendmentId,
+        booking,
+        after,
+        client,
+        artist
+      ),
+    });
+  }
+);
+
+export const sendSessionPaymentRequestedEmail = onDocumentWritten(
+  {
+    document: "bookingSessions/{bookingId}/sessions/{sessionId}",
+    region: EMAIL_REGION,
+    secrets: [RESEND_API_KEY],
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (
+      !after ||
+      after.paymentStatus !== "due" ||
+      before?.paymentStatus === "due" ||
+      Number(after.amountDueCents || 0) <= 0
+    ) {
+      return;
+    }
+
+    const bookingSnap = await getDb()
+      .collection("bookings")
+      .doc(event.params.bookingId)
+      .get();
+    if (!bookingSnap.exists) return;
+
+    const booking = bookingSnap.data() || {};
+    const [client, artist] = await Promise.all([
+      getUser(firstString(booking.clientId)),
+      getUser(firstString(booking.artistId)),
+    ]);
+
+    await sendTransactionalEmail({
+      eventKey: `session-payment-requested-${event.params.bookingId}-${event.params.sessionId}-${Number(after.amountDueCents || 0)}`,
+      from: "bookings",
+      to: getUserEmail(client),
+      ...renderSessionPaymentRequestedEmail(
         event.params.bookingId,
         event.params.sessionId,
         booking,

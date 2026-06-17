@@ -4,6 +4,7 @@ import { httpsCallable } from "firebase/functions";
 import { getAuth } from "firebase/auth";
 import {
   CalendarDays,
+  Clock,
   CreditCard,
   DollarSign,
   ImageIcon,
@@ -78,13 +79,25 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     Number(offer.estimatedSessionCount || 1),
     1
   );
+  const laterSessionCount = isMultiSessionOffer
+    ? Math.max(estimatedSessionCount - 1, 1)
+    : 1;
   const estimatedSessionPrice =
     typeof offer.estimatedSessionPrice === "number" &&
     offer.estimatedSessionPrice > 0
       ? offer.estimatedSessionPrice
       : estimatedSessionCount > 1
-      ? Math.ceil(remainingAmount / estimatedSessionCount)
+      ? Math.ceil(remainingAmount / laterSessionCount)
       : remainingAmount;
+  const estimatedHoursPerSession =
+    typeof offer.estimatedHoursPerSession === "number" &&
+    offer.estimatedHoursPerSession > 0
+      ? offer.estimatedHoursPerSession
+      : null;
+  const sessionInstallmentTiming =
+    offer.sessionInstallmentTiming === "before_session"
+      ? "before_session"
+      : "after_session";
   const canChooseExternalRemaining =
     offer.paymentType === "internal" &&
     Boolean(offer.allowExternalRemainingPayment) &&
@@ -288,15 +301,31 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     />
                     <DetailTile
                       icon={<DollarSign size={17} />}
-                      label="Per-session estimate"
+                      label="Later session estimate"
                       value={`$${estimatedSessionPrice}`}
+                    />
+                    {estimatedHoursPerSession && (
+                      <DetailTile
+                        icon={<Clock size={17} />}
+                        label="Hours per session"
+                        value={`${estimatedHoursPerSession} hr`}
+                      />
+                    )}
+                    <DetailTile
+                      icon={<ReceiptText size={17} />}
+                      label="Installments"
+                      value={
+                        sessionInstallmentTiming === "before_session"
+                          ? "Due before later sessions"
+                          : "Due after sessions"
+                      }
                     />
                   </div>
                   <p className="mt-3 text-sm leading-6 text-emerald-50/75">
-                    Your deposit confirms the first appointment. Later sessions
-                    can be scheduled with the artist after each visit, with each
-                    session installment applied toward the remaining project
-                    balance.
+                    Your deposit confirms and credits the first appointment.
+                    Later sessions can be scheduled with the artist after each
+                    visit, with each installment applied toward the remaining
+                    project balance.
                   </p>
                 </div>
               )}
