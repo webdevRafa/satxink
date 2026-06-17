@@ -1581,7 +1581,11 @@ const ArtistDashboardView = () => {
   const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
 
   return (
-    <div className="flex min-h-[100vh] flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] py-20 text-white md:flex-row">
+    <div
+      className={`flex min-h-[100vh] flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] py-20 text-white md:flex-row ${
+        activeTab === "profile" ? "md:min-h-[calc(100vh_+_16rem)]" : ""
+      }`}
+    >
       {avatarCropSrc && (
         <ImageCropperModal
           imageSrc={avatarCropSrc}
@@ -1672,7 +1676,7 @@ const ArtistDashboardView = () => {
               </div>
             </div>
 
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid items-start gap-6 xl:min-h-[calc(100vh_+_8rem)] xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-6">
                 <div
                   role="tablist"
