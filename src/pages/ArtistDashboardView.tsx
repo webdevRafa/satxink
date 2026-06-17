@@ -84,6 +84,7 @@ const SPECIALTY_OPTIONS = TATTOO_STYLES;
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
+type ArtistProfileSubTab = "identity" | "spotlight" | "specialties";
 type BookingSortMode = "upcoming" | "newest" | "oldest";
 type SessionReadinessFilter =
   | "all"
@@ -166,6 +167,15 @@ const SESSION_READINESS_FILTERS: {
   { label: "Paused", value: "paused" },
 ];
 
+const PROFILE_SETTING_TABS: {
+  label: string;
+  value: ArtistProfileSubTab;
+}[] = [
+  { label: "Identity", value: "identity" },
+  { label: "Spotlight", value: "spotlight" },
+  { label: "Specialties", value: "specialties" },
+];
+
 const PROJECT_PAYMENT_FOLLOW_UP_STATUSES = [
   "due",
   "disputed",
@@ -196,6 +206,10 @@ type ArtistProfileFormState = {
     facebook: string;
     website: string;
   };
+  homepageFeature: HomepageFeatureFormState;
+};
+
+type ArtistPaymentPreferencesFormState = {
   paymentType: PaymentType;
   externalPaymentDetails: {
     method: string;
@@ -207,7 +221,6 @@ type ArtistProfileFormState = {
     nonRefundable: boolean;
   };
   finalPaymentTiming: FinalPaymentTiming;
-  homepageFeature: HomepageFeatureFormState;
 };
 
 type DashboardArtist = {
@@ -435,6 +448,22 @@ const createProfileFormState = (
         (artist?.socialLinks as { website?: string } | undefined)?.website ||
         "",
     },
+    homepageFeature: {
+      story: artist?.homepageFeature?.story || "",
+      quote: artist?.homepageFeature?.quote || "",
+      imageUrl:
+        getHomepageFeatureImageUrl(primaryHomepageImage) ||
+        artist?.homepageFeature?.imageUrl ||
+        "",
+      imageAlt: artist?.homepageFeature?.imageAlt || displayName || "",
+      images: homepageFeatureImages,
+    },
+  };
+};
+
+const createPaymentPreferencesFormState = (
+  artist: DashboardArtist | null
+): ArtistPaymentPreferencesFormState => ({
     paymentType: artist?.paymentType || "internal",
     externalPaymentDetails: {
       method:
@@ -452,18 +481,7 @@ const createProfileFormState = (
       nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
     },
     finalPaymentTiming: artist?.finalPaymentTiming || "after",
-    homepageFeature: {
-      story: artist?.homepageFeature?.story || "",
-      quote: artist?.homepageFeature?.quote || "",
-      imageUrl:
-        getHomepageFeatureImageUrl(primaryHomepageImage) ||
-        artist?.homepageFeature?.imageUrl ||
-        "",
-      imageAlt: artist?.homepageFeature?.imageAlt || displayName || "",
-      images: homepageFeatureImages,
-    },
-  };
-};
+  });
 
 const ArtistDashboardView = () => {
   const [searchParams] = useSearchParams();
@@ -508,8 +526,18 @@ const ArtistDashboardView = () => {
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
     createProfileFormState(null)
   );
+  const [paymentPreferencesForm, setPaymentPreferencesForm] =
+    useState<ArtistPaymentPreferencesFormState>(
+      createPaymentPreferencesFormState(null)
+    );
+  const [activeProfileSubTab, setActiveProfileSubTab] =
+    useState<ArtistProfileSubTab>("identity");
   const [isProfileDirty, setIsProfileDirty] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isPaymentPreferencesDirty, setIsPaymentPreferencesDirty] =
+    useState(false);
+  const [isSavingPaymentPreferences, setIsSavingPaymentPreferences] =
+    useState(false);
   const [currentSlug, setCurrentSlug] = useState("");
   const [displayNameStatus, setDisplayNameStatus] =
     useState<DisplayNameStatus>("idle");
@@ -585,6 +613,7 @@ const ArtistDashboardView = () => {
           const artistData = snap.data();
           setArtist(artistData);
           setProfileForm(createProfileFormState(artistData));
+          setPaymentPreferencesForm(createPaymentPreferencesFormState(artistData));
           setCurrentSlug(
             artistData.slug ||
               slugify(artistData.displayName || artistData.name || "", {
@@ -594,6 +623,7 @@ const ArtistDashboardView = () => {
           );
           setDisplayNameStatus("idle");
           setIsProfileDirty(false);
+          setIsPaymentPreferencesDirty(false);
         }
       }
     });
@@ -612,6 +642,21 @@ const ArtistDashboardView = () => {
         : { ...current, ...updater }
     );
     setIsProfileDirty(true);
+  };
+
+  const updatePaymentPreferencesForm = (
+    updater:
+      | Partial<ArtistPaymentPreferencesFormState>
+      | ((
+          current: ArtistPaymentPreferencesFormState
+        ) => ArtistPaymentPreferencesFormState)
+  ) => {
+    setPaymentPreferencesForm((current) =>
+      typeof updater === "function"
+        ? updater(current)
+        : { ...current, ...updater }
+    );
+    setIsPaymentPreferencesDirty(true);
   };
 
   const checkDisplayNameAvailability = useCallback(async (displayName: string) => {
@@ -823,11 +868,11 @@ const ArtistDashboardView = () => {
         },
       }));
       toast.success(
-        "Homepage feature image processed. Save changes to publish."
+        "Artist spotlight image processed. Save changes to publish."
       );
     } catch (error) {
-      console.error("Homepage feature image upload failed:", error);
-      toast.error("Homepage feature image processing failed.");
+      console.error("Artist spotlight image upload failed:", error);
+      toast.error("Artist spotlight image processing failed.");
     } finally {
       setIsUploadingHomepageFeatureImage(false);
     }
@@ -855,6 +900,11 @@ const ArtistDashboardView = () => {
     setProfileForm(createProfileFormState(artist));
     setDisplayNameStatus("idle");
     setIsProfileDirty(false);
+  };
+
+  const resetPaymentPreferencesForm = () => {
+    setPaymentPreferencesForm(createPaymentPreferencesFormState(artist));
+    setIsPaymentPreferencesDirty(false);
   };
 
   const handleSaveProfile = async () => {
@@ -912,21 +962,8 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    if (
-      !isValidOptionalUrl(profileForm.socialLinks.instagram) ||
-      !isValidOptionalUrl(profileForm.socialLinks.facebook) ||
-      !isValidOptionalUrl(profileForm.socialLinks.website)
-    ) {
-      toast.error("One or more links are not valid URLs.");
-      return;
-    }
-
-    if (
-      profileForm.paymentType === "external" &&
-      (!profileForm.externalPaymentDetails.method ||
-        !profileForm.externalPaymentDetails.handle.trim())
-    ) {
-      toast.error("Add external payment details or switch to Stripe.");
+    if (!isValidOptionalUrl(profileForm.socialLinks.instagram)) {
+      toast.error("Enter a valid Instagram link.");
       return;
     }
 
@@ -946,24 +983,9 @@ const ArtistDashboardView = () => {
       bio,
       specialties: profileForm.specialties,
       socialLinks: {
+        ...(artist?.socialLinks || {}),
         instagram: normalizeUrl(profileForm.socialLinks.instagram),
-        facebook: normalizeUrl(profileForm.socialLinks.facebook),
-        website: normalizeUrl(profileForm.socialLinks.website),
       },
-      paymentType: profileForm.paymentType,
-      externalPaymentDetails:
-        profileForm.paymentType === "external"
-          ? {
-              method: profileForm.externalPaymentDetails.method,
-              handle: profileForm.externalPaymentDetails.handle.trim(),
-            }
-          : null,
-      depositPolicy: {
-        amount: 0,
-        depositRequired: profileForm.depositPolicy.depositRequired,
-        nonRefundable: profileForm.depositPolicy.nonRefundable,
-      },
-      finalPaymentTiming: profileForm.finalPaymentTiming,
       homepageFeature: {
         story: homepageFeatureStory,
         quote: homepageFeatureQuote,
@@ -992,6 +1014,53 @@ const ArtistDashboardView = () => {
       toast.error("Profile update failed.");
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleSavePaymentPreferences = async () => {
+    if (!uid) return;
+
+    if (
+      paymentPreferencesForm.paymentType === "external" &&
+      (!paymentPreferencesForm.externalPaymentDetails.method ||
+        !paymentPreferencesForm.externalPaymentDetails.handle.trim())
+    ) {
+      toast.error("Add external payment details or switch to Stripe.");
+      return;
+    }
+
+    setIsSavingPaymentPreferences(true);
+
+    const paymentPreferencesUpdate = {
+      paymentType: paymentPreferencesForm.paymentType,
+      externalPaymentDetails:
+        paymentPreferencesForm.paymentType === "external"
+          ? {
+              method: paymentPreferencesForm.externalPaymentDetails.method,
+              handle: paymentPreferencesForm.externalPaymentDetails.handle.trim(),
+            }
+          : null,
+      depositPolicy: {
+        amount: 0,
+        depositRequired: paymentPreferencesForm.depositPolicy.depositRequired,
+        nonRefundable: paymentPreferencesForm.depositPolicy.nonRefundable,
+      },
+      finalPaymentTiming: paymentPreferencesForm.finalPaymentTiming,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      await updateDoc(doc(db, "users", uid), paymentPreferencesUpdate);
+      const nextArtist = { ...(artist || {}), ...paymentPreferencesUpdate };
+      setArtist(nextArtist);
+      setPaymentPreferencesForm(createPaymentPreferencesFormState(nextArtist));
+      setIsPaymentPreferencesDirty(false);
+      toast.success("Payment preferences updated.");
+    } catch (error) {
+      console.error("Artist payment preference update failed:", error);
+      toast.error("Payment preferences update failed.");
+    } finally {
+      setIsSavingPaymentPreferences(false);
     }
   };
 
@@ -1269,12 +1338,7 @@ const ArtistDashboardView = () => {
     Boolean(profileForm.bio.trim()),
     Boolean(profileForm.avatarUrl.trim()),
     profileForm.specialties.length > 0,
-    Boolean(
-      profileForm.socialLinks.instagram.trim() ||
-        profileForm.socialLinks.facebook.trim() ||
-        profileForm.socialLinks.website.trim()
-    ),
-    Boolean(profileForm.paymentType),
+    Boolean(profileForm.socialLinks.instagram.trim()),
   ];
   const profileCompletion = Math.round(
     (profileCompletionItems.filter(Boolean).length /
@@ -1294,6 +1358,8 @@ const ArtistDashboardView = () => {
     isUploadingHomepageFeatureImage ||
     displayNameStatus === "checking" ||
     displayNameStatus === "taken";
+  const isPaymentPreferencesSaveDisabled =
+    !isPaymentPreferencesDirty || isSavingPaymentPreferences;
   const visibleBookings = useMemo(() => {
     const statusFilteredBookings = bookings.filter((booking) => {
       if (activeTab === "bookings" && bookingStatusFilter !== "all") {
@@ -1555,8 +1621,8 @@ const ArtistDashboardView = () => {
                   Profile settings
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  Keep your public profile, booking preferences, and payment
-                  details polished from one place.
+                  Keep your public profile and artist spotlight polished from
+                  one place.
                 </p>
               </div>
 
@@ -1600,7 +1666,42 @@ const ArtistDashboardView = () => {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-6">
-                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                <div
+                  role="tablist"
+                  aria-label="Profile settings sections"
+                  className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3"
+                >
+                  {PROFILE_SETTING_TABS.map((tab) => {
+                    const isActive = activeProfileSubTab === tab.value;
+
+                    return (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-controls={`profile-panel-${tab.value}`}
+                        id={`profile-tab-${tab.value}`}
+                        onClick={() => setActiveProfileSubTab(tab.value)}
+                        className={`shrink-0 rounded-md border px-4 py-2 text-sm font-semibold transition ${
+                          isActive
+                            ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                            : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/25 hover:text-white"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {activeProfileSubTab === "identity" && (
+                <section
+                  id="profile-panel-identity"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-identity"
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                >
                   <div className="mb-5 flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                       <UserRound size={18} aria-hidden="true" />
@@ -1729,15 +1830,50 @@ const ArtistDashboardView = () => {
                       {profileForm.bio.length}/700
                     </span>
                   </label>
-                </section>
 
-                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                  <label className="mt-4 block space-y-2">
+                    <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                      <Instagram size={15} aria-hidden="true" />
+                      Instagram
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      value={profileForm.socialLinks.instagram}
+                      onChange={(event) =>
+                        updateProfileForm((current) => ({
+                          ...current,
+                          socialLinks: {
+                            ...current.socialLinks,
+                            instagram: event.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                      placeholder="instagram.com/artist"
+                    />
+                    <span className="block text-xs text-neutral-500">
+                      Facebook and website links stay preserved if they already
+                      exist, but Instagram is the only editable social link here.
+                    </span>
+                  </label>
+                </section>
+                )}
+
+                {activeProfileSubTab === "spotlight" && (
+                <section
+                  id="profile-panel-spotlight"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-spotlight"
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                >
                   <div className="mb-5 flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                       <ImageIcon size={18} aria-hidden="true" />
                     </span>
                     <div>
-                      <h2 className="mb-0! text-lg!">Homepage feature</h2>
+                      <h2 className="mb-0! text-lg!">Artist spotlight</h2>
                       <p className="text-sm text-neutral-400">
                         Prepare your spotlight story for when SATX Ink features
                         you on the homepage.
@@ -1823,7 +1959,7 @@ const ArtistDashboardView = () => {
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-neutral-100">
-                            Feature images
+                            Spotlight images
                           </p>
                           <p className="text-xs text-neutral-500">
                             {homepageFeatureImageCount}/
@@ -1842,7 +1978,7 @@ const ArtistDashboardView = () => {
                             alt={
                               profileForm.homepageFeature.imageAlt ||
                               profileForm.displayName ||
-                              "Homepage feature preview"
+                              "Artist spotlight preview"
                             }
                             className="h-full w-full object-cover"
                           />
@@ -1950,8 +2086,15 @@ const ArtistDashboardView = () => {
                     </div>
                   </div>
                 </section>
+                )}
 
-                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+                {activeProfileSubTab === "specialties" && (
+                <section
+                  id="profile-panel-specialties"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-specialties"
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                >
                   <div className="mb-5 flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                       <Check size={18} aria-hidden="true" />
@@ -2004,257 +2147,7 @@ const ArtistDashboardView = () => {
                     inputAriaLabel="Add custom specialty"
                   />
                 </section>
-
-                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <CreditCard size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Booking and payments</h2>
-                      <p className="text-sm text-neutral-400">
-                        Set expectations before clients accept an offer.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Payment type
-                      </span>
-                      <div className="grid grid-cols-2 rounded-md border border-white/10 bg-[#101010] p-1">
-                        {(["internal", "external"] as PaymentType[]).map(
-                          (type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() =>
-                                updateProfileForm({ paymentType: type })
-                              }
-                              className={`rounded px-3 py-2 text-sm capitalize transition ${
-                                profileForm.paymentType === type
-                                  ? "bg-white text-black"
-                                  : "text-neutral-400 hover:text-white"
-                              }`}
-                            >
-                              {type === "internal" ? "Stripe" : "External"}
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {profileForm.paymentType === "external" && (
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <label className="space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          External method
-                        </span>
-                        <select
-                          value={profileForm.externalPaymentDetails.method}
-                          onChange={(event) =>
-                            updateProfileForm((current) => ({
-                              ...current,
-                              externalPaymentDetails: {
-                                ...current.externalPaymentDetails,
-                                method: event.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        >
-                          <option value="">Select a method</option>
-                          <option value="cashapp">CashApp</option>
-                          <option value="venmo">Venmo</option>
-                          <option value="zelle">Zelle</option>
-                          <option value="paypal">PayPal</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          External handle
-                        </span>
-                        <input
-                          type="text"
-                          value={profileForm.externalPaymentDetails.handle}
-                          onChange={(event) =>
-                            updateProfileForm((current) => ({
-                              ...current,
-                              externalPaymentDetails: {
-                                ...current.externalPaymentDetails,
-                                handle: event.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          placeholder="$cashtag, @handle, email, or phone"
-                        />
-                      </label>
-                    </div>
-                  )}
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
-                      <input
-                        type="checkbox"
-                        checked={profileForm.depositPolicy.depositRequired}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            depositPolicy: {
-                              ...current.depositPolicy,
-                              depositRequired: event.target.checked,
-                            },
-                          }))
-                        }
-                        className="mt-1 accent-[var(--color-primary)]"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-white">
-                          Deposit required
-                        </span>
-                        <span className="text-xs text-neutral-500">
-                          Applies to new offers.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
-                      <input
-                        type="checkbox"
-                        checked={profileForm.depositPolicy.nonRefundable}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            depositPolicy: {
-                              ...current.depositPolicy,
-                              nonRefundable: event.target.checked,
-                            },
-                          }))
-                        }
-                        className="mt-1 accent-[var(--color-primary)]"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-white">
-                          Non-refundable
-                        </span>
-                        <span className="text-xs text-neutral-500">
-                          Shown in booking terms.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="space-y-2 rounded-md border border-white/10 bg-[#101010] p-3">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Final payment
-                      </span>
-                      <select
-                        value={profileForm.finalPaymentTiming}
-                        onChange={(event) =>
-                          updateProfileForm({
-                            finalPaymentTiming: event.target
-                              .value as FinalPaymentTiming,
-                          })
-                        }
-                        className="w-full rounded border border-white/10 bg-[#151515] px-2 py-2 text-sm text-white outline-none focus:border-[var(--color-primary)]"
-                      >
-                        <option value="before">Before appointment</option>
-                        <option value="after">After appointment</option>
-                      </select>
-                    </label>
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <Globe size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Social links</h2>
-                      <p className="text-sm text-neutral-400">
-                        Make it easy for clients to verify your work and vibe.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <label className="space-y-2">
-                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                        <Instagram size={15} aria-hidden="true" />
-                        Instagram
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="url"
-                        autoCapitalize="none"
-                        value={profileForm.socialLinks.instagram}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            socialLinks: {
-                              ...current.socialLinks,
-                              instagram: event.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="instagram.com/artist"
-                      />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Facebook
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="url"
-                        autoCapitalize="none"
-                        value={profileForm.socialLinks.facebook}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            socialLinks: {
-                              ...current.socialLinks,
-                              facebook: event.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="facebook.com/artist"
-                      />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Website
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="url"
-                        autoCapitalize="none"
-                        value={profileForm.socialLinks.website}
-                        onChange={(event) =>
-                          updateProfileForm((current) => ({
-                            ...current,
-                            socialLinks: {
-                              ...current.socialLinks,
-                              website: event.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="yourportfolio.com"
-                      />
-                    </label>
-                  </div>
-                </section>
+                )}
               </div>
 
               <aside className="h-fit rounded-lg border border-white/10 bg-[#101010] p-5 xl:sticky xl:top-28">
@@ -2302,11 +2195,11 @@ const ArtistDashboardView = () => {
 
                 <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Payments</span>
-                    <span className="capitalize text-white">
-                      {profileForm.paymentType === "internal"
-                        ? "Stripe"
-                        : "External"}
+                    <span className="text-neutral-400">Instagram</span>
+                    <span className="max-w-[180px] truncate text-white">
+                      {profileForm.socialLinks.instagram
+                        ? normalizeUrl(profileForm.socialLinks.instagram)
+                        : "Not added"}
                     </span>
                   </div>
                 </div>
@@ -2692,7 +2585,20 @@ const ArtistDashboardView = () => {
           />
         )}
         {activeTab === "gallery" && uid && <GalleryManager uid={uid} />}
-        {activeTab === "payments" && <StripeConnectPanel artist={artist} />}
+        {activeTab === "payments" && (
+          <div className="mt-6 w-full max-w-5xl space-y-6">
+            <PaymentPreferencesPanel
+              form={paymentPreferencesForm}
+              isDirty={isPaymentPreferencesDirty}
+              isSaving={isSavingPaymentPreferences}
+              isSaveDisabled={isPaymentPreferencesSaveDisabled}
+              onChange={updatePaymentPreferencesForm}
+              onReset={resetPaymentPreferencesForm}
+              onSave={handleSavePaymentPreferences}
+            />
+            <StripeConnectPanel artist={artist} />
+          </div>
+        )}
         {activeTab === "calendar" && uid && (
           <CalendarSyncPanel
             feedUrl={`https://satxink.com/calendars/${uid}.ics?token=${
@@ -2978,6 +2884,217 @@ const ArtistBookingRow = ({
     </div>
   );
 };
+
+type PaymentPreferencesPanelProps = {
+  form: ArtistPaymentPreferencesFormState;
+  isDirty: boolean;
+  isSaving: boolean;
+  isSaveDisabled: boolean;
+  onChange: (
+    updater:
+      | Partial<ArtistPaymentPreferencesFormState>
+      | ((
+          current: ArtistPaymentPreferencesFormState
+        ) => ArtistPaymentPreferencesFormState)
+  ) => void;
+  onReset: () => void;
+  onSave: () => void;
+};
+
+const PaymentPreferencesPanel = ({
+  form,
+  isDirty,
+  isSaving,
+  isSaveDisabled,
+  onChange,
+  onReset,
+  onSave,
+}: PaymentPreferencesPanelProps) => (
+  <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+    <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+          <CreditCard size={18} aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="mb-0! text-xl! font-semibold text-white">
+            Payment preferences
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
+            Set how new offers collect deposits and explain final payment terms
+            before clients accept.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={!isDirty || isSaving}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <RefreshCcw size={16} aria-hidden="true" />
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={isSaveDisabled}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Save size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
+          {isSaving ? "Saving..." : "Save preferences"}
+        </button>
+      </div>
+    </div>
+
+    <div className="mt-5 grid gap-4 md:grid-cols-2">
+      <div className="space-y-2">
+        <span className="text-sm font-medium text-neutral-200">
+          Payment type
+        </span>
+        <div className="grid grid-cols-2 rounded-md border border-white/10 bg-[#101010] p-1">
+          {(["internal", "external"] as PaymentType[]).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => onChange({ paymentType: type })}
+              className={`rounded px-3 py-2 text-sm capitalize transition ${
+                form.paymentType === type
+                  ? "bg-white text-black"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              {type === "internal" ? "Stripe" : "External"}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    {form.paymentType === "external" && (
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-neutral-200">
+            External method
+          </span>
+          <select
+            value={form.externalPaymentDetails.method}
+            onChange={(event) =>
+              onChange((current) => ({
+                ...current,
+                externalPaymentDetails: {
+                  ...current.externalPaymentDetails,
+                  method: event.target.value,
+                },
+              }))
+            }
+            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+          >
+            <option value="">Select a method</option>
+            <option value="cashapp">CashApp</option>
+            <option value="venmo">Venmo</option>
+            <option value="zelle">Zelle</option>
+            <option value="paypal">PayPal</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-neutral-200">
+            External handle
+          </span>
+          <input
+            type="text"
+            value={form.externalPaymentDetails.handle}
+            onChange={(event) =>
+              onChange((current) => ({
+                ...current,
+                externalPaymentDetails: {
+                  ...current.externalPaymentDetails,
+                  handle: event.target.value,
+                },
+              }))
+            }
+            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+            placeholder="$cashtag, @handle, email, or phone"
+          />
+        </label>
+      </div>
+    )}
+
+    <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
+        <input
+          type="checkbox"
+          checked={form.depositPolicy.depositRequired}
+          onChange={(event) =>
+            onChange((current) => ({
+              ...current,
+              depositPolicy: {
+                ...current.depositPolicy,
+                depositRequired: event.target.checked,
+              },
+            }))
+          }
+          className="mt-1 accent-[var(--color-primary)]"
+        />
+        <span>
+          <span className="block text-sm font-medium text-white">
+            Deposit required
+          </span>
+          <span className="text-xs text-neutral-500">
+            Applies to new offers.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
+        <input
+          type="checkbox"
+          checked={form.depositPolicy.nonRefundable}
+          onChange={(event) =>
+            onChange((current) => ({
+              ...current,
+              depositPolicy: {
+                ...current.depositPolicy,
+                nonRefundable: event.target.checked,
+              },
+            }))
+          }
+          className="mt-1 accent-[var(--color-primary)]"
+        />
+        <span>
+          <span className="block text-sm font-medium text-white">
+            Non-refundable
+          </span>
+          <span className="text-xs text-neutral-500">
+            Shown in booking terms.
+          </span>
+        </span>
+      </label>
+
+      <label className="space-y-2 rounded-md border border-white/10 bg-[#101010] p-3">
+        <span className="text-sm font-medium text-neutral-200">
+          Final payment
+        </span>
+        <select
+          value={form.finalPaymentTiming}
+          onChange={(event) =>
+            onChange({
+              finalPaymentTiming: event.target.value as FinalPaymentTiming,
+            })
+          }
+          className="w-full rounded border border-white/10 bg-[#151515] px-2 py-2 text-sm text-white outline-none focus:border-[var(--color-primary)]"
+        >
+          <option value="before">Before appointment</option>
+          <option value="after">After appointment</option>
+        </select>
+      </label>
+    </div>
+  </section>
+);
 
 const ArtistDashboardProfileHeader = ({
   artist,
