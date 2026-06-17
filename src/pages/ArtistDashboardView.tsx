@@ -27,6 +27,7 @@ import {
   RefreshCcw,
   Save,
   Search,
+  ShieldCheck,
   Store,
   UserRound,
   X,
@@ -197,7 +198,6 @@ const getInitialBookingStatusFilter = (
 
 type ArtistProfileFormState = {
   displayName: string;
-  email: string;
   avatarUrl: string;
   bio: string;
   specialties: string[];
@@ -441,7 +441,6 @@ const createProfileFormState = (
 
   return {
     displayName,
-    email: artist?.email || "",
     avatarUrl: artist?.avatarUrl || "",
     bio: artist?.bio || "",
     specialties: getCanonicalTattooStyles(artist?.specialties),
@@ -527,6 +526,7 @@ const ArtistDashboardView = () => {
     useState<DashboardBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
     createProfileFormState(null)
   );
@@ -611,10 +611,12 @@ const ArtistDashboardView = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUid(user.uid);
+        setAccountEmail(user.email || "");
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const artistData = snap.data();
+          setAccountEmail(user.email || artistData.email || "");
           setArtist(artistData);
           setProfileForm(createProfileFormState(artistData));
           setPaymentPreferencesForm(createPaymentPreferencesFormState(artistData));
@@ -629,6 +631,9 @@ const ArtistDashboardView = () => {
           setIsProfileDirty(false);
           setIsPaymentPreferencesDirty(false);
         }
+      } else {
+        setUid(null);
+        setAccountEmail("");
       }
     });
 
@@ -916,7 +921,6 @@ const ArtistDashboardView = () => {
     if (!uid) return;
 
     const displayName = profileForm.displayName.trim();
-    const email = profileForm.email.trim();
     const homepageFeatureStory = profileForm.homepageFeature.story.trim();
     const homepageFeatureImageAlt = displayName;
     const instagramHandle = getInstagramHandle(
@@ -952,11 +956,6 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    if (!email || !email.includes("@")) {
-      toast.error("Enter a valid email address.");
-      return;
-    }
-
     if (profileForm.specialties.length === 0) {
       toast.error("Choose at least one specialty.");
       return;
@@ -974,7 +973,6 @@ const ArtistDashboardView = () => {
     const profileUpdate = {
       displayName,
       slug: nextSlug,
-      email,
       bio: homepageFeatureStory,
       specialties: profileForm.specialties,
       socialLinks: {
@@ -1329,7 +1327,6 @@ const ArtistDashboardView = () => {
 
   const profileCompletionItems = [
     Boolean(profileForm.displayName.trim()),
-    Boolean(profileForm.email.trim()),
     Boolean(profileForm.homepageFeature.story.trim()),
     Boolean(profileForm.avatarUrl.trim()),
     profileForm.specialties.length > 0,
@@ -1766,21 +1763,21 @@ const ArtistDashboardView = () => {
                       </span>
                     </label>
 
-                    <label className="space-y-2">
+                    <div className="space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                         <Mail size={15} aria-hidden="true" />
-                        Email
+                        Google account
                       </span>
-                      <input
-                        type="email"
-                        value={profileForm.email}
-                        onChange={(event) =>
-                          updateProfileForm({ email: event.target.value })
-                        }
-                        className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                        placeholder="artist@example.com"
-                      />
-                    </label>
+                      <div className="flex min-h-10 flex-col items-start gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                        <span className="min-w-0 max-w-full truncate text-neutral-300">
+                          {accountEmail || "Signed in with Google"}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                          <ShieldCheck size={13} aria-hidden="true" />
+                          Managed by Google
+                        </span>
+                      </div>
+                    </div>
 
                     <div className="space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
@@ -2118,9 +2115,6 @@ const ArtistDashboardView = () => {
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold text-white">
                       {profileForm.displayName || "Display name"}
-                    </p>
-                    <p className="truncate text-sm text-neutral-400">
-                      {profileForm.email || "email@example.com"}
                     </p>
                   </div>
                 </div>
