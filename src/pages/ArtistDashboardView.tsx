@@ -90,6 +90,7 @@ type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type ExternalPaymentMethodFormRow = ExternalPaymentMethod & {
   enabled: boolean;
+  inputPrefix?: string;
   placeholder: string;
 };
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
@@ -129,12 +130,14 @@ const EXTERNAL_PAYMENT_METHOD_OPTIONS: Array<
   {
     method: "cashapp",
     label: "Cash App",
-    placeholder: "$cashtag",
+    inputPrefix: "$",
+    placeholder: "cashtag",
   },
   {
     method: "venmo",
     label: "Venmo",
-    placeholder: "@username",
+    inputPrefix: "@",
+    placeholder: "username",
   },
   {
     method: "zelle",
@@ -548,6 +551,41 @@ const getFinalPaymentDeadlineHours = (
 ): FinalPaymentDeadlineHours =>
   value === 48 ? 48 : 24;
 
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getExternalPaymentMethodPrefix = (method: string) =>
+  EXTERNAL_PAYMENT_METHOD_OPTIONS.find((option) => option.method === method)
+    ?.inputPrefix || "";
+
+const stripExternalPaymentHandlePrefix = (method: string, handle: string) => {
+  const prefix = getExternalPaymentMethodPrefix(method);
+  const trimmedHandle = handle.trim();
+
+  if (!prefix) return trimmedHandle;
+
+  return trimmedHandle
+    .replace(new RegExp(`^${escapeRegExp(prefix)}+`), "")
+    .trim();
+};
+
+const cleanExternalPaymentHandleInput = (method: string, handle: string) => {
+  const prefix = getExternalPaymentMethodPrefix(method);
+
+  if (!prefix) return handle;
+
+  return stripExternalPaymentHandlePrefix(method, handle).replace(/\s+/g, "");
+};
+
+const normalizeExternalPaymentHandle = (method: string, handle: string) => {
+  const prefix = getExternalPaymentMethodPrefix(method);
+  const handleWithoutPrefix = stripExternalPaymentHandlePrefix(method, handle);
+
+  if (!handleWithoutPrefix) return "";
+
+  return prefix ? `${prefix}${handleWithoutPrefix}` : handleWithoutPrefix;
+};
+
 const getExternalPaymentMethodRows = (
   artist: DashboardArtist | null
 ): ExternalPaymentMethodFormRow[] => {
@@ -575,8 +613,13 @@ const getExternalPaymentMethodRows = (
 
     return {
       ...option,
-      enabled: Boolean(savedMethod?.handle),
-      handle: savedMethod?.handle || "",
+      enabled: Boolean(
+        savedMethod?.handle &&
+          normalizeExternalPaymentHandle(option.method, savedMethod.handle)
+      ),
+      handle: savedMethod?.handle
+        ? stripExternalPaymentHandlePrefix(option.method, savedMethod.handle)
+        : "",
     };
   });
 };
@@ -585,12 +628,12 @@ const getEnabledExternalPaymentMethods = (
   methods: ExternalPaymentMethodFormRow[]
 ): ExternalPaymentMethod[] =>
   methods
-    .filter((method) => method.enabled && method.handle.trim())
-    .map(({ method, label, handle }) => ({
+    .map(({ method, label, handle, enabled }) => ({
       method,
       label,
-      handle: handle.trim(),
-    }));
+      handle: enabled ? normalizeExternalPaymentHandle(method, handle) : "",
+    }))
+    .filter((method) => method.handle);
 
 const createPaymentPreferencesFormState = (
   artist: DashboardArtist | null
@@ -1133,7 +1176,9 @@ const ArtistDashboardView = () => {
     if (!uid) return;
 
     const missingExternalMethod = paymentPreferencesForm.externalPaymentMethods.find(
-      (method) => method.enabled && !method.handle.trim()
+      (method) =>
+        method.enabled &&
+        !normalizeExternalPaymentHandle(method.method, method.handle)
     );
 
     if (missingExternalMethod) {
@@ -3047,8 +3092,8 @@ const PaymentPreferencesPanel = ({
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+    <section className="rounded-xl border border-white/10 bg-[#101010]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-5">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
             <CreditCard size={18} aria-hidden="true" />
@@ -3094,19 +3139,28 @@ const PaymentPreferencesPanel = ({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.055] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <ShieldCheck size={16} className="text-emerald-300" />
-            Stripe deposits
+      <div className="mt-4 space-y-3">
+        <div className="flex flex-col gap-3 rounded-lg border border-emerald-300/15 bg-emerald-300/[0.045] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-300">
+              <ShieldCheck size={15} aria-hidden="true" />
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-white">
+                Stripe deposits
+              </div>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-emerald-50/70">
+                Deposits are always required, non-refundable, and collected
+                through SATX Ink checkout before a booking is confirmed.
+              </p>
+            </div>
           </div>
-          <p className="mt-2 text-sm leading-6 text-emerald-50/75">
-            Deposits are always required, non-refundable, and collected through
-            SATX Ink checkout before a booking is confirmed.
-          </p>
+          <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+            Always on
+          </span>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3.5 sm:p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-white">
             <Store size={16} className="text-neutral-400" />
             External payments
@@ -3115,14 +3169,14 @@ const PaymentPreferencesPanel = ({
             Add methods clients can use only when you allow external payment for
             an offer's remaining balance.
           </p>
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 overflow-hidden rounded-lg border border-white/[0.08]">
             {form.externalPaymentMethods.map((method) => (
               <div
                 key={method.method}
-                className={`grid gap-2 rounded-lg border p-3 transition md:grid-cols-[180px_minmax(0,1fr)] md:items-center ${
+                className={`grid gap-2 border-b border-white/[0.06] px-3 py-2.5 transition last:border-b-0 md:grid-cols-[170px_minmax(0,1fr)] md:items-center ${
                   method.enabled
-                    ? "border-white/15 bg-white/[0.035]"
-                    : "border-white/[0.08] bg-black/20"
+                    ? "bg-white/[0.035]"
+                    : "bg-black/20"
                 }`}
               >
                 <label className="flex items-center gap-3">
@@ -3140,25 +3194,41 @@ const PaymentPreferencesPanel = ({
                     {method.label}
                   </span>
                 </label>
-                <input
-                  type="text"
-                  value={method.handle}
-                  disabled={!method.enabled}
-                  onChange={(event) =>
-                    updateExternalMethod(method.method, {
-                      handle: event.target.value,
-                    })
-                  }
-                  className="w-full rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-45"
-                  placeholder={method.placeholder}
-                />
+                <div
+                  className={`flex h-10 min-w-0 overflow-hidden rounded-md border bg-black/35 transition ${
+                    method.enabled
+                      ? "border-white/10 focus-within:border-[var(--color-primary)]"
+                      : "border-white/[0.06] opacity-45"
+                  }`}
+                >
+                  {method.inputPrefix && (
+                    <span className="flex shrink-0 items-center border-r border-white/[0.08] px-3 text-sm font-semibold text-neutral-400">
+                      {method.inputPrefix}
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    value={method.handle}
+                    disabled={!method.enabled}
+                    onChange={(event) =>
+                      updateExternalMethod(method.method, {
+                        handle: cleanExternalPaymentHandleInput(
+                          method.method,
+                          event.target.value
+                        ),
+                      })
+                    }
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
+                    placeholder={method.placeholder}
+                  />
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="mt-5 rounded-lg border border-white/10 bg-[#101010] p-4">
+      <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3.5 sm:p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h3 className="mb-0! text-sm! font-semibold text-white">
