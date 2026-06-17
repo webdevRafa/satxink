@@ -1581,7 +1581,7 @@ const ArtistDashboardView = () => {
   const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] text-white py-20 min-h-[100vh]">
+    <div className="flex min-h-[100vh] flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] py-20 text-white md:flex-row">
       {avatarCropSrc && (
         <ImageCropperModal
           imageSrc={avatarCropSrc}
@@ -1603,7 +1603,7 @@ const ArtistDashboardView = () => {
         onTabChange={handleDashboardTabChange}
       />
 
-      <main className="relative flex-1 p-6 h-full">
+      <main className="relative min-w-0 flex-1 p-6">
         {artist && (
           <ArtistDashboardProfileHeader artist={artist} />
         )}
@@ -2099,8 +2099,7 @@ const ArtistDashboardView = () => {
                 )}
               </div>
 
-              <aside className="h-fit xl:self-start">
-                <div className="space-y-4 xl:sticky xl:top-28">
+              <aside className="h-fit space-y-4 xl:sticky xl:top-24 xl:self-start">
                 <div className="rounded-lg border border-white/10 bg-[#101010] p-5">
                   <div className="flex items-center gap-4">
                   <img
@@ -2200,7 +2199,6 @@ const ArtistDashboardView = () => {
                       {isSavingProfile ? "Saving..." : "Save changes"}
                     </button>
                   </div>
-                </div>
                 </div>
               </aside>
             </div>
