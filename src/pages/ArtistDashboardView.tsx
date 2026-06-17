@@ -69,6 +69,10 @@ import ProjectPauseDialog from "../components/ProjectPauseDialog";
 import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
 import type { Booking, ProjectAmendment } from "../types/Booking";
 import type { Artist } from "../types/Artist";
+import type {
+  ExternalPaymentMethod,
+  FinalPaymentDeadlineHours,
+} from "../types/PaymentPreferences";
 import {
   TATTOO_STYLES,
   getCanonicalTattooStyles,
@@ -84,6 +88,10 @@ const SPECIALTY_OPTIONS = TATTOO_STYLES;
 
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
+type ExternalPaymentMethodFormRow = ExternalPaymentMethod & {
+  enabled: boolean;
+  placeholder: string;
+};
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
 type ArtistProfileSubTab = "identity" | "spotlight" | "specialties";
 type BookingSortMode = "upcoming" | "newest" | "oldest";
@@ -114,6 +122,49 @@ type ArtistDashboardTab =
   | "flashes"
   | "gallery"
   | "payments";
+
+const EXTERNAL_PAYMENT_METHOD_OPTIONS: Array<
+  Omit<ExternalPaymentMethodFormRow, "enabled" | "handle">
+> = [
+  {
+    method: "cashapp",
+    label: "Cash App",
+    placeholder: "$cashtag",
+  },
+  {
+    method: "venmo",
+    label: "Venmo",
+    placeholder: "@username",
+  },
+  {
+    method: "zelle",
+    label: "Zelle",
+    placeholder: "Email or phone",
+  },
+  {
+    method: "paypal",
+    label: "PayPal",
+    placeholder: "Email, phone, or PayPal.me",
+  },
+  {
+    method: "apple_cash",
+    label: "Apple Cash",
+    placeholder: "Phone or Apple ID email",
+  },
+  {
+    method: "other",
+    label: "Other",
+    placeholder: "Payment instructions",
+  },
+];
+
+const FINAL_PAYMENT_DEADLINE_OPTIONS: Array<{
+  hours: FinalPaymentDeadlineHours;
+  label: string;
+}> = [
+  { hours: 24, label: "24 hours before" },
+  { hours: 48, label: "48 hours before" },
+];
 
 type HomepageFeatureFormState = {
   story: string;
@@ -244,17 +295,9 @@ type ArtistProfileFormState = {
 };
 
 type ArtistPaymentPreferencesFormState = {
-  paymentType: PaymentType;
-  externalPaymentDetails: {
-    method: string;
-    handle: string;
-  };
-  depositPolicy: {
-    amount: string;
-    depositRequired: boolean;
-    nonRefundable: boolean;
-  };
+  externalPaymentMethods: ExternalPaymentMethodFormRow[];
   finalPaymentTiming: FinalPaymentTiming;
+  finalPaymentDeadlineHours: FinalPaymentDeadlineHours;
 };
 
 type DashboardArtist = {
@@ -279,9 +322,11 @@ type DashboardArtist = {
   stripeConnect?: Artist["stripeConnect"];
   paymentType?: PaymentType;
   finalPaymentTiming?: FinalPaymentTiming;
+  finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
   homepageFeature?: Partial<HomepageFeatureFormState> & {
     updatedAt?: unknown;
   };
+  externalPaymentMethods?: ExternalPaymentMethod[];
   externalPaymentDetails?: {
     method?: string;
     handle?: string;
@@ -498,26 +543,63 @@ const createProfileFormState = (
   };
 };
 
+const getFinalPaymentDeadlineHours = (
+  value: unknown
+): FinalPaymentDeadlineHours =>
+  value === 48 ? 48 : 24;
+
+const getExternalPaymentMethodRows = (
+  artist: DashboardArtist | null
+): ExternalPaymentMethodFormRow[] => {
+  const savedMethods = Array.isArray(artist?.externalPaymentMethods)
+    ? artist.externalPaymentMethods
+    : [];
+  const legacyMethod =
+    !savedMethods.length &&
+    artist?.externalPaymentDetails?.method &&
+    artist.externalPaymentDetails.handle
+      ? {
+          method: artist.externalPaymentDetails.method,
+          label:
+            EXTERNAL_PAYMENT_METHOD_OPTIONS.find(
+              (option) => option.method === artist.externalPaymentDetails?.method
+            )?.label || artist.externalPaymentDetails.method,
+          handle: artist.externalPaymentDetails.handle,
+        }
+      : null;
+
+  return EXTERNAL_PAYMENT_METHOD_OPTIONS.map((option) => {
+    const savedMethod =
+      savedMethods.find((method) => method.method === option.method) ||
+      (legacyMethod?.method === option.method ? legacyMethod : null);
+
+    return {
+      ...option,
+      enabled: Boolean(savedMethod?.handle),
+      handle: savedMethod?.handle || "",
+    };
+  });
+};
+
+const getEnabledExternalPaymentMethods = (
+  methods: ExternalPaymentMethodFormRow[]
+): ExternalPaymentMethod[] =>
+  methods
+    .filter((method) => method.enabled && method.handle.trim())
+    .map(({ method, label, handle }) => ({
+      method,
+      label,
+      handle: handle.trim(),
+    }));
+
 const createPaymentPreferencesFormState = (
   artist: DashboardArtist | null
 ): ArtistPaymentPreferencesFormState => ({
-    paymentType: artist?.paymentType || "internal",
-    externalPaymentDetails: {
-      method:
-        (artist as { externalPaymentDetails?: { method?: string } } | null)
-          ?.externalPaymentDetails?.method || "",
-      handle:
-        (artist as { externalPaymentDetails?: { handle?: string } } | null)
-          ?.externalPaymentDetails?.handle || "",
-    },
-    depositPolicy: {
-      amount: String(
-        (artist?.depositPolicy as { amount?: number } | undefined)?.amount ?? ""
-      ),
-      depositRequired: artist?.depositPolicy?.depositRequired ?? true,
-      nonRefundable: artist?.depositPolicy?.nonRefundable ?? true,
-    },
+    externalPaymentMethods: getExternalPaymentMethodRows(artist),
     finalPaymentTiming: artist?.finalPaymentTiming || "after",
+    finalPaymentDeadlineHours: getFinalPaymentDeadlineHours(
+      artist?.finalPaymentDeadlineHours
+    ),
   });
 
 const ArtistDashboardView = () => {
@@ -1050,32 +1132,41 @@ const ArtistDashboardView = () => {
   const handleSavePaymentPreferences = async () => {
     if (!uid) return;
 
-    if (
-      paymentPreferencesForm.paymentType === "external" &&
-      (!paymentPreferencesForm.externalPaymentDetails.method ||
-        !paymentPreferencesForm.externalPaymentDetails.handle.trim())
-    ) {
-      toast.error("Add external payment details or switch to Stripe.");
+    const missingExternalMethod = paymentPreferencesForm.externalPaymentMethods.find(
+      (method) => method.enabled && !method.handle.trim()
+    );
+
+    if (missingExternalMethod) {
+      toast.error(`Add a ${missingExternalMethod.label} handle or turn it off.`);
       return;
     }
+
+    const externalPaymentMethods = getEnabledExternalPaymentMethods(
+      paymentPreferencesForm.externalPaymentMethods
+    );
+    const primaryExternalPaymentMethod = externalPaymentMethods[0] || null;
 
     setIsSavingPaymentPreferences(true);
 
     const paymentPreferencesUpdate = {
-      paymentType: paymentPreferencesForm.paymentType,
-      externalPaymentDetails:
-        paymentPreferencesForm.paymentType === "external"
-          ? {
-              method: paymentPreferencesForm.externalPaymentDetails.method,
-              handle: paymentPreferencesForm.externalPaymentDetails.handle.trim(),
-            }
-          : null,
+      paymentType: "internal" as PaymentType,
+      externalPaymentMethods,
+      externalPaymentDetails: primaryExternalPaymentMethod
+        ? {
+            method: primaryExternalPaymentMethod.method,
+            handle: primaryExternalPaymentMethod.handle,
+          }
+        : null,
       depositPolicy: {
         amount: 0,
-        depositRequired: paymentPreferencesForm.depositPolicy.depositRequired,
-        nonRefundable: paymentPreferencesForm.depositPolicy.nonRefundable,
+        depositRequired: true,
+        nonRefundable: true,
       },
       finalPaymentTiming: paymentPreferencesForm.finalPaymentTiming,
+      finalPaymentDeadlineHours:
+        paymentPreferencesForm.finalPaymentTiming === "before"
+          ? paymentPreferencesForm.finalPaymentDeadlineHours
+          : null,
       updatedAt: serverTimestamp(),
     };
 
@@ -2942,192 +3033,188 @@ const PaymentPreferencesPanel = ({
   onChange,
   onReset,
   onSave,
-}: PaymentPreferencesPanelProps) => (
-  <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-    <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-          <CreditCard size={18} aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="mb-0! text-xl! font-semibold text-white">
-            Payment preferences
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-            Set how new offers collect deposits and explain final payment terms
-            before clients accept.
+}: PaymentPreferencesPanelProps) => {
+  const updateExternalMethod = (
+    method: string,
+    updates: Partial<ExternalPaymentMethodFormRow>
+  ) => {
+    onChange((current) => ({
+      ...current,
+      externalPaymentMethods: current.externalPaymentMethods.map((row) =>
+        row.method === method ? { ...row, ...updates } : row
+      ),
+    }));
+  };
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+            <CreditCard size={18} aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="mb-0! text-xl! font-semibold text-white">
+              Payment preferences
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
+              Stripe collects every SATX Ink deposit. External methods are only
+              offered when you allow a remaining balance to be paid directly.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!isDirty || isSaving}
+            className="inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.02] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RefreshCcw size={14} aria-hidden="true" />
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={isSaveDisabled}
+            className={`inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! px-4! py-2! text-xs! font-semibold transition disabled:cursor-not-allowed ${
+              isDirty
+                ? "bg-white text-[#0b0b0b]! shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] hover:bg-white/90"
+                : "border border-white/10 bg-white/[0.03] text-neutral-500 disabled:opacity-50"
+            }`}
+          >
+            <Save
+              size={14}
+              className={isDirty ? "text-[#0b0b0b]!" : ""}
+              aria-hidden="true"
+            />
+            {isSaving ? "Saving..." : "Save preferences"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.055] p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <ShieldCheck size={16} className="text-emerald-300" />
+            Stripe deposits
+          </div>
+          <p className="mt-2 text-sm leading-6 text-emerald-50/75">
+            Deposits are always required, non-refundable, and collected through
+            SATX Ink checkout before a booking is confirmed.
           </p>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={onReset}
-          disabled={!isDirty || isSaving}
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <RefreshCcw size={16} aria-hidden="true" />
-          Reset
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={isSaveDisabled}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-2 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Save size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
-          {isSaving ? "Saving..." : "Save preferences"}
-        </button>
-      </div>
-    </div>
-
-    <div className="mt-5 grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <span className="text-sm font-medium text-neutral-200">
-          Payment type
-        </span>
-        <div className="grid grid-cols-2 rounded-md border border-white/10 bg-[#101010] p-1">
-          {(["internal", "external"] as PaymentType[]).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => onChange({ paymentType: type })}
-              className={`rounded px-3 py-2 text-sm capitalize transition ${
-                form.paymentType === type
-                  ? "bg-white text-black"
-                  : "text-neutral-400 hover:text-white"
-              }`}
-            >
-              {type === "internal" ? "Stripe" : "External"}
-            </button>
-          ))}
+        <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <Store size={16} className="text-neutral-400" />
+            External payments
+          </div>
+          <p className="mt-1 text-xs leading-5 text-neutral-500">
+            Add methods clients can use only when you allow external payment for
+            an offer's remaining balance.
+          </p>
+          <div className="mt-4 grid gap-2">
+            {form.externalPaymentMethods.map((method) => (
+              <div
+                key={method.method}
+                className={`grid gap-2 rounded-lg border p-3 transition md:grid-cols-[180px_minmax(0,1fr)] md:items-center ${
+                  method.enabled
+                    ? "border-white/15 bg-white/[0.035]"
+                    : "border-white/[0.08] bg-black/20"
+                }`}
+              >
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={method.enabled}
+                    onChange={(event) =>
+                      updateExternalMethod(method.method, {
+                        enabled: event.target.checked,
+                      })
+                    }
+                    className="h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)]"
+                  />
+                  <span className="text-sm font-semibold text-white">
+                    {method.label}
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={method.handle}
+                  disabled={!method.enabled}
+                  onChange={(event) =>
+                    updateExternalMethod(method.method, {
+                      handle: event.target.value,
+                    })
+                  }
+                  className="w-full rounded-md border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-45"
+                  placeholder={method.placeholder}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
 
-    {form.paymentType === "external" && (
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-neutral-200">
-            External method
-          </span>
-          <select
-            value={form.externalPaymentDetails.method}
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                externalPaymentDetails: {
-                  ...current.externalPaymentDetails,
-                  method: event.target.value,
-                },
-              }))
-            }
-            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-          >
-            <option value="">Select a method</option>
-            <option value="cashapp">CashApp</option>
-            <option value="venmo">Venmo</option>
-            <option value="zelle">Zelle</option>
-            <option value="paypal">PayPal</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
+      <div className="mt-5 rounded-lg border border-white/10 bg-[#101010] p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="mb-0! text-sm! font-semibold text-white">
+              Final payment terms
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-neutral-500">
+              Set the default timing clients see before accepting an offer.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(["before", "after"] as FinalPaymentTiming[]).map((timing) => (
+              <button
+                key={timing}
+                type="button"
+                onClick={() => onChange({ finalPaymentTiming: timing })}
+                className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
+                  form.finalPaymentTiming === timing
+                    ? "border-white/30 bg-white text-black"
+                    : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
+                }`}
+              >
+                {timing === "before" ? "Before appointment" : "After appointment"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-neutral-200">
-            External handle
-          </span>
-          <input
-            type="text"
-            value={form.externalPaymentDetails.handle}
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                externalPaymentDetails: {
-                  ...current.externalPaymentDetails,
-                  handle: event.target.value,
-                },
-              }))
-            }
-            className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-            placeholder="$cashtag, @handle, email, or phone"
-          />
-        </label>
+        {form.finalPaymentTiming === "before" && (
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Deadline
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FINAL_PAYMENT_DEADLINE_OPTIONS.map((option) => (
+                <button
+                  key={option.hours}
+                  type="button"
+                  onClick={() =>
+                    onChange({ finalPaymentDeadlineHours: option.hours })
+                  }
+                  className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
+                    form.finalPaymentDeadlineHours === option.hours
+                      ? "border-white/30 bg-white text-black"
+                      : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-    )}
-
-    <div className="mt-5 grid gap-3 md:grid-cols-3">
-      <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
-        <input
-          type="checkbox"
-          checked={form.depositPolicy.depositRequired}
-          onChange={(event) =>
-            onChange((current) => ({
-              ...current,
-              depositPolicy: {
-                ...current.depositPolicy,
-                depositRequired: event.target.checked,
-              },
-            }))
-          }
-          className="mt-1 accent-[var(--color-primary)]"
-        />
-        <span>
-          <span className="block text-sm font-medium text-white">
-            Deposit required
-          </span>
-          <span className="text-xs text-neutral-500">
-            Applies to new offers.
-          </span>
-        </span>
-      </label>
-
-      <label className="flex items-start gap-3 rounded-md border border-white/10 bg-[#101010] p-3">
-        <input
-          type="checkbox"
-          checked={form.depositPolicy.nonRefundable}
-          onChange={(event) =>
-            onChange((current) => ({
-              ...current,
-              depositPolicy: {
-                ...current.depositPolicy,
-                nonRefundable: event.target.checked,
-              },
-            }))
-          }
-          className="mt-1 accent-[var(--color-primary)]"
-        />
-        <span>
-          <span className="block text-sm font-medium text-white">
-            Non-refundable
-          </span>
-          <span className="text-xs text-neutral-500">
-            Shown in booking terms.
-          </span>
-        </span>
-      </label>
-
-      <label className="space-y-2 rounded-md border border-white/10 bg-[#101010] p-3">
-        <span className="text-sm font-medium text-neutral-200">
-          Final payment
-        </span>
-        <select
-          value={form.finalPaymentTiming}
-          onChange={(event) =>
-            onChange({
-              finalPaymentTiming: event.target.value as FinalPaymentTiming,
-            })
-          }
-          className="w-full rounded border border-white/10 bg-[#151515] px-2 py-2 text-sm text-white outline-none focus:border-[var(--color-primary)]"
-        >
-          <option value="before">Before appointment</option>
-          <option value="after">After appointment</option>
-        </select>
-      </label>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const ArtistDashboardProfileHeader = ({
   artist,
@@ -4295,7 +4382,26 @@ const BookingRecordDialog = ({
                                 : "External"
                             }
                           />
+                          <BookingDetailTile
+                            icon={<CreditCard size={17} />}
+                            label="Final terms"
+                            value={getDashboardFinalPaymentTermsLabel(booking)}
+                          />
                         </div>
+
+                        {booking.remainingPaymentMethod === "external" && (
+                          <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                            <p className="text-sm font-semibold text-white">
+                              External remaining balance
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                              Available methods:{" "}
+                              <span className="font-semibold text-white">
+                                {getDashboardExternalPaymentMethodSummary(booking)}
+                              </span>
+                            </p>
+                          </div>
+                        )}
 
                         {booking.shopAddress && (
                           <a
@@ -4690,14 +4796,14 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
       if (paymentStatus === "client_confirmed") {
         return {
           primary,
-          secondary: "Confirm in-shop payment",
+          secondary: "Confirm external payment",
           tone: "amber" as const,
         };
       }
 
       return {
         primary,
-        secondary: "Awaiting in-shop payment",
+        secondary: "Awaiting external payment",
         tone: "amber" as const,
       };
     }
@@ -4856,6 +4962,33 @@ const hasProjectPaymentFollowUp = (booking: Partial<Booking>) =>
     PROJECT_PAYMENT_FOLLOW_UP_STATUSES.includes(
       booking.remainingPaymentStatus || ""
     ));
+
+const getDashboardExternalPaymentMethodSummary = (booking: Partial<Booking>) => {
+  const methods = Array.isArray(booking.externalRemainingPaymentMethods)
+    ? booking.externalRemainingPaymentMethods.filter((method) =>
+        method.handle?.trim()
+      )
+    : [];
+
+  if (methods.length) {
+    return methods
+      .map((method) => `${method.label}: ${method.handle}`)
+      .join(" · ");
+  }
+
+  if (booking.externalPaymentDetails?.method && booking.externalPaymentDetails.handle) {
+    return `${booking.externalPaymentDetails.method}: ${booking.externalPaymentDetails.handle}`;
+  }
+
+  return "Confirm details directly with the client.";
+};
+
+const getDashboardFinalPaymentTermsLabel = (booking: Partial<Booking>) => {
+  if (booking.finalPaymentTiming !== "before") return "After appointment";
+
+  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
+  return `${deadlineHours} hours before`;
+};
 
 const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
   const paymentStatus = booking.remainingPaymentStatus || "not_due";

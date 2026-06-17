@@ -24,6 +24,35 @@ interface Props {
   clientId: string;
 }
 
+const getExternalPaymentMethodSummary = (booking: Booking) => {
+  const methods = Array.isArray(booking.externalRemainingPaymentMethods)
+    ? booking.externalRemainingPaymentMethods.filter((method) =>
+        method.handle?.trim()
+      )
+    : [];
+
+  if (methods.length) {
+    return methods
+      .map((method) => `${method.label}: ${method.handle}`)
+      .join(" · ");
+  }
+
+  if (booking.externalPaymentDetails?.method && booking.externalPaymentDetails.handle) {
+    return `${booking.externalPaymentDetails.method}: ${booking.externalPaymentDetails.handle}`;
+  }
+
+  return "Confirm payment details with your artist.";
+};
+
+const getFinalPaymentTermsLabel = (booking: Booking) => {
+  if (booking.finalPaymentTiming !== "before") {
+    return "After appointment";
+  }
+
+  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
+  return `${deadlineHours} hours before`;
+};
+
 const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -593,6 +622,7 @@ const BookingDetailsDialog = ({
                         <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${booking.price}`} />
                         <DetailTile icon={<DollarSign size={17} />} label="Deposit" value={`$${booking.depositAmount}`} />
                         <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "External"} />
+                        <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel(booking)} />
                         {isMultiSessionBooking(booking) && (
                           <>
                             <DetailTile
@@ -629,15 +659,18 @@ const BookingDetailsDialog = ({
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <p className="text-sm font-semibold text-white">
-                              In-shop balance
+                              External balance
                             </p>
                             <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                               The remaining{" "}
                               <span className="font-semibold text-white">
                                 ${getRemainingBalance(booking)}
                               </span>{" "}
-                              is paid directly to the artist after the session.
-                              Status:{" "}
+                              is paid directly to the artist. Available methods:{" "}
+                              <span className="font-semibold text-white">
+                                {getExternalPaymentMethodSummary(booking)}
+                              </span>
+                              . Status:{" "}
                               <span className="font-semibold capitalize text-white">
                                 {(booking.remainingPaymentStatus || "due").replace("_", " ")}
                               </span>

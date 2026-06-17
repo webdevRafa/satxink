@@ -23,6 +23,32 @@ import {
 
 type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 
+const getExternalPaymentMethodSummary = (booking: Booking) => {
+  const methods = Array.isArray(booking.externalRemainingPaymentMethods)
+    ? booking.externalRemainingPaymentMethods.filter((method) =>
+        method.handle?.trim()
+      )
+    : [];
+
+  if (methods.length) {
+    return methods
+      .map((method) => `${method.label}: ${method.handle}`)
+      .join(" · ");
+  }
+
+  if (booking.externalPaymentDetails?.method && booking.externalPaymentDetails.handle) {
+    return `${booking.externalPaymentDetails.method}: ${booking.externalPaymentDetails.handle}`;
+  }
+
+  return "Confirm payment details with your artist.";
+};
+
+const getFinalPaymentTermsLabel = (booking: Booking) => {
+  if (booking.finalPaymentTiming !== "before") return "After appointment";
+  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
+  return `${deadlineHours} hours before`;
+};
+
 const PaymentPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
@@ -275,7 +301,7 @@ const PaymentPage = () => {
                   title: "Pay deposit",
                   description:
                     usesExternalRemaining
-                      ? "Confirm the appointment now and pay the artist balance at the shop."
+                      ? "Confirm the appointment now and pay the artist balance through the artist's external methods."
                       : "Confirm the appointment now and pay the artist balance later.",
                   breakdown: depositBreakdown,
                 },
@@ -345,7 +371,7 @@ const PaymentPage = () => {
                     ? isPlatformFeeCheckout
                       ? "Platform fee due"
                       : usesExternalRemaining
-                      ? "Balance due at the shop"
+                      ? "External balance"
                       : isMultiSession
                       ? `Pay ${sessionPaymentLabel}`
                       : "Pay remaining balance"
@@ -356,7 +382,7 @@ const PaymentPage = () => {
                     ? isPlatformFeeCheckout
                       ? "This fee covers the SATX Ink platform difference from your accepted project amendment."
                       : usesExternalRemaining
-                      ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist after the session."
+                      ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist."
                       : isMultiSession
                       ? `Your appointment is confirmed. This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
                       : "Your appointment is confirmed. This payment clears the remaining artist balance."
@@ -483,7 +509,7 @@ const PaymentPage = () => {
               {paymentMode === "deposit" && usesExternalRemaining && (
                 <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
                   <p className="text-sm font-semibold text-amber-50">
-                    Deposit now, balance at the shop
+                    Deposit now, balance externally
                   </p>
                   <p className="mt-1 text-sm leading-6 text-amber-50/80">
                     SATX Ink's platform fee is calculated from the full artist
@@ -493,6 +519,12 @@ const PaymentPage = () => {
                     </span>{" "}
                     is paid directly to the artist and confirmed after the
                     session.
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-amber-50/90">
+                    Available methods:{" "}
+                    <span className="font-semibold text-white">
+                      {getExternalPaymentMethodSummary(booking)}
+                    </span>
                   </p>
                 </div>
               )}
@@ -515,11 +547,16 @@ const PaymentPage = () => {
               label="Payment"
               value={
                 usesExternalRemaining
-                  ? "Stripe deposit + shop balance"
+                  ? "Stripe deposit + external balance"
                   : isInternalPayment
                   ? "Stripe checkout"
                   : "External payment"
               }
+            />
+            <DetailTile
+              icon={<ShieldCheck size={17} />}
+              label="Final terms"
+              value={getFinalPaymentTermsLabel(booking)}
             />
             {isMultiSession && (
               <DetailTile
@@ -555,7 +592,7 @@ const PaymentPage = () => {
                   isPlatformFeeCheckout
                     ? "Artist amount"
                     : externalBalanceDue
-                    ? "Due at the shop"
+                    ? "External balance"
                     :
                   paymentMode === "full"
                     ? "Full artist amount"
@@ -616,7 +653,7 @@ const PaymentPage = () => {
                     {formatMoneyFromCents(Math.round(remainingAfterPayment * 100))}
                   </span>
                   {usesExternalRemaining
-                    ? " and will be paid directly to the artist at the shop."
+                    ? " and will be paid directly to the artist."
                     : booking.finalPaymentTiming === "before"
                     ? " and may be collected before your appointment."
                     : " and may be collected after the session with your artist."}

@@ -97,10 +97,35 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
             : isMultiSessionProject
             ? Math.ceil(remainingAmount / estimatedSessionCount)
             : remainingAmount;
+        const externalRemainingPaymentMethods = Array.isArray(
+          offerData.externalRemainingPaymentMethods
+        )
+          ? offerData.externalRemainingPaymentMethods.filter((method) =>
+              method.handle?.trim()
+            )
+          : [];
+        const legacyExternalRemainingPaymentMethods =
+          offerData.externalPaymentDetails?.method &&
+          offerData.externalPaymentDetails.handle
+            ? [
+                {
+                  method: offerData.externalPaymentDetails.method,
+                  label: offerData.externalPaymentDetails.method,
+                  handle: offerData.externalPaymentDetails.handle,
+                },
+              ]
+            : [];
+        const availableExternalRemainingPaymentMethods =
+          externalRemainingPaymentMethods.length > 0
+            ? externalRemainingPaymentMethods
+            : legacyExternalRemainingPaymentMethods;
+        const hasExternalRemainingPaymentDetails =
+          availableExternalRemainingPaymentMethods.length > 0;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
           offerData.allowExternalRemainingPayment === true &&
           remainingPaymentMethod === "external" &&
+          hasExternalRemainingPaymentDetails &&
           depositAmount > 0 &&
           remainingAmount > 0;
         let flashRepeatability = offerData.flashRepeatability;
@@ -159,12 +184,19 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
               ? offerData.externalPaymentDetails ?? null
               : null,
           finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
+          finalPaymentDeadlineHours:
+            offerData.finalPaymentTiming === "before"
+              ? offerData.finalPaymentDeadlineHours ?? 24
+              : null,
           remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
           remainingPaymentStatus: usesExternalRemaining ? "due" : "not_due",
           externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
           externalRemainingAmountCents: usesExternalRemaining
             ? Math.round(remainingAmount * 100)
             : 0,
+          externalRemainingPaymentMethods: usesExternalRemaining
+            ? availableExternalRemainingPaymentMethods
+            : [],
           externalRemainingPaymentNote: usesExternalRemaining
             ? offerData.externalRemainingPaymentNote ?? ""
             : "",

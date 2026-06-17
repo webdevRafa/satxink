@@ -60,6 +60,10 @@ import {
   BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
   getBookingReferenceCleanupTimestamp,
 } from "../utils/bookingReferenceRetention";
+import type {
+  ExternalPaymentMethod,
+  FinalPaymentDeadlineHours,
+} from "../types/PaymentPreferences";
 
 type BookingRequest = {
   id: string;
@@ -99,6 +103,7 @@ type OfferArtist = {
   avatarUrl?: string;
   shopId?: string;
   paymentType?: "internal" | "external";
+  externalPaymentMethods?: ExternalPaymentMethod[];
   externalPaymentDetails?: {
     method?: string;
     handle?: string;
@@ -107,12 +112,41 @@ type OfferArtist = {
     amount?: number;
   };
   finalPaymentTiming?: "before" | "after";
+  finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
 };
 
 type ShopDetails = {
   name?: string;
   address?: string;
   mapLink?: string;
+};
+
+const getArtistExternalPaymentMethods = (
+  artist: OfferArtist | null
+): ExternalPaymentMethod[] => {
+  const savedMethods = Array.isArray(artist?.externalPaymentMethods)
+    ? artist.externalPaymentMethods.filter((method) => method.handle?.trim())
+    : [];
+
+  if (savedMethods.length) {
+    return savedMethods.map((method) => ({
+      method: method.method,
+      label: method.label || method.method,
+      handle: method.handle.trim(),
+    }));
+  }
+
+  if (artist?.externalPaymentDetails?.method && artist.externalPaymentDetails.handle) {
+    return [
+      {
+        method: artist.externalPaymentDetails.method,
+        label: artist.externalPaymentDetails.method,
+        handle: artist.externalPaymentDetails.handle.trim(),
+      },
+    ];
+  }
+
+  return [];
 };
 
 type Props = {
@@ -207,12 +241,22 @@ const MakeOfferModal = ({
     effectiveOfferPrice - Number(depositAmount || 0),
     0
   );
+  const artistExternalPaymentMethods = useMemo(
+    () => getArtistExternalPaymentMethods(artist),
+    [artist]
+  );
+  const hasArtistExternalPaymentMethods =
+    artistExternalPaymentMethods.length > 0;
   const canAllowExternalRemainingPayment =
-    artist?.paymentType === "internal" &&
+    (artist?.paymentType ?? "internal") === "internal" &&
+    hasArtistExternalPaymentMethods &&
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
   const shouldShowRemainingPaymentChoice =
-    artist?.paymentType === "internal" && canAllowExternalRemainingPayment;
+    (artist?.paymentType ?? "internal") === "internal" &&
+    canAllowExternalRemainingPayment;
+  const externalPaymentMethodSummary =
+    artistExternalPaymentMethods.map((method) => method.label).join(", ");
   const sessionEstimate =
     !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
       ? Math.ceil(remainingArtistBalance / estimatedSessionCount)
@@ -327,7 +371,7 @@ const MakeOfferModal = ({
       : Number(offerPrice || 0);
 
   const getDraftValidationError = () => {
-    if (!artist.paymentType || !["internal", "external"].includes(artist.paymentType)) {
+    if (artist.paymentType && !["internal", "external"].includes(artist.paymentType)) {
       return "Set a valid payment type before sending an offer.";
     }
 
@@ -521,19 +565,24 @@ const MakeOfferModal = ({
           selectedRequest.sourceType === "flash"
             ? Boolean(selectedRequest.isFromSheet)
             : null,
-        paymentType: artist.paymentType,
-        externalPaymentDetails:
-          artist.paymentType === "external"
-            ? artist.externalPaymentDetails || null
-            : null,
+        paymentType: "internal",
+        externalPaymentDetails: null,
         depositPolicy: {
           amount: depositAmount,
           depositRequired: true,
           nonRefundable: true,
         },
         finalPaymentTiming: artist.finalPaymentTiming || "after",
+        finalPaymentDeadlineHours:
+          artist.finalPaymentTiming === "before"
+            ? artist.finalPaymentDeadlineHours || 24
+            : null,
         allowExternalRemainingPayment:
           canAllowExternalRemainingPayment && allowExternalRemainingPayment,
+        externalRemainingPaymentMethods:
+          canAllowExternalRemainingPayment && allowExternalRemainingPayment
+            ? artistExternalPaymentMethods
+            : [],
         externalRemainingPaymentNote: "",
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         estimatedSessionCount: submitAsMultiSession
@@ -924,7 +973,7 @@ const MakeOfferModal = ({
                             htmlFor="allow-external-remaining-payment"
                             className="cursor-pointer text-sm font-semibold text-white"
                           >
-                            Allow the remaining balance at the shop
+                            Allow external payment for remaining balance
                           </label>
                           {canAllowExternalRemainingPayment && (
                             <span
@@ -958,8 +1007,8 @@ const MakeOfferModal = ({
                                   balance later through Stripe and the payout
                                   goes to your Stripe Connect account. If this
                                   is on, the client can choose to settle the
-                                  remaining balance directly with you at the
-                                  shop.
+                                  remaining balance directly with you through
+                                  your saved external methods.
                                 </span>
                               )}
                             </span>
@@ -976,7 +1025,7 @@ const MakeOfferModal = ({
                               Math.round(remainingArtistBalance * 100)
                             )}
                           </span>{" "}
-                          directly with you after the session.
+                          through {externalPaymentMethodSummary || "your saved methods"}.
                         </label>
                       </div>
                     </div>
@@ -1474,7 +1523,15 @@ const OfferPreview = ({
   dateOptions: { date: string; time: string }[];
   message: string;
 }) => {
-  const isInternalPayment = artist.paymentType === "internal";
+  const isInternalPayment = (artist.paymentType ?? "internal") === "internal";
+  const artistExternalPaymentMethods = getArtistExternalPaymentMethods(artist);
+  const externalPaymentMethodSummary = artistExternalPaymentMethods
+    .map((method) => method.label)
+    .join(", ");
+  const finalPaymentTermsLabel =
+    artist.finalPaymentTiming === "before"
+      ? `Remaining balance due ${artist.finalPaymentDeadlineHours === 48 ? 48 : 24} hours before appointment.`
+      : "Remaining balance can be settled after the appointment.";
   const todayClientPayment = isInternalPayment
     ? formatMoneyFromCents(paymentPreview.clientTotalCents)
     : formatMoneyFromCents(Math.round(depositAmount * 100));
@@ -1487,7 +1544,7 @@ const OfferPreview = ({
       : !isInternalPayment
       ? "Client pays the remaining balance through your external payment method."
       : allowExternalRemainingPayment
-      ? "Client can choose to pay the remaining balance in shop."
+      ? `Client can choose external payment through ${externalPaymentMethodSummary}.`
       : "Client pays the remaining balance later through Stripe.";
 
   return (
@@ -1580,6 +1637,10 @@ const OfferPreview = ({
                     Math.round(remainingArtistBalance * 100)
                   )}
                   note={laterPaymentLabel}
+                />
+                <ReceiptLine
+                  label="Final payment terms"
+                  value={finalPaymentTermsLabel}
                 />
               </div>
             </div>
