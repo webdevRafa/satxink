@@ -314,23 +314,19 @@ const useAuthProviderSignup = (role: SignupRole) => {
       const userRef = doc(db, "users", result.user.uid);
       const userSnap = await getDoc(userRef);
 
-      if (!userSnap.exists()) {
-        if (role === "client") {
-          await setDoc(userRef, createClientProfile(role, result));
-          navigate("/client-profile-setup");
-          return;
-        }
-
-        await setDoc(userRef, createArtistProfile(result));
+      if (userSnap.exists()) {
+        toast.success("Welcome back");
+        navigate("/dashboard");
         return;
       }
 
-      const data = userSnap.data();
-      const isComplete = data?.profileComplete ?? false;
-
       if (role === "client") {
-        navigate(isComplete ? "/dashboard" : "/client-profile-setup");
+        await setDoc(userRef, createClientProfile(role, result));
+        navigate("/client-profile-setup");
+        return;
       }
+
+      await setDoc(userRef, createArtistProfile(result));
     } catch (error) {
       reportAuthError(error, `${AUTH_PROVIDER_META[providerKey].name} signup`);
     } finally {
