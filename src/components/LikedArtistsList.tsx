@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Heart,
   ImageIcon,
-  Images,
   Layers,
   MessageCircle,
   Store,
@@ -18,7 +17,6 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
-import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import type { GalleryItem } from "../types/GalleryItem";
 
@@ -33,19 +31,20 @@ interface Artist {
   shopId?: string;
   specialties?: string[];
   bio?: string;
-  previewUrl?: string;
 }
 
-type FollowingActivityItem = {
+type DigestPreview = {
   id: string;
-  artistId: string;
-  artistName: string;
-  artistAvatar?: string;
   title: string;
-  type: "flash" | "sheet" | "gallery";
   imageUrl?: string;
   href: string;
   createdAtMs: number;
+};
+
+type ArtistDigest = Artist & {
+  latestGallery?: DigestPreview;
+  latestSheet?: DigestPreview;
+  latestActivityMs: number;
 };
 
 interface Props {
@@ -55,11 +54,8 @@ interface Props {
   onRequest: (artist: Artist) => void;
 }
 
-const FOLLOWING_ACTIVITY_LIMIT = 24;
-
 const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
-  const [followedArtists, setFollowedArtists] = useState<Artist[]>([]);
-  const [activity, setActivity] = useState<FollowingActivityItem[]>([]);
+  const [artistDigests, setArtistDigests] = useState<ArtistDigest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,8 +70,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
 
         if (ids.length === 0) {
           if (!ignore) {
-            setFollowedArtists([]);
-            setActivity([]);
+            setArtistDigests([]);
           }
           return;
         }
@@ -88,6 +83,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             )
           )
         );
+
         const artists = artistSnapshots
           .flatMap((snapshot) =>
             snapshot.docs.map((artistDoc) => {
@@ -109,131 +105,71 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             })
           )
           .sort((a, b) => a.name.localeCompare(b.name));
-        const artistById = Object.fromEntries(
-          artists.map((artist) => [artist.id, artist])
+
+        const [sheetSnapshots, gallerySnapshots] = await Promise.all([
+          Promise.all(
+            chunks.map((chunk) =>
+              getDocs(
+                query(
+                  collection(db, "flashSheets"),
+                  where("artistId", "in", chunk)
+                )
+              )
+            )
+          ),
+          Promise.all(
+            chunks.map((chunk) =>
+              getDocs(
+                query(collection(db, "gallery"), where("artistId", "in", chunk))
+              )
+            )
+          ),
+        ]);
+
+        const sheets = sheetSnapshots.flatMap((snapshot) =>
+          snapshot.docs.map((sheetDoc) => ({
+            id: sheetDoc.id,
+            ...sheetDoc.data(),
+          })) as FlashSheet[]
+        );
+        const galleryItems = gallerySnapshots.flatMap((snapshot) =>
+          snapshot.docs.map((galleryDoc) => ({
+            id: galleryDoc.id,
+            ...galleryDoc.data(),
+          })) as GalleryItem[]
         );
 
-        const [flashSnapshots, sheetSnapshots, gallerySnapshots] =
-          await Promise.all([
-            Promise.all(
-              chunks.map((chunk) =>
-                getDocs(
-                  query(collection(db, "flashes"), where("artistId", "in", chunk))
-                )
-              )
-            ),
-            Promise.all(
-              chunks.map((chunk) =>
-                getDocs(
-                  query(
-                    collection(db, "flashSheets"),
-                    where("artistId", "in", chunk)
-                  )
-                )
-              )
-            ),
-            Promise.all(
-              chunks.map((chunk) =>
-                getDocs(
-                  query(collection(db, "gallery"), where("artistId", "in", chunk))
-                )
-              )
-            ),
-          ]);
+        const latestSheetByArtist = getLatestSheetByArtist(sheets);
+        const latestGalleryByArtist = getLatestGalleryByArtist(galleryItems);
 
-        const flashActivity = flashSnapshots
-          .flatMap((snapshot) =>
-            snapshot.docs.map((flashDoc) => ({
-              id: flashDoc.id,
-              ...flashDoc.data(),
-            })) as Flash[]
-          )
-          .filter((flash) => flash.publicationStatus !== "draft")
-          .filter((flash) => flash.availabilityStatus !== "sold")
-          .map((flash) =>
-            createActivityItem({
-              artist: artistById[flash.artistId],
-              artistId: flash.artistId,
-              createdAt: flash.publishedAt || flash.createdAt,
-              href: flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash",
-              id: flash.id,
-              imageUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl,
-              title: flash.title || flash.caption || "New flash design",
-              type: "flash",
-            })
-          );
-
-        const sheetActivity = sheetSnapshots
-          .flatMap((snapshot) =>
-            snapshot.docs.map((sheetDoc) => ({
-              id: sheetDoc.id,
-              ...sheetDoc.data(),
-            })) as FlashSheet[]
-          )
-          .map((sheet) =>
-            createActivityItem({
-              artist: artistById[sheet.artistId],
-              artistId: sheet.artistId,
-              createdAt: sheet.createdAt,
-              href: `/flash/sheets/${sheet.id}`,
-              id: sheet.id,
-              imageUrl: sheet.thumbUrl || sheet.imageUrl,
-              title: sheet.title || "New flash sheet",
-              type: "sheet",
-            })
-          );
-
-        const galleryActivity = gallerySnapshots
-          .flatMap((snapshot) =>
-            snapshot.docs.map((galleryDoc) => ({
-              id: galleryDoc.id,
-              ...galleryDoc.data(),
-            })) as GalleryItem[]
-          )
-          .filter((item) => item.status !== "hidden")
-          .map((item) =>
-            createActivityItem({
-              artist: artistById[item.artistId],
-              artistId: item.artistId,
-              createdAt: item.createdAt,
-              href: `/artists/${item.artistId}`,
-              id: item.id,
-              imageUrl: item.thumbUrl || item.webp90Url || item.fullUrl,
-              title: item.caption || "New gallery work",
-              type: "gallery",
-            })
-          );
-
-        const mergedActivity = [
-          ...flashActivity,
-          ...sheetActivity,
-          ...galleryActivity,
-        ]
-          .filter((item): item is FollowingActivityItem => Boolean(item))
-          .sort((a, b) => b.createdAtMs - a.createdAtMs)
-          .slice(0, FOLLOWING_ACTIVITY_LIMIT);
-
-        const previewByArtist = new Map<string, string>();
-        mergedActivity.forEach((item) => {
-          if (item.imageUrl && !previewByArtist.has(item.artistId)) {
-            previewByArtist.set(item.artistId, item.imageUrl);
-          }
-        });
+        const digests = artists
+          .map((artist) => {
+            const latestGallery = latestGalleryByArtist.get(artist.id);
+            const latestSheet = latestSheetByArtist.get(artist.id);
+            return {
+              ...artist,
+              latestGallery,
+              latestSheet,
+              latestActivityMs: Math.max(
+                latestGallery?.createdAtMs || 0,
+                latestSheet?.createdAtMs || 0
+              ),
+            };
+          })
+          .sort((a, b) => {
+            if (b.latestActivityMs !== a.latestActivityMs) {
+              return b.latestActivityMs - a.latestActivityMs;
+            }
+            return a.name.localeCompare(b.name);
+          });
 
         if (!ignore) {
-          setFollowedArtists(
-            artists.map((artist) => ({
-              ...artist,
-              previewUrl: previewByArtist.get(artist.id),
-            }))
-          );
-          setActivity(mergedActivity);
+          setArtistDigests(digests);
         }
       } catch (error) {
         console.error("Failed to load following feed:", error);
         if (!ignore) {
-          setFollowedArtists([]);
-          setActivity([]);
+          setArtistDigests([]);
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -246,17 +182,16 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
     };
   }, [client.likedArtists]);
 
-  const flashCount = useMemo(
-    () => activity.filter((item) => item.type === "flash").length,
-    [activity]
+  const artistsWithNewWork = useMemo(
+    () =>
+      artistDigests.filter(
+        (artist) => artist.latestGallery || artist.latestSheet
+      ).length,
+    [artistDigests]
   );
-  const sheetCount = useMemo(
-    () => activity.filter((item) => item.type === "sheet").length,
-    [activity]
-  );
-  const galleryCount = useMemo(
-    () => activity.filter((item) => item.type === "gallery").length,
-    [activity]
+  const latestSheetCount = useMemo(
+    () => artistDigests.filter((artist) => artist.latestSheet).length,
+    [artistDigests]
   );
 
   if (loading) {
@@ -267,7 +202,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
           {[0, 1, 2].map((item) => (
             <div
               key={item}
-              className="h-80 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]"
+              className="h-96 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]"
             />
           ))}
         </div>
@@ -281,17 +216,17 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
         <DashboardHeader
           eyebrow="Client discovery"
           title="Following"
-          description="Keep up with artists you follow, including recent flash drops, sheets, and portfolio updates."
+          description="One clean update per followed artist: latest work, latest sheet, and a direct path back to their profile."
         />
         <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[720px]">
-          <MetricCard label="Artists" value={followedArtists.length} />
-          <MetricCard label="Flash" value={flashCount} />
-          <MetricCard label="Sheets" value={sheetCount} />
-          <MetricCard label="Gallery" value={galleryCount} />
+          <MetricCard label="Following" value={artistDigests.length} />
+          <MetricCard label="Artists with new work" value={artistsWithNewWork} />
+          <MetricCard label="Latest sheets" value={latestSheetCount} />
+          <MetricCard label="Ready to request" value={artistDigests.length} />
         </div>
       </div>
 
-      {followedArtists.length === 0 ? (
+      {artistDigests.length === 0 ? (
         <div className="rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
             <Heart size={22} />
@@ -300,7 +235,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             Follow artists to build your feed
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
-            Artists, flash sheets, and new work will appear here after you follow profiles.
+            Followed artists will appear here with their latest gallery image and latest flash sheet.
           </p>
           <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
@@ -319,93 +254,67 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
           </div>
         </div>
       ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {followedArtists.map((artist) => (
-              <ArtistCard
+        <div className="rounded-lg border border-white/10 bg-[#111111] p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                Artist updates
+              </p>
+              <h2 className="mt-1 text-xl! font-semibold! text-white">
+                From artists you follow
+              </h2>
+            </div>
+            <Link
+              to="/flash"
+              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+            >
+              Browse all flash
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            {artistDigests.map((artist) => (
+              <ArtistDigestCard
                 key={artist.id}
                 artist={artist}
                 onRequest={() => onRequest(artist)}
               />
             ))}
           </div>
-
-          <div className="rounded-lg border border-white/10 bg-[#111111] p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Latest drops
-                </p>
-                <h2 className="mt-1 text-xl! font-semibold! text-white">
-                  Followed artist activity
-                </h2>
-              </div>
-              <Link
-                to="/flash"
-                className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-              >
-                Browse all flash
-                <ArrowRight size={14} />
-              </Link>
-            </div>
-
-            {activity.length === 0 ? (
-              <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-5 text-sm text-neutral-400">
-                No recent followed artist activity yet.
-              </div>
-            ) : (
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {activity.map((item) => (
-                  <ActivityCard key={`${item.type}-${item.id}`} item={item} />
-                ))}
-              </div>
-            )}
-          </div>
-        </>
+        </div>
       )}
     </section>
   );
 };
 
-const ArtistCard = ({
+const ArtistDigestCard = ({
   artist,
   onRequest,
 }: {
-  artist: Artist;
+  artist: ArtistDigest;
   onRequest: () => void;
 }) => (
-  <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg transition hover:border-white/20 hover:bg-[#151515]">
-    <div className="relative h-44 bg-black">
-      {artist.previewUrl ? (
+  <article className="overflow-hidden rounded-lg border border-white/10 bg-black/25 shadow-lg transition hover:border-white/20 hover:bg-white/[0.04]">
+    <div className="flex flex-col gap-4 border-b border-white/10 p-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <img
-          src={artist.previewUrl}
-          alt={`${artist.name} recent work`}
-          className="h-full w-full object-cover opacity-85"
+          src={artist.avatarUrl || "/fallback-avatar.jpg"}
+          alt={artist.name}
+          className="h-14 w-14 rounded-full border border-white/15 object-cover"
         />
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-          <ImageIcon size={26} />
-          <span className="text-sm">No recent activity</span>
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-semibold text-white">
+            {artist.name}
+          </h3>
+          <p className="mt-1 flex items-center gap-2 truncate text-sm text-neutral-500">
+            <Store size={14} className="shrink-0" />
+            {artist.shopName || artist.studioName || "Studio not listed"}
+          </p>
         </div>
-      )}
-      <img
-        src={artist.avatarUrl || "/fallback-avatar.jpg"}
-        alt={artist.name}
-        className="absolute bottom-4 left-4 h-16 w-16 rounded-full border border-white/15 object-cover shadow-lg"
-      />
-    </div>
-
-    <div className="p-4">
-      <h3 className="text-lg font-semibold text-white">{artist.name}</h3>
-      <p className="mt-1 flex items-center gap-2 text-sm text-neutral-500">
-        <Store size={14} />
-        {artist.shopName || artist.studioName || "Studio not listed"}
-      </p>
-      <p className="mt-3 line-clamp-2 min-h-12 text-sm leading-6 text-neutral-300">
-        {artist.bio || "No artist bio yet."}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {(artist.specialties || []).slice(0, 4).map((specialty) => (
+      </div>
+      <div className="flex flex-wrap gap-2 sm:max-w-[220px] sm:justify-end">
+        {(artist.specialties || []).slice(0, 3).map((specialty) => (
           <span
             key={specialty}
             className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-neutral-300"
@@ -416,108 +325,142 @@ const ArtistCard = ({
       </div>
     </div>
 
-    <div className="flex gap-3 border-t border-white/10 p-4">
+    <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_190px]">
+      <PreviewPanel
+        label="Latest gallery"
+        title={artist.latestGallery?.title || "No gallery update yet"}
+        imageUrl={artist.latestGallery?.imageUrl}
+        href={artist.latestGallery?.href || `/artists/${artist.id}`}
+        emptyText="Gallery work from this artist will appear here."
+        large
+      />
+      <PreviewPanel
+        label="Latest sheet"
+        title={artist.latestSheet?.title || "No flash sheet yet"}
+        imageUrl={artist.latestSheet?.imageUrl}
+        href={artist.latestSheet?.href || `/artists/${artist.id}`}
+        emptyText="Their newest flash sheet will show here."
+      />
+    </div>
+
+    <div className="flex flex-col gap-2 border-t border-white/10 p-4 sm:flex-row">
       <Link
         to={`/artists/${artist.id}`}
-        className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+        className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-black transition hover:bg-white/85"
       >
         <UserRound size={16} />
-        Profile
+        View profile
       </Link>
       <button
         type="button"
         onClick={onRequest}
-        className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
+        className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10"
       >
         <MessageCircle size={16} />
         Request
       </button>
+      {artist.latestSheet && (
+        <Link
+          to={artist.latestSheet.href}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          <Layers size={16} />
+          View latest sheet
+        </Link>
+      )}
     </div>
   </article>
 );
 
-const ActivityCard = ({ item }: { item: FollowingActivityItem }) => (
+const PreviewPanel = ({
+  emptyText,
+  href,
+  imageUrl,
+  label,
+  large = false,
+  title,
+}: {
+  emptyText: string;
+  href: string;
+  imageUrl?: string;
+  label: string;
+  large?: boolean;
+  title: string;
+}) => (
   <Link
-    to={item.href}
-    className="group overflow-hidden rounded-lg border border-white/10 bg-black/25 transition hover:border-white/20 hover:bg-white/[0.04]"
+    to={href}
+    className={`group overflow-hidden rounded-lg border border-white/10 bg-[#0b0b0b] transition hover:border-white/20 ${
+      large ? "min-h-[260px]" : "min-h-[260px] md:min-h-0"
+    }`}
   >
-    <div className="aspect-[4/3] bg-black">
-      {item.imageUrl ? (
+    <div className={large ? "aspect-[5/4] bg-black" : "aspect-[4/3] bg-black"}>
+      {imageUrl ? (
         <img
-          src={item.imageUrl}
-          alt={item.title}
+          src={imageUrl}
+          alt={title}
           className="h-full w-full object-cover transition group-hover:scale-[1.02]"
         />
       ) : (
-        <div className="flex h-full items-center justify-center text-neutral-500">
-          <ImageIcon size={24} />
+        <div className="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.06] to-black p-5 text-center text-neutral-500">
+          {large ? <ImageIcon size={26} /> : <Layers size={24} />}
+          <span className="text-sm">{emptyText}</span>
         </div>
       )}
     </div>
     <div className="p-3">
       <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-        {item.type === "sheet" ? (
-          <Layers size={13} />
-        ) : item.type === "gallery" ? (
-          <Images size={13} />
-        ) : (
-          <ImageIcon size={13} />
-        )}
-        {item.type === "sheet"
-          ? "Flash sheet"
-          : item.type === "gallery"
-          ? "Gallery"
-          : "Flash"}
+        {large ? <ImageIcon size={13} /> : <Layers size={13} />}
+        {label}
       </div>
       <p className="mt-2 line-clamp-2 text-sm font-semibold text-white">
-        {item.title}
+        {title}
       </p>
-      <div className="mt-3 flex items-center gap-2">
-        <img
-          src={item.artistAvatar || "/fallback-avatar.jpg"}
-          alt={item.artistName}
-          className="h-6 w-6 rounded-full border border-white/10 object-cover"
-        />
-        <span className="truncate text-xs text-neutral-400">
-          {item.artistName}
-        </span>
-      </div>
     </div>
   </Link>
 );
 
-const createActivityItem = ({
-  artist,
-  artistId,
-  createdAt,
-  href,
-  id,
-  imageUrl,
-  title,
-  type,
-}: {
-  artist?: Artist;
-  artistId: string;
-  createdAt: unknown;
-  href: string;
-  id: string;
-  imageUrl?: string;
-  title: string;
-  type: FollowingActivityItem["type"];
-}): FollowingActivityItem | null => {
-  if (!artist) return null;
+const getLatestSheetByArtist = (sheets: FlashSheet[]) => {
+  const latestByArtist = new Map<string, DigestPreview>();
 
-  return {
-    id,
-    artistId,
-    artistName: artist.name,
-    artistAvatar: artist.avatarUrl,
-    title,
-    type,
-    imageUrl,
-    href,
-    createdAtMs: timestampToMillis(createdAt),
-  };
+  sheets
+    .filter((sheet) => sheet.marketplaceVisible !== false)
+    .forEach((sheet) => {
+      const createdAtMs = timestampToMillis(sheet.createdAt);
+      const current = latestByArtist.get(sheet.artistId);
+      if (current && current.createdAtMs >= createdAtMs) return;
+
+      latestByArtist.set(sheet.artistId, {
+        id: sheet.id,
+        title: sheet.title || "Latest flash sheet",
+        imageUrl: sheet.thumbUrl || sheet.imageUrl,
+        href: `/flash/sheets/${sheet.id}`,
+        createdAtMs,
+      });
+    });
+
+  return latestByArtist;
+};
+
+const getLatestGalleryByArtist = (items: GalleryItem[]) => {
+  const latestByArtist = new Map<string, DigestPreview>();
+
+  items
+    .filter((item) => item.status !== "hidden")
+    .forEach((item) => {
+      const createdAtMs = timestampToMillis(item.createdAt);
+      const current = latestByArtist.get(item.artistId);
+      if (current && current.createdAtMs >= createdAtMs) return;
+
+      latestByArtist.set(item.artistId, {
+        id: item.id,
+        title: item.caption || "Latest gallery work",
+        imageUrl: item.thumbUrl || item.webp90Url || item.fullUrl,
+        href: `/artists/${item.artistId}`,
+        createdAtMs,
+      });
+    });
+
+  return latestByArtist;
 };
 
 const timestampToMillis = (value: unknown) => {
