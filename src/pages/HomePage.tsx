@@ -1791,19 +1791,15 @@ const FeaturedSheetPanel = ({
           )}
         </div>
 
-        <div className="flex min-h-[15rem] flex-col items-center p-5 text-center lg:min-h-[21rem] lg:p-6">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-            Featured sheet
-          </p>
-
-          <div className="mt-9 flex flex-col items-center">
+        <div className="flex min-h-[13.5rem] flex-col items-center p-5 pt-7 text-center lg:min-h-[21rem] lg:p-6 lg:pt-12">
+          <div className="flex flex-col items-center">
             <ArtistAvatar artist={sheet.artist} name={artistName} />
-            <p className="mt-4 max-w-full truncate text-lg font-semibold leading-tight text-white">
+            <p className="mt-3 max-w-full truncate text-lg font-semibold leading-tight text-white">
               {artistName}
             </p>
           </div>
 
-          <span className="mx-auto mt-auto inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white">
+          <span className="mx-auto mt-12 inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white lg:mt-auto">
             Open sheet
             <ArrowRight size={15} />
           </span>
