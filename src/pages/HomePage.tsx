@@ -1683,32 +1683,58 @@ const PreviewRail = <T,>({
       </div>
 
       {items.length > 0 ? (
-        <div className="satx-home-marquee overflow-x-auto md:overflow-hidden">
-          <div
-            className="satx-home-marquee-track flex snap-x items-stretch gap-4 pb-2"
-            style={{
-              animationDirection: reverse ? "reverse" : "normal",
-            }}
-          >
-            {trackItems.map((item, index) => (
-              <div
-                key={index}
-                className="satx-market-card-motion flex w-[220px] shrink-0 snap-start sm:w-[240px]"
-                style={
-                  {
-                    "--market-card-delay": `${
-                      railDelay + 180 + (index % Math.max(items.length, 1)) * 82
-                    }ms`,
-                    "--market-card-x": reverse ? "-48px" : "48px",
-                    "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
-                  } as CSSProperties
-                }
-              >
-                {renderItem(item, index)}
-              </div>
-            ))}
+        <>
+          <div className="satx-home-marquee hidden md:block md:overflow-hidden">
+            <div
+              className="satx-home-marquee-track flex items-stretch gap-4 pb-2"
+              style={{
+                animationDirection: reverse ? "reverse" : "normal",
+              }}
+            >
+              {trackItems.map((item, index) => (
+                <div
+                  key={index}
+                  className="satx-market-card-motion flex w-[220px] shrink-0 snap-start sm:w-[240px]"
+                  style={
+                    {
+                      "--market-card-delay": `${
+                        railDelay +
+                        180 +
+                        (index % Math.max(items.length, 1)) * 82
+                      }ms`,
+                      "--market-card-x": reverse ? "-48px" : "48px",
+                      "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
+                    } as CSSProperties
+                  }
+                >
+                  {renderItem(item, index)}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+
+          <div className="-mx-5 snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain scroll-smooth px-5 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-stretch gap-4">
+              {items.map((item, index) => (
+                <div
+                  key={index}
+                  className="satx-market-card-motion flex w-[min(13.75rem,calc(100vw-5rem))] shrink-0 snap-start [scroll-snap-stop:always]"
+                  style={
+                    {
+                      "--market-card-delay": `${
+                        railDelay + 180 + index * 82
+                      }ms`,
+                      "--market-card-x": reverse ? "-48px" : "48px",
+                      "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
+                    } as CSSProperties
+                  }
+                >
+                  {renderItem(item, index)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       ) : (
         <EmptyPreview label={emptyLabel} />
       )}
@@ -1738,7 +1764,7 @@ const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => {
       to={`/flash/sheets/${sheet.id}`}
       className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
     >
-      <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#f4f1ea] sm:h-[184px]">
+      <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#171717] sm:h-[184px]">
         {sheet.thumbUrl || sheet.imageUrl ? (
           <img
             src={sheet.thumbUrl || sheet.imageUrl}
