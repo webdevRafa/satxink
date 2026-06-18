@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Heart,
   Layers,
   MessageCircle,
@@ -62,9 +64,12 @@ interface Props {
   onRequest: (artist: Artist) => void;
 }
 
+const FOLLOWED_ARTISTS_PER_PAGE = 5;
+
 const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let ignore = false;
@@ -161,6 +166,29 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
     };
   }, [client.likedArtists]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(artists.length / FOLLOWED_ARTISTS_PER_PAGE)
+  );
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * FOLLOWED_ARTISTS_PER_PAGE;
+  const pageEndIndex = Math.min(
+    pageStartIndex + FOLLOWED_ARTISTS_PER_PAGE,
+    artists.length
+  );
+  const paginatedArtists = useMemo(
+    () => artists.slice(pageStartIndex, pageEndIndex),
+    [artists, pageEndIndex, pageStartIndex]
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  };
+
   if (loading) {
     return (
       <section className="w-full max-w-7xl space-y-6">
@@ -213,15 +241,48 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {artists.map((artist) => (
-            <FollowedArtistRow
-              key={artist.id}
-              artist={artist}
-              onRequest={() => onRequest(artist)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="hidden space-y-3 md:block">
+            <div className="request-modal-scrollbar max-h-[27rem] overflow-y-auto pr-1">
+              <div className="space-y-3">
+                {paginatedArtists.map((artist) => (
+                  <FollowedArtistRow
+                    key={artist.id}
+                    artist={artist}
+                    onRequest={() => onRequest(artist)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {artists.length > FOLLOWED_ARTISTS_PER_PAGE && (
+              <FollowingPagination
+                currentPage={activePage}
+                totalPages={totalPages}
+                totalItems={artists.length}
+                pageStart={pageStartIndex + 1}
+                pageEnd={pageEndIndex}
+                onPageChange={goToPage}
+              />
+            )}
+          </div>
+
+          <div className="-mx-6 snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth px-6 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+            <div className="flex gap-3">
+              {artists.map((artist) => (
+                <div
+                  key={artist.id}
+                  className="w-[min(21.5rem,calc(100vw-4.5rem))] shrink-0 snap-start"
+                >
+                  <FollowedArtistRow
+                    artist={artist}
+                    onRequest={() => onRequest(artist)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </section>
   );
@@ -309,6 +370,89 @@ const FollowedArtistRow = ({
         </button>
       </div>
     </article>
+  );
+};
+
+const FollowingPagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageStart,
+  pageEnd,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageStart: number;
+  pageEnd: number;
+  onPageChange: (page: number) => void;
+}) => {
+  const pageItems = getPaginationItems(currentPage, totalPages);
+
+  return (
+    <nav
+      aria-label="Followed artists pagination"
+      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.025] px-3! py-3! sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-neutral-500">
+        Showing{" "}
+        <span className="font-semibold text-neutral-300">
+          {pageStart}-{pageEnd}
+        </span>{" "}
+        of <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
+        artists
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronLeft size={14} aria-hidden="true" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-1">
+          {pageItems.map((item) =>
+            typeof item === "number" ? (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onPageChange(item)}
+                aria-current={item === currentPage ? "page" : undefined}
+                className={`h-9 min-w-9 rounded-md px-3! text-xs! font-semibold transition ${
+                  item === currentPage
+                    ? "bg-white text-black"
+                    : "border border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                }`}
+              >
+                {item}
+              </button>
+            ) : (
+              <span
+                key={item}
+                className="flex h-9 min-w-8 items-center justify-center text-xs font-semibold text-neutral-600"
+              >
+                ...
+              </span>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
   );
 };
 
@@ -506,5 +650,37 @@ const chunkIds = (ids: string[], size: number) =>
   Array.from({ length: Math.ceil(ids.length / size) }, (_, index) =>
     ids.slice(index * size, index * size + size)
   );
+
+const getPaginationItems = (currentPage: number, totalPages: number) => {
+  const items: Array<number | string> = [];
+  const maxVisible = 5;
+
+  if (totalPages <= maxVisible) {
+    for (let page = 1; page <= totalPages; page += 1) {
+      items.push(page);
+    }
+    return items;
+  }
+
+  items.push(1);
+
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) {
+    items.push("start-ellipsis");
+  }
+
+  for (let page = start; page <= end; page += 1) {
+    items.push(page);
+  }
+
+  if (end < totalPages - 1) {
+    items.push("end-ellipsis");
+  }
+
+  items.push(totalPages);
+  return items;
+};
 
 export default LikedArtistsList;
