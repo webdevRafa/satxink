@@ -6,6 +6,7 @@ import {
   Heart,
   Layers,
   MessageCircle,
+  Plus,
   Store,
   UserRound,
 } from "lucide-react";
@@ -19,6 +20,8 @@ import {
 import { db } from "../firebase/firebaseConfig";
 import {
   getBookingAvailabilityLabel,
+  getBookingAvailabilityMonthKeys,
+  getRollingBookingMonthOptions,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
 import type { FlashSheet } from "../types/FlashSheet";
@@ -231,12 +234,12 @@ const FollowedArtistRow = ({
   artist: Artist;
   onRequest: () => void;
 }) => {
-  const availabilityLabel = getBookingAvailabilityLabel(
+  const availabilityDisplay = getCompactBookingAvailabilityDisplay(
     artist.bookingAvailability
   );
 
   return (
-    <article className="grid gap-3 rounded-lg border border-white/10 bg-[#111111] p-3 transition hover:border-white/20 hover:bg-white/[0.035] md:grid-cols-[minmax(220px,1fr)_minmax(180px,240px)_minmax(160px,220px)_auto] md:items-center">
+    <article className="grid gap-3 rounded-lg border border-white/10 bg-[#111111] p-3 transition hover:border-white/20 hover:bg-white/[0.035] md:grid-cols-[minmax(220px,1fr)_minmax(150px,210px)_minmax(280px,340px)_auto] md:items-center">
       <div className="flex min-w-0 items-center gap-3">
         <img
           src={artist.avatarUrl || "/fallback-avatar.jpg"}
@@ -256,16 +259,36 @@ const FollowedArtistRow = ({
 
       <LatestSheetCell sheet={artist.latestSheet} artistId={artist.id} />
 
-      <div className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+      <div
+        className="group relative flex min-w-0 items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+        tabIndex={availabilityDisplay.fullLabel ? 0 : -1}
+        title={availabilityDisplay.fullLabel || availabilityDisplay.label}
+      >
         <CalendarDays size={13} className="shrink-0 text-neutral-500" />
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-neutral-500">
             Booking
           </span>
-          <span className="mt-1 block truncate text-sm font-semibold leading-none text-white">
-            {availabilityLabel}
+          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-none text-white">
+            <span className="min-w-0 truncate">
+              {availabilityDisplay.label}
+            </span>
+            {availabilityDisplay.extraCount > 0 && (
+              <span
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-neutral-300"
+                aria-label={`${availabilityDisplay.extraCount} more booking months`}
+              >
+                <Plus size={10} />
+                {availabilityDisplay.extraCount}
+              </span>
+            )}
           </span>
         </span>
+        {availabilityDisplay.fullLabel && (
+          <span className="pointer-events-none absolute left-0 top-[calc(100%+0.5rem)] z-20 hidden w-max max-w-xs rounded-md border border-white/10 bg-[#191919] px-3 py-2 text-xs font-medium leading-5 text-white shadow-2xl shadow-black/40 group-hover:block group-focus-within:block">
+            {availabilityDisplay.fullLabel}
+          </span>
+        )}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 md:min-w-[260px]">
@@ -301,9 +324,9 @@ const LatestSheetCell = ({
   return (
     <Link
       to={href}
-      className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-2 transition hover:border-white/20 hover:bg-white/[0.04]"
+      className="flex min-w-0 items-center gap-2 px-1 py-1 transition hover:text-white"
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white/[0.04] text-neutral-500">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/[0.04] text-neutral-500">
         {sheet?.imageUrl ? (
           <img
             src={sheet.imageUrl}
@@ -390,6 +413,48 @@ const fetchLatestSheetsByArtist = async (artistChunks: string[][]) => {
   return latestByArtist;
 };
 
+const getCompactBookingAvailabilityDisplay = (
+  availability?: BookingAvailability | null
+) => {
+  const options = getRollingBookingMonthOptions();
+  const optionByKey = new Map(options.map((option) => [option.key, option]));
+  const monthOptions = getBookingAvailabilityMonthKeys(
+    availability,
+    options.map((option) => option.key)
+  )
+    .map((key) => optionByKey.get(key))
+    .filter((option): option is NonNullable<typeof option> => Boolean(option));
+
+  if (monthOptions.length === 0) {
+    return {
+      label: getBookingAvailabilityLabel(availability),
+      fullLabel: "",
+      extraCount: 0,
+    };
+  }
+
+  const visibleMonths = monthOptions.slice(0, 2);
+  const sameVisibleYear = visibleMonths.every(
+    (month) => month.year === visibleMonths[0].year
+  );
+  const visibleLabel = visibleMonths
+    .map((month, index) =>
+      sameVisibleYear && index < visibleMonths.length - 1
+        ? getMonthName(month)
+        : `${getMonthName(month)} ${month.year}`
+    )
+    .join(", ");
+  const fullLabel = monthOptions
+    .map((month) => `${getMonthName(month)} ${month.year}`)
+    .join(", ");
+
+  return {
+    label: `Booking ${visibleLabel}`,
+    fullLabel: `Booking ${fullLabel}`,
+    extraCount: Math.max(monthOptions.length - visibleMonths.length, 0),
+  };
+};
+
 const timestampToMillis = (value: unknown) => {
   if (!value) return 0;
   if (value instanceof Date) return value.getTime();
@@ -411,6 +476,11 @@ const timestampToMillis = (value: unknown) => {
   }
   return 0;
 };
+
+const getMonthName = (option: { year: number; monthIndex: number }) =>
+  new Intl.DateTimeFormat("en-US", { month: "long" }).format(
+    new Date(option.year, option.monthIndex, 1)
+  );
 
 const DashboardHeader = ({
   eyebrow,
