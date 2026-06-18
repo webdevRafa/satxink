@@ -93,7 +93,7 @@ const FlashCropModal = ({
       await addDoc(collection(db, "flashes"), {
         artistId: uid,
         sheetId,
-        title: title.trim() || "Untitled Flash",
+        title: title.trim() || null,
         price: parsedPrice,
         tags,
         fullUrl,

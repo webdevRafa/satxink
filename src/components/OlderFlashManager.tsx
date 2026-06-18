@@ -1,6 +1,6 @@
 // FlashManager.tsx with Proper Crop Flow UX
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
@@ -31,17 +31,17 @@ const FlashManager = ({ uid }: { uid: string }) => {
   const [priceInput, setPriceInput] = useState("");
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
 
-  const fetchFlashes = async () => {
+  const fetchFlashes = useCallback(async () => {
     const q = query(collection(db, "flashes"), where("artistId", "==", uid));
     const snapshot = await getDocs(q);
     setFlashes(
       snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Flash))
     );
-  };
+  }, [uid]);
 
   useEffect(() => {
     if (uid) fetchFlashes();
-  }, [uid]);
+  }, [fetchFlashes, uid]);
 
   const handleSheetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,7 +53,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleCropComplete = (_: any, croppedAreaPixels: Area) => {
+  const handleCropComplete = (_croppedArea: Area, croppedAreaPixels: Area) => {
     setCurrentCrop(croppedAreaPixels);
   };
 
@@ -91,7 +91,7 @@ const FlashManager = ({ uid }: { uid: string }) => {
 
     await addDoc(collection(db, "flashes"), {
       artistId: uid,
-      title: titleInput || "Untitled Flash",
+      title: titleInput.trim() || null,
       price: priceInput ? parseFloat(priceInput) : null,
       tags: [],
       fullUrl,
@@ -114,7 +114,12 @@ const FlashManager = ({ uid }: { uid: string }) => {
       <div className="flex gap-4 mb-4">
         <select
           value={mode}
-          onChange={(e) => setMode(e.target.value as any)}
+          onChange={(e) => {
+            const nextMode = e.target.value;
+            if (nextMode === "individual" || nextMode === "sheet") {
+              setMode(nextMode);
+            }
+          }}
           className="bg-gray-800 text-white px-3 py-2 rounded"
         >
           <option value="individual">Upload Individually</option>

@@ -3967,7 +3967,7 @@ const cropFlashFromSheet = onCall(
     }
     const now = admin.firestore.FieldValue.serverTimestamp();
     const titleValue =
-      typeof title === "string" && title.trim() ? title.trim() : "Untitled Flash";
+      typeof title === "string" && title.trim() ? title.trim() : null;
     const descriptionValue = normalizeFlashDescription(description);
     const tagsValue = Array.isArray(tags)
       ? tags.filter((tag) => typeof tag === "string")

@@ -1749,7 +1749,7 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
       className={`${flashPreviewCardClassName} flex h-full w-full flex-col`}
     >
       <FlashPreviewImage flash={flash} />
-      <div className="flex min-h-[118px] flex-1 flex-col p-3">
+      <div className="flex min-h-[128px] flex-1 flex-col p-3">
         <FlashPreviewMeta flash={flash} artist={flash.artist} />
       </div>
     </Link>

@@ -27,7 +27,7 @@ export type Flash = {
   previewPath: string;             // Firebase Storage path to preview
   fullPath: string;                // Firebase Storage path to full image
 
-  title?: string;                  // Optional artist-provided title
+  title?: string | null;           // Optional artist-provided title
   caption?: string | null;         // Legacy upload modal title field
   description?: string | null;      // Optional short public note
   isAvailable?: boolean;           // Optional: mark flash as available or sold

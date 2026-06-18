@@ -166,13 +166,14 @@ const UploadModal: React.FC<Props> = ({
       const uniqueName = `${baseName}.${ext}`;
       const originalUniqueName = `${baseName}.${originalExt}`;
       const price = isFlashUpload ? parsedFlashPrice : null;
+      const flashTitle = captionOrTitle.trim() || null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
 
       await addDoc(collection(db, collectionType), {
         artistId: uid,
-        caption: captionOrTitle || null,
-        title: isFlashUpload ? captionOrTitle || "Untitled Flash" : null,
+        caption: flashTitle,
+        title: isFlashUpload ? flashTitle : null,
         description: isFlashUpload ? normalizeFlashDescription(description) : null,
         price,
         tags,

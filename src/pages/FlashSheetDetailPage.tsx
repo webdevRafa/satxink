@@ -222,7 +222,7 @@ const FlashSheetDetailPage = () => {
 
   const handleSaveEdit = async (
     flashId: string,
-    title: string,
+    title: string | null,
     price: number | null,
     description: string | null,
     tags: string[],
@@ -343,7 +343,7 @@ const FlashSheetDetailPage = () => {
       const result = await cropFlashFromSheet({
         sheetId: sheet.id,
         crop: validCropArea,
-        title: newFlashTitle.trim() || "Untitled Flash",
+        title: newFlashTitle.trim() || null,
         price: parsedPrice,
         description: normalizeFlashDescription(newFlashDescription),
         tags: newFlashTags,
