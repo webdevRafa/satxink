@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -320,37 +321,10 @@ const FollowedArtistRow = ({
 
       <LatestSheetCell sheet={artist.latestSheet} artistId={artist.id} />
 
-      <div
-        className="group relative flex min-w-0 items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-        tabIndex={availabilityDisplay.fullLabel ? 0 : -1}
-        title={availabilityDisplay.fullLabel || availabilityDisplay.label}
-      >
-        <CalendarDays size={13} className="shrink-0 text-neutral-500" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-neutral-500">
-            Booking
-          </span>
-          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-none text-white">
-            <span className="min-w-0 truncate">
-              {availabilityDisplay.label}
-            </span>
-            {availabilityDisplay.extraCount > 0 && (
-              <span
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-neutral-300"
-                aria-label={`${availabilityDisplay.extraCount} more booking months`}
-              >
-                <Plus size={10} />
-                {availabilityDisplay.extraCount}
-              </span>
-            )}
-          </span>
-        </span>
-        {availabilityDisplay.fullLabel && (
-          <span className="pointer-events-none absolute left-0 top-[calc(100%+0.5rem)] z-20 hidden w-max max-w-xs rounded-md border border-white/10 bg-[#191919] px-3 py-2 text-xs font-medium leading-5 text-white shadow-2xl shadow-black/40 group-hover:block group-focus-within:block">
-            {availabilityDisplay.fullLabel}
-          </span>
-        )}
-      </div>
+      <BookingAvailabilityCell
+        artistId={artist.id}
+        availabilityDisplay={availabilityDisplay}
+      />
 
       <div className="grid gap-2 sm:grid-cols-2 md:min-w-[260px]">
         <Link
@@ -370,6 +344,127 @@ const FollowedArtistRow = ({
         </button>
       </div>
     </article>
+  );
+};
+
+const BookingAvailabilityCell = ({
+  artistId,
+  availabilityDisplay,
+}: {
+  artistId: string;
+  availabilityDisplay: {
+    label: string;
+    fullLabel: string;
+    extraCount: number;
+  };
+}) => {
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    left: number;
+    top: number;
+    maxWidth: number;
+    placement: "above" | "below";
+  } | null>(null);
+  const tooltipId = `booking-tooltip-${artistId}`;
+
+  const showTooltip = () => {
+    if (
+      !availabilityDisplay.fullLabel ||
+      !triggerRef.current ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const viewportPadding = 16;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const maxWidth = Math.min(
+      320,
+      Math.max(180, window.innerWidth - viewportPadding * 2)
+    );
+    const halfWidth = maxWidth / 2;
+    const centerX = rect.left + rect.width / 2;
+    const left = Math.min(
+      Math.max(centerX, viewportPadding + halfWidth),
+      window.innerWidth - viewportPadding - halfWidth
+    );
+    const placement = rect.top > 72 ? "above" : "below";
+
+    setTooltipPosition({
+      left,
+      top: placement === "above" ? rect.top - 10 : rect.bottom + 10,
+      maxWidth,
+      placement,
+    });
+  };
+
+  useEffect(() => {
+    if (!tooltipPosition || typeof window === "undefined") return;
+
+    const hideTooltip = () => setTooltipPosition(null);
+
+    window.addEventListener("scroll", hideTooltip, true);
+    window.addEventListener("resize", hideTooltip);
+
+    return () => {
+      window.removeEventListener("scroll", hideTooltip, true);
+      window.removeEventListener("resize", hideTooltip);
+    };
+  }, [tooltipPosition]);
+
+  return (
+    <div
+      ref={triggerRef}
+      className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+      tabIndex={availabilityDisplay.fullLabel ? 0 : -1}
+      aria-describedby={tooltipPosition ? tooltipId : undefined}
+      onMouseEnter={showTooltip}
+      onMouseLeave={() => setTooltipPosition(null)}
+      onFocus={showTooltip}
+      onBlur={() => setTooltipPosition(null)}
+    >
+      <CalendarDays size={13} className="shrink-0 text-neutral-500" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-neutral-500">
+          Booking
+        </span>
+        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-none text-white">
+          <span className="min-w-0 truncate">{availabilityDisplay.label}</span>
+          {availabilityDisplay.extraCount > 0 && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-neutral-300"
+              aria-label={`${availabilityDisplay.extraCount} more booking months`}
+            >
+              <Plus size={10} />
+              {availabilityDisplay.extraCount}
+            </span>
+          )}
+        </span>
+      </span>
+
+      {tooltipPosition &&
+        availabilityDisplay.fullLabel &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <span
+            id={tooltipId}
+            role="tooltip"
+            className="pointer-events-none fixed z-[1000] w-max rounded-md border border-white/10 bg-[#191919] px-3 py-2 text-xs font-medium leading-5 text-white shadow-2xl shadow-black/40"
+            style={{
+              left: tooltipPosition.left,
+              top: tooltipPosition.top,
+              maxWidth: tooltipPosition.maxWidth,
+              transform:
+                tooltipPosition.placement === "above"
+                  ? "translate(-50%, -100%)"
+                  : "translateX(-50%)",
+            }}
+          >
+            {availabilityDisplay.fullLabel}
+          </span>,
+          document.body
+        )}
+    </div>
   );
 };
 
