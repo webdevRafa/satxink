@@ -1760,15 +1760,14 @@ const FeaturedSheetPanel = ({
         </p>
         <Link
           to="/flash?tab=sheets"
-          className="mt-6 inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+          className="mt-6 hidden w-fit items-center gap-2 text-sm font-semibold text-white/45 transition hover:text-white md:inline-flex"
         >
-          View more sheets
+          View more
           <ArrowRight size={16} />
         </Link>
       </div>
 
-      <Link
-        to={sheetHref}
+      <div
         className="satx-market-card-motion group order-2 grid overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 md:order-1 lg:min-h-[21rem] lg:grid-cols-[minmax(13rem,0.48fr)_minmax(0,0.52fr)]"
         style={
           {
@@ -1778,7 +1777,11 @@ const FeaturedSheetPanel = ({
           } as CSSProperties
         }
       >
-        <div className="relative h-[18rem] overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]">
+        <Link
+          to={sheetHref}
+          className="relative block h-[18rem] overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
+          aria-label={`Open ${sheet.title || "flash sheet"}`}
+        >
           {sheet.thumbUrl || sheet.imageUrl ? (
             <img
               src={sheet.thumbUrl || sheet.imageUrl}
@@ -1789,7 +1792,7 @@ const FeaturedSheetPanel = ({
           ) : (
             <MissingImage />
           )}
-        </div>
+        </Link>
 
         <div className="flex min-h-[13.5rem] flex-col items-center p-5 pt-7 text-center lg:min-h-[21rem] lg:p-6 lg:pt-12">
           <div className="flex flex-col items-center">
@@ -1799,12 +1802,24 @@ const FeaturedSheetPanel = ({
             </p>
           </div>
 
-          <span className="mx-auto mt-12 inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white lg:mt-auto">
-            Open sheet
-            <ArrowRight size={15} />
-          </span>
+          <div className="mt-12 flex items-center justify-center gap-5 lg:mt-auto">
+            <Link
+              to={sheetHref}
+              className="inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white"
+            >
+              Open sheet
+              <ArrowRight size={15} />
+            </Link>
+            <Link
+              to="/flash?tab=sheets"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/45 transition hover:text-white md:hidden"
+            >
+              View others
+              <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
-      </Link>
+      </div>
     </div>
   );
 };
