@@ -38,7 +38,12 @@ export const FlashPreviewImage = ({
     : null;
 
   return (
-    <div className={cx("relative aspect-square overflow-hidden bg-black/30", className)}>
+    <div
+      className={cx(
+        "relative aspect-square overflow-hidden bg-black/30",
+        className
+      )}
+    >
       {previewUrl ? (
         <img
           src={previewUrl}
@@ -56,7 +61,7 @@ export const FlashPreviewImage = ({
       )}
 
       {resolvedBadgeLabel && (
-        <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
+        <span className="absolute left-3 top-3 border border-[#b6382d] bg-[#b6382d]/60 backdrop-blur-xs px-3 py-1 text-[10px]  uppercase tracking-[0.12em] text-white!">
           {resolvedBadgeLabel}
         </span>
       )}
@@ -113,10 +118,7 @@ export const FlashTinyTag = ({
 
   return (
     <span
-      className={cx(
-        "flex min-w-0 flex-wrap items-center gap-1.5",
-        className
-      )}
+      className={cx("flex min-w-0 flex-wrap items-center gap-1.5", className)}
     >
       {visibleTags.map((tag) => (
         <span

@@ -992,7 +992,7 @@ export const HomePage: FC = () => {
                 Flash marketplace
               </p>
               <h2 className="satx-market-motion satx-market-motion--title mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
-                Ready-to-request work from SATX artists.
+                Designs ready for skin.
               </h2>
               <p className="satx-market-motion satx-market-motion--body mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
                 Browse individual flash pieces when you want one design, or open
@@ -1001,7 +1001,7 @@ export const HomePage: FC = () => {
             </div>
             <Link
               to="/flash"
-              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md    px-4 py-2.5 text-sm font-semibold text-white/70! hover:text-white! transition "
             >
               Browse marketplace
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -1009,7 +1009,7 @@ export const HomePage: FC = () => {
           </div>
 
           <PreviewRail
-            title="Individual flash"
+            title=""
             emptyLabel="No marketplace-ready flash yet."
             items={flashes}
             renderItem={(flash) => <FlashPreviewCard flash={flash} />}
@@ -1420,7 +1420,10 @@ const HeroFeaturedArtistSlideImage = ({
         markFailed();
       }
     } else if (image.decode) {
-      image.decode().then(markLoaded).catch(() => undefined);
+      image
+        .decode()
+        .then(markLoaded)
+        .catch(() => undefined);
     }
 
     return () => {
@@ -1472,8 +1475,8 @@ const HeroFeaturedArtistSlideImage = ({
                 isLoaded
                   ? "scale-105 opacity-0 blur-xl"
                   : state === "active"
-                    ? "scale-[1.02] opacity-80 blur-sm"
-                    : "scale-105 opacity-45 blur-xl"
+                  ? "scale-[1.02] opacity-80 blur-sm"
+                  : "scale-105 opacity-45 blur-xl"
               }`}
               loading={loading}
               decoding="async"
@@ -1536,7 +1539,10 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
         markFailed();
       }
     } else if (image.decode) {
-      image.decode().then(markLoaded).catch(() => undefined);
+      image
+        .decode()
+        .then(markLoaded)
+        .catch(() => undefined);
     }
 
     return () => {
@@ -1653,7 +1659,6 @@ const HeroFeaturedArtistPanelSkeleton = ({
 };
 
 const PreviewRail = <T,>({
-  title,
   emptyLabel,
   items,
   renderItem,
@@ -1675,13 +1680,6 @@ const PreviewRail = <T,>({
       className="satx-market-rail-motion mt-10"
       style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-xl! font-semibold text-white">{title}</h3>
-        <span className="text-sm text-white/35">
-          {items.length} preview{items.length === 1 ? "" : "s"}
-        </span>
-      </div>
-
       {items.length > 0 ? (
         <>
           <div className="satx-home-marquee hidden md:block md:overflow-hidden">
