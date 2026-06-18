@@ -849,12 +849,28 @@ const getSessionInstallmentAmount = (booking: Booking) => {
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
   if (pending > 0) return Math.min(pending, remaining);
 
-  const sessionsLeft = Math.max(
-    Number(booking.estimatedSessionCount || 1) -
-      Number(booking.completedSessionCount || 0),
+  const sessionsLeft = isMultiSessionBooking(booking)
+    ? getRemainingInstallmentCount(booking)
+    : Math.max(
+        Number(booking.estimatedSessionCount || 1) -
+          Number(booking.completedSessionCount || 0),
+        1
+      );
+  return Math.ceil(remaining / sessionsLeft);
+};
+
+const getRemainingInstallmentCount = (booking: Booking) => {
+  const totalLaterInstallments = Math.max(
+    Number(booking.estimatedSessionCount || 1) - 1,
     1
   );
-  return Math.ceil(remaining / sessionsLeft);
+  const lastPaidSessionNumber = Math.max(Number(booking.lastPaidSessionNumber || 0), 0);
+  const paidLaterInstallments =
+    booking.sessionInstallmentTiming === "before_session"
+      ? Math.max(lastPaidSessionNumber - 1, 0)
+      : lastPaidSessionNumber;
+
+  return Math.max(totalLaterInstallments - paidLaterInstallments, 1);
 };
 
 type SyncPaymentResponse = {

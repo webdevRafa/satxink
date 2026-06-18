@@ -6,6 +6,8 @@ import type {
 } from "./PaymentPreferences";
 
 export type RemainingPaymentMethod = "stripe" | "external";
+export type DepositApplication = "project_credit";
+export type SessionInstallmentTiming = "before_session" | "after_session";
 export type RemainingPaymentStatus =
     | "not_due"
     | "due"
@@ -68,6 +70,7 @@ export type Booking = {
     remainingBalanceCents?: number;
     remainingPaymentMethod?: RemainingPaymentMethod;
     remainingPaymentStatus?: RemainingPaymentStatus;
+    depositApplication?: DepositApplication;
     externalRemainingAmount?: number;
     externalRemainingAmountCents?: number;
     externalRemainingPaymentMethods?: ExternalPaymentMethod[];
@@ -90,13 +93,18 @@ export type Booking = {
     projectType?: "single_session" | "multi_session";
     estimatedSessionCount?: number;
     estimatedSessionPrice?: number;
+    estimatedHoursPerSession?: number | null;
     sessionPaymentPlan?: "single_balance" | "per_session";
     sessionScheduling?: "single_session" | "first_session_now_rest_later";
+    sessionInstallmentTiming?: SessionInstallmentTiming;
     activeSessionNumber?: number;
     completedSessionCount?: number;
     pendingSessionPaymentAmount?: number;
     pendingSessionPaymentAmountCents?: number;
     pendingSessionNumber?: number;
+    pendingSessionPaymentRequestedAt?: Timestamp;
+    pendingSessionPaymentRequestedBy?: string;
+    pendingSessionPaymentNote?: string | null;
     lastPaidSessionNumber?: number;
   
     shopId?: string;

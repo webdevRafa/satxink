@@ -3,6 +3,10 @@ import type {
   ExternalPaymentMethod,
   FinalPaymentDeadlineHours,
 } from "./PaymentPreferences";
+import type {
+  DepositApplication,
+  SessionInstallmentTiming,
+} from "./Booking";
 
 export type Offer = {
     id: string;
@@ -55,10 +59,13 @@ clientAvatar?: string;
     allowExternalRemainingPayment?: boolean;
     externalRemainingPaymentMethods?: ExternalPaymentMethod[];
     externalRemainingPaymentNote?: string;
+    depositApplication?: DepositApplication;
     projectType?: "single_session" | "multi_session";
     estimatedSessionCount?: number;
     estimatedSessionPrice?: number;
+    estimatedHoursPerSession?: number | null;
     sessionPaymentPlan?: "single_balance" | "per_session";
     sessionScheduling?: "single_session" | "first_session_now_rest_later";
+    sessionInstallmentTiming?: SessionInstallmentTiming;
   };
   

@@ -62,6 +62,13 @@ interface Props {
 }
 
 const REQUESTS_PER_PAGE = 6;
+const REQUEST_STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "waiting", label: "Waiting" },
+  { value: "preparing", label: "Preparing" },
+  { value: "closed", label: "Closed" },
+] as const;
+type RequestStatusFilter = (typeof REQUEST_STATUS_FILTERS)[number]["value"];
 
 const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
@@ -71,6 +78,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   );
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>("all");
 
   useEffect(() => {
     if (!clientId) return;
@@ -79,8 +87,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     setLoading(true);
     const requestsQuery = query(
       collection(db, "bookingRequests"),
-      where("clientId", "==", clientId),
-      where("status", "==", "pending")
+      where("clientId", "==", clientId)
     );
 
     const unsubscribe = onSnapshot(
@@ -114,9 +121,21 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     () => [...requests].sort((a, b) => getItemTime(b) - getItemTime(a)),
     [requests]
   );
+  const filteredRequests = useMemo(
+    () =>
+      sortedRequests.filter((request) => {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "preparing") return isArtistPreparingOffer(request);
+        if (statusFilter === "waiting") {
+          return String(request.status || "pending") === "pending" && !isArtistPreparingOffer(request);
+        }
+        return String(request.status || "pending") !== "pending";
+      }),
+    [sortedRequests, statusFilter]
+  );
   const totalPages = Math.max(
     1,
-    Math.ceil(sortedRequests.length / REQUESTS_PER_PAGE)
+    Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE)
   );
   const activePage = Math.min(currentPage, totalPages);
   const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
@@ -125,11 +144,14 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     sortedRequests.length
   );
   const visibleRequests = useMemo(
-    () => sortedRequests.slice(pageStartIndex, pageEndIndex),
-    [pageEndIndex, pageStartIndex, sortedRequests]
+    () => filteredRequests.slice(pageStartIndex, pageEndIndex),
+    [filteredRequests, pageEndIndex, pageStartIndex]
   );
   const preparingCount = requests.filter(isArtistPreparingOffer).length;
-  const waitingCount = requests.length - preparingCount;
+  const closedCount = requests.filter(
+    (request) => String(request.status || "pending") !== "pending"
+  ).length;
+  const waitingCount = requests.length - preparingCount - closedCount;
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
@@ -137,7 +159,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [clientId]);
+  }, [clientId, statusFilter]);
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
@@ -162,11 +184,37 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
         </div>
       </div>
 
-      {sortedRequests.length === 0 ? (
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+        {REQUEST_STATUS_FILTERS.map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            onClick={() => setStatusFilter(filter.value)}
+            className={`rounded-md px-4! py-2! text-xs! font-semibold transition ${
+              statusFilter === filter.value
+                ? "bg-white text-black"
+                : "border border-white/10 bg-black/25 text-neutral-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
+        <span className="ml-auto text-sm text-neutral-500">
+          Showing {filteredRequests.length} of {requests.length}
+        </span>
+      </div>
+
+      {requests.length === 0 ? (
         <EmptyState
           icon={<MessageSquareText size={22} />}
           title="No requests yet"
           description="Requests you send from artist profiles will appear here with references, dates, and status."
+        />
+      ) : filteredRequests.length === 0 ? (
+        <EmptyState
+          icon={<MessageSquareText size={22} />}
+          title="No matching requests"
+          description="Try another request filter to see more of your request history."
         />
       ) : (
         <div className="space-y-3">
@@ -179,7 +227,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
             <RequestPagination
               currentPage={activePage}
               totalPages={totalPages}
-              totalItems={sortedRequests.length}
+              totalItems={filteredRequests.length}
               pageStart={pageStartIndex + 1}
               pageEnd={pageEndIndex}
               onPageChange={goToPage}

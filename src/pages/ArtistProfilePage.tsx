@@ -28,6 +28,7 @@ import { auth, db } from "../firebase/firebaseConfig";
 import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
+  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -68,6 +69,10 @@ import {
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
 import { getClientNameParts } from "../utils/clientDisplayName";
+import {
+  getBookingAvailabilityLabel,
+  type BookingAvailability,
+} from "../utils/bookingAvailability";
 
 const flashSizeOptions = [
   { value: "Small", label: "Small" },
@@ -89,6 +94,7 @@ interface Artist {
   portfolioUrls: string[];
   studioName?: string;
   shopId?: string;
+  bookingAvailability?: BookingAvailability;
   likedBy: string[];
   isAvailable: boolean;
   socialLinks?: SocialLinks;
@@ -648,6 +654,10 @@ export const ArtistProfilePage = () => {
   const artistStyles = Array.isArray(artist.specialties)
     ? artist.specialties.filter(Boolean)
     : [];
+  const artistBookingAvailabilityLabel = getBookingAvailabilityLabel(
+    artist.bookingAvailability,
+    ""
+  );
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
   const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
@@ -744,6 +754,13 @@ export const ArtistProfilePage = () => {
                         </li>
                       ))}
                     </ul>
+                  )}
+
+                  {artistBookingAvailabilityLabel && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs! font-semibold leading-5 text-neutral-300">
+                      <CalendarDays size={14} />
+                      {artistBookingAvailabilityLabel}
+                    </p>
                   )}
                 </div>
               </div>

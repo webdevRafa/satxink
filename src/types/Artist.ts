@@ -3,6 +3,7 @@ import type {
   ExternalPaymentMethod,
   FinalPaymentDeadlineHours,
 } from "./PaymentPreferences";
+import type { BookingAvailability } from "../utils/bookingAvailability";
 
 
 export type SocialLinks = {
@@ -62,6 +63,7 @@ export type SocialLinks = {
     depositPolicy: DepositPolicy;
     finalPaymentTiming: "before" | "after";
     finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
+    bookingAvailability?: BookingAvailability;
     stripeConnect?: {
       accountId?: string;
       chargesEnabled?: boolean;
