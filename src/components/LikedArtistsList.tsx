@@ -268,12 +268,12 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             )}
           </div>
 
-          <div className="-mx-6 snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth px-6 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+          <div className="-mx-6 snap-x snap-mandatory scroll-px-6 overflow-x-auto overscroll-x-contain scroll-smooth px-6 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
             <div className="flex gap-3">
               {artists.map((artist) => (
                 <div
                   key={artist.id}
-                  className="w-[min(21.5rem,calc(100vw-4.5rem))] shrink-0 snap-start"
+                  className="w-[min(21.5rem,calc(100vw-4.5rem))] shrink-0 snap-start [scroll-snap-stop:always]"
                 >
                   <FollowedArtistRow
                     artist={artist}
