@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarDays,
   Heart,
+  Layers,
   MessageCircle,
   Store,
   UserRound,
@@ -20,6 +21,7 @@ import {
   getBookingAvailabilityLabel,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
+import type { FlashSheet } from "../types/FlashSheet";
 
 interface Artist {
   id: string;
@@ -33,12 +35,21 @@ interface Artist {
   specialties?: string[];
   bio?: string;
   bookingAvailability?: BookingAvailability;
+  latestSheet?: LatestSheetPreview;
 }
 
 type ShopLookup = {
   id: string;
   name?: string;
   address?: string;
+};
+
+type LatestSheetPreview = {
+  id: string;
+  title: string;
+  imageUrl?: string;
+  href: string;
+  createdAtMs: number;
 };
 
 interface Props {
@@ -100,15 +111,18 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
             .filter((artist) => artist.id)
         );
 
-        const shopsById = await fetchShopsById(
-          Array.from(
-            new Set(
-              nextArtists
-                .map((artist) => artist.shopId)
-                .filter((shopId): shopId is string => Boolean(shopId))
+        const [shopsById, latestSheetByArtist] = await Promise.all([
+          fetchShopsById(
+            Array.from(
+              new Set(
+                nextArtists
+                  .map((artist) => artist.shopId)
+                  .filter((shopId): shopId is string => Boolean(shopId))
+              )
             )
-          )
-        );
+          ),
+          fetchLatestSheetsByArtist(chunks),
+        ]);
 
         const hydratedArtists = nextArtists
           .map((artist) => {
@@ -120,6 +134,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
               shopName,
               studioName: shopName || artist.studioName,
               shopAddress: artist.shopAddress || shop?.address,
+              latestSheet: latestSheetByArtist.get(artist.id),
             };
           })
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -221,7 +236,7 @@ const FollowedArtistRow = ({
   );
 
   return (
-    <article className="grid gap-4 rounded-lg border border-white/10 bg-[#111111] p-4 transition hover:border-white/20 hover:bg-white/[0.035] md:grid-cols-[minmax(0,1fr)_minmax(220px,280px)_auto] md:items-center">
+    <article className="grid gap-3 rounded-lg border border-white/10 bg-[#111111] p-3 transition hover:border-white/20 hover:bg-white/[0.035] md:grid-cols-[minmax(220px,1fr)_minmax(180px,240px)_minmax(160px,220px)_auto] md:items-center">
       <div className="flex min-w-0 items-center gap-3">
         <img
           src={artist.avatarUrl || "/fallback-avatar.jpg"}
@@ -239,14 +254,18 @@ const FollowedArtistRow = ({
         </div>
       </div>
 
-      <div className="rounded-md border border-white/10 bg-black/20 p-3">
-        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-          <CalendarDays size={13} />
-          Booking
-        </p>
-        <p className="mt-1 text-sm font-semibold text-white">
-          {availabilityLabel}
-        </p>
+      <LatestSheetCell sheet={artist.latestSheet} artistId={artist.id} />
+
+      <div className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+        <CalendarDays size={13} className="shrink-0 text-neutral-500" />
+        <span className="min-w-0">
+          <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-neutral-500">
+            Booking
+          </span>
+          <span className="mt-1 block truncate text-sm font-semibold leading-none text-white">
+            {availabilityLabel}
+          </span>
+        </span>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 md:min-w-[260px]">
@@ -267,6 +286,44 @@ const FollowedArtistRow = ({
         </button>
       </div>
     </article>
+  );
+};
+
+const LatestSheetCell = ({
+  artistId,
+  sheet,
+}: {
+  artistId: string;
+  sheet?: LatestSheetPreview;
+}) => {
+  const href = sheet?.href || `/artists/${artistId}`;
+
+  return (
+    <Link
+      to={href}
+      className="flex min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-2 transition hover:border-white/20 hover:bg-white/[0.04]"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white/[0.04] text-neutral-500">
+        {sheet?.imageUrl ? (
+          <img
+            src={sheet.imageUrl}
+            alt={sheet.title}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <Layers size={16} />
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-neutral-500">
+          Latest sheet
+        </span>
+        <span className="mt-1 block truncate text-sm font-semibold leading-none text-white">
+          {sheet?.title || "No sheet yet"}
+        </span>
+      </span>
+    </Link>
   );
 };
 
@@ -295,6 +352,64 @@ const fetchShopsById = async (shopIds: string[]) => {
   });
 
   return shopsById;
+};
+
+const fetchLatestSheetsByArtist = async (artistChunks: string[][]) => {
+  const snapshots = await Promise.all(
+    artistChunks.map((chunk) =>
+      getDocs(
+        query(collection(db, "flashSheets"), where("artistId", "in", chunk))
+      )
+    )
+  );
+  const latestByArtist = new Map<string, LatestSheetPreview>();
+
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((sheetDoc) => {
+      const sheet = {
+        id: sheetDoc.id,
+        ...sheetDoc.data(),
+      } as FlashSheet;
+
+      if (sheet.marketplaceVisible === false) return;
+
+      const createdAtMs = timestampToMillis(sheet.createdAt);
+      const current = latestByArtist.get(sheet.artistId);
+      if (current && current.createdAtMs >= createdAtMs) return;
+
+      latestByArtist.set(sheet.artistId, {
+        id: sheet.id,
+        title: sheet.title || "Latest flash sheet",
+        imageUrl: sheet.thumbUrl || sheet.imageUrl,
+        href: `/flash/sheets/${sheet.id}`,
+        createdAtMs,
+      });
+    });
+  });
+
+  return latestByArtist;
+};
+
+const timestampToMillis = (value: unknown) => {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in value &&
+    typeof (value as { toDate?: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate().getTime();
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "seconds" in value &&
+    typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    return Number((value as { seconds: number }).seconds) * 1000;
+  }
+  return 0;
 };
 
 const DashboardHeader = ({
