@@ -12,11 +12,9 @@ import {
   ArrowRight,
   ChevronRight,
   ImageOff,
-  Layers,
   Quote,
   Search,
   Sparkles,
-  Tag,
 } from "lucide-react";
 import CountUp from "react-countup";
 import {
@@ -994,19 +992,7 @@ export const HomePage: FC = () => {
           />
 
           {sheets.length > 0 ? (
-            <>
-              <FeaturedSheetPanel sheet={sheets[0]} railIndex={1} />
-              <div className="md:hidden">
-                <PreviewRail
-                  title="Flash sheets"
-                  emptyLabel="No marketplace-ready sheets yet."
-                  items={sheets}
-                  reverse
-                  renderItem={(sheet) => <SheetPreviewCard sheet={sheet} />}
-                  railIndex={1}
-                />
-              </div>
-            </>
+            <FeaturedSheetPanel sheet={sheets[0]} railIndex={1} />
           ) : (
             <div
               className="satx-market-rail-motion mt-10"
@@ -1749,67 +1735,11 @@ const FeaturedSheetPanel = ({
 
   return (
     <div
-      className="satx-market-rail-motion mt-14 hidden items-center gap-10 md:grid md:grid-cols-[minmax(0,0.52fr)_minmax(20rem,0.48fr)]"
+      className="satx-market-rail-motion mt-14 grid gap-8 md:grid-cols-[minmax(0,0.52fr)_minmax(20rem,0.48fr)] md:items-center md:gap-10"
       style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
     >
-      <Link
-        to={sheetHref}
-        className="satx-market-card-motion group grid min-h-[21rem] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 lg:grid-cols-[minmax(13rem,0.48fr)_minmax(0,0.52fr)]"
-        style={
-          {
-            "--market-card-delay": `${railDelay + 180}ms`,
-            "--market-card-x": "-48px",
-            "--market-card-tilt": "-0.35deg",
-          } as CSSProperties
-        }
-      >
-        <div className="relative min-h-[18rem] overflow-hidden bg-[#171717]">
-          {sheet.thumbUrl || sheet.imageUrl ? (
-            <img
-              src={sheet.thumbUrl || sheet.imageUrl}
-              alt={sheet.title || "Flash sheet"}
-              className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
-              loading="lazy"
-            />
-          ) : (
-            <MissingImage />
-          )}
-        </div>
-
-        <div className="flex min-h-[18rem] flex-col p-5">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-              Featured sheet
-            </p>
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">
-              <Layers size={10} />
-              Sheet
-            </span>
-          </div>
-
-          <div className="mt-8 flex items-start gap-3">
-            <ArtistAvatar artist={sheet.artist} name={artistName} />
-            <div className="min-w-0">
-              <h3 className="my-0! truncate text-xl! font-semibold leading-tight text-white">
-                {sheet.title || "Untitled flash sheet"}
-              </h3>
-              <p className="mt-1 truncate text-sm text-white/50">
-                by {artistName}
-              </p>
-            </div>
-          </div>
-
-          <TagList tags={sheet.tags} className="mt-6" />
-
-          <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white">
-            Open sheet
-            <ArrowRight size={15} />
-          </span>
-        </div>
-      </Link>
-
       <div
-        className="satx-market-card-motion max-w-xl"
+        className="satx-market-card-motion order-1 max-w-xl md:order-2"
         style={
           {
             "--market-card-delay": `${railDelay + 300}ms`,
@@ -1836,51 +1766,50 @@ const FeaturedSheetPanel = ({
           <ArrowRight size={16} />
         </Link>
       </div>
-    </div>
-  );
-};
 
-const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => {
-  const artistName = getArtistName(sheet.artist);
+      <Link
+        to={sheetHref}
+        className="satx-market-card-motion group order-2 grid overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 md:order-1 lg:min-h-[21rem] lg:grid-cols-[minmax(13rem,0.48fr)_minmax(0,0.52fr)]"
+        style={
+          {
+            "--market-card-delay": `${railDelay + 180}ms`,
+            "--market-card-x": "-48px",
+            "--market-card-tilt": "-0.35deg",
+          } as CSSProperties
+        }
+      >
+        <div className="relative h-[18rem] overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]">
+          {sheet.thumbUrl || sheet.imageUrl ? (
+            <img
+              src={sheet.thumbUrl || sheet.imageUrl}
+              alt={sheet.title || "Flash sheet"}
+              className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
+              loading="lazy"
+            />
+          ) : (
+            <MissingImage />
+          )}
+        </div>
 
-  return (
-    <Link
-      to={`/flash/sheets/${sheet.id}`}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
-    >
-      <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#171717] sm:h-[184px]">
-        {sheet.thumbUrl || sheet.imageUrl ? (
-          <img
-            src={sheet.thumbUrl || sheet.imageUrl}
-            alt={sheet.title || "Flash sheet"}
-            className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
-            loading="lazy"
-          />
-        ) : (
-          <MissingImage />
-        )}
-      </div>
-      <div className="flex min-h-[132px] flex-1 flex-col p-3">
-        <div className="flex min-h-[46px] items-start gap-2">
-          <ArtistAvatar artist={sheet.artist} name={artistName} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <h4 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-                {sheet.title || "Untitled flash sheet"}
-              </h4>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">
-                <Layers size={10} />
-                Sheet
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-white/50">
-              by {artistName}
+        <div className="flex min-h-[15rem] flex-col items-center p-5 text-center lg:min-h-[21rem] lg:p-6">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+            Featured sheet
+          </p>
+
+          <div className="mt-9 flex flex-col items-center">
+            <ArtistAvatar artist={sheet.artist} name={artistName} />
+            <p className="mt-4 max-w-full truncate text-lg font-semibold leading-tight text-white">
+              {artistName}
             </p>
           </div>
+
+          <span className="mx-auto mt-auto inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white">
+            Open sheet
+            <ArrowRight size={15} />
+          </span>
         </div>
-        <TagList tags={sheet.tags} />
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 };
 
@@ -1894,7 +1823,7 @@ const ArtistAvatar = ({
   const artistName = getArtistName(artist);
 
   return (
-    <span className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+    <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
@@ -1903,38 +1832,11 @@ const ArtistAvatar = ({
           loading="lazy"
         />
       ) : (
-        <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white/55">
+        <span className="flex h-full w-full items-center justify-center text-xl font-bold text-white/55">
           {name.charAt(0).toUpperCase()}
         </span>
       )}
     </span>
-  );
-};
-
-const TagList = ({
-  tags,
-  className = "mt-auto",
-}: {
-  tags?: string[];
-  className?: string;
-}) => {
-  const visibleTags = tags?.slice(0, 2) || [];
-
-  return (
-    <div
-      className={`flex h-6 min-w-0 flex-nowrap gap-1.5 overflow-hidden pt-1 ${className}`}
-      aria-hidden={visibleTags.length === 0}
-    >
-      {visibleTags.map((tag) => (
-        <span
-          key={tag}
-          className="inline-flex min-w-0 max-w-[104px] shrink items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/45"
-        >
-          <Tag size={11} className="shrink-0" />
-          <span className="truncate">{tag}</span>
-        </span>
-      ))}
-    </div>
   );
 };
 
