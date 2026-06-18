@@ -1711,27 +1711,18 @@ const ClientHero = ({
             {getClientViewDescription(activeView, client.name || "client")}
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {client.location && (
+          {client.location && (
+            <div className="mt-4 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-300">
                 <MapPin size={13} />
                 {client.location}
               </span>
-            )}
-            {client.preferredStyles?.length > 0 &&
-              client.preferredStyles.slice(0, 6).map((style, index) => (
-                <span
-                  key={`${style}-${index}`}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
-                >
-                  {style}
-                </span>
-              ))}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:min-w-[560px]">
         <ClientMetric icon={<Heart size={17} />} label="Following" value={client.likedArtists?.length || 0} />
         <ClientMetric
           icon={<Layers size={17} />}
@@ -1961,15 +1952,15 @@ const ClientOverviewSection = ({
         </OverviewList>
 
         <OverviewList
-          title="Recent requests"
-          emptyTitle="No open requests"
-          emptyDescription="Requests you send from artist profiles will appear here while they are waiting."
+          title="Recent shared ideas"
+          emptyTitle="No shared ideas yet"
+          emptyDescription="Ideas you share with artists will appear here while they prepare a response."
           onOpenAll={() => onOpenView("requests")}
         >
           {sortedRequests.slice(0, 4).map((request) => (
             <OverviewTextRow
               key={request.id}
-              title={request.artistName || "Artist request"}
+              title={request.artistName || "Shared idea"}
               meta={request.status || "pending"}
               description={
                 request.offerPreparationStatus
@@ -2806,12 +2797,16 @@ const ClientMetric = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <div className="flex min-w-0 items-center gap-1.5 text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
+      <span className="shrink-0 text-neutral-500 [&>svg]:h-3.5 [&>svg]:w-3.5">
+        {icon}
+      </span>
+      <span className="truncate">{label}</span>
     </div>
-    <p className="mt-2 truncate text-lg font-semibold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
