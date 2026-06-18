@@ -81,7 +81,7 @@ export const FlashArtistAvatar = ({
   const artistName = name || getFlashArtistName(artist);
 
   return (
-    <span className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+    <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
@@ -157,7 +157,7 @@ export const FlashPreviewMeta = ({
   return (
     <div className={cx("flex min-h-[98px] flex-col", className)}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 items-start gap-2.5">
           {showArtist && (
             <FlashArtistAvatar artist={artist} name={artistName} />
           )}

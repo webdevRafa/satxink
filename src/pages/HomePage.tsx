@@ -379,29 +379,6 @@ export const HomePage: FC = () => {
     <main className="bg-[#0d0d0d] text-white">
       <style>
         {`
-          @keyframes satx-home-marquee {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-          }
-
-          .satx-home-marquee-track {
-            animation: satx-home-marquee 180s linear infinite;
-            will-change: transform;
-            width: max-content;
-          }
-
-          .satx-home-marquee:hover .satx-home-marquee-track,
-          .satx-home-marquee:focus-within .satx-home-marquee-track {
-            animation-play-state: paused;
-          }
-
-          @media (max-width: 767px) {
-            .satx-home-marquee-track {
-              animation: none;
-              width: 100%;
-            }
-          }
-
           .satx-home-hero-fixed-image {
             position: absolute;
             inset: -12px;
@@ -1672,7 +1649,7 @@ const PreviewRail = <T,>({
   reverse?: boolean;
   railIndex?: number;
 }) => {
-  const trackItems = items.length > 0 ? [...items, ...items] : [];
+  const desktopItems = items.slice(0, 5);
   const railDelay = 700 + railIndex * 280;
 
   return (
@@ -1682,33 +1659,24 @@ const PreviewRail = <T,>({
     >
       {items.length > 0 ? (
         <>
-          <div className="satx-home-marquee hidden md:block md:overflow-hidden">
-            <div
-              className="satx-home-marquee-track flex items-stretch gap-4 pb-2"
-              style={{
-                animationDirection: reverse ? "reverse" : "normal",
-              }}
-            >
-              {trackItems.map((item, index) => (
-                <div
-                  key={index}
-                  className="satx-market-card-motion flex w-[220px] shrink-0 snap-start sm:w-[240px]"
-                  style={
-                    {
-                      "--market-card-delay": `${
-                        railDelay +
-                        180 +
-                        (index % Math.max(items.length, 1)) * 82
-                      }ms`,
-                      "--market-card-x": reverse ? "-48px" : "48px",
-                      "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
-                    } as CSSProperties
-                  }
-                >
-                  {renderItem(item, index)}
-                </div>
-              ))}
-            </div>
+          <div className="hidden items-stretch gap-4 pb-2 md:grid md:grid-cols-4 xl:grid-cols-5">
+            {desktopItems.map((item, index) => (
+              <div
+                key={index}
+                className="satx-market-card-motion flex min-w-0"
+                style={
+                  {
+                    "--market-card-delay": `${
+                      railDelay + 180 + index * 82
+                    }ms`,
+                    "--market-card-x": reverse ? "-48px" : "48px",
+                    "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
+                  } as CSSProperties
+                }
+              >
+                {renderItem(item, index)}
+              </div>
+            ))}
           </div>
 
           <div className="-mx-5 snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain scroll-smooth px-5 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">

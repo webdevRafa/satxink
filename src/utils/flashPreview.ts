@@ -23,7 +23,7 @@ export type FlashPreviewShape = Pick<
 >;
 
 export const flashPreviewCardClassName =
-  "group overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20";
+  "group overflow-hidden rounded-b-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20";
 
 export const getFlashTitle = (flash: Pick<Flash, "title" | "caption">) =>
   flash.title?.trim() || flash.caption?.trim() || "Untitled flash";
