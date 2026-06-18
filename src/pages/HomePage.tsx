@@ -993,14 +993,28 @@ export const HomePage: FC = () => {
             railIndex={0}
           />
 
-          <PreviewRail
-            title="Flash sheets"
-            emptyLabel="No marketplace-ready sheets yet."
-            items={sheets}
-            reverse
-            renderItem={(sheet) => <SheetPreviewCard sheet={sheet} />}
-            railIndex={1}
-          />
+          {sheets.length > 0 ? (
+            <>
+              <FeaturedSheetPanel sheet={sheets[0]} railIndex={1} />
+              <div className="md:hidden">
+                <PreviewRail
+                  title="Flash sheets"
+                  emptyLabel="No marketplace-ready sheets yet."
+                  items={sheets}
+                  reverse
+                  renderItem={(sheet) => <SheetPreviewCard sheet={sheet} />}
+                  railIndex={1}
+                />
+              </div>
+            </>
+          ) : (
+            <div
+              className="satx-market-rail-motion mt-10"
+              style={{ "--market-rail-delay": "980ms" } as CSSProperties}
+            >
+              <EmptyPreview label="No marketplace-ready sheets yet." />
+            </div>
+          )}
         </div>
       </section>
 
@@ -1722,6 +1736,110 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
   );
 };
 
+const FeaturedSheetPanel = ({
+  sheet,
+  railIndex,
+}: {
+  sheet: HomeFlashSheet;
+  railIndex: number;
+}) => {
+  const artistName = getArtistName(sheet.artist);
+  const sheetHref = `/flash/sheets/${sheet.id}`;
+  const railDelay = 700 + railIndex * 280;
+
+  return (
+    <div
+      className="satx-market-rail-motion mt-14 hidden items-center gap-10 md:grid md:grid-cols-[minmax(0,0.52fr)_minmax(20rem,0.48fr)]"
+      style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
+    >
+      <Link
+        to={sheetHref}
+        className="satx-market-card-motion group grid min-h-[21rem] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 lg:grid-cols-[minmax(13rem,0.48fr)_minmax(0,0.52fr)]"
+        style={
+          {
+            "--market-card-delay": `${railDelay + 180}ms`,
+            "--market-card-x": "-48px",
+            "--market-card-tilt": "-0.35deg",
+          } as CSSProperties
+        }
+      >
+        <div className="relative min-h-[18rem] overflow-hidden bg-[#171717]">
+          {sheet.thumbUrl || sheet.imageUrl ? (
+            <img
+              src={sheet.thumbUrl || sheet.imageUrl}
+              alt={sheet.title || "Flash sheet"}
+              className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
+              loading="lazy"
+            />
+          ) : (
+            <MissingImage />
+          )}
+        </div>
+
+        <div className="flex min-h-[18rem] flex-col p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              Featured sheet
+            </p>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">
+              <Layers size={10} />
+              Sheet
+            </span>
+          </div>
+
+          <div className="mt-8 flex items-start gap-3">
+            <ArtistAvatar artist={sheet.artist} name={artistName} />
+            <div className="min-w-0">
+              <h3 className="my-0! truncate text-xl! font-semibold leading-tight text-white">
+                {sheet.title || "Untitled flash sheet"}
+              </h3>
+              <p className="mt-1 truncate text-sm text-white/50">
+                by {artistName}
+              </p>
+            </div>
+          </div>
+
+          <TagList tags={sheet.tags} className="mt-6" />
+
+          <span className="mt-auto inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white">
+            Open sheet
+            <ArrowRight size={15} />
+          </span>
+        </div>
+      </Link>
+
+      <div
+        className="satx-market-card-motion max-w-xl"
+        style={
+          {
+            "--market-card-delay": `${railDelay + 300}ms`,
+            "--market-card-x": "36px",
+            "--market-card-tilt": "0deg",
+          } as CSSProperties
+        }
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+          Flash sheets
+        </p>
+        <h3 className="mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+          Browse full sheets.
+        </h3>
+        <p className="mt-3 max-w-lg text-sm leading-7 text-white/55 md:text-base">
+          Open a complete flash sheet when you want to explore a collection from
+          one artist before choosing the design that feels right.
+        </p>
+        <Link
+          to="/flash?tab=sheets"
+          className="mt-6 inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+        >
+          View more sheets
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+    </div>
+  );
+};
+
 const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => {
   const artistName = getArtistName(sheet.artist);
 
@@ -1793,12 +1911,18 @@ const ArtistAvatar = ({
   );
 };
 
-const TagList = ({ tags }: { tags?: string[] }) => {
+const TagList = ({
+  tags,
+  className = "mt-auto",
+}: {
+  tags?: string[];
+  className?: string;
+}) => {
   const visibleTags = tags?.slice(0, 2) || [];
 
   return (
     <div
-      className="mt-auto flex h-6 min-w-0 flex-nowrap gap-1.5 overflow-hidden pt-1"
+      className={`flex h-6 min-w-0 flex-nowrap gap-1.5 overflow-hidden pt-1 ${className}`}
       aria-hidden={visibleTags.length === 0}
     >
       {visibleTags.map((tag) => (
