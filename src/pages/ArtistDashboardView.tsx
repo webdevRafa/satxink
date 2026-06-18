@@ -81,13 +81,23 @@ import {
   getClientNameParts,
   getFullClientNameTitle,
 } from "../utils/clientDisplayName";
+import {
+  formatBookingMonthLabel,
+  getRollingBookingMonthOptions,
+  normalizeBookingMonthKeys,
+  type BookingAvailability,
+} from "../utils/bookingAvailability";
 
 const SPECIALTY_OPTIONS = TATTOO_STYLES;
 
 type PaymentType = "internal" | "external";
 type FinalPaymentTiming = "before" | "after";
 type DisplayNameStatus = "idle" | "checking" | "available" | "taken";
-type ArtistProfileSubTab = "identity" | "spotlight" | "specialties";
+type ArtistProfileSubTab =
+  | "identity"
+  | "spotlight"
+  | "specialties"
+  | "availability";
 type BookingSortMode = "upcoming" | "newest" | "oldest";
 type SessionReadinessFilter =
   | "all"
@@ -185,6 +195,7 @@ const PROFILE_SETTING_TABS: {
   { label: "Identity", value: "identity" },
   { label: "Spotlight", value: "spotlight" },
   { label: "Specialties", value: "specialties" },
+  { label: "Availability", value: "availability" },
 ];
 
 const getPrimaryAccountProviderId = (
@@ -245,6 +256,9 @@ type ArtistProfileFormState = {
   avatarUrl: string;
   bio: string;
   specialties: string[];
+  bookingAvailability: {
+    monthKeys: string[];
+  };
   socialLinks: {
     instagram: string;
     facebook: string;
@@ -281,6 +295,7 @@ type DashboardArtist = {
   paymentType?: PaymentType;
   finalPaymentTiming?: FinalPaymentTiming;
   finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
+  bookingAvailability?: BookingAvailability;
   homepageFeature?: Partial<HomepageFeatureFormState> & {
     updatedAt?: unknown;
   };
@@ -476,6 +491,11 @@ const createProfileFormState = (
     avatarUrl: artist?.avatarUrl || "",
     bio: artist?.bio || "",
     specialties: getCanonicalTattooStyles(artist?.specialties),
+    bookingAvailability: {
+      monthKeys: normalizeBookingMonthKeys(
+        artist?.bookingAvailability?.monthKeys
+      ),
+    },
     socialLinks: {
       instagram: artist?.socialLinks?.instagram || "",
       facebook: artist?.socialLinks?.facebook || "",
@@ -576,6 +596,11 @@ const ArtistDashboardView = () => {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingHomepageFeatureImage, setIsUploadingHomepageFeatureImage] =
     useState(false);
+  const bookingMonthOptions = useMemo(() => getRollingBookingMonthOptions(), []);
+  const allowedBookingMonthKeys = useMemo(
+    () => bookingMonthOptions.map((option) => option.key),
+    [bookingMonthOptions]
+  );
 
   const [offerPrice, setOfferPrice] = useState(0);
   const [depositAmount, setDepositAmount] = useState<number>(0);
@@ -745,6 +770,25 @@ const ArtistDashboardView = () => {
         specialties: exists
           ? current.specialties.filter((item) => item !== specialty)
           : [...current.specialties, specialty],
+      };
+    });
+  };
+
+  const toggleBookingMonth = (monthKey: string) => {
+    updateProfileForm((current) => {
+      const currentMonthKeys = normalizeBookingMonthKeys(
+        current.bookingAvailability.monthKeys,
+        allowedBookingMonthKeys
+      );
+      const exists = currentMonthKeys.includes(monthKey);
+
+      return {
+        ...current,
+        bookingAvailability: {
+          monthKeys: exists
+            ? currentMonthKeys.filter((key) => key !== monthKey)
+            : [...currentMonthKeys, monthKey].sort(),
+        },
       };
     });
   };
@@ -979,6 +1023,10 @@ const ArtistDashboardView = () => {
       .slice(0, HOMEPAGE_FEATURE_IMAGE_LIMIT);
     const primaryHomepageImage = homepageFeatureImages[0];
     const nextSlug = slugify(displayName, { lower: true, strict: true });
+    const bookingMonthKeys = normalizeBookingMonthKeys(
+      profileForm.bookingAvailability.monthKeys,
+      allowedBookingMonthKeys
+    );
 
     if (!displayName) {
       toast.error("Display name is required.");
@@ -1016,6 +1064,10 @@ const ArtistDashboardView = () => {
           profileForm.homepageFeature.imageUrl.trim(),
         imageAlt: homepageFeatureImageAlt,
         images: homepageFeatureImages,
+        updatedAt: serverTimestamp(),
+      },
+      bookingAvailability: {
+        monthKeys: bookingMonthKeys,
         updatedAt: serverTimestamp(),
       },
       profileComplete: true,
@@ -1619,6 +1671,14 @@ const ArtistDashboardView = () => {
   const profilePreviewStory = profileForm.homepageFeature.story.trim();
   const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
   const accountProviderCopy = getAccountProviderCopy(accountProviderId);
+  const selectedBookingMonthKeys = normalizeBookingMonthKeys(
+    profileForm.bookingAvailability.monthKeys,
+    allowedBookingMonthKeys
+  );
+  const bookingAvailabilityPreviewLabel = formatBookingMonthLabel(
+    selectedBookingMonthKeys,
+    bookingMonthOptions
+  );
 
   return (
     <div
@@ -2152,6 +2212,85 @@ const ArtistDashboardView = () => {
                   />
                 </section>
                 )}
+
+                {activeProfileSubTab === "availability" && (
+                <section
+                  id="profile-panel-availability"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-availability"
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                >
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                      <CalendarDays size={18} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h2 className="mb-0! text-lg!">Booking availability</h2>
+                      <p className="text-sm text-neutral-400">
+                        Tell clients which upcoming months you are actively
+                        booking.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          Public booking months
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-neutral-500">
+                          Select any months in the next 12 months. These appear
+                          on your public profile and in clients' Following list.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-neutral-300">
+                        {selectedBookingMonthKeys.length} selected
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {bookingMonthOptions.map((month) => {
+                        const selected = selectedBookingMonthKeys.includes(
+                          month.key
+                        );
+
+                        return (
+                          <button
+                            key={month.key}
+                            type="button"
+                            onClick={() => toggleBookingMonth(month.key)}
+                            aria-pressed={selected}
+                            className={`rounded-md border px-3! py-2.5! text-left transition ${
+                              selected
+                                ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                                : "border-white/10 bg-white/[0.025] text-neutral-400 hover:border-white/25 hover:text-white"
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold">
+                              {month.label.split(" ")[0]}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-neutral-500">
+                              {month.year}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
+                      <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                        Client-facing label
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {bookingAvailabilityPreviewLabel
+                          ? `Booking ${bookingAvailabilityPreviewLabel}`
+                          : "Availability not listed"}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+                )}
               </div>
 
               <aside className="h-fit space-y-4 xl:sticky xl:top-24 xl:self-start">
@@ -2196,6 +2335,12 @@ const ArtistDashboardView = () => {
                 </div>
 
                 <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-neutral-400">Booking</span>
+                    <span className="max-w-[180px] truncate text-right text-white">
+                      {bookingAvailabilityPreviewLabel || "Not listed"}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-neutral-400">Instagram</span>
                     <span className="max-w-[180px] truncate text-white">
