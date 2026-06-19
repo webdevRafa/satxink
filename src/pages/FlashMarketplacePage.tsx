@@ -61,8 +61,14 @@ type MarketFlashSheet = FlashSheet & {
   artist?: PublicArtist | null;
 };
 
-const MARKETPLACE_BATCH_SIZE = 18;
+const FLASH_MARKETPLACE_BATCH_SIZE = 12;
+const SHEET_MARKETPLACE_BATCH_SIZE = 18;
 const CLIENT_FILTER_MAX_FETCH_ROUNDS = 5;
+
+const getMarketplaceBatchSize = (tab: MarketplaceTab) =>
+  tab === "flashes"
+    ? FLASH_MARKETPLACE_BATCH_SIZE
+    : SHEET_MARKETPLACE_BATCH_SIZE;
 
 const getMarketplaceTabFromSearch = (
   searchParams: URLSearchParams
@@ -173,6 +179,7 @@ const FlashMarketplacePage = () => {
           : isAppend
           ? sheetCursorRef.current
           : null;
+      const batchSize = getMarketplaceBatchSize(tab);
       const collected: Array<MarketFlash | MarketFlashSheet> = [];
       let nextCursor: MarketplaceCursor = startingCursor;
       let nextHasMore = false;
@@ -214,7 +221,7 @@ const FlashMarketplacePage = () => {
           }
 
           nextCursor = docs[docs.length - 1];
-          nextHasMore = docs.length === MARKETPLACE_BATCH_SIZE;
+          nextHasMore = docs.length === batchSize;
           collected.push(
             ...docs
               .map((marketDoc) =>
@@ -241,7 +248,7 @@ const FlashMarketplacePage = () => {
             minPrice,
             maxPrice,
           }) &&
-          collected.length < MARKETPLACE_BATCH_SIZE &&
+          collected.length < batchSize &&
           fetchRounds < CLIENT_FILTER_MAX_FETCH_ROUNDS
         );
 
@@ -435,7 +442,7 @@ const FlashMarketplacePage = () => {
         ) : activeTab === "flashes" ? (
           flashes.length > 0 ? (
             <>
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
                 {flashes.map((flash) => (
                   <FlashCard
                     key={flash.id}
@@ -446,6 +453,7 @@ const FlashMarketplacePage = () => {
               </div>
               {hasMoreFlashes && (
                 <LoadMoreButton
+                  label="Load more designs"
                   loading={loadingMore}
                   onClick={() => void fetchMarketplacePage("append")}
                 />
@@ -463,6 +471,7 @@ const FlashMarketplacePage = () => {
             </div>
             {hasMoreSheets && (
               <LoadMoreButton
+                label="Load more sheets"
                 loading={loadingMore}
                 onClick={() => void fetchMarketplacePage("append")}
               />
@@ -512,9 +521,11 @@ const BudgetInput = ({
 );
 
 const LoadMoreButton = ({
+  label = "Load more",
   loading,
   onClick,
 }: {
+  label?: string;
   loading: boolean;
   onClick: () => void;
 }) => (
@@ -526,7 +537,7 @@ const LoadMoreButton = ({
       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/12 bg-white/[0.055] px-5 py-2 text-sm font-semibold text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_38px_rgba(0,0,0,0.26)] backdrop-blur transition hover:border-white/25 hover:bg-white/[0.1] hover:text-white disabled:cursor-wait disabled:opacity-65"
     >
       {loading && <Loader2 size={16} className="animate-spin" />}
-      {loading ? "Loading" : "Load more"}
+      {loading ? "Loading" : label}
     </button>
   </div>
 );
@@ -683,7 +694,7 @@ const buildMarketplaceQuery = ({
   }
 
   if (cursor) constraints.push(startAfter(cursor));
-  constraints.push(firestoreLimit(MARKETPLACE_BATCH_SIZE));
+  constraints.push(firestoreLimit(getMarketplaceBatchSize(tab)));
 
   return query(collection(db, collectionName), ...constraints);
 };
