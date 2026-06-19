@@ -1920,11 +1920,18 @@ const PortfolioLightbox = ({
     slideDirection === "next"
       ? "portfolio-slide-in-next"
       : "portfolio-slide-in-prev";
+  const artistName = getArtistDisplayName(artist);
+  const pieceTitle = item.caption || "Untitled piece";
+  const hasTags = Array.isArray(item.tags) && item.tags.length > 0;
+  const metaAnimationClass =
+    slideDirection === "next"
+      ? "portfolio-meta-in-next"
+      : "portfolio-meta-in-prev";
 
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/85 px-5 py-6 backdrop-blur-xs md:flex-row md:px-10"
+      className="fixed inset-0 z-[60] overflow-y-auto bg-black/90 px-4 pb-6 pt-[calc(5.75rem+env(safe-area-inset-top))] backdrop-blur-md md:px-8 md:pb-10 md:pt-28"
       role="dialog"
       aria-modal="true"
     >
@@ -1961,113 +1968,172 @@ const PortfolioLightbox = ({
         `}
       </style>
 
-      <div className="relative flex max-h-[84vh] max-w-[94vw] flex-col md:max-w-[70vw]">
-        <LightboxImageFrame
-          imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
-          fullUrl={getPortfolioLightboxUrl(item)}
-          previewUrl={getLightboxPreviewUrl(item)}
-          alt={item.caption || "Full portfolio view"}
-          isLoading={modalLoading}
-          loadingLabel="Loading portfolio piece"
-          slideClass={slideClass}
-          onImageLoad={onImageLoad}
-        />
-
-        {canNavigate && (
-          <>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onPrev();
-              }}
-              className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-              aria-label="Previous portfolio image"
-            >
-              <ChevronLeft size={22} />
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onNext();
-              }}
-              className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-              aria-label="Next portfolio image"
-            >
-              <ChevronRight size={22} />
-            </button>
-          </>
-        )}
-
-        <div
-          className="absolute right-3 top-3 z-20"
-          onClick={(event) => event.stopPropagation()}
-        >
+      <div
+        className="mx-auto flex w-full max-w-6xl flex-col gap-4"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex justify-end md:hidden">
           <button
             type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/45 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
             onClick={onClose}
             aria-label="Close portfolio image"
           >
             <X size={18} />
           </button>
         </div>
-      </div>
 
-      <div
-        data-aos="fade-in"
-        className="w-full max-w-sm text-center md:text-left"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-6 flex items-center justify-center gap-3 md:justify-start">
-          <img
-            src={artist.avatarUrl || "/default-avatar.png"}
-            alt={getArtistDisplayName(artist)}
-            className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
-          />
-          <div className="min-w-0">
+        <div className="hidden items-center justify-between gap-5 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-md md:flex">
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src={artist.avatarUrl || "/default-avatar.png"}
+              alt={artistName}
+              className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
+            />
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                Artist
+              </p>
+              <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
+                {artistName}
+              </p>
+            </div>
+          </div>
+
+          <div
+            key={`desktop-${item.id}`}
+            className={`${metaAnimationClass} min-w-0 flex-1 text-center`}
+          >
             <p className="text-xs uppercase tracking-[0.18em] text-white/35">
-              Artist
+              Portfolio piece
             </p>
-            <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
-              {getArtistDisplayName(artist)}
-            </p>
+            <h1 className="mx-auto mt-1 max-w-2xl truncate text-xl! font-semibold! leading-tight text-white">
+              {pieceTitle}
+            </h1>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRequestTattoo();
+              }}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-0! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
+            >
+              <MessageCircle size={16} />
+              Send your idea
+            </button>
+            <button
+              type="button"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.07] p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+              onClick={onClose}
+              aria-label="Close portfolio image"
+            >
+              <X size={18} />
+            </button>
           </div>
         </div>
 
-        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-          Portfolio piece
-        </p>
+        <div className="relative mx-auto w-full max-w-5xl">
+          <LightboxImageFrame
+            imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
+            fullUrl={getPortfolioLightboxUrl(item)}
+            previewUrl={getLightboxPreviewUrl(item)}
+            alt={item.caption || "Full portfolio view"}
+            isLoading={modalLoading}
+            loadingLabel="Loading portfolio piece"
+            slideClass={slideClass}
+            frameClassName="h-[min(56dvh,34rem)] w-full md:h-[min(68vh,760px)]"
+            onImageLoad={onImageLoad}
+          />
+
+          {canNavigate && (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPrev();
+                }}
+                className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+                aria-label="Previous portfolio image"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onNext();
+                }}
+                className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+                aria-label="Next portfolio image"
+              >
+                <ChevronRight size={22} />
+              </button>
+            </>
+          )}
+        </div>
+
+        {hasTags && (
+          <div
+            key={`desktop-tags-${item.id}`}
+            className={`${metaAnimationClass} hidden justify-center md:flex`}
+          >
+            <TagMarqueeModal tags={item.tags || []} compact />
+          </div>
+        )}
+
         <div
-          key={item.id}
-          className={
-            slideDirection === "next"
-              ? "portfolio-meta-in-next"
-              : "portfolio-meta-in-prev"
-          }
+          key={`mobile-${item.id}`}
+          className={`${metaAnimationClass} rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-md md:hidden`}
         >
-          <h1 className="mt-2 text-xl! font-light! leading-snug text-white md:text-2xl!">
-            {item.caption || "Untitled piece"}
-          </h1>
-          {Array.isArray(item.tags) && item.tags.length > 0 && (
-            <div className="mt-5 max-w-sm">
-              <TagMarqueeModal tags={item.tags} compact />
+          <div className="flex items-center gap-3">
+            <img
+              src={artist.avatarUrl || "/default-avatar.png"}
+              alt={artistName}
+              className="h-12 w-12 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
+            />
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                Artist
+              </p>
+              <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
+                {artistName}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              Portfolio piece
+            </p>
+            <h1 className="mt-1 text-xl! font-semibold! leading-tight text-white">
+              {pieceTitle}
+            </h1>
+          </div>
+
+          {hasTags && (
+            <div className="mt-4">
+              <TagMarqueeModal tags={item.tags || []} compact />
             </div>
           )}
+
           {modalLoading && (
             <div className="mt-4 space-y-2">
               <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
               <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
             </div>
           )}
+
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onRequestTattoo();
             }}
-            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-3! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:w-auto"
+            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-3! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
           >
             <MessageCircle size={16} />
             Send your idea
@@ -2175,6 +2241,7 @@ const LightboxImageFrame = ({
   isLoading,
   loadingLabel,
   slideClass,
+  frameClassName,
   onImageLoad,
 }: {
   imageKey: string;
@@ -2184,6 +2251,7 @@ const LightboxImageFrame = ({
   isLoading: boolean;
   loadingLabel: string;
   slideClass?: string;
+  frameClassName?: string;
   onImageLoad: () => void;
 }) => {
   const fullImageRef = useRef<HTMLImageElement | null>(null);
@@ -2203,7 +2271,9 @@ const LightboxImageFrame = ({
 
   return (
     <div
-      className="relative flex h-[min(72vh,760px)] w-[min(94vw,940px)] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl"
+      className={`relative flex ${
+        frameClassName || "h-[min(72vh,760px)] w-[min(94vw,940px)]"
+      } items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl`}
       onClick={(event) => event.stopPropagation()}
     >
       <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
