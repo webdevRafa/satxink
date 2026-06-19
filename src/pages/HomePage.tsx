@@ -428,8 +428,8 @@ export const HomePage: FC = () => {
   );
   const bookingSectionCopy = hasBookingArtistsThisMonth
     ? {
-        eyebrow: "Booking this month",
-        title: "Artists booking this month.",
+        eyebrow: "Open books",
+        title: "Artists ready to receive your ideas.",
         body: "Explore San Antonio artists with current availability, then open a profile when someone feels like the right fit.",
       }
     : hasBookingArtistsWithAvailability
