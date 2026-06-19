@@ -1950,12 +1950,26 @@ const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
 };
 
 const BookingArtistCardSkeleton = () => (
-  <article className="relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] via-[#111] to-[#0c0c0c] px-5 py-8 text-center">
-    <div className="preview-loading-sheen absolute left-4 top-4 h-6 w-36 rounded-full border border-white/10 bg-white/[0.045]" />
-    <div className="preview-loading-sheen h-24 w-24 rounded-full border border-white/10 bg-white/[0.06]" />
-    <div className="skeleton-sheen mt-5 h-6 w-36 rounded-md bg-white/[0.08]" />
-    <div className="skeleton-sheen mt-3 h-4 w-44 rounded-md bg-white/[0.055]" />
-    <div className="skeleton-sheen mt-7 h-10 w-32 rounded-md bg-white/[0.08]" />
+  <article
+    aria-hidden="true"
+    className="relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] via-[#111] to-[#0c0c0c] px-5 py-8 text-center"
+  >
+    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+    <div className="absolute left-4 top-4 inline-flex h-6 w-36 items-center gap-1.5 rounded-full border border-white/10 bg-black/35 px-2.5">
+      <div className="skeleton-sheen h-3 w-3 rounded-sm bg-white/[0.08]" />
+      <div className="skeleton-sheen h-2.5 w-24 rounded-full bg-white/[0.08]" />
+    </div>
+
+    <div className="mt-8 flex w-full flex-col items-center">
+      <div className="skeleton-sheen h-24 w-24 rounded-full border border-white/10 bg-white/[0.06] shadow-[0_18px_40px_rgba(0,0,0,0.3)]" />
+      <div className="skeleton-sheen mt-5 h-6 w-36 max-w-full rounded-md bg-white/[0.08]" />
+      <div className="mt-3 flex w-full max-w-48 items-center justify-center gap-1.5">
+        <div className="skeleton-sheen h-3.5 w-3.5 shrink-0 rounded-sm bg-white/[0.055]" />
+        <div className="skeleton-sheen h-4 min-w-0 flex-1 rounded-md bg-white/[0.055]" />
+      </div>
+    </div>
+
+    <div className="skeleton-sheen mt-7 h-10 w-32 rounded-md border border-white/10 bg-white/[0.08]" />
   </article>
 );
 

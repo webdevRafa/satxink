@@ -501,7 +501,7 @@ const FlashMarketplacePage = () => {
         </div>
 
         {loading ? (
-          <MarketplaceSkeleton />
+          <MarketplaceSkeleton activeTab={activeTab} />
         ) : activeTab === "flashes" ? (
           flashes.length > 0 ? (
             <>
@@ -747,15 +747,61 @@ const TagList = ({ tags }: { tags?: string[] }) => {
   );
 };
 
-const MarketplaceSkeleton = () => (
-  <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-    {[0, 1, 2, 3, 4, 5].map((item) => (
-      <div
-        key={item}
-        className="h-[420px] animate-pulse rounded-2xl border border-white/10 bg-white/[0.035]"
-      />
-    ))}
-  </div>
+const MarketplaceSkeleton = ({ activeTab }: { activeTab: MarketplaceTab }) =>
+  activeTab === "flashes" ? (
+    <div className="mt-5 grid grid-cols-2 justify-items-center gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-7">
+      {Array.from({ length: 8 }).map((_, item) => (
+        <FlashDesignSkeletonCard key={item} />
+      ))}
+    </div>
+  ) : (
+    <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, item) => (
+        <FlashSheetSkeletonCard key={item} />
+      ))}
+    </div>
+  );
+
+const FlashDesignSkeletonCard = () => (
+  <article
+    aria-hidden="true"
+    className={`${flashPreviewCardClassName} w-full animate-pulse lg:max-w-[80%]`}
+  >
+    <div className="skeleton-sheen relative aspect-square bg-white/[0.045]">
+      <div className="absolute left-3 top-3 h-6 w-20 rounded-none border border-[#b6382d]/45 bg-[#b6382d]/25" />
+    </div>
+    <div className="p-3 lg:p-2.5">
+      <div className="flex items-center justify-between gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="skeleton-sheen h-7 w-7 shrink-0 rounded-full border border-white/10 bg-white/[0.07]" />
+          <div className="skeleton-sheen h-4 w-24 rounded-md bg-white/[0.08]" />
+        </div>
+        <div className="skeleton-sheen h-6 w-12 shrink-0 rounded-full border border-white/10 bg-white/[0.075]" />
+      </div>
+    </div>
+  </article>
+);
+
+const FlashSheetSkeletonCard = () => (
+  <article
+    aria-hidden="true"
+    className="animate-pulse overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent shadow-xl"
+  >
+    <div className="skeleton-sheen relative aspect-[4/5] bg-white/[0.045]">
+      <div className="absolute left-3 top-3 h-7 w-16 rounded-full border border-white/10 bg-black/35" />
+    </div>
+    <div className="p-4">
+      <div className="skeleton-sheen h-6 w-3/5 rounded-md bg-white/[0.08]" />
+      <div className="skeleton-sheen mt-3 h-4 w-28 rounded-md bg-white/[0.055]" />
+      <div className="mt-4 flex gap-1.5">
+        <div className="skeleton-sheen h-6 w-16 rounded-full border border-white/10 bg-white/[0.045]" />
+        <div className="skeleton-sheen h-6 w-20 rounded-full border border-white/10 bg-white/[0.045]" />
+      </div>
+      <div className="mt-5 flex justify-end">
+        <div className="skeleton-sheen h-10 w-32 rounded-full bg-white/[0.1]" />
+      </div>
+    </div>
+  </article>
 );
 
 const EmptyMarketplaceState = () => (
