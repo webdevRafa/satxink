@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
@@ -92,9 +99,12 @@ const FlashMarketplacePage = () => {
   const [priceSort, setPriceSort] = useState<PriceSort>("newest");
   const [client, setClient] = useState<FlashRequestClient | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<MarketFlash | null>(null);
+  const browseHeaderRef = useRef<HTMLDivElement | null>(null);
   const fetchSequenceRef = useRef(0);
   const flashCursorRef = useRef<MarketplaceCursor>(null);
   const sheetCursorRef = useRef<MarketplaceCursor>(null);
+  const flashCardRefs = useRef<Array<HTMLElement | null>>([]);
+  const pendingFlashScrollIndexRef = useRef<number | null>(null);
 
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
@@ -287,6 +297,26 @@ const FlashMarketplacePage = () => {
     [activeTab, maxPrice, minPrice, priceSort, searchTokens]
   );
 
+  const scrollToLoadedFlashBatch = useCallback((targetIndex: number) => {
+    const targetCard = flashCardRefs.current[targetIndex];
+    const browseHeader = browseHeaderRef.current;
+
+    if (!targetCard || !browseHeader) return;
+
+    const headerBottom = browseHeader.getBoundingClientRect().bottom;
+    const targetTop = targetCard.getBoundingClientRect().top + window.scrollY;
+
+    window.scrollTo({
+      top: Math.max(targetTop - headerBottom - 8, 0),
+      behavior: "smooth",
+    });
+  }, []);
+
+  const handleLoadMoreFlashes = useCallback(() => {
+    pendingFlashScrollIndexRef.current = flashes.length;
+    void fetchMarketplacePage("append");
+  }, [fetchMarketplacePage, flashes.length]);
+
   useEffect(() => {
     void fetchMarketplacePage("replace");
   }, [
@@ -296,6 +326,34 @@ const FlashMarketplacePage = () => {
     priceSort,
     searchTokens,
     fetchMarketplacePage,
+  ]);
+
+  useEffect(() => {
+    const pendingIndex = pendingFlashScrollIndexRef.current;
+
+    if (pendingIndex === null) {
+      return;
+    }
+
+    if (activeTab !== "flashes") {
+      pendingFlashScrollIndexRef.current = null;
+      return;
+    }
+
+    if (loadingMore) return;
+
+    if (flashes.length <= pendingIndex) {
+      pendingFlashScrollIndexRef.current = null;
+      return;
+    }
+
+    pendingFlashScrollIndexRef.current = null;
+    window.requestAnimationFrame(() => scrollToLoadedFlashBatch(pendingIndex));
+  }, [
+    activeTab,
+    flashes.length,
+    loadingMore,
+    scrollToLoadedFlashBatch,
   ]);
 
   return (
@@ -429,7 +487,10 @@ const FlashMarketplacePage = () => {
           </button>
         </div>
 
-        <div className="sticky top-18 z-30 mt-3 flex flex-col gap-4 border-y border-white/10 bg-[#0d0d0d]/92 py-4 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:flex-row sm:items-end sm:justify-between">
+        <div
+          ref={browseHeaderRef}
+          className="sticky top-18 z-30 mt-3 flex flex-col gap-4 border-y border-white/10 bg-[#0d0d0d]/92 py-4 shadow-[0_18px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:flex-row sm:items-end sm:justify-between"
+        >
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
               {activeTab === "flashes" ? "Available designs" : "Browse sheets"}
@@ -443,9 +504,12 @@ const FlashMarketplacePage = () => {
           flashes.length > 0 ? (
             <>
               <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
-                {flashes.map((flash) => (
+                {flashes.map((flash, index) => (
                   <FlashCard
                     key={flash.id}
+                    ref={(node) => {
+                      flashCardRefs.current[index] = node;
+                    }}
                     flash={flash}
                     onRequest={() => setSelectedFlash(flash)}
                   />
@@ -455,7 +519,7 @@ const FlashMarketplacePage = () => {
                 <LoadMoreButton
                   label="Load more designs"
                   loading={loadingMore}
-                  onClick={() => void fetchMarketplacePage("append")}
+                  onClick={handleLoadMoreFlashes}
                 />
               )}
             </>
@@ -542,43 +606,47 @@ const LoadMoreButton = ({
   </div>
 );
 
-const FlashCard = ({
-  flash,
-  onRequest,
-}: {
+type FlashCardProps = {
   flash: MarketFlash;
   onRequest: () => void;
-}) => {
-  return (
-    <article
-      tabIndex={0}
-      className={`${flashPreviewCardClassName} focus:outline-none focus:ring-2 focus:ring-white/20`}
-    >
-      <FlashPreviewImage flash={flash} />
-
-      <div className="p-3">
-        <FlashPreviewMeta flash={flash} artist={flash.artist} />
-
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 opacity-100 transition duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 md:pointer-events-none md:opacity-0">
-          <Link
-            to={`/artists/${flash.artistId}`}
-            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-          >
-            View artist
-          </Link>
-          <button
-            type="button"
-            onClick={onRequest}
-            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md !border !border-[color:rgba(232,82,67,0.34)] !bg-[color:rgba(232,82,67,0.12)] !px-2 !py-0 !text-[11px] font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:!border-[color:rgba(232,82,67,0.55)] hover:!bg-[color:rgba(232,82,67,0.2)] hover:text-white"
-            aria-label={`Request this flash: ${getFlashTitle(flash)}`}
-          >
-            Request
-          </button>
-        </div>
-      </div>
-    </article>
-  );
 };
+
+const FlashCard = forwardRef<HTMLElement, FlashCardProps>(
+  ({ flash, onRequest }, ref) => {
+    return (
+      <article
+        ref={ref}
+        tabIndex={0}
+        className={`${flashPreviewCardClassName} focus:outline-none focus:ring-2 focus:ring-white/20`}
+      >
+        <FlashPreviewImage flash={flash} />
+
+        <div className="p-3">
+          <FlashPreviewMeta flash={flash} artist={flash.artist} />
+
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 opacity-100 transition duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 md:pointer-events-none md:opacity-0">
+            <Link
+              to={`/artists/${flash.artistId}`}
+              className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            >
+              View artist
+            </Link>
+            <button
+              type="button"
+              onClick={onRequest}
+              className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md !border !border-[color:rgba(232,82,67,0.34)] !bg-[color:rgba(232,82,67,0.12)] !px-2 !py-0 !text-[11px] font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:!border-[color:rgba(232,82,67,0.55)] hover:!bg-[color:rgba(232,82,67,0.2)] hover:text-white"
+              aria-label={`Request this flash: ${getFlashTitle(flash)}`}
+            >
+              Request
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+);
+
+FlashCard.displayName = "FlashCard";
 
 const FlashSheetMarketCard = ({ sheet }: { sheet: MarketFlashSheet }) => {
   const artistName = getArtistName(sheet.artist);
