@@ -792,7 +792,7 @@ export const ArtistProfilePage = () => {
                     id="artist-flash-heading"
                     className="my-0! text-2xl! font-semibold! text-white"
                   >
-                    Flash
+                    Flash Sheets
                   </h2>
                   {!flashSheetsLoading && flashSheets.length > 0 && (
                     <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
@@ -1140,6 +1140,8 @@ const getPortfolioItemsPerPage = () => {
   if (window.matchMedia("(min-width: 640px)").matches) return 2;
   return 1;
 };
+
+const getFlashSheetItemsPerPage = () => getPortfolioItemsPerPage();
 
 const getPortfolioPageItems = (
   galleryItems: GalleryItem[],
@@ -1537,6 +1539,101 @@ const FlashSheetsPanel = ({
   focusedSheetId?: string;
   onOpenSheet: (sheet: FlashSheet) => void;
 }) => {
+  const [itemsPerPage, setItemsPerPage] = useState(getFlashSheetItemsPerPage);
+  const [activePage, setActivePage] = useState(0);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const pageCount = Math.max(1, Math.ceil(flashSheets.length / itemsPerPage));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setItemsPerPage(getFlashSheetItemsPerPage());
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    setActivePage((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
+
+  useEffect(() => {
+    flashSheets.forEach((sheet) => preloadImage(getSheetPreviewUrl(sheet)));
+  }, [flashSheets]);
+
+  const updateActivePosition = useCallback(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const items = Array.from(
+      rail.querySelectorAll<HTMLElement>("[data-flash-sheet-snap-item]")
+    );
+    if (items.length === 0) return;
+
+    const railCenter = rail.scrollLeft + rail.clientWidth / 2;
+    const nextItemIndex = items.reduce((closestIndex, item, index) => {
+      const closestItem = items[closestIndex];
+      const itemCenter = item.offsetLeft + item.offsetWidth / 2;
+      const closestCenter =
+        closestItem.offsetLeft + closestItem.offsetWidth / 2;
+
+      return Math.abs(itemCenter - railCenter) <
+        Math.abs(closestCenter - railCenter)
+        ? index
+        : closestIndex;
+    }, 0);
+    const maxScroll = Math.max(rail.scrollWidth - rail.clientWidth, 0);
+    const nextPageIndex =
+      pageCount > 1 && maxScroll > 0
+        ? clampNumber(
+            Math.round((rail.scrollLeft / maxScroll) * (pageCount - 1)),
+            0,
+            pageCount - 1
+          )
+        : 0;
+
+    setActiveItemIndex((current) =>
+      current === nextItemIndex ? current : nextItemIndex
+    );
+    setActivePage((current) =>
+      current === nextPageIndex ? current : nextPageIndex
+    );
+  }, [pageCount]);
+
+  useEffect(() => {
+    setActivePage(0);
+    setActiveItemIndex(0);
+    railRef.current?.scrollTo({ left: 0 });
+  }, [flashSheets]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    let frameId: number | null = null;
+    const queueUpdate = () => {
+      if (frameId !== null) return;
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        updateActivePosition();
+      });
+    };
+
+    queueUpdate();
+    rail.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+
+    return () => {
+      rail.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [flashSheets.length, updateActivePosition]);
+
   if (flashSheetsLoading) return <PortfolioSkeleton />;
 
   if (flashSheets.length === 0) {
@@ -1548,17 +1645,158 @@ const FlashSheetsPanel = ({
     );
   }
 
-  return (
-    <div className="satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  const scrollToItem = (index: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const items = Array.from(
+      rail.querySelectorAll<HTMLElement>("[data-flash-sheet-snap-item]")
+    );
+    const item = items[index];
+    if (!item) return;
+
+    item.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "start",
+    });
+    setActiveItemIndex(index);
+    setActivePage(Math.min(pageCount - 1, Math.floor(index / itemsPerPage)));
+  };
+
+  const scrollToPage = (pageIndex: number) => {
+    if (pageCount <= 1) return;
+
+    const nextPageIndex = (pageIndex + pageCount) % pageCount;
+    const itemIndex = Math.min(
+      flashSheets.length - 1,
+      nextPageIndex * itemsPerPage
+    );
+    scrollToItem(itemIndex);
+  };
+
+  const goToPreviousPage = () => {
+    scrollToPage(activePage - 1);
+  };
+
+  const goToNextPage = () => {
+    scrollToPage(activePage + 1);
+  };
+
+  const arrowButtonClassName =
+    "flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white shadow-[0_14px_38px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/25 hover:bg-white/[0.1]";
+
+  const mobileDots = (
+    <div className="mt-4 flex items-center justify-center gap-2 sm:hidden">
       {flashSheets.map((sheet, index) => (
-        <FlashSheetCard
+        <button
           key={sheet.id}
-          sheet={sheet}
-          priority={index === 0}
-          isSelected={focusedSheetId === sheet.id}
-          onOpen={() => onOpenSheet(sheet)}
+          type="button"
+          onClick={() => scrollToItem(index)}
+          className={`h-2.5 rounded-full p-0! transition ${
+            index === activeItemIndex
+              ? "w-8 bg-white"
+              : "w-2.5 bg-white/25 hover:bg-white/45"
+          }`}
+          aria-label={`Show flash sheet ${index + 1}`}
+          aria-current={index === activeItemIndex ? "true" : undefined}
         />
       ))}
+    </div>
+  );
+
+  const desktopPageDots = (
+    <div className="flex items-center justify-center gap-2">
+      {Array.from({ length: pageCount }).map((_, index) => (
+        <button
+          key={index}
+          type="button"
+          onClick={() => scrollToPage(index)}
+          className={`h-2.5 rounded-full p-0! transition ${
+            index === activePage
+              ? "w-8 bg-white"
+              : "w-2.5 bg-white/25 hover:bg-white/45"
+          }`}
+          aria-label={`Show flash sheet page ${index + 1}`}
+          aria-current={index === activePage ? "page" : undefined}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="satx-profile-flash-carousel">
+      <div className="relative">
+        {pageCount > 1 && (
+          <button
+            type="button"
+            onClick={goToPreviousPage}
+            className={`${arrowButtonClassName} absolute -left-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Previous flash sheet page"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
+
+        <div
+          ref={railRef}
+          className="-mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto overscroll-x-contain scroll-smooth px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:scroll-px-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex gap-4">
+            {flashSheets.map((sheet, index) => (
+              <div
+                key={sheet.id}
+                data-flash-sheet-snap-item
+                className="w-[min(28rem,calc(100vw-3rem))] shrink-0 snap-start [scroll-snap-stop:always] sm:w-[calc((100%_-_1rem)_/_2)] lg:w-[calc((100%_-_2rem)_/_3)]"
+              >
+                <FlashSheetCard
+                  sheet={sheet}
+                  priority={index < itemsPerPage}
+                  isSelected={focusedSheetId === sheet.id}
+                  onOpen={() => onOpenSheet(sheet)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {pageCount > 1 && (
+          <button
+            type="button"
+            onClick={goToNextPage}
+            className={`${arrowButtonClassName} absolute -right-14 top-1/2 z-10 hidden -translate-y-1/2 xl:flex`}
+            aria-label="Next flash sheet page"
+          >
+            <ChevronRight size={18} />
+          </button>
+        )}
+      </div>
+
+      {flashSheets.length > 1 && mobileDots}
+
+      {pageCount > 1 && (
+        <div className="mt-4 hidden items-center justify-between gap-3 sm:flex xl:justify-center">
+          <button
+            type="button"
+            onClick={goToPreviousPage}
+            className={`${arrowButtonClassName} xl:hidden`}
+            aria-label="Previous flash sheet page"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          {desktopPageDots}
+
+          <button
+            type="button"
+            onClick={goToNextPage}
+            className={`${arrowButtonClassName} xl:hidden`}
+            aria-label="Next flash sheet page"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -1681,49 +1919,40 @@ const FlashSheetCard = ({
   priority: boolean;
   isSelected: boolean;
   onOpen: () => void;
-}) => (
-  <button
-    type="button"
-    data-aos="fade-up"
-    onClick={onOpen}
-    className={`group relative overflow-hidden rounded-xl border bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
-      isSelected ? "border-white/40 ring-1 ring-white/25" : "border-white/10"
-    } ${priority ? "sm:col-span-2 lg:col-span-1" : ""}`}
-  >
-    <div className="relative aspect-[4/5] overflow-hidden bg-black">
-      <FadeInImage
-        src={getSheetPreviewUrl(sheet)}
-        alt={sheet.title || "Flash sheet"}
-        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        loading={priority ? "eager" : "lazy"}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
-      <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-0 backdrop-blur-md transition group-hover:opacity-100">
-        <Expand size={17} />
-      </div>
-      <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/45 px-3 py-1 text-xs font-medium text-white/80 backdrop-blur-md">
-        Flash Sheet
-      </div>
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
-          {sheet.title || "Untitled flash sheet"}
-        </h3>
-        {Array.isArray(sheet.tags) && sheet.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sheet.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs text-white/75 backdrop-blur-sm"
-              >
-                {tag}
-              </span>
-            ))}
+}) => {
+  const sheetTitle = sheet.title?.trim();
+
+  return (
+    <button
+      type="button"
+      data-aos="fade-up"
+      onClick={onOpen}
+      className={`group relative block w-full overflow-hidden rounded-xl border bg-[#111] p-0! text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition duration-300 hover:border-white/25 hover:shadow-[0_22px_70px_rgba(0,0,0,0.45)] ${
+        isSelected ? "border-white/40 ring-1 ring-white/25" : "border-white/10"
+      }`}
+    >
+      <div className="relative aspect-[4/5] overflow-hidden bg-black">
+        <FadeInImage
+          src={getSheetPreviewUrl(sheet)}
+          alt={sheetTitle || "Flash sheet"}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          loading={priority ? "eager" : "lazy"}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
+        <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white opacity-100 backdrop-blur-md transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
+          <Expand size={17} />
+        </div>
+        {sheetTitle && (
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <h3 className="line-clamp-2 text-base! font-semibold! leading-snug text-white my-0!">
+              {sheetTitle}
+            </h3>
           </div>
         )}
       </div>
-    </div>
-  </button>
-);
+    </button>
+  );
+};
 
 const FadeInImage = ({
   src,
