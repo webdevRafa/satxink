@@ -10,13 +10,13 @@ import {
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  CalendarDays,
   ChevronRight,
   ImageOff,
-  Layers,
   Quote,
   Search,
   Sparkles,
-  Tag,
+  Store,
 } from "lucide-react";
 import CountUp from "react-countup";
 import {
@@ -39,6 +39,11 @@ import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
+import {
+  getBookingAvailabilityMonthKeys,
+  getRollingBookingMonthOptions,
+  type BookingAvailability,
+} from "../utils/bookingAvailability";
 import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
   FlashPreviewImage,
@@ -56,6 +61,7 @@ type PublicArtist = {
   shopName?: string;
   studioName?: string;
   specialties?: string[];
+  bookingAvailability?: BookingAvailability;
   homepageFeature?: {
     story?: string;
     quote?: string;
@@ -110,6 +116,8 @@ const featuredStyles = FEATURED_TATTOO_STYLES;
 
 const HOME_FLASH_FETCH_LIMIT = 40;
 const HOME_SHEET_FETCH_LIMIT = 24;
+const HOME_BOOKING_ARTIST_FETCH_LIMIT = 48;
+const HOME_BOOKING_ARTIST_DISPLAY_LIMIT = 3;
 const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
 const loadedFeaturedArtistSlideUrls = new Set<string>();
 
@@ -164,6 +172,7 @@ export const HomePage: FC = () => {
   const [featuredPreviewItems, setFeaturedPreviewItems] = useState<
     FeaturedPreviewItem[]
   >([]);
+  const [bookingArtists, setBookingArtists] = useState<PublicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] = useState(false);
   const [isMobileHeroImageReady, setIsMobileHeroImageReady] = useState(false);
@@ -220,9 +229,15 @@ export const HomePage: FC = () => {
     const fetchHomePreview = async () => {
       try {
         setLoading(true);
+        const currentBookingMonthKey = getRollingBookingMonthOptions()[0]?.key;
 
-        const [flashSnapshot, sheetSnapshot, homepageSettingsSnap] =
-          await Promise.all([
+        const [
+          flashSnapshot,
+          sheetSnapshot,
+          homepageSettingsSnap,
+          currentMonthBookingArtistsSnapshot,
+          fallbackBookingArtistsSnapshot,
+        ] = await Promise.all([
             getDocs(
               query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
             ),
@@ -233,6 +248,26 @@ export const HomePage: FC = () => {
               )
             ),
             getDoc(doc(db, "siteSettings", "homepage")),
+            currentBookingMonthKey
+              ? getDocs(
+                  query(
+                    collection(db, "users"),
+                    where(
+                      "bookingAvailability.monthKeys",
+                      "array-contains",
+                      currentBookingMonthKey
+                    ),
+                    limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+                  )
+                )
+              : Promise.resolve(null),
+            getDocs(
+              query(
+                collection(db, "users"),
+                where("role", "==", "artist"),
+                limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+              )
+            ),
           ]);
         const homepageSettings = homepageSettingsSnap.data();
         const featuredArtistId =
@@ -276,6 +311,17 @@ export const HomePage: FC = () => {
         );
 
         const artistsById = await fetchArtistsById(artistIds);
+        const readyBookingArtists = await getHomepageBookingArtists(
+          getUniqueDocsById([
+            ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
+            ...fallbackBookingArtistsSnapshot.docs,
+          ])
+            .map((artistDoc) => ({
+              id: artistDoc.id,
+              ...artistDoc.data(),
+            }))
+            .filter(isVisiblePublicArtist)
+        );
 
         if (!isMounted) return;
 
@@ -322,6 +368,7 @@ export const HomePage: FC = () => {
         setSheets(readySheets);
         setFeaturedArtist(selectedFeaturedArtist);
         setFeaturedPreviewItems(featuredPreviews);
+        setBookingArtists(readyBookingArtists);
       } catch (err) {
         console.error("Failed to fetch homepage preview data:", err);
         if (isMounted) {
@@ -329,6 +376,7 @@ export const HomePage: FC = () => {
           setSheets([]);
           setFeaturedArtist(null);
           setFeaturedPreviewItems([]);
+          setBookingArtists([]);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -371,6 +419,30 @@ export const HomePage: FC = () => {
     ],
     [flashes.length, loading, sheets.length]
   );
+  const bookingMonthOptions = useMemo(() => getRollingBookingMonthOptions(), []);
+  const hasBookingArtistsThisMonth = bookingArtists.some((artist) =>
+    artistHasBookingMonth(artist, bookingMonthOptions[0]?.key)
+  );
+  const hasBookingArtistsWithAvailability = bookingArtists.some(
+    artistHasBookingAvailability
+  );
+  const bookingSectionCopy = hasBookingArtistsThisMonth
+    ? {
+        eyebrow: "Open books",
+        title: "Artists ready to receive your ideas.",
+        body: "Explore San Antonio artists with current availability, then open a profile when someone feels like the right fit.",
+      }
+    : hasBookingArtistsWithAvailability
+      ? {
+          eyebrow: "Booking soon",
+          title: "Artists with books open soon.",
+          body: "Availability shifts month to month. Start with artists who have upcoming booking windows listed on their profiles.",
+        }
+      : {
+          eyebrow: "Local artists",
+          title: "Artists taking requests.",
+          body: "Browse artist profiles, compare shop details, and start a request from the profile that fits your idea.",
+        };
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
   const isStyleSectionRevealed = styleSectionEntryCount > 0;
   const isMarketplaceSectionRevealed = marketplaceSectionEntryCount > 0;
@@ -379,29 +451,6 @@ export const HomePage: FC = () => {
     <main className="bg-[#0d0d0d] text-white">
       <style>
         {`
-          @keyframes satx-home-marquee {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-          }
-
-          .satx-home-marquee-track {
-            animation: satx-home-marquee 180s linear infinite;
-            will-change: transform;
-            width: max-content;
-          }
-
-          .satx-home-marquee:hover .satx-home-marquee-track,
-          .satx-home-marquee:focus-within .satx-home-marquee-track {
-            animation-play-state: paused;
-          }
-
-          @media (max-width: 767px) {
-            .satx-home-marquee-track {
-              animation: none;
-              width: 100%;
-            }
-          }
-
           .satx-home-hero-fixed-image {
             position: absolute;
             inset: -12px;
@@ -992,7 +1041,7 @@ export const HomePage: FC = () => {
                 Flash marketplace
               </p>
               <h2 className="satx-market-motion satx-market-motion--title mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
-                Ready-to-request work from SATX artists.
+                Designs ready for skin.
               </h2>
               <p className="satx-market-motion satx-market-motion--body mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
                 Browse individual flash pieces when you want one design, or open
@@ -1001,7 +1050,7 @@ export const HomePage: FC = () => {
             </div>
             <Link
               to="/flash"
-              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md    px-4 py-2.5 text-sm font-semibold text-white/70! hover:text-white! transition "
             >
               Browse marketplace
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -1009,45 +1058,105 @@ export const HomePage: FC = () => {
           </div>
 
           <PreviewRail
-            title="Individual flash"
+            title=""
             emptyLabel="No marketplace-ready flash yet."
             items={flashes}
             renderItem={(flash) => <FlashPreviewCard flash={flash} />}
             railIndex={0}
           />
 
-          <PreviewRail
-            title="Flash sheets"
-            emptyLabel="No marketplace-ready sheets yet."
-            items={sheets}
-            reverse
-            renderItem={(sheet) => <SheetPreviewCard sheet={sheet} />}
-            railIndex={1}
-          />
+          {sheets.length > 0 ? (
+            <FeaturedSheetPanel sheet={sheets[0]} railIndex={1} />
+          ) : (
+            <div
+              className="satx-market-rail-motion mt-10"
+              style={{ "--market-rail-delay": "980ms" } as CSSProperties}
+            >
+              <EmptyPreview label="No marketplace-ready sheets yet." />
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="border-t border-white/5 bg-[#171717] px-5 py-20 text-center md:px-8  z-50 relative">
-        <div className="mx-auto max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
-            Start the conversation
-          </p>
-          <h2 className="mt-3 text-3xl! font-semibold text-white md:text-4xl!">
-            When the work feels right, reach out.
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-            Compare artists, browse real flash, and send a focused request when
-            you are ready to take the next step.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
+      <section className="relative z-50 border-t border-white/5 bg-[#171717] px-5 py-18 md:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+                {bookingSectionCopy.eyebrow}
+              </p>
+              <h2 className="mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+                {bookingSectionCopy.title}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
+                {bookingSectionCopy.body}
+              </p>
+            </div>
             <Link
               to="/artists"
-              className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              className="inline-flex w-fit items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white/55 transition hover:text-white"
             >
-              Find artists
-              <ArrowRight size={16} className="text-[#0b0b0b]!" />
+              View all artists
+              <ArrowRight size={16} />
             </Link>
           </div>
+
+          {loading ? (
+            <>
+              <div className="mt-10 hidden grid-cols-3 gap-4 md:grid">
+                {[0, 1, 2].map((item) => (
+                  <BookingArtistCardSkeleton key={item} />
+                ))}
+              </div>
+
+              <div className="-mx-5 mt-8 snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain scroll-smooth px-5 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+                <div className="flex gap-4">
+                  {[0, 1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="w-[min(22rem,calc(100vw-3rem))] shrink-0 snap-start [scroll-snap-stop:always]"
+                    >
+                      <BookingArtistCardSkeleton />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : bookingArtists.length > 0 ? (
+            <>
+              <div className="mt-10 hidden grid-cols-3 gap-4 md:grid lg:gap-5">
+                {bookingArtists.map((artist) => (
+                  <BookingArtistCard key={artist.id} artist={artist} />
+                ))}
+              </div>
+
+              <div className="-mx-5 mt-8 snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain scroll-smooth px-5 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+                <div className="flex gap-4">
+                  {bookingArtists.map((artist) => (
+                    <div
+                      key={artist.id}
+                      className="w-[min(22rem,calc(100vw-3rem))] shrink-0 snap-start [scroll-snap-stop:always]"
+                    >
+                      <BookingArtistCard artist={artist} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-10 rounded-xl border border-white/10 bg-white/[0.035] p-8 text-center">
+              <p className="text-sm text-white/45">
+                Artist availability will appear here as profiles are updated.
+              </p>
+              <Link
+                to="/artists"
+                className="mt-5 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+              >
+                Browse artists
+                <ArrowRight size={16} className="text-[#0b0b0b]!" />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
     </main>
@@ -1420,7 +1529,10 @@ const HeroFeaturedArtistSlideImage = ({
         markFailed();
       }
     } else if (image.decode) {
-      image.decode().then(markLoaded).catch(() => undefined);
+      image
+        .decode()
+        .then(markLoaded)
+        .catch(() => undefined);
     }
 
     return () => {
@@ -1472,8 +1584,8 @@ const HeroFeaturedArtistSlideImage = ({
                 isLoaded
                   ? "scale-105 opacity-0 blur-xl"
                   : state === "active"
-                    ? "scale-[1.02] opacity-80 blur-sm"
-                    : "scale-105 opacity-45 blur-xl"
+                  ? "scale-[1.02] opacity-80 blur-sm"
+                  : "scale-105 opacity-45 blur-xl"
               }`}
               loading={loading}
               decoding="async"
@@ -1536,7 +1648,10 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
         markFailed();
       }
     } else if (image.decode) {
-      image.decode().then(markLoaded).catch(() => undefined);
+      image
+        .decode()
+        .then(markLoaded)
+        .catch(() => undefined);
     }
 
     return () => {
@@ -1653,7 +1768,6 @@ const HeroFeaturedArtistPanelSkeleton = ({
 };
 
 const PreviewRail = <T,>({
-  title,
   emptyLabel,
   items,
   renderItem,
@@ -1667,7 +1781,7 @@ const PreviewRail = <T,>({
   reverse?: boolean;
   railIndex?: number;
 }) => {
-  const trackItems = items.length > 0 ? [...items, ...items] : [];
+  const desktopItems = items.slice(0, 5);
   const railDelay = 700 + railIndex * 280;
 
   return (
@@ -1675,42 +1789,26 @@ const PreviewRail = <T,>({
       className="satx-market-rail-motion mt-10"
       style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-xl! font-semibold text-white">{title}</h3>
-        <span className="text-sm text-white/35">
-          {items.length} preview{items.length === 1 ? "" : "s"}
-        </span>
-      </div>
-
       {items.length > 0 ? (
         <>
-          <div className="satx-home-marquee hidden md:block md:overflow-hidden">
-            <div
-              className="satx-home-marquee-track flex items-stretch gap-4 pb-2"
-              style={{
-                animationDirection: reverse ? "reverse" : "normal",
-              }}
-            >
-              {trackItems.map((item, index) => (
-                <div
-                  key={index}
-                  className="satx-market-card-motion flex w-[220px] shrink-0 snap-start sm:w-[240px]"
-                  style={
-                    {
-                      "--market-card-delay": `${
-                        railDelay +
-                        180 +
-                        (index % Math.max(items.length, 1)) * 82
-                      }ms`,
-                      "--market-card-x": reverse ? "-48px" : "48px",
-                      "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
-                    } as CSSProperties
-                  }
-                >
-                  {renderItem(item, index)}
-                </div>
-              ))}
-            </div>
+          <div className="hidden items-stretch gap-4 pb-2 md:grid md:grid-cols-4 xl:grid-cols-5">
+            {desktopItems.map((item, index) => (
+              <div
+                key={index}
+                className="satx-market-card-motion flex min-w-0"
+                style={
+                  {
+                    "--market-card-delay": `${
+                      railDelay + 180 + index * 82
+                    }ms`,
+                    "--market-card-x": reverse ? "-48px" : "48px",
+                    "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
+                  } as CSSProperties
+                }
+              >
+                {renderItem(item, index)}
+              </div>
+            ))}
           </div>
 
           <div className="-mx-5 snap-x snap-mandatory scroll-px-5 overflow-x-auto overscroll-x-contain scroll-smooth px-5 pb-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
@@ -1749,56 +1847,175 @@ const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
       className={`${flashPreviewCardClassName} flex h-full w-full flex-col`}
     >
       <FlashPreviewImage flash={flash} />
-      <div className="flex min-h-[118px] flex-1 flex-col p-3">
+      <div className="flex min-h-[128px] flex-1 flex-col p-3">
         <FlashPreviewMeta flash={flash} artist={flash.artist} />
       </div>
     </Link>
   );
 };
 
-const SheetPreviewCard = ({ sheet }: { sheet: HomeFlashSheet }) => {
+const FeaturedSheetPanel = ({
+  sheet,
+  railIndex,
+}: {
+  sheet: HomeFlashSheet;
+  railIndex: number;
+}) => {
   const artistName = getArtistName(sheet.artist);
+  const sheetHref = `/flash/sheets/${sheet.id}`;
+  const railDelay = 700 + railIndex * 280;
 
   return (
-    <Link
-      to={`/flash/sheets/${sheet.id}`}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20"
+    <div
+      className="satx-market-rail-motion mt-14 grid gap-8 md:grid-cols-[minmax(0,0.52fr)_minmax(20rem,0.48fr)] md:items-center md:gap-10"
+      style={{ "--market-rail-delay": `${railDelay}ms` } as CSSProperties}
     >
-      <div className="relative h-[180px] shrink-0 overflow-hidden bg-[#171717] sm:h-[184px]">
-        {sheet.thumbUrl || sheet.imageUrl ? (
-          <img
-            src={sheet.thumbUrl || sheet.imageUrl}
-            alt={sheet.title || "Flash sheet"}
-            className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
-            loading="lazy"
-          />
-        ) : (
-          <MissingImage />
-        )}
+      <div
+        className="satx-market-card-motion order-1 max-w-xl md:order-2"
+        style={
+          {
+            "--market-card-delay": `${railDelay + 300}ms`,
+            "--market-card-x": "36px",
+            "--market-card-tilt": "0deg",
+          } as CSSProperties
+        }
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+          Flash sheets
+        </p>
+        <h3 className="mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
+          Browse full sheets.
+        </h3>
+        <p className="mt-3 max-w-lg text-sm leading-7 text-white/55 md:text-base">
+          Open a complete flash sheet when you want to explore a collection from
+          one artist before choosing the design that feels right.
+        </p>
+        <Link
+          to="/flash?tab=sheets"
+          className="mt-6 hidden w-fit items-center gap-2 text-sm font-semibold text-white/45 transition hover:text-white md:inline-flex"
+        >
+          View more
+          <ArrowRight size={16} />
+        </Link>
       </div>
-      <div className="flex min-h-[132px] flex-1 flex-col p-3">
-        <div className="flex min-h-[46px] items-start gap-2">
-          <ArtistAvatar artist={sheet.artist} name={artistName} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              <h4 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-                {sheet.title || "Untitled flash sheet"}
-              </h4>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">
-                <Layers size={10} />
-                Sheet
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-white/50">
-              by {artistName}
+
+      <div
+        className="satx-market-card-motion group order-2 grid overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.055] via-[#111] to-[#0c0c0c] shadow-lg transition hover:border-white/20 md:order-1 lg:min-h-[21rem] lg:grid-cols-[minmax(13rem,0.48fr)_minmax(0,0.52fr)]"
+        style={
+          {
+            "--market-card-delay": `${railDelay + 180}ms`,
+            "--market-card-x": "-48px",
+            "--market-card-tilt": "-0.35deg",
+          } as CSSProperties
+        }
+      >
+        <Link
+          to={sheetHref}
+          className="relative block h-[18rem] overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
+          aria-label={`Open ${sheet.title || "flash sheet"}`}
+        >
+          {sheet.thumbUrl || sheet.imageUrl ? (
+            <img
+              src={sheet.thumbUrl || sheet.imageUrl}
+              alt={sheet.title || "Flash sheet"}
+              className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
+              loading="lazy"
+            />
+          ) : (
+            <MissingImage />
+          )}
+        </Link>
+
+        <div className="flex min-h-[13.5rem] flex-col items-center p-5 pt-7 text-center lg:min-h-[21rem] lg:p-6 lg:pt-12">
+          <div className="flex flex-col items-center">
+            <ArtistAvatar artist={sheet.artist} name={artistName} />
+            <p className="mt-3 max-w-full truncate text-lg font-semibold leading-tight text-white">
+              {artistName}
             </p>
           </div>
+
+          <div className="mt-12 flex items-center justify-center gap-5 lg:mt-auto">
+            <Link
+              to={sheetHref}
+              className="inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white"
+            >
+              Open sheet
+              <ArrowRight size={15} />
+            </Link>
+            <Link
+              to="/flash?tab=sheets"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/45 transition hover:text-white md:hidden"
+            >
+              View others
+              <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
-        <TagList tags={sheet.tags} />
       </div>
-    </Link>
+    </div>
   );
 };
+
+const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
+  const artistName = getArtistName(artist);
+  const studioLabel = getArtistStudioLabel(artist);
+  const bookingLabel = getHomeBookingLabel(artist);
+  const artistInitial = artistName.charAt(0).toUpperCase();
+
+  return (
+    <article className="group relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-[#111] to-[#0c0c0c] px-5 py-8 text-center shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.055]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+      <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">
+        <CalendarDays size={12} />
+        {bookingLabel}
+      </div>
+
+      <div className="mt-8 flex flex-col items-center">
+        <span className="relative h-24 w-24 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+          {artist.avatarUrl ? (
+            <img
+              src={artist.avatarUrl}
+              alt={artistName}
+              className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/55">
+              {artistInitial}
+            </span>
+          )}
+        </span>
+
+        <h3 className="mt-5 max-w-full truncate text-xl font-semibold leading-tight text-white">
+          {artistName}
+        </h3>
+        <p className="mt-2 flex max-w-full items-center justify-center gap-1.5 truncate text-sm text-white/45">
+          <Store size={14} className="shrink-0 text-white/30" />
+          <span className="truncate">{studioLabel}</span>
+        </p>
+      </div>
+
+      <Link
+        to={`/artists/${artist.id}`}
+        className="mt-7 inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white group-hover:text-[#0b0b0b]!"
+      >
+        View profile
+        <ArrowRight size={15} />
+      </Link>
+    </article>
+  );
+};
+
+const BookingArtistCardSkeleton = () => (
+  <article className="relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] via-[#111] to-[#0c0c0c] px-5 py-8 text-center">
+    <div className="preview-loading-sheen absolute left-4 top-4 h-6 w-36 rounded-full border border-white/10 bg-white/[0.045]" />
+    <div className="preview-loading-sheen h-24 w-24 rounded-full border border-white/10 bg-white/[0.06]" />
+    <div className="skeleton-sheen mt-5 h-6 w-36 rounded-md bg-white/[0.08]" />
+    <div className="skeleton-sheen mt-3 h-4 w-44 rounded-md bg-white/[0.055]" />
+    <div className="skeleton-sheen mt-7 h-10 w-32 rounded-md bg-white/[0.08]" />
+  </article>
+);
 
 const ArtistAvatar = ({
   artist,
@@ -1810,7 +2027,7 @@ const ArtistAvatar = ({
   const artistName = getArtistName(artist);
 
   return (
-    <span className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+    <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
@@ -1819,32 +2036,11 @@ const ArtistAvatar = ({
           loading="lazy"
         />
       ) : (
-        <span className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white/55">
+        <span className="flex h-full w-full items-center justify-center text-xl font-bold text-white/55">
           {name.charAt(0).toUpperCase()}
         </span>
       )}
     </span>
-  );
-};
-
-const TagList = ({ tags }: { tags?: string[] }) => {
-  const visibleTags = tags?.slice(0, 2) || [];
-
-  return (
-    <div
-      className="mt-auto flex h-6 min-w-0 flex-nowrap gap-1.5 overflow-hidden pt-1"
-      aria-hidden={visibleTags.length === 0}
-    >
-      {visibleTags.map((tag) => (
-        <span
-          key={tag}
-          className="inline-flex min-w-0 max-w-[104px] shrink items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-white/45"
-        >
-          <Tag size={11} className="shrink-0" />
-          <span className="truncate">{tag}</span>
-        </span>
-      ))}
-    </div>
   );
 };
 
@@ -1859,6 +2055,138 @@ const EmptyPreview = ({ label }: { label: string }) => (
     <p className="text-sm text-white/45">{label}</p>
   </div>
 );
+
+const getUniqueDocsById = <T extends { id: string }>(docs: T[]) => {
+  const uniqueDocs = new Map<string, T>();
+
+  docs.forEach((doc) => {
+    if (!uniqueDocs.has(doc.id)) {
+      uniqueDocs.set(doc.id, doc);
+    }
+  });
+
+  return Array.from(uniqueDocs.values());
+};
+
+const getHomepageBookingArtists = async (artists: PublicArtist[]) => {
+  const hydratedArtists = await hydratePublicArtistsWithShops(artists);
+  const options = getRollingBookingMonthOptions();
+  const allowedKeys = options.map((option) => option.key);
+  const currentMonthKey = allowedKeys[0];
+  const scoredArtists = hydratedArtists.map((artist, index) => {
+    const bookingMonthKeys = getBookingAvailabilityMonthKeys(
+      artist.bookingAvailability,
+      allowedKeys
+    );
+    const bookingMonthRank =
+      currentMonthKey && bookingMonthKeys.includes(currentMonthKey)
+        ? 0
+        : getFirstBookingMonthRank(bookingMonthKeys, allowedKeys);
+
+    return {
+      artist,
+      index,
+      bookingMonthRank,
+      hasBookingAvailability: bookingMonthKeys.length > 0,
+      name: getArtistName(artist),
+    };
+  });
+  const artistsWithBookingAvailability = scoredArtists.filter(
+    (item) => item.hasBookingAvailability
+  );
+  const source =
+    artistsWithBookingAvailability.length > 0
+      ? artistsWithBookingAvailability
+      : scoredArtists;
+
+  return source
+    .sort((left, right) => {
+      if (left.bookingMonthRank !== right.bookingMonthRank) {
+        return left.bookingMonthRank - right.bookingMonthRank;
+      }
+
+      return left.name.localeCompare(right.name) || left.index - right.index;
+    })
+    .slice(0, HOME_BOOKING_ARTIST_DISPLAY_LIMIT)
+    .map((item) => item.artist);
+};
+
+const hydratePublicArtistsWithShops = async (artists: PublicArtist[]) => {
+  const shopsById = await fetchShopsById(
+    Array.from(
+      new Set(
+        artists
+          .map((artist) => artist.shopId)
+          .filter((shopId): shopId is string => Boolean(shopId))
+      )
+    )
+  );
+
+  return artists.map((artist) => {
+    if (!artist.shopId) return artist;
+
+    const shop = shopsById[artist.shopId];
+    if (!shop?.name) return artist;
+
+    return {
+      ...artist,
+      shopName: artist.shopName || shop.name,
+      studioName: artist.studioName || shop.name,
+    };
+  });
+};
+
+const isVisiblePublicArtist = (artist: PublicArtist): artist is PublicArtist =>
+  artist.role === "artist" &&
+  (artist.isVerified === true ||
+    artist.isVerified === "true" ||
+    typeof artist.isVerified === "undefined");
+
+const artistHasBookingMonth = (
+  artist: PublicArtist,
+  monthKey?: string
+) => {
+  if (!monthKey) return false;
+
+  return getBookingAvailabilityMonthKeys(artist.bookingAvailability).includes(
+    monthKey
+  );
+};
+
+const artistHasBookingAvailability = (artist: PublicArtist) =>
+  getBookingAvailabilityMonthKeys(artist.bookingAvailability).length > 0;
+
+const getFirstBookingMonthRank = (
+  bookingMonthKeys: string[],
+  allowedKeys: string[]
+) => {
+  const ranks = bookingMonthKeys
+    .map((key) => allowedKeys.indexOf(key))
+    .filter((rank) => rank >= 0);
+
+  if (ranks.length === 0) return Number.MAX_SAFE_INTEGER;
+
+  return Math.min(...ranks);
+};
+
+const getHomeBookingLabel = (artist: PublicArtist) => {
+  const options = getRollingBookingMonthOptions();
+  const allowedKeys = options.map((option) => option.key);
+  const bookingMonthKeys = getBookingAvailabilityMonthKeys(
+    artist.bookingAvailability,
+    allowedKeys
+  );
+  const currentMonth = options[0];
+  const selectedMonthKey =
+    currentMonth && bookingMonthKeys.includes(currentMonth.key)
+      ? currentMonth.key
+      : bookingMonthKeys[0];
+  const selectedMonth = options.find(
+    (option) => option.key === selectedMonthKey
+  );
+
+  return selectedMonth ? `Booking ${selectedMonth.shortLabel}` : "Requests open";
+};
 
 const getFeaturedPreviewItems = (
   flashes: HomeFlash[],

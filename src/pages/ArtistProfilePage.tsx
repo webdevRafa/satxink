@@ -448,7 +448,8 @@ export const ArtistProfilePage = () => {
     const hasUpdatedImage =
       getPortfolioLightboxUrl(updatedItem) !==
         getPortfolioLightboxUrl(selectedItem) ||
-      getLightboxPreviewUrl(updatedItem) !== getLightboxPreviewUrl(selectedItem);
+      getLightboxPreviewUrl(updatedItem) !==
+        getLightboxPreviewUrl(selectedItem);
     const hasUpdatedMetadata =
       updatedItem.caption !== selectedItem.caption ||
       JSON.stringify(updatedItem.tags || []) !==
@@ -905,7 +906,7 @@ export const ArtistProfilePage = () => {
         <button
           type="button"
           onClick={handleViewFlashCue}
-          className="satx-profile-flash-cue fixed bottom-6 right-6 z-30 hidden items-center gap-3 overflow-hidden rounded-full border border-white/12 bg-[#121212]/88 px-3.5 py-2.5 text-left text-white shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:border-white/25 hover:bg-[#181818]/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 lg:flex"
+          className="satx-profile-flash-cue fixed bottom-6 right-6 z-30 hidden items-center gap-3 overflow-hidden rounded-full border border-white/12 bg-[#121212]/88 px-3.5 py-2.5 text-left text-white shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:border-white/25 hover:bg-[#181818]/95 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-white/60 lg:flex"
           aria-label={`View flash designs, ${flashSheetCountLabel}`}
         >
           <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07]">
@@ -1084,7 +1085,11 @@ const scrollRequestFlowIntoView = (
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.webp90Url || item.thumbUrl || item.fullUrl || item.originalWebp90Url || "";
+  item.webp90Url ||
+  item.thumbUrl ||
+  item.fullUrl ||
+  item.originalWebp90Url ||
+  "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
   item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   Filter,
@@ -86,6 +86,11 @@ const emptyMetadata: MarketplaceMetadata = {
   topTags: [],
 };
 
+const getMarketplaceTabFromSearch = (
+  searchParams: URLSearchParams
+): MarketplaceTab =>
+  searchParams.get("tab") === "sheets" ? "sheets" : "flashes";
+
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
   const isInViewRef = useRef(false);
@@ -121,7 +126,10 @@ function useViewportEntry<T extends Element>() {
 const FlashMarketplacePage = () => {
   const { targetRef: marketStatsRef, entryCount: marketStatsEntryCount } =
     useViewportEntry<HTMLDListElement>();
-  const [activeTab, setActiveTab] = useState<MarketplaceTab>("flashes");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<MarketplaceTab>(() =>
+    getMarketplaceTabFromSearch(searchParams)
+  );
   const [flashes, setFlashes] = useState<MarketFlash[]>([]);
   const [sheets, setSheets] = useState<MarketFlashSheet[]>([]);
   const [metadata, setMetadata] = useState<MarketplaceMetadata>(emptyMetadata);
@@ -143,6 +151,29 @@ const FlashMarketplacePage = () => {
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
   const maxPrice = useMemo(() => parseBudgetValue(maxBudget), [maxBudget]);
+
+  useEffect(() => {
+    const tabFromUrl = getMarketplaceTabFromSearch(searchParams);
+    setActiveTab((current) => (current === tabFromUrl ? current : tabFromUrl));
+  }, [searchParams]);
+
+  const handleTabChange = useCallback(
+    (tab: MarketplaceTab) => {
+      setActiveTab(tab);
+      setSearchParams((currentSearchParams) => {
+        const nextSearchParams = new URLSearchParams(currentSearchParams);
+
+        if (tab === "sheets") {
+          nextSearchParams.set("tab", "sheets");
+        } else {
+          nextSearchParams.delete("tab");
+        }
+
+        return nextSearchParams;
+      });
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -540,7 +571,7 @@ const FlashMarketplacePage = () => {
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab("flashes")}
+              onClick={() => handleTabChange("flashes")}
               className={`rounded-full border px-4! py-2! text-xs! font-semibold transition ${
                 activeTab === "flashes"
                   ? "border-white bg-white text-black"
@@ -551,7 +582,7 @@ const FlashMarketplacePage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("sheets")}
+              onClick={() => handleTabChange("sheets")}
               className={`rounded-full border px-4! py-2! text-xs! font-semibold transition ${
                 activeTab === "sheets"
                   ? "border-white bg-white text-black"
@@ -772,17 +803,17 @@ const FlashCard = ({
       <div className="p-3">
         <FlashPreviewMeta flash={flash} artist={flash.artist} />
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
           <Link
             to={`/artists/${flash.artistId}`}
-            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
           >
             View artist
           </Link>
           <button
             type="button"
             onClick={onRequest}
-            className="pointer-events-none !inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-full bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white opacity-0 transition hover:bg-[var(--color-primary-hover)] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
+            className="pointer-events-none !inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white opacity-0 transition hover:bg-[var(--color-primary-hover)] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
             aria-label={`Request this flash: ${getFlashTitle(flash)}`}
           >
             Request

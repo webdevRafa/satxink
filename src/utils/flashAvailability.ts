@@ -6,7 +6,7 @@ import type {
 } from "../types/Flash";
 
 export const DEFAULT_FLASH_REPEATABILITY: FlashRepeatability = "repeatable";
-export const ONE_OF_ONE_BADGE_LABEL = "One of one";
+export const ONE_OF_ONE_BADGE_LABEL = "ONE-OFF";
 
 export const getFlashRepeatability = (
   flash?: Pick<Flash, "repeatability"> | null

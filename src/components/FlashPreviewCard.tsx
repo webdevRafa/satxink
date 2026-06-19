@@ -7,6 +7,7 @@ import {
   getFlashArtistName,
   getFlashPreviewUrl,
   getFlashTitle,
+  getFlashVisualTitle,
   type FlashPreviewArtist,
   type FlashPreviewShape,
 } from "../utils/flashPreview";
@@ -37,7 +38,12 @@ export const FlashPreviewImage = ({
     : null;
 
   return (
-    <div className={cx("relative aspect-square overflow-hidden bg-black/30", className)}>
+    <div
+      className={cx(
+        "relative aspect-square overflow-hidden bg-black/30",
+        className
+      )}
+    >
       {previewUrl ? (
         <img
           src={previewUrl}
@@ -55,7 +61,7 @@ export const FlashPreviewImage = ({
       )}
 
       {resolvedBadgeLabel && (
-        <span className="absolute left-3 top-3 rounded-full border border-red-300/30 bg-red-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-100 backdrop-blur">
+        <span className="absolute left-3 top-3 border border-[#b6382d] bg-[#b6382d]/60 backdrop-blur-xs px-3 py-1 text-[10px]  uppercase tracking-[0.12em] text-white!">
           {resolvedBadgeLabel}
         </span>
       )}
@@ -75,7 +81,7 @@ export const FlashArtistAvatar = ({
   const artistName = name || getFlashArtistName(artist);
 
   return (
-    <span className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+    <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
@@ -99,18 +105,35 @@ export const FlashTinyTag = ({
   tags?: string[];
   className?: string;
 }) => {
-  const tag = tags?.find((item) => item.trim().length > 0);
-  if (!tag) return null;
+  const visibleTags =
+    tags
+      ?.map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 2) || [];
+  const extraCount = Math.max(
+    (tags?.filter((item) => item.trim()).length || 0) - visibleTags.length,
+    0
+  );
+  if (visibleTags.length === 0) return null;
 
   return (
     <span
-      className={cx(
-        "inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/45",
-        className
-      )}
+      className={cx("flex min-w-0 flex-wrap items-center gap-1.5", className)}
     >
-      <Tag size={10} className="shrink-0" />
-      <span className="truncate">{tag}</span>
+      {visibleTags.map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex min-w-0 max-w-[7.5rem] items-center gap-1 rounded-full border border-white/10 bg-white/[0.035] px-2 py-0.5 text-[10px] font-semibold text-white/45"
+        >
+          <Tag size={10} className="shrink-0" />
+          <span className="truncate">{tag}</span>
+        </span>
+      ))}
+      {extraCount > 0 && (
+        <span className="inline-flex shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold text-white/35">
+          +{extraCount}
+        </span>
+      )}
     </span>
   );
 };
@@ -129,30 +152,46 @@ export const FlashPreviewMeta = ({
   className?: string;
 }) => {
   const artistName = getFlashArtistName(artist);
+  const visualTitle = getFlashVisualTitle(flash);
 
   return (
-    <div className={cx("flex min-h-[42px] items-start gap-2", className)}>
-      {showArtist && <FlashArtistAvatar artist={artist} name={artistName} />}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2">
-          <h3 className="my-0! min-w-0 flex-1 truncate text-sm! font-semibold text-white">
-            {getFlashTitle(flash)}
-          </h3>
-          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-2 py-0.5 text-[11px] font-bold leading-none text-white/80">
-            {formatFlashPrice(flash.price)}
-          </span>
-        </div>
-        {showArtist && (
-          <p className="mt-0.5 truncate text-xs text-white/50">
-            by {artistName}
-          </p>
-        )}
-        {showTag && (
-          <div className="mt-2 flex min-h-5 min-w-0">
-            <FlashTinyTag tags={flash.tags} />
+    <div className={cx("flex min-h-[98px] flex-col", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          {showArtist && (
+            <FlashArtistAvatar artist={artist} name={artistName} />
+          )}
+          <div className="min-w-0">
+            {showArtist ? (
+              <>
+                <p className="my-0 truncate text-sm! font-semibold leading-tight text-white">
+                  {artistName}
+                </p>
+                {visualTitle && (
+                  <p className="mt-1 truncate text-xs font-medium leading-tight text-white/55">
+                    {visualTitle}
+                  </p>
+                )}
+              </>
+            ) : visualTitle ? (
+              <p className="my-0 truncate text-sm! font-semibold leading-tight text-white">
+                {visualTitle}
+              </p>
+            ) : (
+              <span className="sr-only">Flash design</span>
+            )}
           </div>
-        )}
+        </div>
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.075] px-2.5 py-1 text-[11px] font-bold leading-none text-white/85 shadow-sm">
+          {formatFlashPrice(flash.price)}
+        </span>
       </div>
+
+      {showTag && (
+        <div className="mt-auto flex min-h-6 min-w-0 pt-3">
+          <FlashTinyTag tags={flash.tags} />
+        </div>
+      )}
     </div>
   );
 };

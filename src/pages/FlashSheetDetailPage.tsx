@@ -38,10 +38,7 @@ import {
   FlashPreviewImage,
   FlashTinyTag,
 } from "../components/FlashPreviewCard";
-import {
-  formatFlashPrice,
-  getFlashTitle,
-} from "../utils/flashPreview";
+import { formatFlashPrice, getFlashTitle } from "../utils/flashPreview";
 import {
   FLASH_DESCRIPTION_MAX_LENGTH,
   normalizeFlashDescription,
@@ -137,7 +134,9 @@ const FlashSheetDetailPage = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublishingDrafts, setIsPublishingDrafts] = useState(false);
   const [isApplyingSheetDefault, setIsApplyingSheetDefault] = useState(false);
-  const [discardingDraftId, setDiscardingDraftId] = useState<string | null>(null);
+  const [discardingDraftId, setDiscardingDraftId] = useState<string | null>(
+    null
+  );
   const [createdDraftIds, setCreatedDraftIds] = useState<string[]>([]);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -155,7 +154,8 @@ const FlashSheetDetailPage = () => {
     [sheet?.tags]
   );
   const draftFlashes = useMemo(
-    () => flashes.filter((flash) => getFlashPublicationStatus(flash) === "draft"),
+    () =>
+      flashes.filter((flash) => getFlashPublicationStatus(flash) === "draft"),
     [flashes]
   );
   const draftFlashesReadyToPublish = useMemo(
@@ -164,7 +164,9 @@ const FlashSheetDetailPage = () => {
   );
   const publishedFlashes = useMemo(
     () =>
-      flashes.filter((flash) => getFlashPublicationStatus(flash) === "published"),
+      flashes.filter(
+        (flash) => getFlashPublicationStatus(flash) === "published"
+      ),
     [flashes]
   );
   const createdDraftFlashes = useMemo(
@@ -222,7 +224,7 @@ const FlashSheetDetailPage = () => {
 
   const handleSaveEdit = async (
     flashId: string,
-    title: string,
+    title: string | null,
     price: number | null,
     description: string | null,
     tags: string[],
@@ -314,8 +316,9 @@ const FlashSheetDetailPage = () => {
   };
 
   const handleCropComplete = (_: Area, areaPixels: Area) => {
-    setCropArea((currentCropArea) =>
-      getSerializableCropArea(areaPixels) || currentCropArea
+    setCropArea(
+      (currentCropArea) =>
+        getSerializableCropArea(areaPixels) || currentCropArea
     );
   };
 
@@ -343,7 +346,7 @@ const FlashSheetDetailPage = () => {
       const result = await cropFlashFromSheet({
         sheetId: sheet.id,
         crop: validCropArea,
-        title: newFlashTitle.trim() || "Untitled Flash",
+        title: newFlashTitle.trim() || null,
         price: parsedPrice,
         description: normalizeFlashDescription(newFlashDescription),
         tags: newFlashTags,
@@ -369,18 +372,24 @@ const FlashSheetDetailPage = () => {
       setNewFlashDescription("");
       setNewFlashTags([]);
       setNewFlashRepeatability(
-        sheet.repeatabilityDefault === "one_of_one" ? "one_of_one" : "repeatable"
+        sheet.repeatabilityDefault === "one_of_one"
+          ? "one_of_one"
+          : "repeatable"
       );
       setCropArea(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
       if (publicationStatus === "published" && id) fetchFlashes(id);
       toast.success(
-        publicationStatus === "draft" ? "Flash draft created." : "Flash published."
+        publicationStatus === "draft"
+          ? "Flash draft created."
+          : "Flash published."
       );
       return true;
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Something went wrong while saving flash."));
+      toast.error(
+        getErrorMessage(err, "Something went wrong while saving flash.")
+      );
       return false;
     } finally {
       setIsPublishing(false);
@@ -392,7 +401,9 @@ const FlashSheetDetailPage = () => {
     closeCropper = false
   ) => {
     if (!sheet || draftIds.length === 0 || isPublishingDrafts) return;
-    const selectedDrafts = flashes.filter((flash) => draftIds.includes(flash.id));
+    const selectedDrafts = flashes.filter((flash) =>
+      draftIds.includes(flash.id)
+    );
     const unpricedDrafts = selectedDrafts.filter(
       (flash) => !hasPositiveFlashPrice(flash)
     );
@@ -659,7 +670,9 @@ const FlashSheetDetailPage = () => {
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4! py-2.5! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                   >
                     <CheckCircle2 size={16} />
-                    {isPublishingDrafts ? "Publishing..." : "Publish all drafts"}
+                    {isPublishingDrafts
+                      ? "Publishing..."
+                      : "Publish all drafts"}
                   </button>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -756,7 +769,13 @@ const FlashSheetDetailPage = () => {
   );
 };
 
-const MiniStat = ({ label, value }: { label: string; value: string | number }) => (
+const MiniStat = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) => (
   <div className="min-w-0 px-2.5! py-1! sm:px-3!">
     <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
@@ -962,7 +981,9 @@ const CropFlashModal = ({
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const isDesktopCropper = useMediaQuery("(min-width: 1024px)");
   const validCropArea = getSerializableCropArea(cropArea);
-  const canPublishWithPrice = Boolean(validCropArea && parsePositivePrice(price) !== null);
+  const canPublishWithPrice = Boolean(
+    validCropArea && parsePositivePrice(price) !== null
+  );
   const canPublishDrafts =
     draftFlashes.length > 0 && draftFlashes.every(hasPositiveFlashPrice);
   const cropperObjectFit = isDesktopCropper ? "cover" : "contain";
@@ -1310,7 +1331,9 @@ const CropFlashModal = ({
                               onClick={() => onDiscardDraft(flash)}
                               disabled={discardingDraftId === flash.id}
                               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/20 bg-red-500/10 p-0! text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-45"
-                              aria-label={`Discard ${getFlashTitle(flash)} draft`}
+                              aria-label={`Discard ${getFlashTitle(
+                                flash
+                              )} draft`}
                               title="Discard draft"
                             >
                               {discardingDraftId === flash.id ? (

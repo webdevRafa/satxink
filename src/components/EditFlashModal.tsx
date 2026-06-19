@@ -18,7 +18,7 @@ type Props = {
   onClose: () => void;
   onSave: (
     id: string,
-    title: string,
+    title: string | null,
     price: number | null,
     description: string | null,
     tags: string[],
@@ -182,7 +182,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
                 onClick={() =>
                   onSave(
                     flash.id,
-                    title,
+                    title.trim() || null,
                     parsedPrice,
                     normalizeFlashDescription(description),
                     tags,
