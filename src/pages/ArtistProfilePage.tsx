@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type FormEvent,
+  type TouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -1036,6 +1037,56 @@ const getLightboxPreviewUrl = (item: GalleryItem) =>
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
   item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
 
+const MIN_LIGHTBOX_IMAGE_SCALE = 1;
+const MAX_LIGHTBOX_IMAGE_SCALE = 3.2;
+
+type LightboxZoomState = {
+  scale: number;
+  x: number;
+  y: number;
+};
+
+type LightboxGestureState =
+  | {
+      type: "pinch";
+      distance: number;
+      centerX: number;
+      centerY: number;
+      startScale: number;
+      startX: number;
+      startY: number;
+    }
+  | {
+      type: "pan";
+      clientX: number;
+      clientY: number;
+      startScale: number;
+      startX: number;
+      startY: number;
+    };
+
+type LightboxTouchPoint = {
+  clientX: number;
+  clientY: number;
+};
+
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const getTouchDistance = (
+  first: LightboxTouchPoint,
+  second: LightboxTouchPoint
+) =>
+  Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+
+const getTouchCenter = (
+  first: LightboxTouchPoint,
+  second: LightboxTouchPoint
+) => ({
+  x: (first.clientX + second.clientX) / 2,
+  y: (first.clientY + second.clientY) / 2,
+});
+
 const getSheetPreviewUrl = (sheet: FlashSheet) =>
   sheet.thumbUrl || sheet.imageUrl;
 
@@ -2003,12 +2054,25 @@ const LightboxImageFrame = ({
   enableMobileZoom?: boolean;
   onImageLoad: () => void;
 }) => {
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const fullImageRef = useRef<HTMLImageElement | null>(null);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const gestureRef = useRef<LightboxGestureState | null>(null);
+  const [zoom, setZoom] = useState<LightboxZoomState>({
+    scale: MIN_LIGHTBOX_IMAGE_SCALE,
+    x: 0,
+    y: 0,
+  });
+  const [isGestureActive, setIsGestureActive] = useState(false);
 
   useEffect(() => {
-    setIsZoomed(false);
-  }, [imageKey]);
+    gestureRef.current = null;
+    setIsGestureActive(false);
+    setZoom({
+      scale: MIN_LIGHTBOX_IMAGE_SCALE,
+      x: 0,
+      y: 0,
+    });
+  }, [enableMobileZoom, imageKey]);
 
   useEffect(() => {
     const image = fullImageRef.current;
@@ -2023,30 +2087,230 @@ const LightboxImageFrame = ({
     return () => window.clearTimeout(timeoutId);
   }, [fullUrl, imageKey, onImageLoad]);
 
+  const constrainZoom = (nextZoom: LightboxZoomState): LightboxZoomState => {
+    const nextScale = clampNumber(
+      nextZoom.scale,
+      MIN_LIGHTBOX_IMAGE_SCALE,
+      MAX_LIGHTBOX_IMAGE_SCALE
+    );
+
+    if (nextScale <= MIN_LIGHTBOX_IMAGE_SCALE + 0.04) {
+      return {
+        scale: MIN_LIGHTBOX_IMAGE_SCALE,
+        x: 0,
+        y: 0,
+      };
+    }
+
+    const frameRect = frameRef.current?.getBoundingClientRect();
+    const maxX = frameRect ? (frameRect.width * (nextScale - 1)) / 2 : 0;
+    const maxY = frameRect ? (frameRect.height * (nextScale - 1)) / 2 : 0;
+
+    return {
+      scale: nextScale,
+      x: clampNumber(nextZoom.x, -maxX, maxX),
+      y: clampNumber(nextZoom.y, -maxY, maxY),
+    };
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (!enableMobileZoom || isLoading) return;
+
+    if (event.touches.length >= 2) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const firstTouch = event.touches[0];
+      const secondTouch = event.touches[1];
+      const frameRect = frameRef.current?.getBoundingClientRect();
+      if (!frameRect) return;
+
+      const center = getTouchCenter(firstTouch, secondTouch);
+      gestureRef.current = {
+        type: "pinch",
+        distance: Math.max(getTouchDistance(firstTouch, secondTouch), 1),
+        centerX: center.x - frameRect.left - frameRect.width / 2,
+        centerY: center.y - frameRect.top - frameRect.height / 2,
+        startScale: zoom.scale,
+        startX: zoom.x,
+        startY: zoom.y,
+      };
+      setIsGestureActive(true);
+      return;
+    }
+
+    if (event.touches.length === 1 && zoom.scale > MIN_LIGHTBOX_IMAGE_SCALE) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const touch = event.touches[0];
+      gestureRef.current = {
+        type: "pan",
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        startScale: zoom.scale,
+        startX: zoom.x,
+        startY: zoom.y,
+      };
+      setIsGestureActive(true);
+    }
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (!enableMobileZoom || isLoading) return;
+
+    if (event.touches.length >= 2) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const firstTouch = event.touches[0];
+      const secondTouch = event.touches[1];
+      const frameRect = frameRef.current?.getBoundingClientRect();
+      if (!frameRect) return;
+
+      const currentGesture =
+        gestureRef.current?.type === "pinch" ? gestureRef.current : null;
+      const center = getTouchCenter(firstTouch, secondTouch);
+      const centerX = center.x - frameRect.left - frameRect.width / 2;
+      const centerY = center.y - frameRect.top - frameRect.height / 2;
+
+      if (!currentGesture) {
+        gestureRef.current = {
+          type: "pinch",
+          distance: Math.max(getTouchDistance(firstTouch, secondTouch), 1),
+          centerX,
+          centerY,
+          startScale: zoom.scale,
+          startX: zoom.x,
+          startY: zoom.y,
+        };
+        setIsGestureActive(true);
+        return;
+      }
+
+      const nextScale =
+        currentGesture.startScale *
+        (getTouchDistance(firstTouch, secondTouch) / currentGesture.distance);
+      const scaleRatio = nextScale / currentGesture.startScale;
+
+      setZoom(
+        constrainZoom({
+          scale: nextScale,
+          x:
+            centerX -
+            (currentGesture.centerX - currentGesture.startX) * scaleRatio,
+          y:
+            centerY -
+            (currentGesture.centerY - currentGesture.startY) * scaleRatio,
+        })
+      );
+      return;
+    }
+
+    if (event.touches.length === 1 && gestureRef.current?.type === "pan") {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const touch = event.touches[0];
+      const currentGesture = gestureRef.current;
+      setZoom(
+        constrainZoom({
+          scale: currentGesture.startScale,
+          x: currentGesture.startX + touch.clientX - currentGesture.clientX,
+          y: currentGesture.startY + touch.clientY - currentGesture.clientY,
+        })
+      );
+    }
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (!enableMobileZoom) return;
+
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+
+      setZoom((currentZoom) => {
+        const settledZoom = constrainZoom(currentZoom);
+
+        if (settledZoom.scale > MIN_LIGHTBOX_IMAGE_SCALE) {
+          gestureRef.current = {
+            type: "pan",
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            startScale: settledZoom.scale,
+            startX: settledZoom.x,
+            startY: settledZoom.y,
+          };
+          return settledZoom;
+        }
+
+        gestureRef.current = null;
+        setIsGestureActive(false);
+        return settledZoom;
+      });
+      return;
+    }
+
+    gestureRef.current = null;
+    setIsGestureActive(false);
+    setZoom((currentZoom) => constrainZoom(currentZoom));
+  };
+
+  const handleTouchCancel = () => {
+    gestureRef.current = null;
+    setIsGestureActive(false);
+    setZoom((currentZoom) => constrainZoom(currentZoom));
+  };
+
+  const frameTouchStyle: CSSProperties | undefined = enableMobileZoom
+    ? { touchAction: "none" }
+    : undefined;
+  const zoomedImageStyle: CSSProperties = {
+    transform: `translate3d(${zoom.x}px, ${zoom.y}px, 0) scale(${zoom.scale})`,
+    transformOrigin: "center center",
+    transition: isGestureActive
+      ? "opacity 300ms ease"
+      : "opacity 300ms ease, transform 220ms ease",
+    willChange: enableMobileZoom ? "transform, opacity" : "opacity",
+  };
+
   return (
     <div
+      ref={frameRef}
+      style={frameTouchStyle}
       className={`relative flex ${
         frameClassName || "h-[min(72vh,760px)] w-[min(94vw,940px)]"
       } items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#080808] shadow-2xl`}
       onClick={(event) => event.stopPropagation()}
     >
-      <div key={imageKey} className={`absolute inset-0 ${slideClass || ""}`}>
+      <div
+        key={imageKey}
+        className={`absolute inset-0 select-none ${slideClass || ""}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+      >
         <img
           src={previewUrl}
           alt=""
           aria-hidden="true"
-          className={`absolute inset-0 h-full w-full object-contain transition duration-300 ${
+          draggable={false}
+          style={zoomedImageStyle}
+          className={`absolute inset-0 h-full w-full object-contain ${
             isLoading ? "opacity-100" : "opacity-0"
-          } ${isZoomed ? "scale-[1.75]" : "scale-100"}`}
+          }`}
           decoding="async"
         />
         <img
           ref={fullImageRef}
           src={fullUrl}
           alt={alt}
-          className={`absolute inset-0 h-full w-full object-contain transition duration-300 ${
+          draggable={false}
+          style={zoomedImageStyle}
+          className={`absolute inset-0 h-full w-full object-contain ${
             isLoading ? "opacity-0" : "opacity-100"
-          } ${isZoomed ? "scale-[1.75]" : "scale-100"}`}
+          }`}
           decoding="async"
           onLoad={onImageLoad}
           onError={onImageLoad}
@@ -2062,21 +2326,6 @@ const LightboxImageFrame = ({
           <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
           {loadingLabel}
         </div>
-      )}
-      {enableMobileZoom && !isLoading && (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setIsZoomed((current) => !current);
-          }}
-          className="absolute bottom-3 left-3 z-20 inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-0! text-xs! font-semibold text-white shadow-lg backdrop-blur-md transition hover:bg-white/15 md:hidden"
-          aria-pressed={isZoomed}
-          aria-label={isZoomed ? "Fit image to screen" : "Zoom image"}
-        >
-          <Expand size={15} />
-          {isZoomed ? "Fit" : "Zoom"}
-        </button>
       )}
     </div>
   );
