@@ -229,12 +229,14 @@ export const HomePage: FC = () => {
     const fetchHomePreview = async () => {
       try {
         setLoading(true);
+        const currentBookingMonthKey = getRollingBookingMonthOptions()[0]?.key;
 
         const [
           flashSnapshot,
           sheetSnapshot,
           homepageSettingsSnap,
-          bookingArtistsSnapshot,
+          currentMonthBookingArtistsSnapshot,
+          fallbackBookingArtistsSnapshot,
         ] = await Promise.all([
             getDocs(
               query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
@@ -246,6 +248,19 @@ export const HomePage: FC = () => {
               )
             ),
             getDoc(doc(db, "siteSettings", "homepage")),
+            currentBookingMonthKey
+              ? getDocs(
+                  query(
+                    collection(db, "users"),
+                    where(
+                      "bookingAvailability.monthKeys",
+                      "array-contains",
+                      currentBookingMonthKey
+                    ),
+                    limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+                  )
+                )
+              : Promise.resolve(null),
             getDocs(
               query(
                 collection(db, "users"),
@@ -297,7 +312,10 @@ export const HomePage: FC = () => {
 
         const artistsById = await fetchArtistsById(artistIds);
         const readyBookingArtists = await getHomepageBookingArtists(
-          bookingArtistsSnapshot.docs
+          getUniqueDocsById([
+            ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
+            ...fallbackBookingArtistsSnapshot.docs,
+          ])
             .map((artistDoc) => ({
               id: artistDoc.id,
               ...artistDoc.data(),
@@ -2037,6 +2055,18 @@ const EmptyPreview = ({ label }: { label: string }) => (
     <p className="text-sm text-white/45">{label}</p>
   </div>
 );
+
+const getUniqueDocsById = <T extends { id: string }>(docs: T[]) => {
+  const uniqueDocs = new Map<string, T>();
+
+  docs.forEach((doc) => {
+    if (!uniqueDocs.has(doc.id)) {
+      uniqueDocs.set(doc.id, doc);
+    }
+  });
+
+  return Array.from(uniqueDocs.values());
+};
 
 const getHomepageBookingArtists = async (artists: PublicArtist[]) => {
   const hydratedArtists = await hydratePublicArtistsWithShops(artists);
