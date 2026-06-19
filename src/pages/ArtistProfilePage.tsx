@@ -927,54 +927,43 @@ export const ArtistProfilePage = () => {
 
 const ArtistProfilePageSkeleton = () => (
   <div
-    className="max-w-5xl mx-auto px-4 py-10 mt-20 min-h-[calc(100vh-5rem)]"
+    className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10"
     aria-busy="true"
     aria-live="polite"
   >
-    <div className="rounded-xl border border-white/5 bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#1a1a1a] p-6 shadow-lg">
-      <div className="flex animate-pulse flex-col items-center gap-6 md:flex-row md:items-start">
-        <div className="h-32 w-32 rounded-full border-4 border-neutral-800 bg-white/[0.07] md:h-40 md:w-40" />
-        <div className="flex w-full flex-1 flex-col items-center md:items-start">
-          <div className="h-8 w-44 rounded-md bg-white/[0.08]" />
-          <div className="mt-3 h-4 w-36 rounded-full bg-white/[0.06]" />
-          <div className="mt-5 h-4 w-full max-w-sm rounded-full bg-white/[0.06]" />
-          <div className="mt-3 h-4 w-2/3 max-w-xs rounded-full bg-white/[0.04]" />
-          <div className="mt-5 flex gap-3">
-            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
-            <div className="h-6 w-6 rounded-full bg-white/[0.08]" />
+    <div className="relative z-10">
+      <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-5 lg:mb-10">
+        <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+        <div className="grid animate-pulse gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+            <div className="h-24 w-24 shrink-0 rounded-full border border-white/10 bg-white/[0.07] shadow-[0_18px_50px_rgba(0,0,0,0.34)] sm:h-36 sm:w-36" />
+            <div className="min-w-0 flex-1">
+              <div className="h-8 w-44 max-w-full rounded-md bg-white/[0.1] sm:h-10 sm:w-56" />
+              <div className="mt-3 h-4 w-40 max-w-full rounded-full bg-white/[0.075]" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[72, 64, 80].map((width) => (
+                  <div
+                    key={width}
+                    className="h-4 rounded-full bg-white/[0.055]"
+                    style={{ width }}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 h-4 w-36 rounded-full bg-white/[0.065]" />
+            </div>
           </div>
-          <div className="mt-6 flex w-full flex-wrap justify-center gap-2 md:justify-start">
-            {[96, 84, 92, 88, 76, 124].map((width) => (
-              <div
-                key={width}
-                className="h-8 rounded-full border border-white/10 bg-white/[0.04]"
-                style={{ width }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <div className="mt-10 animate-pulse">
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="h-4 w-32 rounded-full bg-white/[0.06]" />
-          <div className="mt-4 flex items-center gap-3">
-            <div className="h-8 w-28 rounded-md bg-white/[0.08]" />
-            <div className="h-6 w-px bg-white/10" />
-            <div className="h-8 w-32 rounded-md bg-white/[0.05]" />
+          <div className="grid w-full grid-cols-2 gap-2 lg:w-[380px]">
+            <div className="h-11 rounded-md border border-white/10 bg-white/[0.075] sm:h-12" />
+            <div className="h-11 rounded-md border border-[#19d69b]/25 bg-[#19d69b]/10 sm:h-12" />
           </div>
         </div>
-        <div className="h-8 w-24 rounded-full border border-white/10 bg-white/[0.04]" />
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[0, 1, 2].map((item) => (
-          <div
-            key={item}
-            className="aspect-[4/5] rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.03] to-transparent"
-          />
-        ))}
+
+      <div className="scroll-mt-24 pb-60">
+        <div className="satx-profile-work-shell animate-pulse">
+          <PortfolioSkeleton count={3} />
+        </div>
       </div>
     </div>
 
@@ -1174,6 +1163,8 @@ const PortfolioPanel = ({
   const [transitionDirection, setTransitionDirection] =
     useState<SlideDirection>("next");
   const fadeTimerRef = useRef<number | null>(null);
+  const mobileRailRef = useRef<HTMLDivElement | null>(null);
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const pageCount = Math.max(1, Math.ceil(galleryItems.length / itemsPerPage));
   const visibleItems = getPortfolioPageItems(
     galleryItems,
@@ -1201,6 +1192,65 @@ const PortfolioPanel = ({
   useEffect(() => {
     galleryItems.forEach((item) => preloadImage(getCardPreviewUrl(item)));
   }, [galleryItems]);
+
+  const updateMobileActiveIndex = useCallback(() => {
+    const rail = mobileRailRef.current;
+    if (!rail) return;
+
+    const items = Array.from(
+      rail.querySelectorAll<HTMLElement>("[data-portfolio-snap-item]")
+    );
+    if (items.length === 0) return;
+
+    const railCenter = rail.scrollLeft + rail.clientWidth / 2;
+    const nextIndex = items.reduce((closestIndex, item, index) => {
+      const closestItem = items[closestIndex];
+      const itemCenter = item.offsetLeft + item.offsetWidth / 2;
+      const closestCenter =
+        closestItem.offsetLeft + closestItem.offsetWidth / 2;
+
+      return Math.abs(itemCenter - railCenter) <
+        Math.abs(closestCenter - railCenter)
+        ? index
+        : closestIndex;
+    }, 0);
+
+    setMobileActiveIndex((current) =>
+      current === nextIndex ? current : nextIndex
+    );
+  }, []);
+
+  useEffect(() => {
+    setMobileActiveIndex(0);
+    mobileRailRef.current?.scrollTo({ left: 0 });
+  }, [galleryItems]);
+
+  useEffect(() => {
+    const rail = mobileRailRef.current;
+    if (!rail) return;
+
+    let frameId: number | null = null;
+    const queueUpdate = () => {
+      if (frameId !== null) return;
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        updateMobileActiveIndex();
+      });
+    };
+
+    queueUpdate();
+    rail.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+
+    return () => {
+      rail.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [galleryItems.length, updateMobileActiveIndex]);
 
   useEffect(() => {
     if (!previousItems) return;
@@ -1263,10 +1313,28 @@ const PortfolioPanel = ({
     goToPage((pageIndex - 1 + pageCount) % pageCount, "prev");
   };
 
+  const scrollToMobileItem = (index: number) => {
+    const rail = mobileRailRef.current;
+    if (!rail) return;
+
+    const items = Array.from(
+      rail.querySelectorAll<HTMLElement>("[data-portfolio-snap-item]")
+    );
+    const item = items[index];
+    if (!item) return;
+
+    item.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "start",
+    });
+    setMobileActiveIndex(index);
+  };
+
   const arrowButtonClassName =
     "flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-white shadow-[0_14px_38px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:border-white/25 hover:bg-white/[0.1] disabled:pointer-events-none disabled:opacity-45";
 
-  const pageDots = (
+  const desktopPageDots = (
     <div className="flex items-center justify-center gap-2">
       {Array.from({ length: pageCount }).map((_, index) => (
         <button
@@ -1281,6 +1349,25 @@ const PortfolioPanel = ({
           }`}
           aria-label={`Show portfolio page ${index + 1}`}
           aria-current={index === pageIndex ? "page" : undefined}
+        />
+      ))}
+    </div>
+  );
+
+  const mobileDots = (
+    <div className="mt-4 flex items-center justify-center gap-2 sm:hidden">
+      {galleryItems.map((item, index) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => scrollToMobileItem(index)}
+          className={`h-2.5 rounded-full p-0! transition ${
+            index === mobileActiveIndex
+              ? "w-8 bg-white"
+              : "w-2.5 bg-white/25 hover:bg-white/45"
+          }`}
+          aria-label={`Show portfolio item ${index + 1}`}
+          aria-current={index === mobileActiveIndex ? "true" : undefined}
         />
       ))}
     </div>
@@ -1302,7 +1389,28 @@ const PortfolioPanel = ({
         )}
 
         <div
-          className={`satx-profile-work-carousel-grid satx-profile-work-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
+          ref={mobileRailRef}
+          className="-mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto overscroll-x-contain scroll-smooth px-4 pb-3 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="flex gap-4">
+            {galleryItems.map((item, index) => (
+              <div
+                key={item.id}
+                data-portfolio-snap-item
+                className="w-[min(28rem,calc(100vw-3rem))] shrink-0 snap-start [scroll-snap-stop:always]"
+              >
+                <PortfolioCard
+                  item={item}
+                  priority={index === 0}
+                  onOpen={() => onOpenItem(item)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={`satx-profile-work-carousel-grid satx-profile-work-grid hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 ${
             isTransitioning ? "satx-profile-work-carousel-grid--fading" : ""
           }`}
           data-direction={transitionDirection}
@@ -1383,8 +1491,10 @@ const PortfolioPanel = ({
         )}
       </div>
 
+      {galleryItems.length > 1 && mobileDots}
+
       {pageCount > 1 && (
-        <div className="mt-4 flex items-center justify-between gap-3 xl:justify-center">
+        <div className="mt-4 hidden items-center justify-between gap-3 sm:flex xl:justify-center">
           <button
             type="button"
             onClick={goToPreviousPage}
@@ -1395,7 +1505,7 @@ const PortfolioPanel = ({
             <ChevronLeft size={18} />
           </button>
 
-          {pageDots}
+          {desktopPageDots}
 
           <button
             type="button"
@@ -1464,14 +1574,41 @@ const EmptyWorkState = ({
 );
 
 const PortfolioSkeleton = ({ count = 6 }: { count?: number }) => (
-  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    {Array.from({ length: count }).map((_, index) => (
-      <div
-        key={index}
-        className="h-[320px] animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
-      />
-    ))}
-  </div>
+  <>
+    <div className="-mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-hidden px-4 pb-3 sm:hidden">
+      <div className="flex gap-4">
+        {Array.from({ length: Math.max(2, Math.min(count, 3)) }).map(
+          (_, index) => (
+            <div
+              key={index}
+              className="h-[28rem] w-[min(28rem,calc(100vw-3rem))] shrink-0 snap-start animate-pulse rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.07] via-white/[0.035] to-transparent"
+            />
+          )
+        )}
+      </div>
+      <div className="mt-4 flex items-center justify-center gap-2">
+        {Array.from({ length: Math.max(2, Math.min(count, 6)) }).map(
+          (_, index) => (
+            <span
+              key={index}
+              className={`h-2.5 rounded-full ${
+                index === 0 ? "w-8 bg-white/80" : "w-2.5 bg-white/25"
+              }`}
+            />
+          )
+        )}
+      </div>
+    </div>
+
+    <div className="hidden grid-cols-2 gap-4 sm:grid lg:grid-cols-3">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[320px] animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
+        />
+      ))}
+    </div>
+  </>
 );
 
 const PortfolioCard = ({
