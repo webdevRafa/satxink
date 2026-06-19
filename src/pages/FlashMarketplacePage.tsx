@@ -293,7 +293,7 @@ const FlashMarketplacePage = () => {
 
   return (
     <main className="min-h-screen bg-[var(--color-bg-base)] pb-20 text-white">
-      <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-20">
+      <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-24 sm:pt-20 lg:pt-16">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
           style={{
@@ -316,7 +316,7 @@ const FlashMarketplacePage = () => {
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto max-w-[1300px] pb-10 pt-0 sm:pb-12 lg:pb-14">
+        <div className="relative mx-auto flex min-h-[15rem] max-w-[1300px] items-end pb-8 pt-8 sm:min-h-[16rem] sm:pb-10 lg:min-h-[15rem] lg:pb-8">
           <div className="max-w-3xl">
             <h1 className="mb-0! text-[1.7rem]! font-bold leading-none text-white! text-4xl">
               Flash Marketplace
@@ -427,9 +427,6 @@ const FlashMarketplacePage = () => {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
               {activeTab === "flashes" ? "Available designs" : "Browse sheets"}
             </p>
-            <h2 className="mt-1 text-lg md:text-3xl! font-semibold text-white">
-              {activeTab === "flashes" ? "Flash items" : "Flash sheets"}
-            </h2>
           </div>
         </div>
 
@@ -526,7 +523,7 @@ const LoadMoreButton = ({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/85 disabled:cursor-wait disabled:opacity-65"
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/12 bg-white/[0.055] px-5 py-2 text-sm font-semibold text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_38px_rgba(0,0,0,0.26)] backdrop-blur transition hover:border-white/25 hover:bg-white/[0.1] hover:text-white disabled:cursor-wait disabled:opacity-65"
     >
       {loading && <Loader2 size={16} className="animate-spin" />}
       {loading ? "Loading" : "Load more"}
@@ -551,7 +548,7 @@ const FlashCard = ({
       <div className="p-3">
         <FlashPreviewMeta flash={flash} artist={flash.artist} />
 
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 opacity-100 transition duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 md:pointer-events-none md:opacity-0">
           <Link
             to={`/artists/${flash.artistId}`}
             className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
@@ -561,7 +558,7 @@ const FlashCard = ({
           <button
             type="button"
             onClick={onRequest}
-            className="pointer-events-none !inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md bg-[var(--color-primary)] !px-2 !py-0 !text-[11px] font-semibold text-white opacity-0 transition hover:bg-[var(--color-primary-hover)] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
+            className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md !border !border-[color:rgba(232,82,67,0.34)] !bg-[color:rgba(232,82,67,0.12)] !px-2 !py-0 !text-[11px] font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:!border-[color:rgba(232,82,67,0.55)] hover:!bg-[color:rgba(232,82,67,0.2)] hover:text-white"
             aria-label={`Request this flash: ${getFlashTitle(flash)}`}
           >
             Request
