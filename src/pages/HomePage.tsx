@@ -31,7 +31,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 import heroImage from "../assets/images/inkhero.webp";
-import heroImageMobile from "../assets/images/heroImageMobile.webp";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
@@ -175,7 +174,6 @@ export const HomePage: FC = () => {
   const [bookingArtists, setBookingArtists] = useState<PublicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] = useState(false);
-  const [isMobileHeroImageReady, setIsMobileHeroImageReady] = useState(false);
   const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
     useState(false);
 
@@ -187,28 +185,6 @@ export const HomePage: FC = () => {
 
     const markReady = () => {
       if (!isCancelled) setIsDesktopHeroImageReady(true);
-    };
-
-    if (image.decode) {
-      image.decode().then(markReady).catch(markReady);
-    } else {
-      image.onload = markReady;
-      image.onerror = markReady;
-    }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isCancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = heroImageMobile;
-
-    const markReady = () => {
-      if (!isCancelled) setIsMobileHeroImageReady(true);
     };
 
     if (image.decode) {
@@ -468,27 +444,6 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-hero-fixed-image--ready {
-            opacity: 0.8;
-          }
-
-          .satx-home-hero-mobile-image {
-            position: absolute;
-            inset: -12px;
-            min-height: calc(100dvh + 24px);
-            background-position: center center;
-            background-repeat: no-repeat;
-            background-size: cover;
-            opacity: 0;
-            filter: blur(3px);
-            transform: scale(1.03);
-            transform-origin: center;
-            backface-visibility: hidden;
-            contain: paint;
-            transition: opacity 420ms ease;
-            will-change: opacity;
-          }
-
-          .satx-home-hero-mobile-image--ready {
             opacity: 0.8;
           }
 
@@ -880,23 +835,6 @@ export const HomePage: FC = () => {
             style={{
               backgroundImage: isDesktopHeroImageReady
                 ? `url(${heroImage})`
-                : undefined,
-            }}
-          />
-        </div>
-        <div
-          className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-black md:hidden"
-          aria-hidden="true"
-        >
-          <div
-            className={`satx-home-hero-mobile-image${
-              isMobileHeroImageReady
-                ? " satx-home-hero-mobile-image--ready"
-                : ""
-            }`}
-            style={{
-              backgroundImage: isMobileHeroImageReady
-                ? `url(${heroImageMobile})`
                 : undefined,
             }}
           />
@@ -1926,15 +1864,19 @@ const FeaturedSheetPanel = ({
           )}
         </Link>
 
-        <div className="flex min-h-[13.5rem] flex-col items-center p-5 pt-7 text-center lg:min-h-[21rem] lg:p-6 lg:pt-12">
+        <div className="flex min-h-[15rem] flex-col items-center justify-center gap-8 p-5 text-center lg:min-h-[21rem] lg:p-6">
           <div className="flex flex-col items-center">
-            <ArtistAvatar artist={sheet.artist} name={artistName} />
-            <p className="mt-3 max-w-full truncate text-lg font-semibold leading-tight text-white">
+            <ArtistAvatar
+              artist={sheet.artist}
+              name={artistName}
+              size="featured"
+            />
+            <p className="mt-5 max-w-full truncate text-xl font-semibold leading-tight text-white">
               {artistName}
             </p>
           </div>
 
-          <div className="mt-12 flex items-center justify-center gap-5 lg:mt-auto">
+          <div className="flex items-center justify-center gap-5">
             <Link
               to={sheetHref}
               className="inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white"
@@ -2020,14 +1962,24 @@ const BookingArtistCardSkeleton = () => (
 const ArtistAvatar = ({
   artist,
   name,
+  size = "default",
 }: {
   artist?: PublicArtist;
   name: string;
+  size?: "default" | "featured";
 }) => {
   const artistName = getArtistName(artist);
+  const avatarClassName =
+    size === "featured"
+      ? "relative h-24 w-24 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-[0_18px_40px_rgba(0,0,0,0.35)]"
+      : "relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm";
+  const fallbackClassName =
+    size === "featured"
+      ? "flex h-full w-full items-center justify-center text-3xl font-bold text-white/55"
+      : "flex h-full w-full items-center justify-center text-xl font-bold text-white/55";
 
   return (
-    <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/[0.06] shadow-sm">
+    <span className={avatarClassName}>
       {artist?.avatarUrl ? (
         <img
           src={artist.avatarUrl}
@@ -2036,7 +1988,7 @@ const ArtistAvatar = ({
           loading="lazy"
         />
       ) : (
-        <span className="flex h-full w-full items-center justify-center text-xl font-bold text-white/55">
+        <span className={fallbackClassName}>
           {name.charAt(0).toUpperCase()}
         </span>
       )}
