@@ -626,14 +626,18 @@ const FlashCard = forwardRef<HTMLElement, FlashCardProps>(
       >
         <FlashPreviewImage flash={flash}>
           {visualTitle && (
-            <span className="pointer-events-none absolute right-3 top-3 hidden max-w-[72%] rounded-full border border-white/15 bg-black/65 px-3 py-1 text-[11px] font-bold leading-none text-white/85 opacity-0 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100 md:block">
+            <span className="pointer-events-none absolute right-3 top-3 hidden max-w-[72%] rounded-full border border-white/15 bg-black/65 px-3 py-1 text-[11px] font-bold leading-none text-white/85 opacity-0 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100 md:block">
               <span className="block truncate">{visualTitle}</span>
             </span>
           )}
+          <span
+            className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-28 bg-gradient-to-t from-black/72 via-black/28 to-transparent opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100 md:block"
+            aria-hidden="true"
+          />
           <FlashCardActions
             flash={flash}
             onRequest={onRequest}
-            className="pointer-events-none absolute inset-x-3 bottom-3 hidden translate-y-2 grid-cols-2 gap-2 opacity-0 transition duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 md:grid"
+            className="pointer-events-none absolute inset-x-3 bottom-3 hidden translate-y-3 scale-[0.98] grid-cols-2 gap-1.5 rounded-xl border border-white/12 bg-black/45 p-1 opacity-0 shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:scale-100 group-focus-within:opacity-100 md:grid"
           />
         </FlashPreviewImage>
 
@@ -671,14 +675,14 @@ const FlashCardActions = ({
   <div className={className}>
     <Link
       to={`/artists/${flash.artistId}`}
-      className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-black/50 px-2 text-[11px] font-semibold text-white/78 shadow-[0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/25 hover:bg-white/[0.1] hover:text-white"
+      className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
     </Link>
     <button
       type="button"
       onClick={onRequest}
-      className="!inline-flex !h-8 !items-center !justify-center !whitespace-nowrap !rounded-md !border !border-[color:rgba(232,82,67,0.34)] !bg-[color:rgba(232,82,67,0.18)] !px-2 !py-0 !text-[11px] font-semibold text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:!border-[color:rgba(232,82,67,0.55)] hover:!bg-[color:rgba(232,82,67,0.26)] hover:text-white"
+      className="!inline-flex !h-9 !items-center !justify-center !whitespace-nowrap !rounded-lg !border !border-[color:rgba(255,142,126,0.36)] !bg-[color:rgba(138,54,46,0.92)] !px-2 !py-0 !text-[11px] font-semibold text-white/[0.92] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:!border-[color:rgba(255,172,158,0.55)] hover:!bg-[color:rgba(166,66,56,0.96)] hover:text-white"
       aria-label={`Request this flash: ${getFlashTitle(flash)}`}
     >
       Request
