@@ -144,7 +144,6 @@ export const ArtistProfilePage = () => {
   const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isFollowUpdating, setIsFollowUpdating] = useState(false);
-  const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isRequestTransitioning, setIsRequestTransitioning] = useState(false);
@@ -399,11 +398,6 @@ export const ArtistProfilePage = () => {
     () => galleryItems.slice(0, FEATURED_WORK_LIMIT),
     [galleryItems]
   );
-  const selectedItemIndex = selectedItem
-    ? featuredGalleryItems.findIndex((item) => item.id === selectedItem.id)
-    : -1;
-  const canNavigatePortfolio =
-    featuredGalleryItems.length > 1 && selectedItemIndex >= 0;
 
   const refreshPortfolioItem = useCallback(async (itemId: string) => {
     try {
@@ -463,31 +457,7 @@ export const ArtistProfilePage = () => {
     }
   }, [featuredGalleryItems, selectedItem]);
 
-  const navigatePortfolio = useCallback(
-    (direction: SlideDirection) => {
-      if (!canNavigatePortfolio) return;
-
-      const offset = direction === "next" ? 1 : -1;
-      const nextIndex =
-        (selectedItemIndex + offset + featuredGalleryItems.length) %
-        featuredGalleryItems.length;
-
-      setSlideDirection(direction);
-      const nextItem = featuredGalleryItems[nextIndex];
-      setModalLoading(true);
-      setSelectedItem(nextItem);
-      void refreshPortfolioItem(nextItem.id);
-    },
-    [
-      canNavigatePortfolio,
-      featuredGalleryItems,
-      refreshPortfolioItem,
-      selectedItemIndex,
-    ]
-  );
-
   const openPortfolioItem = (item: GalleryItem) => {
-    setSlideDirection("next");
     setModalLoading(true);
     setSelectedItem(item);
     void refreshPortfolioItem(item.id);
@@ -502,19 +472,11 @@ export const ArtistProfilePage = () => {
         setSelectedItem(null);
         setSelectedSheet(null);
       }
-      if (selectedItem && event.key === "ArrowRight") {
-        event.preventDefault();
-        navigatePortfolio("next");
-      }
-      if (selectedItem && event.key === "ArrowLeft") {
-        event.preventDefault();
-        navigatePortfolio("prev");
-      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedItem, selectedSheet, navigatePortfolio]);
+  }, [selectedItem, selectedSheet]);
 
   const handleSelectSheet = (sheet: FlashSheet) => {
     setFocusedSheet(sheet);
@@ -868,17 +830,8 @@ export const ArtistProfilePage = () => {
       {selectedItem && (
         <PortfolioLightbox
           item={selectedItem}
-          artist={artist}
-          slideDirection={slideDirection}
-          canNavigate={canNavigatePortfolio}
           modalLoading={modalLoading}
           onImageLoad={() => setModalLoading(false)}
-          onNext={() => navigatePortfolio("next")}
-          onPrev={() => navigatePortfolio("prev")}
-          onRequestTattoo={() => {
-            setSelectedItem(null);
-            window.requestAnimationFrame(handleRequestTattoo);
-          }}
           onClose={() => setSelectedItem(null)}
         />
       )}
@@ -1895,254 +1848,48 @@ const FlashItemCard = ({
 
 const PortfolioLightbox = ({
   item,
-  artist,
-  slideDirection,
-  canNavigate,
   modalLoading,
   onImageLoad,
-  onNext,
-  onPrev,
-  onRequestTattoo,
   onClose,
 }: {
   item: GalleryItem;
-  artist: Artist;
-  slideDirection: SlideDirection;
-  canNavigate: boolean;
   modalLoading: boolean;
   onImageLoad: () => void;
-  onNext: () => void;
-  onPrev: () => void;
-  onRequestTattoo: () => void;
   onClose: () => void;
-}) => {
-  const slideClass =
-    slideDirection === "next"
-      ? "portfolio-slide-in-next"
-      : "portfolio-slide-in-prev";
-  const artistName = getArtistDisplayName(artist);
-  const pieceTitle = item.caption || "Untitled piece";
-  const hasTags = Array.isArray(item.tags) && item.tags.length > 0;
-  const metaAnimationClass =
-    slideDirection === "next"
-      ? "portfolio-meta-in-next"
-      : "portfolio-meta-in-prev";
-
-  return (
+}) => (
+  <div
+    onClick={onClose}
+    className="fixed inset-0 z-[60] overflow-y-auto bg-black/90 px-4 pb-6 pt-[calc(5.75rem+env(safe-area-inset-top))] backdrop-blur-md md:flex md:items-center md:justify-center md:p-8"
+    role="dialog"
+    aria-modal="true"
+  >
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-[60] overflow-y-auto bg-black/90 px-4 pb-6 pt-[calc(5.75rem+env(safe-area-inset-top))] backdrop-blur-md md:px-8 md:pb-10 md:pt-28"
-      role="dialog"
-      aria-modal="true"
+      className="relative mx-auto w-full max-w-6xl md:mx-0"
+      onClick={(event) => event.stopPropagation()}
     >
-      <style>
-        {`
-          @keyframes portfolioSlideInNext {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-          }
-          @keyframes portfolioSlideInPrev {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(0); }
-          }
-          .portfolio-slide-in-next {
-            animation: portfolioSlideInNext 360ms cubic-bezier(0.22, 1, 0.36, 1);
-          }
-          .portfolio-slide-in-prev {
-            animation: portfolioSlideInPrev 360ms cubic-bezier(0.22, 1, 0.36, 1);
-          }
-          @keyframes portfolioMetaInNext {
-            from { opacity: 0; transform: translateX(24px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-          @keyframes portfolioMetaInPrev {
-            from { opacity: 0; transform: translateX(-24px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-          .portfolio-meta-in-next {
-            animation: portfolioMetaInNext 260ms cubic-bezier(0.22, 1, 0.36, 1);
-          }
-          .portfolio-meta-in-prev {
-            animation: portfolioMetaInPrev 260ms cubic-bezier(0.22, 1, 0.36, 1);
-          }
-        `}
-      </style>
+      <LightboxImageFrame
+        imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
+        fullUrl={getPortfolioLightboxUrl(item)}
+        previewUrl={getLightboxPreviewUrl(item)}
+        alt={item.caption || "Full portfolio view"}
+        isLoading={modalLoading}
+        loadingLabel="Loading portfolio piece"
+        frameClassName="h-[min(72dvh,calc(100dvh-8.5rem))] w-full md:h-[min(82vh,820px)]"
+        enableMobileZoom
+        onImageLoad={onImageLoad}
+      />
 
-      <div
-        className="mx-auto flex w-full max-w-6xl flex-col gap-4"
-        onClick={(event) => event.stopPropagation()}
+      <button
+        type="button"
+        className="absolute right-3 top-3 z-30 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/55 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
+        onClick={onClose}
+        aria-label="Close portfolio image"
       >
-        <div className="flex justify-end md:hidden">
-          <button
-            type="button"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.07] p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-            onClick={onClose}
-            aria-label="Close portfolio image"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="hidden items-center justify-between gap-5 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-md md:flex">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              src={artist.avatarUrl || "/default-avatar.png"}
-              alt={artistName}
-              className="h-11 w-11 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
-            />
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/35">
-                Artist
-              </p>
-              <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
-                {artistName}
-              </p>
-            </div>
-          </div>
-
-          <div
-            key={`desktop-${item.id}`}
-            className={`${metaAnimationClass} min-w-0 flex-1 text-center`}
-          >
-            <p className="text-xs uppercase tracking-[0.18em] text-white/35">
-              Portfolio piece
-            </p>
-            <h1 className="mx-auto mt-1 max-w-2xl truncate text-xl! font-semibold! leading-tight text-white">
-              {pieceTitle}
-            </h1>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onRequestTattoo();
-              }}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-0! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
-            >
-              <MessageCircle size={16} />
-              Send your idea
-            </button>
-            <button
-              type="button"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.07] p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-              onClick={onClose}
-              aria-label="Close portfolio image"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        <div className="relative mx-auto w-full max-w-5xl">
-          <LightboxImageFrame
-            imageKey={`${item.id}-${getPortfolioLightboxUrl(item)}`}
-            fullUrl={getPortfolioLightboxUrl(item)}
-            previewUrl={getLightboxPreviewUrl(item)}
-            alt={item.caption || "Full portfolio view"}
-            isLoading={modalLoading}
-            loadingLabel="Loading portfolio piece"
-            slideClass={slideClass}
-            frameClassName="h-[min(56dvh,34rem)] w-full md:h-[min(68vh,760px)]"
-            onImageLoad={onImageLoad}
-          />
-
-          {canNavigate && (
-            <>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onPrev();
-                }}
-                className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-                aria-label="Previous portfolio image"
-              >
-                <ChevronLeft size={22} />
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onNext();
-                }}
-                className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 p-0! text-white shadow-lg backdrop-blur-md transition hover:bg-white/15"
-                aria-label="Next portfolio image"
-              >
-                <ChevronRight size={22} />
-              </button>
-            </>
-          )}
-        </div>
-
-        {hasTags && (
-          <div
-            key={`desktop-tags-${item.id}`}
-            className={`${metaAnimationClass} hidden justify-center md:flex`}
-          >
-            <TagMarqueeModal tags={item.tags || []} compact />
-          </div>
-        )}
-
-        <div
-          key={`mobile-${item.id}`}
-          className={`${metaAnimationClass} rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-md md:hidden`}
-        >
-          <div className="flex items-center gap-3">
-            <img
-              src={artist.avatarUrl || "/default-avatar.png"}
-              alt={artistName}
-              className="h-12 w-12 rounded-full border border-white/20 object-cover shadow-[0_10px_28px_rgba(0,0,0,0.32)]"
-            />
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                Artist
-              </p>
-              <p className="mt-0.5 truncate text-sm! font-semibold! leading-tight text-white">
-                {artistName}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
-              Portfolio piece
-            </p>
-            <h1 className="mt-1 text-xl! font-semibold! leading-tight text-white">
-              {pieceTitle}
-            </h1>
-          </div>
-
-          {hasTags && (
-            <div className="mt-4">
-              <TagMarqueeModal tags={item.tags || []} compact />
-            </div>
-          )}
-
-          {modalLoading && (
-            <div className="mt-4 space-y-2">
-              <div className="h-2 w-28 animate-pulse rounded-full bg-white/10" />
-              <div className="h-2 w-40 animate-pulse rounded-full bg-white/10" />
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRequestTattoo();
-            }}
-            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.075] px-4! py-3! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12]"
-          >
-            <MessageCircle size={16} />
-            Send your idea
-          </button>
-        </div>
-      </div>
+        <X size={18} />
+      </button>
     </div>
-  );
-};
+  </div>
+);
 
 const FlashSheetLightbox = ({
   sheet,
@@ -2242,6 +1989,7 @@ const LightboxImageFrame = ({
   loadingLabel,
   slideClass,
   frameClassName,
+  enableMobileZoom = false,
   onImageLoad,
 }: {
   imageKey: string;
@@ -2252,9 +2000,15 @@ const LightboxImageFrame = ({
   loadingLabel: string;
   slideClass?: string;
   frameClassName?: string;
+  enableMobileZoom?: boolean;
   onImageLoad: () => void;
 }) => {
   const fullImageRef = useRef<HTMLImageElement | null>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  useEffect(() => {
+    setIsZoomed(false);
+  }, [imageKey]);
 
   useEffect(() => {
     const image = fullImageRef.current;
@@ -2281,18 +2035,18 @@ const LightboxImageFrame = ({
           src={previewUrl}
           alt=""
           aria-hidden="true"
-          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          className={`absolute inset-0 h-full w-full object-contain transition duration-300 ${
             isLoading ? "opacity-100" : "opacity-0"
-          }`}
+          } ${isZoomed ? "scale-[1.75]" : "scale-100"}`}
           decoding="async"
         />
         <img
           ref={fullImageRef}
           src={fullUrl}
           alt={alt}
-          className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
+          className={`absolute inset-0 h-full w-full object-contain transition duration-300 ${
             isLoading ? "opacity-0" : "opacity-100"
-          }`}
+          } ${isZoomed ? "scale-[1.75]" : "scale-100"}`}
           decoding="async"
           onLoad={onImageLoad}
           onError={onImageLoad}
@@ -2308,6 +2062,21 @@ const LightboxImageFrame = ({
           <span className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
           {loadingLabel}
         </div>
+      )}
+      {enableMobileZoom && !isLoading && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsZoomed((current) => !current);
+          }}
+          className="absolute bottom-3 left-3 z-20 inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-0! text-xs! font-semibold text-white shadow-lg backdrop-blur-md transition hover:bg-white/15 md:hidden"
+          aria-pressed={isZoomed}
+          aria-label={isZoomed ? "Fit image to screen" : "Zoom image"}
+        >
+          <Expand size={15} />
+          {isZoomed ? "Fit" : "Zoom"}
+        </button>
       )}
     </div>
   );
