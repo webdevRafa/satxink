@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { storage, db } from "../firebase/firebaseConfig";
-import { ref, uploadBytes } from "firebase/storage";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import ImageCropperModal from "./ImageCropperModal";
 import {
   Check,
@@ -39,6 +44,26 @@ type SheetRelationshipMode = "standalone" | "existing";
 const parsePositivePrice = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const waitForStorageUrl = async (
+  storagePath: string,
+  attempts = 24,
+  intervalMs = 1000
+) => {
+  const storageRef = ref(storage, storagePath);
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await getDownloadURL(storageRef);
+    } catch {
+      await wait(intervalMs);
+    }
+  }
+
+  throw new Error(`Processed image was not ready: ${storagePath}`);
 };
 
 const UploadModal: React.FC<Props> = ({
@@ -165,12 +190,18 @@ const UploadModal: React.FC<Props> = ({
       const baseName = `upload-${timestamp}`;
       const uniqueName = `${baseName}.${ext}`;
       const originalUniqueName = `${baseName}.${originalExt}`;
+      const uploadPath = `users/${uid}/${collectionType}/${uniqueName}`;
+      const thumbPath = `users/${uid}/${collectionType}/${baseName}_thumb.webp`;
+      const previewPath = `users/${uid}/${collectionType}/${baseName}_webp90.webp`;
+      const fullPath = `users/${uid}/${collectionType}/${baseName}_full.jpg`;
+      const originalUploadPath = `users/${uid}/galleryOriginals/${originalUniqueName}`;
+      const originalPreviewPath = `users/${uid}/galleryOriginals/${baseName}_webp90.webp`;
       const price = isFlashUpload ? parsedFlashPrice : null;
       const flashTitle = captionOrTitle.trim() || null;
       const linkedSheetId =
         isFlashUpload && isLinkingExistingSheet ? selectedSheetId : "";
 
-      await addDoc(collection(db, collectionType), {
+      const docRef = await addDoc(collection(db, collectionType), {
         artistId: uid,
         caption: flashTitle,
         title: isFlashUpload ? flashTitle : null,
@@ -182,7 +213,14 @@ const UploadModal: React.FC<Props> = ({
           : null,
         marketplaceVisible: isFlashUpload ? artistStripeConnectReady : null,
         fileName: baseName,
-        ...(isGalleryUpload ? { originalFileName: baseName } : {}),
+        ...(isGalleryUpload
+          ? {
+              originalFileName: baseName,
+              thumbPath,
+              previewPath,
+              fullPath,
+            }
+          : {}),
         timestamp,
         isAvailable: isFlashUpload ? true : null,
         repeatability: isFlashUpload ? repeatability : null,
@@ -194,16 +232,13 @@ const UploadModal: React.FC<Props> = ({
       });
 
       const uploadTasks = [
-        uploadBytes(
-          ref(storage, `users/${uid}/${collectionType}/${uniqueName}`),
-          croppedFile
-        ),
+        uploadBytes(ref(storage, uploadPath), croppedFile),
       ];
 
       if (isGalleryUpload && originalGalleryFile) {
         uploadTasks.push(
           uploadBytes(
-            ref(storage, `users/${uid}/galleryOriginals/${originalUniqueName}`),
+            ref(storage, originalUploadPath),
             originalGalleryFile,
             { contentType: originalGalleryFile.type || "image/jpeg" }
           )
@@ -211,6 +246,40 @@ const UploadModal: React.FC<Props> = ({
       }
 
       await Promise.all(uploadTasks);
+
+      if (isGalleryUpload) {
+        void Promise.all([
+          waitForStorageUrl(thumbPath),
+          waitForStorageUrl(previewPath),
+          waitForStorageUrl(fullPath),
+        ])
+          .then(async ([thumbUrl, webp90Url, fullUrl]) => {
+            const originalWebp90Url = await waitForStorageUrl(
+              originalPreviewPath
+            ).catch(() => null);
+
+            await updateDoc(docRef, {
+              thumbUrl,
+              webp90Url,
+              fullUrl,
+              thumbPath,
+              previewPath,
+              fullPath,
+              ...(originalWebp90Url
+                ? {
+                    originalWebp90Url,
+                    originalPreviewPath,
+                    originalFileName: baseName,
+                  }
+                : {}),
+              status: "ready",
+              updatedAt: serverTimestamp(),
+            });
+          })
+          .catch((error) => {
+            console.warn("Gallery image is still processing:", error);
+          });
+      }
 
       onUploadComplete();
       resetAndClose();

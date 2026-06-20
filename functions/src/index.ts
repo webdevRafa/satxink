@@ -3667,7 +3667,10 @@ const processArtistMedia = onObjectFinalized(
       const sourceFileSizeBytes = getStorageObjectSizeBytes(event.data.size);
 
       if (mediaType === "galleryOriginals") {
-        const snapshot = await db.collection("gallery").where("fileName", "==", baseName).limit(1).get();
+        let snapshot = await db.collection("gallery").where("fileName", "==", baseName).limit(1).get();
+        if (snapshot.empty) {
+          snapshot = await db.collection("gallery").where("originalFileName", "==", baseName).limit(1).get();
+        }
 
         if (snapshot.empty) {
           console.warn(`No gallery doc found for original preview ${baseName}`);
@@ -3707,6 +3710,7 @@ const processArtistMedia = onObjectFinalized(
           originalWebp90Url,
           originalPreviewPath,
           originalFileName: baseName,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         await bucket.file(filePath).delete().catch(() => {
@@ -3769,7 +3773,10 @@ const processArtistMedia = onObjectFinalized(
       }
 
       // Find the Firestore document created by UploadModal using fileName
-      const snapshot = await db.collection(mediaType).where("fileName", "==", baseName).limit(1).get();
+      let snapshot = await db.collection(mediaType).where("fileName", "==", baseName).limit(1).get();
+      if (snapshot.empty && mediaType === "gallery") {
+        snapshot = await db.collection("gallery").where("originalFileName", "==", baseName).limit(1).get();
+      }
 
       if (!snapshot.empty) {
         const docRef = snapshot.docs[0].ref;
@@ -3801,6 +3808,7 @@ const processArtistMedia = onObjectFinalized(
               }
             : {}),
           status: "ready",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         console.log(`Updated Firestore doc for ${baseName} with image URLs.`);
@@ -3956,13 +3964,12 @@ const cropFlashFromSheet = onCall(
         : "repeatable";
     const normalizedPublicationStatus =
       publicationStatus === "draft" ? "draft" : "published";
-    if (
-      normalizedPublicationStatus === "published" &&
-      (normalizedPrice === null || normalizedPrice <= 0)
-    ) {
+    if (normalizedPrice === null || normalizedPrice <= 0) {
       throw new HttpsError(
         "invalid-argument",
-        "Add a price before publishing marketplace flash."
+        normalizedPublicationStatus === "draft"
+          ? "Add a price before saving this draft."
+          : "Add a price before publishing marketplace flash."
       );
     }
     const now = admin.firestore.FieldValue.serverTimestamp();

@@ -371,8 +371,12 @@ const FlashSheetDetailPage = () => {
       }
       return false;
     }
-    if (publicationStatus === "published" && parsedPrice === null) {
-      toast("Add a price before publishing marketplace flash.");
+    if (parsedPrice === null) {
+      toast(
+        publicationStatus === "draft"
+          ? "Add a price before saving this draft."
+          : "Add a price before publishing marketplace flash."
+      );
       return false;
     }
 
@@ -1180,7 +1184,7 @@ const CropFlashModal = ({
           min={1}
           value={price}
           onChange={(e) => onPriceChange(e.target.value)}
-          placeholder="Required to publish"
+          placeholder="Required"
           className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
         />
       </label>
@@ -1432,7 +1436,7 @@ const CropFlashModal = ({
                     Flash details
                   </p>
                   <h3 className="mt-2 text-2xl! font-bold text-white">
-                    Create hidden draft
+                    Draft
                   </h3>
                 </div>
                 <button
@@ -1484,7 +1488,7 @@ const CropFlashModal = ({
                 <button
                   type="button"
                   onClick={handleSubmitDesktopDetails}
-                  disabled={!validCropArea || isPublishing}
+                  disabled={!canPublishWithPrice || isPublishing}
                   className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                 >
                   {isPublishing ? "Creating..." : "Submit draft"}
