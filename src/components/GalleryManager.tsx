@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   onSnapshot,
   query,
   serverTimestamp,
@@ -77,26 +78,48 @@ const getGalleryAssetPaths = (item: GalleryItem) => {
   };
 };
 
-const getGalleryCardImageUrl = (item: GalleryItem) =>
-  item.thumbUrl || item.webp90Url || item.fullUrl || "";
+const getGalleryCardImageUrls = (item: GalleryItem) =>
+  [item.thumbUrl, item.webp90Url, item.fullUrl].filter(
+    (url): url is string => Boolean(url)
+  );
+
+const hasDisplayableGalleryImage = (item: GalleryItem) =>
+  getGalleryCardImageUrls(item).length > 0;
 
 const hasReadyGalleryImageSet = (item: GalleryItem) =>
   Boolean(item.thumbUrl && item.webp90Url && item.fullUrl);
 
 const GalleryCardImage = ({
-  src,
+  sources,
   alt,
   priority,
 }: {
-  src: string;
+  sources: string[];
   alt: string;
   priority: boolean;
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
+  const sourceKey = sources.join("|");
+  const src = sources[sourceIndex] || "";
 
   useEffect(() => {
     setIsLoaded(false);
-  }, [src]);
+    setSourceIndex(0);
+    setHasError(false);
+  }, [sourceKey]);
+
+  const handleImageError = () => {
+    if (sourceIndex < sources.length - 1) {
+      setIsLoaded(false);
+      setSourceIndex((currentIndex) => currentIndex + 1);
+      return;
+    }
+
+    setHasError(true);
+    setIsLoaded(true);
+  };
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#080808]">
@@ -106,19 +129,27 @@ const GalleryCardImage = ({
         }`}
         aria-hidden="true"
       />
-      <img
-        src={src}
-        alt={alt}
-        width={640}
-        height={480}
-        className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${
-          isLoaded ? "opacity-100" : "opacity-0"
-        }`}
-        loading={priority ? "eager" : "lazy"}
-        decoding="async"
-        onLoad={() => setIsLoaded(true)}
-        onError={() => setIsLoaded(true)}
-      />
+      {hasError ? (
+        <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+          <span className="rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-zinc-300 backdrop-blur">
+            Preview unavailable
+          </span>
+        </div>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          width={640}
+          height={480}
+          className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${
+            isLoaded ? "opacity-100" : "opacity-0"
+          }`}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          onLoad={() => setIsLoaded(true)}
+          onError={handleImageError}
+        />
+      )}
     </div>
   );
 };
@@ -135,7 +166,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   const processedToastRef = useRef<Set<string>>(new Set());
 
   const previewItems = useMemo(
-    () => items.filter((item) => item.status !== "processing"),
+    () => items.filter(hasDisplayableGalleryImage),
     [items]
   );
 
@@ -149,7 +180,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
       collection(db, "gallery"),
       where("artistId", "==", uid)
     );
-    const snapshot = await getDocs(galleryQuery);
+    const snapshot = await getDocsFromServer(galleryQuery).catch(() =>
+      getDocs(galleryQuery)
+    );
     setItems(
       snapshot.docs.map((itemDoc) => ({
         id: itemDoc.id,
@@ -213,9 +246,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
     items.forEach((item) => {
       const paths = getGalleryAssetPaths(item);
+      const hasDisplayableImage = hasDisplayableGalleryImage(item);
       const hasReadyImages = hasReadyGalleryImageSet(item);
       const needsImageRecovery = !hasReadyImages && Boolean(paths);
-      const needsStatusRecovery = item.status === "processing" && hasReadyImages;
+      const needsStatusRecovery =
+        item.status !== "ready" && hasDisplayableImage;
       const needsOriginalRecovery =
         Boolean(paths?.originalPreviewPath) && !item.originalWebp90Url;
       const recoveryKey = `${item.id}:${item.fileName || ""}`;
@@ -231,16 +266,31 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
       processingRecoveryRef.current.add(recoveryKey);
 
-      const mainImageUrls = needsImageRecovery && paths
-        ? Promise.all([
-            waitForGalleryStorageUrl(paths.thumbPath),
-            waitForGalleryStorageUrl(paths.previewPath),
-            waitForGalleryStorageUrl(paths.fullPath),
-          ])
-        : Promise.resolve([item.thumbUrl, item.webp90Url, item.fullUrl]);
+      const mainImageUrls =
+        needsImageRecovery && paths
+          ? Promise.allSettled([
+              item.thumbUrl || waitForGalleryStorageUrl(paths.thumbPath),
+              item.webp90Url || waitForGalleryStorageUrl(paths.previewPath),
+              item.fullUrl || waitForGalleryStorageUrl(paths.fullPath),
+            ])
+          : Promise.resolve([]);
 
       void mainImageUrls
-        .then(async ([thumbUrl, webp90Url, fullUrl]) => {
+        .then(async (mainResults) => {
+          const [thumbResult, webpResult, fullResult] = mainResults;
+          const thumbUrl =
+            item.thumbUrl ||
+            (thumbResult?.status === "fulfilled" ? thumbResult.value : null);
+          const webp90Url =
+            item.webp90Url ||
+            (webpResult?.status === "fulfilled" ? webpResult.value : null);
+          const fullUrl =
+            item.fullUrl ||
+            (fullResult?.status === "fulfilled" ? fullResult.value : null);
+          const hasRecoveredDisplayUrl = Boolean(
+            thumbUrl || webp90Url || fullUrl
+          );
+
           const originalWebp90Url =
             paths?.originalPreviewPath && needsOriginalRecovery
               ? await waitForGalleryStorageUrl(
@@ -251,17 +301,19 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               : null;
 
           await updateDoc(doc(db, "gallery", item.id), {
-            ...(thumbUrl && webp90Url && fullUrl && paths
+            ...(paths
               ? {
-                  thumbUrl,
-                  webp90Url,
-                  fullUrl,
+                  ...(thumbUrl ? { thumbUrl } : {}),
+                  ...(webp90Url ? { webp90Url } : {}),
+                  ...(fullUrl ? { fullUrl } : {}),
                   thumbPath: paths.thumbPath,
                   previewPath: paths.previewPath,
                   fullPath: paths.fullPath,
                 }
               : {}),
-            ...(thumbUrl && webp90Url && fullUrl ? { status: "ready" } : {}),
+            ...(hasRecoveredDisplayUrl || needsStatusRecovery
+              ? { status: "ready" }
+              : {}),
             ...(originalWebp90Url
               ? {
                   originalWebp90Url,
@@ -273,7 +325,8 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           });
 
           if (
-            item.status === "processing" &&
+            (hasRecoveredDisplayUrl || needsStatusRecovery) &&
+            item.status !== "ready" &&
             !processedToastRef.current.has(item.id)
           ) {
             processedToastRef.current.add(item.id);
@@ -437,9 +490,8 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
                 : [];
-              const cardImageUrl = getGalleryCardImageUrl(item);
-              const isProcessing =
-                item.status === "processing" || !hasReadyGalleryImageSet(item);
+              const cardImageUrls = getGalleryCardImageUrls(item);
+              const isProcessing = cardImageUrls.length === 0;
 
               return (
                 <article
@@ -466,7 +518,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                         </div>
                       ) : (
                         <GalleryCardImage
-                          src={cardImageUrl}
+                          sources={cardImageUrls}
                           alt={item.caption || "Gallery item"}
                           priority={index < 4}
                         />
