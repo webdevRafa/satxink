@@ -26,6 +26,7 @@ import {
 import UploadModal from "./UploadModal";
 import type { GalleryItem } from "../types/GalleryItem";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import toast from "react-hot-toast";
 
 type SlideDirection = "next" | "prev";
 
@@ -57,6 +58,9 @@ const waitForGalleryStorageUrl = async (
 const getGalleryAssetPaths = (item: GalleryItem) => {
   if (!item.artistId || !item.fileName) return null;
 
+  const shouldProbeOriginalPreview =
+    item.status === "processing" || Boolean(item.originalPreviewPath);
+
   return {
     thumbPath:
       item.thumbPath || `users/${item.artistId}/gallery/${item.fileName}_thumb.webp`,
@@ -67,7 +71,9 @@ const getGalleryAssetPaths = (item: GalleryItem) => {
       item.fullPath || `users/${item.artistId}/gallery/${item.fileName}_full.jpg`,
     originalPreviewPath:
       item.originalPreviewPath ||
-      `users/${item.artistId}/galleryOriginals/${item.fileName}_webp90.webp`,
+      (shouldProbeOriginalPreview
+        ? `users/${item.artistId}/galleryOriginals/${item.fileName}_webp90.webp`
+        : undefined),
   };
 };
 
@@ -76,6 +82,46 @@ const getGalleryCardImageUrl = (item: GalleryItem) =>
 
 const hasReadyGalleryImageSet = (item: GalleryItem) =>
   Boolean(item.thumbUrl && item.webp90Url && item.fullUrl);
+
+const GalleryCardImage = ({
+  src,
+  alt,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  priority: boolean;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+  }, [src]);
+
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-[#080808]">
+      <div
+        className={`absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_58%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.07)_44%,transparent_70%)] transition-opacity duration-300 ${
+          isLoaded ? "opacity-0" : "opacity-35 animate-pulse"
+        }`}
+        aria-hidden="true"
+      />
+      <img
+        src={src}
+        alt={alt}
+        width={640}
+        height={480}
+        className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${
+          isLoaded ? "opacity-100" : "opacity-0"
+        }`}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setIsLoaded(true)}
+      />
+    </div>
+  );
+};
 
 const GalleryManager = ({ uid }: { uid: string }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
@@ -86,6 +132,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [artistInfo, setArtistInfo] = useState<GalleryArtistInfo>({});
   const processingRecoveryRef = useRef<Set<string>>(new Set());
+  const processedToastRef = useRef<Set<string>>(new Set());
 
   const previewItems = useMemo(
     () => items.filter((item) => item.status !== "processing"),
@@ -162,12 +209,15 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   }, [selectedItem]);
 
   useEffect(() => {
+    if (isUploadOpen) return;
+
     items.forEach((item) => {
+      const paths = getGalleryAssetPaths(item);
       const hasReadyImages = hasReadyGalleryImageSet(item);
-      const needsImageRecovery = !hasReadyImages;
+      const needsImageRecovery = !hasReadyImages && Boolean(paths);
       const needsStatusRecovery = item.status === "processing" && hasReadyImages;
       const needsOriginalRecovery =
-        Boolean(item.fileName) && !item.originalWebp90Url;
+        Boolean(paths?.originalPreviewPath) && !item.originalWebp90Url;
       const recoveryKey = `${item.id}:${item.fileName || ""}`;
 
       if (
@@ -177,12 +227,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         return;
       }
 
-      const paths = getGalleryAssetPaths(item);
-      if (!paths) return;
+      if (!paths && !needsStatusRecovery) return;
 
       processingRecoveryRef.current.add(recoveryKey);
 
-      const mainImageUrls = needsImageRecovery
+      const mainImageUrls = needsImageRecovery && paths
         ? Promise.all([
             waitForGalleryStorageUrl(paths.thumbPath),
             waitForGalleryStorageUrl(paths.previewPath),
@@ -192,14 +241,17 @@ const GalleryManager = ({ uid }: { uid: string }) => {
 
       void mainImageUrls
         .then(async ([thumbUrl, webp90Url, fullUrl]) => {
-          const originalWebp90Url = await waitForGalleryStorageUrl(
-            paths.originalPreviewPath,
-            needsImageRecovery ? 4 : 12,
-            750
-          ).catch(() => null);
+          const originalWebp90Url =
+            paths?.originalPreviewPath && needsOriginalRecovery
+              ? await waitForGalleryStorageUrl(
+                  paths.originalPreviewPath,
+                  needsImageRecovery ? 4 : 12,
+                  750
+                ).catch(() => null)
+              : null;
 
           await updateDoc(doc(db, "gallery", item.id), {
-            ...(thumbUrl && webp90Url && fullUrl
+            ...(thumbUrl && webp90Url && fullUrl && paths
               ? {
                   thumbUrl,
                   webp90Url,
@@ -207,24 +259,32 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                   thumbPath: paths.thumbPath,
                   previewPath: paths.previewPath,
                   fullPath: paths.fullPath,
-                  status: "ready",
                 }
               : {}),
+            ...(thumbUrl && webp90Url && fullUrl ? { status: "ready" } : {}),
             ...(originalWebp90Url
               ? {
                   originalWebp90Url,
-                  originalPreviewPath: paths.originalPreviewPath,
+                  originalPreviewPath: paths?.originalPreviewPath,
                   originalFileName: item.originalFileName || item.fileName,
                 }
               : {}),
             updatedAt: serverTimestamp(),
           });
+
+          if (
+            item.status === "processing" &&
+            !processedToastRef.current.has(item.id)
+          ) {
+            processedToastRef.current.add(item.id);
+            toast.success("Gallery image processed.");
+          }
         })
         .catch(() => {
           processingRecoveryRef.current.delete(recoveryKey);
         });
     });
-  }, [items]);
+  }, [isUploadOpen, items]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -373,7 +433,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           </div>
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
                 : [];
@@ -405,12 +465,10 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                           </span>
                         </div>
                       ) : (
-                        <img
+                        <GalleryCardImage
                           src={cardImageUrl}
                           alt={item.caption || "Gallery item"}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                          loading="lazy"
-                          decoding="async"
+                          priority={index < 4}
                         />
                       )}
 
@@ -865,7 +923,7 @@ const EditGalleryItemModal = ({
             <img
               src={item.thumbUrl || item.webp90Url || item.fullUrl}
               alt={item.caption || "Gallery preview"}
-              className="aspect-square w-full object-cover"
+              className="aspect-[4/3] w-full object-cover"
             />
           </div>
         </div>

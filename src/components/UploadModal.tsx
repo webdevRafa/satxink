@@ -23,6 +23,7 @@ import CustomSelect from "./ui/CustomSelect";
 import type { SelectOption } from "../utils/timeOptions";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
 import FlashRepeatabilityControl from "./FlashRepeatabilityControl";
+import toast from "react-hot-toast";
 import {
   FLASH_DESCRIPTION_MAX_LENGTH,
   normalizeFlashDescription,
@@ -182,6 +183,8 @@ const UploadModal: React.FC<Props> = ({
 
     setIsUploading(true);
 
+    let didUploadGalleryFiles = false;
+
     try {
       const timestamp = Date.now();
       const ext = croppedFile.name.split(".").pop() || "jpg";
@@ -246,53 +249,66 @@ const UploadModal: React.FC<Props> = ({
       }
 
       await Promise.all(uploadTasks);
+      didUploadGalleryFiles = isGalleryUpload;
 
       if (isGalleryUpload) {
-        void Promise.all([
-          waitForStorageUrl(thumbPath),
-          waitForStorageUrl(previewPath),
-          waitForStorageUrl(fullPath),
-        ])
-          .then(async ([thumbUrl, webp90Url, fullUrl]) => {
-            const originalWebp90Url = await waitForStorageUrl(
-              originalPreviewPath
-            ).catch(() => null);
+        const [thumbUrl, webp90Url, fullUrl] = await Promise.all([
+          waitForStorageUrl(thumbPath, 42, 1000),
+          waitForStorageUrl(previewPath, 42, 1000),
+          waitForStorageUrl(fullPath, 42, 1000),
+        ]);
+        const originalWebp90Url = await waitForStorageUrl(
+          originalPreviewPath,
+          8,
+          750
+        ).catch(() => null);
 
-            await updateDoc(docRef, {
-              thumbUrl,
-              webp90Url,
-              fullUrl,
-              thumbPath,
-              previewPath,
-              fullPath,
-              ...(originalWebp90Url
-                ? {
-                    originalWebp90Url,
-                    originalPreviewPath,
-                    originalFileName: baseName,
-                  }
-                : {}),
-              status: "ready",
-              updatedAt: serverTimestamp(),
-            });
-          })
-          .catch((error) => {
-            console.warn("Gallery image is still processing:", error);
-          });
+        await updateDoc(docRef, {
+          thumbUrl,
+          webp90Url,
+          fullUrl,
+          thumbPath,
+          previewPath,
+          fullPath,
+          ...(originalWebp90Url
+            ? {
+                originalWebp90Url,
+                originalPreviewPath,
+                originalFileName: baseName,
+              }
+            : {}),
+          status: "ready",
+          updatedAt: serverTimestamp(),
+        });
+
+        toast.success("Gallery image processed.");
       }
 
       onUploadComplete();
       resetAndClose();
     } catch (err) {
       console.error("Upload failed:", err);
+
+      if (isGalleryUpload && didUploadGalleryFiles) {
+        toast.error("Gallery image is still processing. Refresh in a moment.");
+        onUploadComplete();
+        resetAndClose();
+        return;
+      }
+
+      toast.error(
+        isGalleryUpload
+          ? "Gallery upload failed. Please try again."
+          : "Upload failed. Please try again."
+      );
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="request-modal-scrollbar fixed inset-0 z-[120] overflow-y-auto bg-black/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6 md:overflow-hidden md:px-4 md:py-0 md:pb-0">
-      <div className="mx-auto flex min-h-full w-full items-start justify-center md:h-full md:min-h-0 md:items-end">
-        <div className="relative grid w-full max-w-5xl overflow-visible rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:h-[calc(100vh-5.25rem)] md:grid-cols-[0.95fr_1.05fr] md:rounded-b-none">
+    <div className="request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto overscroll-contain bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
+      <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
+        <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[calc(100dvh-4rem)] md:grid-cols-[0.95fr_1.05fr]">
         <button
           type="button"
           onClick={resetAndClose}
@@ -302,7 +318,7 @@ const UploadModal: React.FC<Props> = ({
           <X size={18} />
         </button>
 
-        <div className="border-b border-white/10 bg-black/30 p-4 md:border-b-0 md:border-r md:p-6">
+        <div className="min-h-0 border-b border-white/10 bg-black/30 p-4 md:border-b-0 md:border-r md:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
             {isFlashUpload ? "Flash upload" : "Gallery upload"}
           </p>
@@ -312,7 +328,7 @@ const UploadModal: React.FC<Props> = ({
           <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-400">
             {isFlashUpload
               ? "Crop a clean square, add the details clients need, and choose whether this belongs to one of your sheets."
-              : "Crop the image, add a caption and tags, then publish it to your portfolio."}
+              : "Crop the image, add any details you want, then publish it to your portfolio."}
           </p>
 
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35 md:mt-6">
@@ -320,10 +336,16 @@ const UploadModal: React.FC<Props> = ({
               <img
                 src={previewUrl}
                 alt="Platform flash preview"
-                className="aspect-square w-full object-cover"
+                className={`w-full object-cover ${
+                  isFlashUpload ? "aspect-square" : "aspect-[4/3]"
+                }`}
               />
             ) : (
-              <label className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-4 text-center transition hover:bg-white/[0.03]">
+              <label
+                className={`flex w-full cursor-pointer flex-col items-center justify-center gap-4 text-center transition hover:bg-white/[0.03] ${
+                  isFlashUpload ? "aspect-square" : "aspect-[4/3]"
+                }`}
+              >
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/15 text-red-300">
                   <Upload size={26} />
                 </span>
@@ -332,7 +354,9 @@ const UploadModal: React.FC<Props> = ({
                     Choose image
                   </span>
                   <span className="mt-1 block text-xs text-zinc-500">
-                    Square crop opens after selection
+                    {isFlashUpload
+                      ? "Square crop opens after selection"
+                      : "Cropper opens after selection"}
                   </span>
                 </span>
                 <input
@@ -371,7 +395,7 @@ const UploadModal: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="p-4 md:p-6">
+        <div className="request-modal-scrollbar min-h-0 overflow-y-auto p-4 md:max-h-[calc(100dvh-4rem)] md:p-6">
           <div className="space-y-4">
             <label className="block">
               <span className="text-sm font-semibold text-zinc-300">
@@ -556,7 +580,11 @@ const UploadModal: React.FC<Props> = ({
               disabled={!canPublish || isUploading}
               className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
             >
-              {isUploading ? "Uploading..." : "Publish"}
+              {isUploading
+                ? isGalleryUpload
+                  ? "Processing..."
+                  : "Uploading..."
+                : "Publish"}
             </button>
           </div>
         </div>
@@ -566,7 +594,7 @@ const UploadModal: React.FC<Props> = ({
       {cropSrc && (
         <ImageCropperModal
           imageSrc={cropSrc}
-          aspect={isFlashUpload ? 1 : 4 / 5}
+          aspect={isFlashUpload ? 1 : 4 / 3}
           cropShape="rect"
           outputSize={isFlashUpload ? 1080 : undefined}
           title={isFlashUpload ? "Frame your flash" : "Position your photo"}
