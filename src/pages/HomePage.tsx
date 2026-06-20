@@ -151,20 +151,55 @@ function useViewportEntry<T extends Element>() {
   return { targetRef, entryCount };
 }
 
-function useMediaQuery(query: string, initialValue = false) {
-  const [matches, setMatches] = useState(initialValue);
+function useElementVisibility<T extends Element>({
+  rootMargin = "0px",
+  threshold = 0,
+  initialValue = true,
+}: {
+  rootMargin?: string;
+  threshold?: number;
+  initialValue?: boolean;
+} = {}) {
+  const targetRef = useRef<T | null>(null);
+  const [isVisible, setIsVisible] = useState(initialValue);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(query);
-    const syncMatch = () => setMatches(mediaQuery.matches);
+    const target = targetRef.current;
+    if (!target) return;
 
-    syncMatch();
-    mediaQuery.addEventListener("change", syncMatch);
+    if (!("IntersectionObserver" in window)) {
+      setIsVisible(true);
+      return;
+    }
 
-    return () => mediaQuery.removeEventListener("change", syncMatch);
-  }, [query]);
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { rootMargin, threshold }
+    );
 
-  return matches;
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [rootMargin, threshold]);
+
+  return { targetRef, isVisible };
+}
+
+function usePageVisibility() {
+  const [isPageVisible, setIsPageVisible] = useState(true);
+
+  useEffect(() => {
+    const syncVisibility = () =>
+      setIsPageVisible(document.visibilityState === "visible");
+
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+
+    return () =>
+      document.removeEventListener("visibilitychange", syncVisibility);
+  }, []);
+
+  return isPageVisible;
 }
 
 export const HomePage: FC = () => {
@@ -777,27 +812,26 @@ export const HomePage: FC = () => {
           @keyframes satx-feature-panel-enter {
             from {
               opacity: 0;
-              transform: translate3d(34px, 0, 0) scale(0.985);
-              filter: blur(8px);
+              transform: translate3d(28px, 0, 0) scale(0.99);
             }
 
             to {
               opacity: 1;
               transform: translate3d(0, 0, 0) scale(1);
-              filter: blur(0);
             }
           }
 
           .satx-home-feature-panel {
             opacity: 0;
-            transform: translate3d(34px, 0, 0) scale(0.985);
-            filter: blur(8px);
+            transform: translate3d(28px, 0, 0) scale(0.99);
+            transform-origin: center right;
             pointer-events: none;
-            will-change: opacity, transform, filter;
+            backface-visibility: hidden;
+            will-change: opacity, transform;
           }
 
           .satx-home-feature-panel--visible {
-            animation: satx-feature-panel-enter 760ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+            animation: satx-feature-panel-enter 620ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
             pointer-events: auto;
           }
 
@@ -1205,7 +1239,6 @@ const HeroFeaturedArtistPanel = ({
     () => getHomepageFeatureSlides(artist, artistName),
     [artist, artistName]
   );
-  const shouldAutoPlayFeatureSlides = useMediaQuery("(min-width: 768px)");
 
   if (loading) {
     return <HeroFeaturedArtistPanelSkeleton isRevealed={isRevealed} />;
@@ -1231,11 +1264,10 @@ const HeroFeaturedArtistPanel = ({
     >
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-      <div className="relative isolate aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-        <HeroFeaturedArtistImageSlider
-          slides={featureSlides}
-          autoPlay={shouldAutoPlayFeatureSlides}
-        />
+      <HeroFeaturedArtistImageStage
+        slides={featureSlides}
+        isPanelRevealed={isRevealed}
+      >
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.76))]" />
         <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full  bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
@@ -1264,7 +1296,7 @@ const HeroFeaturedArtistPanel = ({
             </div>
           </div>
         </div>
-      </div>
+      </HeroFeaturedArtistImageStage>
 
       <div className="px-3 md:px-4 py-1">
         {visibleStyles.length > 0 && (
@@ -1343,6 +1375,39 @@ const HeroFeaturedArtistPanel = ({
         </div>
       </div>
     </aside>
+  );
+};
+
+const HeroFeaturedArtistImageStage = ({
+  slides,
+  isPanelRevealed,
+  children,
+}: {
+  slides: FeaturedArtistSlide[];
+  isPanelRevealed: boolean;
+  children: ReactNode;
+}) => {
+  const { targetRef, isVisible } = useElementVisibility<HTMLDivElement>({
+    threshold: 0.01,
+  });
+  const isPageVisible = usePageVisibility();
+  const shouldMountSlider = isVisible && isPageVisible;
+
+  return (
+    <div
+      ref={targetRef}
+      className="relative isolate aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black"
+    >
+      {shouldMountSlider ? (
+        <HeroFeaturedArtistImageSlider
+          slides={slides}
+          autoPlay={isPanelRevealed && isVisible && isPageVisible}
+        />
+      ) : (
+        <div className="absolute inset-0 z-0 bg-black" aria-hidden="true" />
+      )}
+      {children}
+    </div>
   );
 };
 
