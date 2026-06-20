@@ -113,8 +113,8 @@ type ShopLookup = {
 
 const featuredStyles = FEATURED_TATTOO_STYLES;
 
-const HOME_FLASH_FETCH_LIMIT = 40;
-const HOME_SHEET_FETCH_LIMIT = 24;
+const HOME_FLASH_FETCH_LIMIT = 24;
+const HOME_SHEET_FETCH_LIMIT = 10;
 const HOME_BOOKING_ARTIST_FETCH_LIMIT = 48;
 const HOME_BOOKING_ARTIST_DISPLAY_LIMIT = 3;
 const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
@@ -122,7 +122,7 @@ const loadedFeaturedArtistSlideUrls = new Set<string>();
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
-  const isInViewRef = useRef(false);
+  const hasEnteredRef = useRef(false);
   const [entryCount, setEntryCount] = useState(0);
 
   useEffect(() => {
@@ -131,11 +131,10 @@ function useViewportEntry<T extends Element>() {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !isInViewRef.current) {
-          isInViewRef.current = true;
+        if (entry.isIntersecting && !hasEnteredRef.current) {
+          hasEnteredRef.current = true;
           setEntryCount((count) => count + 1);
-        } else if (!entry.isIntersecting) {
-          isInViewRef.current = false;
+          observer.disconnect();
         }
       },
       {
@@ -150,6 +149,22 @@ function useViewportEntry<T extends Element>() {
   }, []);
 
   return { targetRef, entryCount };
+}
+
+function useMediaQuery(query: string, initialValue = false) {
+  const [matches, setMatches] = useState(initialValue);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const syncMatch = () => setMatches(mediaQuery.matches);
+
+    syncMatch();
+    mediaQuery.addEventListener("change", syncMatch);
+
+    return () => mediaQuery.removeEventListener("change", syncMatch);
+  }, [query]);
+
+  return matches;
 }
 
 export const HomePage: FC = () => {
@@ -786,6 +801,79 @@ export const HomePage: FC = () => {
             pointer-events: auto;
           }
 
+          @keyframes satx-market-mobile-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(0, 12px, 0);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0);
+            }
+          }
+
+          @keyframes satx-feature-panel-mobile-enter {
+            from {
+              opacity: 0;
+              transform: translate3d(0, 14px, 0) scale(0.99);
+            }
+
+            to {
+              opacity: 1;
+              transform: translate3d(0, 0, 0) scale(1);
+            }
+          }
+
+          @media (max-width: 767px) {
+            .satx-market-motion,
+            .satx-market-rail-motion,
+            .satx-market-card-motion {
+              will-change: opacity, transform;
+            }
+
+            .satx-market-section[data-revealed="true"] .satx-market-motion--kicker,
+            .satx-market-section[data-revealed="true"] .satx-market-motion--title,
+            .satx-market-section[data-revealed="true"] .satx-market-motion--body,
+            .satx-market-section[data-revealed="true"] .satx-market-motion--cta,
+            .satx-market-section[data-revealed="true"] .satx-market-rail-motion,
+            .satx-market-section[data-revealed="true"] .satx-market-card-motion {
+              animation-name: satx-market-mobile-enter !important;
+              animation-duration: 320ms !important;
+              animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+              filter: none !important;
+              clip-path: none !important;
+            }
+
+            .satx-market-section[data-revealed="true"] .satx-market-motion--kicker {
+              animation-delay: 40ms !important;
+            }
+
+            .satx-market-section[data-revealed="true"] .satx-market-motion--title {
+              animation-delay: 90ms !important;
+            }
+
+            .satx-market-section[data-revealed="true"] .satx-market-motion--body,
+            .satx-market-section[data-revealed="true"] .satx-market-motion--cta {
+              animation-delay: 130ms !important;
+            }
+
+            .satx-market-section[data-revealed="true"] .satx-market-rail-motion,
+            .satx-market-section[data-revealed="true"] .satx-market-card-motion {
+              animation-delay: 170ms !important;
+            }
+
+            .satx-home-feature-panel {
+              transform: translate3d(0, 14px, 0) scale(0.99);
+              filter: none;
+              will-change: opacity, transform;
+            }
+
+            .satx-home-feature-panel--visible {
+              animation: satx-feature-panel-mobile-enter 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+            }
+          }
+
           @media (prefers-reduced-motion: reduce) {
             .satx-home-copy-motion {
               animation: none !important;
@@ -1117,6 +1205,7 @@ const HeroFeaturedArtistPanel = ({
     () => getHomepageFeatureSlides(artist, artistName),
     [artist, artistName]
   );
+  const shouldAutoPlayFeatureSlides = useMediaQuery("(min-width: 768px)");
 
   if (loading) {
     return <HeroFeaturedArtistPanelSkeleton isRevealed={isRevealed} />;
@@ -1143,7 +1232,10 @@ const HeroFeaturedArtistPanel = ({
       <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
       <div className="relative isolate aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black">
-        <HeroFeaturedArtistImageSlider slides={featureSlides} />
+        <HeroFeaturedArtistImageSlider
+          slides={featureSlides}
+          autoPlay={shouldAutoPlayFeatureSlides}
+        />
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.76))]" />
         <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full  bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
           <Sparkles size={13} aria-hidden="true" />
@@ -1256,8 +1348,10 @@ const HeroFeaturedArtistPanel = ({
 
 const HeroFeaturedArtistImageSlider = ({
   slides,
+  autoPlay,
 }: {
   slides: FeaturedArtistSlide[];
+  autoPlay: boolean;
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [previousIndex, setPreviousIndex] = useState<number | null>(null);
@@ -1270,6 +1364,8 @@ const HeroFeaturedArtistImageSlider = ({
   const nextIndex =
     slides.length > 1 ? (activeIndex + 1) % slides.length : activeIndex;
   const nextSlide = slides[nextIndex];
+  const shouldWarmNextSlide =
+    autoPlay && !prefersReducedMotion && slides.length > 1;
 
   useEffect(() => {
     setActiveIndex(0);
@@ -1296,7 +1392,7 @@ const HeroFeaturedArtistImageSlider = ({
   }, []);
 
   useEffect(() => {
-    if (slides.length <= 1 || prefersReducedMotion) return;
+    if (!autoPlay || slides.length <= 1 || prefersReducedMotion) return;
 
     const timeoutId = window.setTimeout(() => {
       setActiveIndex((index) => {
@@ -1308,6 +1404,7 @@ const HeroFeaturedArtistImageSlider = ({
     return () => window.clearTimeout(timeoutId);
   }, [
     activeIndex,
+    autoPlay,
     autoSlideResetKey,
     prefersReducedMotion,
     slides.length,
@@ -1315,7 +1412,7 @@ const HeroFeaturedArtistImageSlider = ({
   ]);
 
   useEffect(() => {
-    if (!nextSlide || slides.length <= 1) return;
+    if (!nextSlide || !shouldWarmNextSlide) return;
 
     const image = new Image();
     image.decoding = "async";
@@ -1336,7 +1433,7 @@ const HeroFeaturedArtistImageSlider = ({
       previewImage.decoding = "async";
       previewImage.src = nextSlide.previewUrl;
     }
-  }, [nextSlide, slides.length]);
+  }, [nextSlide, shouldWarmNextSlide]);
 
   if (slides.length === 0) {
     return (
@@ -1375,7 +1472,7 @@ const HeroFeaturedArtistImageSlider = ({
               slide={slide}
               state={state}
               shouldLoad={
-                state !== "hidden" || index === nextIndex || slides.length <= 2
+                state !== "hidden" || (shouldWarmNextSlide && index === nextIndex)
               }
               loading={index === activeIndex ? "eager" : "lazy"}
               fetchPriority={index === activeIndex ? "high" : "low"}
@@ -1621,7 +1718,7 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
             className={`relative z-[1] h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
               isLoaded ? "opacity-[0.86] group-hover:opacity-100" : "opacity-0"
             }`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
             fetchPriority="low"
             onLoad={() => setIsLoaded(true)}
@@ -1950,12 +2047,26 @@ const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
 };
 
 const BookingArtistCardSkeleton = () => (
-  <article className="relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] via-[#111] to-[#0c0c0c] px-5 py-8 text-center">
-    <div className="preview-loading-sheen absolute left-4 top-4 h-6 w-36 rounded-full border border-white/10 bg-white/[0.045]" />
-    <div className="preview-loading-sheen h-24 w-24 rounded-full border border-white/10 bg-white/[0.06]" />
-    <div className="skeleton-sheen mt-5 h-6 w-36 rounded-md bg-white/[0.08]" />
-    <div className="skeleton-sheen mt-3 h-4 w-44 rounded-md bg-white/[0.055]" />
-    <div className="skeleton-sheen mt-7 h-10 w-32 rounded-md bg-white/[0.08]" />
+  <article
+    aria-hidden="true"
+    className="relative flex min-h-[18.5rem] flex-col items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.05] via-[#111] to-[#0c0c0c] px-5 py-8 text-center"
+  >
+    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+    <div className="absolute left-4 top-4 inline-flex h-6 w-36 items-center gap-1.5 rounded-full border border-white/10 bg-black/35 px-2.5">
+      <div className="skeleton-sheen h-3 w-3 rounded-sm bg-white/[0.08]" />
+      <div className="skeleton-sheen h-2.5 w-24 rounded-full bg-white/[0.08]" />
+    </div>
+
+    <div className="mt-8 flex w-full flex-col items-center">
+      <div className="skeleton-sheen h-24 w-24 rounded-full border border-white/10 bg-white/[0.06] shadow-[0_18px_40px_rgba(0,0,0,0.3)]" />
+      <div className="skeleton-sheen mt-5 h-6 w-36 max-w-full rounded-md bg-white/[0.08]" />
+      <div className="mt-3 flex w-full max-w-48 items-center justify-center gap-1.5">
+        <div className="skeleton-sheen h-3.5 w-3.5 shrink-0 rounded-sm bg-white/[0.055]" />
+        <div className="skeleton-sheen h-4 min-w-0 flex-1 rounded-md bg-white/[0.055]" />
+      </div>
+    </div>
+
+    <div className="skeleton-sheen mt-7 h-10 w-32 rounded-md border border-white/10 bg-white/[0.08]" />
   </article>
 );
 
