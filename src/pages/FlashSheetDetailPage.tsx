@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -95,10 +95,43 @@ const hasPositiveFlashPrice = (flash: Pick<Flash, "price">) =>
   Number.isFinite(flash.price) &&
   flash.price > 0;
 
+const FLASH_SHEET_FALLBACK_ASPECT_RATIO = "4 / 5";
+const FLASH_DESIGN_SECTION_RENDER_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "760px",
+} as CSSProperties;
+const FLASH_DESIGN_CARD_RENDER_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "360px",
+} as CSSProperties;
+
 const parsePositivePrice = (value: string) => {
   const parsedValue = parseOptionalPrice(value);
   return parsedValue !== null && parsedValue > 0 ? parsedValue : null;
 };
+
+const getSheetImageAspectRatio = (sheet: FlashSheet) => {
+  const width = sheet.sourceWidth;
+  const height = sheet.sourceHeight;
+
+  if (
+    typeof width === "number" &&
+    typeof height === "number" &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0
+  ) {
+    return `${width} / ${height}`;
+  }
+
+  return FLASH_SHEET_FALLBACK_ASPECT_RATIO;
+};
+
+const getSheetPreviewStyle = (sheet: FlashSheet) =>
+  ({
+    aspectRatio: getSheetImageAspectRatio(sheet),
+  }) as CSSProperties;
 
 const useMediaQuery = (queryString: string) => {
   const getMatches = () =>
@@ -183,12 +216,13 @@ const FlashSheetDetailPage = () => {
       where("sheetId", "==", sheetId)
     );
     const snapshot = await getDocs(flashesQuery);
-    setFlashes(
-      snapshot.docs.map((flashDoc) => ({
-        id: flashDoc.id,
-        ...flashDoc.data(),
-      })) as Flash[]
-    );
+    const nextFlashes = snapshot.docs.map((flashDoc) => ({
+      id: flashDoc.id,
+      ...flashDoc.data(),
+    })) as Flash[];
+
+    setFlashes(nextFlashes);
+    return nextFlashes;
   };
 
   const fetchData = async () => {
@@ -196,7 +230,11 @@ const FlashSheetDetailPage = () => {
 
     try {
       setIsLoading(true);
-      const docSnap = await getDoc(doc(db, "flashSheets", id));
+      const [docSnap] = await Promise.all([
+        getDoc(doc(db, "flashSheets", id)),
+        fetchFlashes(id),
+      ]);
+
       if (docSnap.exists()) {
         const sheetData = docSnap.data() as Omit<FlashSheet, "id">;
         let imageUrl = sheetData.imageUrl;
@@ -209,7 +247,6 @@ const FlashSheetDetailPage = () => {
       } else {
         toast.error("Flash sheet not found.");
       }
-      await fetchFlashes(id);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to load flash sheet."));
     } finally {
@@ -334,8 +371,12 @@ const FlashSheetDetailPage = () => {
       }
       return false;
     }
-    if (publicationStatus === "published" && parsedPrice === null) {
-      toast("Add a price before publishing marketplace flash.");
+    if (parsedPrice === null) {
+      toast(
+        publicationStatus === "draft"
+          ? "Add a price before saving this draft."
+          : "Add a price before publishing marketplace flash."
+      );
       return false;
     }
 
@@ -401,8 +442,9 @@ const FlashSheetDetailPage = () => {
     closeCropper = false
   ) => {
     if (!sheet || draftIds.length === 0 || isPublishingDrafts) return;
+    const draftIdSet = new Set(draftIds);
     const selectedDrafts = flashes.filter((flash) =>
-      draftIds.includes(flash.id)
+      draftIdSet.has(flash.id)
     );
     const unpricedDrafts = selectedDrafts.filter(
       (flash) => !hasPositiveFlashPrice(flash)
@@ -427,7 +469,7 @@ const FlashSheetDetailPage = () => {
 
       setFlashes((current) =>
         current.map((flash) =>
-          draftIds.includes(flash.id)
+          draftIdSet.has(flash.id)
             ? {
                 ...flash,
                 publicationStatus: "published",
@@ -439,7 +481,7 @@ const FlashSheetDetailPage = () => {
         )
       );
       setCreatedDraftIds((current) =>
-        current.filter((draftId) => !draftIds.includes(draftId))
+        current.filter((draftId) => !draftIdSet.has(draftId))
       );
       if (id) await fetchFlashes(id);
       if (closeCropper) setShowCropModal(false);
@@ -547,11 +589,17 @@ const FlashSheetDetailPage = () => {
             )}
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-[1.25rem] border border-white/10 bg-black">
+          <div
+            className="mt-6 flex max-h-[72vh] min-h-[320px] overflow-hidden rounded-[1.25rem] border border-white/10 bg-black md:min-h-[420px]"
+            style={getSheetPreviewStyle(sheet)}
+          >
             <img
               src={sheet.imageUrl}
               alt={sheet.title || "Flash sheet"}
-              className="max-h-[72vh] w-full object-contain"
+              className="h-full w-full object-contain"
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
             />
           </div>
         </div>
@@ -651,7 +699,7 @@ const FlashSheetDetailPage = () => {
         ) : (
           <div className="mt-6 space-y-10">
             {draftFlashes.length > 0 && (
-              <div>
+              <div style={FLASH_DESIGN_SECTION_RENDER_STYLE}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
@@ -676,10 +724,11 @@ const FlashSheetDetailPage = () => {
                   </button>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {draftFlashes.map((flash) => (
+                  {draftFlashes.map((flash, index) => (
                     <FlashItemCard
                       key={flash.id}
                       flash={flash}
+                      imagePriority={index === 0}
                       onEdit={() => setEditingFlash(flash)}
                       onDiscard={() => handleDiscardDraft(flash)}
                       isDiscarding={discardingDraftId === flash.id}
@@ -689,7 +738,7 @@ const FlashSheetDetailPage = () => {
               </div>
             )}
 
-            <div>
+            <div style={FLASH_DESIGN_SECTION_RENDER_STYLE}>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
                   Published flash
@@ -705,10 +754,11 @@ const FlashSheetDetailPage = () => {
                 </div>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {publishedFlashes.map((flash) => (
+                  {publishedFlashes.map((flash, index) => (
                     <FlashItemCard
                       key={flash.id}
                       flash={flash}
+                      imagePriority={index === 0}
                       onEdit={() => setEditingFlash(flash)}
                     />
                   ))}
@@ -794,11 +844,13 @@ const PreviewPlaceholder = () => (
 
 const FlashItemCard = ({
   flash,
+  imagePriority = false,
   onEdit,
   onDiscard,
   isDiscarding = false,
 }: {
   flash: Flash;
+  imagePriority?: boolean;
   onEdit: () => void;
   onDiscard?: () => void;
   isDiscarding?: boolean;
@@ -808,8 +860,16 @@ const FlashItemCard = ({
   const isDraft = getFlashPublicationStatus(flash) === "draft";
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]">
-      <FlashPreviewImage flash={flash} showBadge={false}>
+    <article
+      className="overflow-hidden rounded-2xl border border-white/10 bg-[#151515]"
+      style={FLASH_DESIGN_CARD_RENDER_STYLE}
+    >
+      <FlashPreviewImage
+        flash={flash}
+        showBadge={false}
+        imageLoading={imagePriority ? "eager" : "lazy"}
+        imageFetchPriority={imagePriority ? "high" : "low"}
+      >
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           {isDraft && (
             <span className="rounded-full border border-emerald-300/30 bg-emerald-500/20 px-2.5! py-1! text-[11px] font-semibold text-emerald-100 backdrop-blur">
@@ -1124,7 +1184,7 @@ const CropFlashModal = ({
           min={1}
           value={price}
           onChange={(e) => onPriceChange(e.target.value)}
-          placeholder="Required to publish"
+          placeholder="Required"
           className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
         />
       </label>
@@ -1376,7 +1436,7 @@ const CropFlashModal = ({
                     Flash details
                   </p>
                   <h3 className="mt-2 text-2xl! font-bold text-white">
-                    Create hidden draft
+                    Draft
                   </h3>
                 </div>
                 <button
@@ -1428,7 +1488,7 @@ const CropFlashModal = ({
                 <button
                   type="button"
                   onClick={handleSubmitDesktopDetails}
-                  disabled={!validCropArea || isPublishing}
+                  disabled={!canPublishWithPrice || isPublishing}
                   className="rounded-xl bg-white px-5! py-3! text-sm font-semibold text-[#0b0b0b]! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:bg-white/60 disabled:text-[#0b0b0b]! disabled:opacity-100"
                 >
                   {isPublishing ? "Creating..." : "Submit draft"}

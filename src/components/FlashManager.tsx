@@ -81,8 +81,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
     [flashes]
   );
 
-  const canSaveSheetDetails =
-    sheetTitleInput.trim().length > 0 && sheetTags.length > 0;
+  const canSaveSheetDetails = Boolean(pendingSheetFile) && !isUploadingSheet;
 
   const standaloneFlashCount = Math.max(flashes.length - linkedFlashCount, 0);
   const sheetMegapixels = getImageMegapixels(
@@ -213,8 +212,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       return;
     }
 
-    if (!pendingSheetFile || !uid || !sheetTitleInput.trim()) {
-      toast("Add a sheet title before uploading.");
+    if (!pendingSheetFile || !uid) {
+      toast("Choose a sheet image before uploading.");
       return;
     }
 
@@ -238,7 +237,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
 
       const docRef = await addDoc(collection(db, "flashSheets"), {
         artistId: uid,
-        title: sheetTitleInput.trim(),
+        title: sheetTitleInput.trim() || null,
         tags: sheetTags,
         repeatabilityDefault: sheetRepeatabilityDefault,
         artistStripeConnectReady: true,
@@ -576,8 +575,17 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="h-56 animate-pulse rounded-xl border border-white/10 bg-white/[0.03] sm:h-80 sm:rounded-2xl"
-              />
+                className="min-h-[13.75rem] overflow-hidden rounded-xl border border-white/10 bg-[#151515] sm:min-h-[19.5rem] sm:rounded-2xl"
+              >
+                <div className="aspect-[4/3] animate-pulse bg-white/[0.05]" />
+                <div className="space-y-3 p-3 sm:p-4">
+                  <div className="h-4 w-2/3 animate-pulse rounded-full bg-white/[0.07] sm:h-5" />
+                  <div className="flex min-h-[2.25rem] gap-2 sm:min-h-[3.25rem]">
+                    <div className="h-5 w-14 animate-pulse rounded-full bg-white/[0.06]" />
+                    <div className="h-5 w-16 animate-pulse rounded-full bg-white/[0.05]" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -605,7 +613,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
 
         {!loading && flashSheets.length > 0 && (
           <div className="mt-6 grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
-            {flashSheets.map((sheet) => {
+            {flashSheets.map((sheet, index) => {
               const itemCount = flashes.filter(
                 (flash) => flash.sheetId === sheet.id
               ).length;
@@ -617,15 +625,18 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                   key={sheet.id}
                   type="button"
                   onClick={() => navigate(`/flash-sheet/${sheet.id}`)}
-                  className="group overflow-hidden rounded-xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919] sm:rounded-2xl"
+                  className="group flex min-h-[13.75rem] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#151515] text-left transition hover:border-red-300/40 hover:bg-[#191919] sm:min-h-[19.5rem] sm:rounded-2xl"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-black">
+                  <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-black">
                     {sheetPreviewUrl ? (
                       <img
                         src={sheetPreviewUrl}
                         alt={sheet.title || "Flash sheet"}
                         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                        loading="lazy"
+                        width={480}
+                        height={360}
+                        loading={index < 3 ? "eager" : "lazy"}
+                        decoding="async"
                       />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-500">
@@ -642,7 +653,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                       </span>
                     </div>
                   </div>
-                  <div className="p-3 sm:p-4">
+                  <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
                       <h3 className="min-w-0 truncate text-sm! font-bold text-white sm:text-lg!">
                         {sheet.title || "Untitled sheet"}
@@ -651,7 +662,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         <ArrowRight size={13} className="sm:size-[15px]" />
                       </span>
                     </div>
-                    <div className="mt-2 flex min-h-6 flex-wrap gap-1.5 sm:mt-3 sm:min-h-7 sm:gap-2">
+                    <div className="mt-2 flex min-h-[2.25rem] flex-wrap content-start gap-1.5 overflow-hidden sm:mt-3 sm:min-h-[3.25rem] sm:gap-2">
                       {tags.length > 0 ? (
                         tags.map((tag) => (
                           <span

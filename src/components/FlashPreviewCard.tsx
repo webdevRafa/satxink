@@ -22,6 +22,8 @@ export const FlashPreviewImage = ({
   showBadge = true,
   className,
   imageClassName,
+  imageLoading = "lazy",
+  imageFetchPriority,
   children,
 }: {
   flash: FlashPreviewShape;
@@ -30,6 +32,8 @@ export const FlashPreviewImage = ({
   showBadge?: boolean;
   className?: string;
   imageClassName?: string;
+  imageLoading?: "eager" | "lazy";
+  imageFetchPriority?: "high" | "low" | "auto";
   children?: ReactNode;
 }) => {
   const previewUrl = getFlashPreviewUrl(flash);
@@ -52,7 +56,9 @@ export const FlashPreviewImage = ({
             "h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]",
             imageClassName
           )}
-          loading="lazy"
+          loading={imageLoading}
+          decoding="async"
+          fetchPriority={imageFetchPriority}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">

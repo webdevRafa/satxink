@@ -998,7 +998,7 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
 };
 
 const getCardPreviewUrl = (item: GalleryItem) =>
-  item.thumbUrl || item.webp90Url || item.fullUrl;
+  item.thumbUrl || item.webp90Url || item.fullUrl || "";
 
 const getProfileBackdropUrl = (item?: GalleryItem) =>
   item?.thumbUrl || item?.webp90Url || "";
@@ -1035,7 +1035,7 @@ const getLightboxPreviewUrl = (item: GalleryItem) =>
   "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
+  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl || "";
 
 const MIN_LIGHTBOX_IMAGE_SCALE = 1;
 const MAX_LIGHTBOX_IMAGE_SCALE = 3.2;

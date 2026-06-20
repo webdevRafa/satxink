@@ -8,10 +8,11 @@ import {
   getDocs,
   onSnapshot,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import {
   ArrowRight,
   ChevronLeft,
@@ -25,12 +26,101 @@ import {
 import UploadModal from "./UploadModal";
 import type { GalleryItem } from "../types/GalleryItem";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
+import toast from "react-hot-toast";
 
 type SlideDirection = "next" | "prev";
 
 type GalleryArtistInfo = {
   avatarUrl?: string;
   displayName?: string;
+};
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const waitForGalleryStorageUrl = async (
+  storagePath: string,
+  attempts = 18,
+  intervalMs = 1000
+) => {
+  const storageRef = ref(storage, storagePath);
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await getDownloadURL(storageRef);
+    } catch {
+      await wait(intervalMs);
+    }
+  }
+
+  throw new Error(`Gallery asset was not ready: ${storagePath}`);
+};
+
+const getGalleryAssetPaths = (item: GalleryItem) => {
+  if (!item.artistId || !item.fileName) return null;
+
+  const shouldProbeOriginalPreview =
+    item.status === "processing" || Boolean(item.originalPreviewPath);
+
+  return {
+    thumbPath:
+      item.thumbPath || `users/${item.artistId}/gallery/${item.fileName}_thumb.webp`,
+    previewPath:
+      item.previewPath ||
+      `users/${item.artistId}/gallery/${item.fileName}_webp90.webp`,
+    fullPath:
+      item.fullPath || `users/${item.artistId}/gallery/${item.fileName}_full.jpg`,
+    originalPreviewPath:
+      item.originalPreviewPath ||
+      (shouldProbeOriginalPreview
+        ? `users/${item.artistId}/galleryOriginals/${item.fileName}_webp90.webp`
+        : undefined),
+  };
+};
+
+const getGalleryCardImageUrl = (item: GalleryItem) =>
+  item.thumbUrl || item.webp90Url || item.fullUrl || "";
+
+const hasReadyGalleryImageSet = (item: GalleryItem) =>
+  Boolean(item.thumbUrl && item.webp90Url && item.fullUrl);
+
+const GalleryCardImage = ({
+  src,
+  alt,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  priority: boolean;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+  }, [src]);
+
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-[#080808]">
+      <div
+        className={`absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_58%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.07)_44%,transparent_70%)] transition-opacity duration-300 ${
+          isLoaded ? "opacity-0" : "opacity-35 animate-pulse"
+        }`}
+        aria-hidden="true"
+      />
+      <img
+        src={src}
+        alt={alt}
+        width={640}
+        height={480}
+        className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${
+          isLoaded ? "opacity-100" : "opacity-0"
+        }`}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setIsLoaded(true)}
+      />
+    </div>
+  );
 };
 
 const GalleryManager = ({ uid }: { uid: string }) => {
@@ -41,6 +131,8 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [slideDirection, setSlideDirection] = useState<SlideDirection>("next");
   const [artistInfo, setArtistInfo] = useState<GalleryArtistInfo>({});
+  const processingRecoveryRef = useRef<Set<string>>(new Set());
+  const processedToastRef = useRef<Set<string>>(new Set());
 
   const previewItems = useMemo(
     () => items.filter((item) => item.status !== "processing"),
@@ -115,6 +207,84 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   useEffect(() => {
     if (selectedItem) setModalLoading(true);
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (isUploadOpen) return;
+
+    items.forEach((item) => {
+      const paths = getGalleryAssetPaths(item);
+      const hasReadyImages = hasReadyGalleryImageSet(item);
+      const needsImageRecovery = !hasReadyImages && Boolean(paths);
+      const needsStatusRecovery = item.status === "processing" && hasReadyImages;
+      const needsOriginalRecovery =
+        Boolean(paths?.originalPreviewPath) && !item.originalWebp90Url;
+      const recoveryKey = `${item.id}:${item.fileName || ""}`;
+
+      if (
+        (!needsImageRecovery && !needsStatusRecovery && !needsOriginalRecovery) ||
+        processingRecoveryRef.current.has(recoveryKey)
+      ) {
+        return;
+      }
+
+      if (!paths && !needsStatusRecovery) return;
+
+      processingRecoveryRef.current.add(recoveryKey);
+
+      const mainImageUrls = needsImageRecovery && paths
+        ? Promise.all([
+            waitForGalleryStorageUrl(paths.thumbPath),
+            waitForGalleryStorageUrl(paths.previewPath),
+            waitForGalleryStorageUrl(paths.fullPath),
+          ])
+        : Promise.resolve([item.thumbUrl, item.webp90Url, item.fullUrl]);
+
+      void mainImageUrls
+        .then(async ([thumbUrl, webp90Url, fullUrl]) => {
+          const originalWebp90Url =
+            paths?.originalPreviewPath && needsOriginalRecovery
+              ? await waitForGalleryStorageUrl(
+                  paths.originalPreviewPath,
+                  needsImageRecovery ? 4 : 12,
+                  750
+                ).catch(() => null)
+              : null;
+
+          await updateDoc(doc(db, "gallery", item.id), {
+            ...(thumbUrl && webp90Url && fullUrl && paths
+              ? {
+                  thumbUrl,
+                  webp90Url,
+                  fullUrl,
+                  thumbPath: paths.thumbPath,
+                  previewPath: paths.previewPath,
+                  fullPath: paths.fullPath,
+                }
+              : {}),
+            ...(thumbUrl && webp90Url && fullUrl ? { status: "ready" } : {}),
+            ...(originalWebp90Url
+              ? {
+                  originalWebp90Url,
+                  originalPreviewPath: paths?.originalPreviewPath,
+                  originalFileName: item.originalFileName || item.fileName,
+                }
+              : {}),
+            updatedAt: serverTimestamp(),
+          });
+
+          if (
+            item.status === "processing" &&
+            !processedToastRef.current.has(item.id)
+          ) {
+            processedToastRef.current.add(item.id);
+            toast.success("Gallery image processed.");
+          }
+        })
+        .catch(() => {
+          processingRecoveryRef.current.delete(recoveryKey);
+        });
+    });
+  }, [isUploadOpen, items]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -263,11 +433,13 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           </div>
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {items.map((item) => {
+            {items.map((item, index) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
                 : [];
-              const isProcessing = item.status === "processing";
+              const cardImageUrl = getGalleryCardImageUrl(item);
+              const isProcessing =
+                item.status === "processing" || !hasReadyGalleryImageSet(item);
 
               return (
                 <article
@@ -282,26 +454,32 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                   >
                     <div className="relative aspect-[4/3] overflow-hidden bg-black">
                       {isProcessing ? (
-                        <div className="flex h-full w-full items-center justify-center bg-white/[0.03]">
-                          <span className="rounded-full border border-white/10 bg-black/40 px-3! py-1.5! text-xs font-semibold text-zinc-300">
+                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#080808]">
+                          <div
+                            className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_56%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_44%,transparent_68%)] opacity-35 animate-pulse"
+                            aria-hidden="true"
+                          />
+                          <span className="relative inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-zinc-200 shadow-lg backdrop-blur-md">
+                            <span className="h-3.5 w-3.5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
                             Processing...
                           </span>
                         </div>
                       ) : (
-                        <img
-                          src={item.thumbUrl || item.webp90Url || item.fullUrl}
+                        <GalleryCardImage
+                          src={cardImageUrl}
                           alt={item.caption || "Gallery item"}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                          loading="lazy"
+                          priority={index < 4}
                         />
                       )}
 
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
-                          <ImageIcon size={14} />
-                          {isProcessing ? "Processing" : "Portfolio"}
-                        </span>
-                      </div>
+                      {!isProcessing && (
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
+                          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
+                            <ImageIcon size={14} />
+                            Portfolio
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </button>
 
@@ -745,7 +923,7 @@ const EditGalleryItemModal = ({
             <img
               src={item.thumbUrl || item.webp90Url || item.fullUrl}
               alt={item.caption || "Gallery preview"}
-              className="aspect-square w-full object-cover"
+              className="aspect-[4/3] w-full object-cover"
             />
           </div>
         </div>
@@ -810,10 +988,10 @@ const EditGalleryItemModal = ({
 };
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.webp90Url || item.thumbUrl || item.fullUrl;
+  item.originalWebp90Url || item.webp90Url || item.thumbUrl || item.fullUrl || "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl;
+  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl || "";
 
 const getArtistDisplayName = (artist: GalleryArtistInfo) =>
   artist.displayName || "Artist";
