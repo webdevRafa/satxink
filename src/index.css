@@ -264,6 +264,15 @@ a.bg-white svg {
   contain: layout paint;
 }
 
+@keyframes satx-upload-shimmer {
+  0% {
+    background-position: 220% 0;
+  }
+  100% {
+    background-position: -220% 0;
+  }
+}
+
 .satx-request-flow-shell button,
 .satx-request-flow-shell label {
   touch-action: manipulation;
