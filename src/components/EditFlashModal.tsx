@@ -60,9 +60,9 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/85 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)] backdrop-blur-xl md:px-6 md:pb-8 md:pt-20">
+    <div className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/85 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-[max(env(safe-area-inset-top),0.5rem)] backdrop-blur-xl md:items-center md:p-8">
       <div
-        className="relative grid max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[calc(100dvh-7rem)] md:grid-cols-[0.9fr_1.1fr] md:grid-rows-none"
+        className="relative grid h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1rem)] max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)_-_1rem)] w-full max-w-4xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:h-[min(44rem,calc(100dvh_-_4rem))] md:max-h-[min(44rem,calc(100dvh_-_4rem))] md:grid-cols-[0.9fr_1.1fr] md:grid-rows-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-flash-details-title"
@@ -80,7 +80,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
             Manage flash
           </p>
-          <div className="mx-auto mt-4 aspect-square max-h-[min(34dvh,17rem)] w-full max-w-[17rem] overflow-hidden rounded-2xl border border-white/10 bg-black/35 md:mt-5 md:max-h-none md:max-w-none">
+          <div className="mx-auto mt-4 aspect-square max-h-[min(28dvh,14.5rem)] w-full max-w-[14.5rem] overflow-hidden rounded-2xl border border-white/10 bg-black/35 md:mt-5 md:max-h-none md:max-w-none">
             <img
               src={flash.thumbUrl || flash.webp90Url || flash.fullUrl}
               alt={flash.title || "Flash preview"}
@@ -105,7 +105,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
             </h2>
           </div>
 
-          <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">
+          <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6 md:py-4">
             <div className="space-y-4">
               <label className="block">
                 <span className="text-sm font-semibold text-zinc-300">
@@ -190,8 +190,8 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-white/10 bg-[#111111]/95 p-4 shadow-[0_-18px_42px_rgba(0,0,0,0.28)] md:px-6">
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="shrink-0 border-t border-white/10 bg-[#111111]/95 px-4 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-[0_-18px_42px_rgba(0,0,0,0.28)] md:px-6 md:py-3">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               {onDelete ? (
                 <button
                   type="button"
@@ -204,7 +204,7 @@ const EditFlashModal = ({ flash, onClose, onSave, onDelete }: Props) => {
               ) : (
                 <span />
               )}
-              <div className="flex flex-col-reverse gap-3 sm:flex-row">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={onClose}
