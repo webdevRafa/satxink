@@ -28,8 +28,13 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../firebase/firebaseConfig";
 import heroImage from "../assets/images/inkhero.webp";
+import FlashRequestModal, {
+  type FlashRequestArtist,
+  type FlashRequestClient,
+} from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
@@ -44,10 +49,16 @@ import {
 } from "../utils/bookingAvailability";
 import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
+  FlashArtistAvatar,
   FlashPreviewImage,
-  FlashPreviewMeta,
 } from "../components/FlashPreviewCard";
-import { flashPreviewCardClassName } from "../utils/flashPreview";
+import {
+  flashPreviewCardClassName,
+  formatFlashPrice,
+  getFlashTitle,
+  getFlashVisualTitle,
+} from "../utils/flashPreview";
+import { getClientNameParts } from "../utils/clientDisplayName";
 
 type PublicArtist = {
   id: string;
@@ -220,6 +231,8 @@ export const HomePage: FC = () => {
     FeaturedPreviewItem[]
   >([]);
   const [bookingArtists, setBookingArtists] = useState<PublicArtist[]>([]);
+  const [client, setClient] = useState<FlashRequestClient | null>(null);
+  const [selectedFlash, setSelectedFlash] = useState<HomeFlash | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDesktopHeroImageReady, setIsDesktopHeroImageReady] = useState(false);
   const [isFeaturedArtistPanelRevealed, setIsFeaturedArtistPanelRevealed] =
@@ -245,6 +258,51 @@ export const HomePage: FC = () => {
     return () => {
       isCancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setClient(null);
+        return;
+      }
+
+      try {
+        const clientRef = doc(db, "users", user.uid);
+        const clientSnap = await getDoc(clientRef);
+        const data = clientSnap.exists() ? clientSnap.data() : {};
+        const clientNameParts = getClientNameParts(
+          data,
+          user.displayName || "Client"
+        );
+
+        setClient({
+          id: user.uid,
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
+          avatarUrl:
+            (data.avatarUrl as string) ||
+            user.photoURL ||
+            "/default-avatar.png",
+        });
+      } catch (err) {
+        console.error("Failed to fetch client profile:", err);
+        const clientNameParts = getClientNameParts(
+          { displayName: user.displayName },
+          "Client"
+        );
+        setClient({
+          id: user.uid,
+          name: clientNameParts.fullName,
+          firstName: clientNameParts.firstName,
+          lastName: clientNameParts.lastName,
+          avatarUrl: user.photoURL || "/default-avatar.png",
+        });
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -1071,7 +1129,12 @@ export const HomePage: FC = () => {
             title=""
             emptyLabel="No marketplace-ready flash yet."
             items={flashes}
-            renderItem={(flash) => <FlashPreviewCard flash={flash} />}
+            renderItem={(flash) => (
+              <FlashPreviewCard
+                flash={flash}
+                onRequest={() => setSelectedFlash(flash)}
+              />
+            )}
             railIndex={0}
           />
 
@@ -1169,6 +1232,15 @@ export const HomePage: FC = () => {
           )}
         </div>
       </section>
+
+      {selectedFlash && (
+        <FlashRequestModal
+          artist={getRequestArtist(selectedFlash)}
+          client={client}
+          flash={selectedFlash}
+          onClose={() => setSelectedFlash(null)}
+        />
+      )}
     </main>
   );
 };
@@ -1889,19 +1961,87 @@ const PreviewRail = <T,>({
   );
 };
 
-const FlashPreviewCard = ({ flash }: { flash: HomeFlash }) => {
+const FlashPreviewCard = ({
+  flash,
+  onRequest,
+}: {
+  flash: HomeFlash;
+  onRequest: () => void;
+}) => {
+  const artistName = getArtistName(flash.artist);
+  const visualTitle = getFlashVisualTitle(flash);
+
   return (
-    <Link
-      to={flash.sheetId ? `/flash/sheets/${flash.sheetId}` : "/flash"}
-      className={`${flashPreviewCardClassName} flex h-full w-full flex-col`}
+    <article
+      tabIndex={0}
+      className={`${flashPreviewCardClassName} flex h-full w-full flex-col focus:outline-none focus:ring-2 focus:ring-white/20`}
     >
-      <FlashPreviewImage flash={flash} />
-      <div className="flex min-h-[128px] flex-1 flex-col p-3">
-        <FlashPreviewMeta flash={flash} artist={flash.artist} />
+      <FlashPreviewImage flash={flash}>
+        {visualTitle && (
+          <span className="pointer-events-none absolute right-3 top-3 hidden max-w-[72%] rounded-full border border-white/15 bg-black/65 px-3 py-1 text-[11px] font-bold leading-none text-white/85 opacity-0 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100 md:block">
+            <span className="block truncate">{visualTitle}</span>
+          </span>
+        )}
+        <span
+          className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-28 bg-gradient-to-t from-black/72 via-black/28 to-transparent opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100 group-focus-within:opacity-100 md:block"
+          aria-hidden="true"
+        />
+        <FlashCardActions
+          flash={flash}
+          onRequest={onRequest}
+          className="pointer-events-none absolute inset-x-3 bottom-3 hidden translate-y-3 scale-[0.98] grid-cols-2 gap-1.5 rounded-xl border border-white/12 bg-black/45 p-1 opacity-0 shadow-[0_18px_42px_rgba(0,0,0,0.42)] backdrop-blur-xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:scale-100 group-focus-within:opacity-100 md:grid"
+        />
+      </FlashPreviewImage>
+
+      <div className="flex flex-1 flex-col p-3 lg:p-2.5">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <FlashArtistAvatar artist={flash.artist} name={artistName} />
+            <p className="my-0 truncate text-sm! font-semibold leading-tight text-white">
+              {artistName}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.075] px-2.5 py-1 text-[11px] font-bold leading-none text-white/85 shadow-sm">
+            {formatFlashPrice(flash.price)}
+          </span>
+        </div>
+
+        <FlashCardActions
+          flash={flash}
+          onRequest={onRequest}
+          className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3 md:hidden"
+        />
       </div>
-    </Link>
+    </article>
   );
 };
+
+const FlashCardActions = ({
+  flash,
+  onRequest,
+  className,
+}: {
+  flash: HomeFlash;
+  onRequest: () => void;
+  className: string;
+}) => (
+  <div className={className}>
+    <Link
+      to={`/artists/${flash.artistId}`}
+      className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
+    >
+      View artist
+    </Link>
+    <button
+      type="button"
+      onClick={onRequest}
+      className="!inline-flex !h-9 !items-center !justify-center !whitespace-nowrap !rounded-lg !border !border-[color:rgba(255,142,126,0.36)] !bg-[color:rgba(138,54,46,0.92)] !px-2 !py-0 !text-[11px] font-semibold text-white/[0.92] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:!border-[color:rgba(255,172,158,0.55)] hover:!bg-[color:rgba(166,66,56,0.96)] hover:text-white"
+      aria-label={`Request this flash: ${getFlashTitle(flash)}`}
+    >
+      Request
+    </button>
+  </div>
+);
 
 const FeaturedSheetPanel = ({
   sheet,
@@ -2390,6 +2530,13 @@ const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
 
 const getArtistName = (artist?: PublicArtist) =>
   artist?.displayName || artist?.name || "SATX Ink artist";
+
+const getRequestArtist = (flash: HomeFlash): FlashRequestArtist => ({
+  id: flash.artist?.id || flash.artistId,
+  name: flash.artist?.name || undefined,
+  displayName: flash.artist?.displayName || undefined,
+  avatarUrl: flash.artist?.avatarUrl || undefined,
+});
 
 const getArtistStudioLabel = (artist: PublicArtist) =>
   artist.shopName ||
