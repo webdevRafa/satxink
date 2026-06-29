@@ -18,7 +18,6 @@ import {
   Sparkles,
   Store,
 } from "lucide-react";
-import CountUp from "react-countup";
 import {
   collection,
   doc,
@@ -205,8 +204,7 @@ function usePageVisibility() {
 export const HomePage: FC = () => {
   const { targetRef: heroCopyRef, entryCount: heroCopyEntryCount } =
     useViewportEntry<HTMLDivElement>();
-  const { targetRef: heroStatsRef, entryCount: heroStatsEntryCount } =
-    useViewportEntry<HTMLDListElement>();
+
   const { targetRef: styleSectionRef, entryCount: styleSectionEntryCount } =
     useViewportEntry<HTMLDivElement>();
   const {
@@ -264,37 +262,34 @@ export const HomePage: FC = () => {
           currentMonthBookingArtistsSnapshot,
           fallbackBookingArtistsSnapshot,
         ] = await Promise.all([
-            getDocs(
-              query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
-            ),
-            getDocs(
-              query(
-                collection(db, "flashSheets"),
-                limit(HOME_SHEET_FETCH_LIMIT)
-              )
-            ),
-            getDoc(doc(db, "siteSettings", "homepage")),
-            currentBookingMonthKey
-              ? getDocs(
-                  query(
-                    collection(db, "users"),
-                    where(
-                      "bookingAvailability.monthKeys",
-                      "array-contains",
-                      currentBookingMonthKey
-                    ),
-                    limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
-                  )
+          getDocs(
+            query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
+          ),
+          getDocs(
+            query(collection(db, "flashSheets"), limit(HOME_SHEET_FETCH_LIMIT))
+          ),
+          getDoc(doc(db, "siteSettings", "homepage")),
+          currentBookingMonthKey
+            ? getDocs(
+                query(
+                  collection(db, "users"),
+                  where(
+                    "bookingAvailability.monthKeys",
+                    "array-contains",
+                    currentBookingMonthKey
+                  ),
+                  limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
                 )
-              : Promise.resolve(null),
-            getDocs(
-              query(
-                collection(db, "users"),
-                where("role", "==", "artist"),
-                limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
               )
-            ),
-          ]);
+            : Promise.resolve(null),
+          getDocs(
+            query(
+              collection(db, "users"),
+              where("role", "==", "artist"),
+              limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+            )
+          ),
+        ]);
         const homepageSettings = homepageSettingsSnap.data();
         const featuredArtistId =
           typeof homepageSettings?.featuredArtistId === "string"
@@ -429,23 +424,10 @@ export const HomePage: FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const heroStats = useMemo(
-    () => [
-      { label: "Styles to explore", value: featuredStyles.length, suffix: "+" },
-      {
-        label: "Flash previews",
-        value: flashes.length,
-        loading,
-      },
-      {
-        label: "Flash sheets",
-        value: sheets.length,
-        loading,
-      },
-    ],
-    [flashes.length, loading, sheets.length]
+  const bookingMonthOptions = useMemo(
+    () => getRollingBookingMonthOptions(),
+    []
   );
-  const bookingMonthOptions = useMemo(() => getRollingBookingMonthOptions(), []);
   const hasBookingArtistsThisMonth = bookingArtists.some((artist) =>
     artistHasBookingMonth(artist, bookingMonthOptions[0]?.key)
   );
@@ -459,16 +441,16 @@ export const HomePage: FC = () => {
         body: "Explore San Antonio artists with current availability, then open a profile when someone feels like the right fit.",
       }
     : hasBookingArtistsWithAvailability
-      ? {
-          eyebrow: "Booking soon",
-          title: "Artists with books open soon.",
-          body: "Availability shifts month to month. Start with artists who have upcoming booking windows listed on their profiles.",
-        }
-      : {
-          eyebrow: "Local artists",
-          title: "Artists taking requests.",
-          body: "Browse artist profiles, compare shop details, and start a request from the profile that fits your idea.",
-        };
+    ? {
+        eyebrow: "Booking soon",
+        title: "Artists with books open soon.",
+        body: "Availability shifts month to month. Start with artists who have upcoming booking windows listed on their profiles.",
+      }
+    : {
+        eyebrow: "Local artists",
+        title: "Artists taking requests.",
+        body: "Browse artist profiles, compare shop details, and start a request from the profile that fits your idea.",
+      };
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
   const isStyleSectionRevealed = styleSectionEntryCount > 0;
   const isMarketplaceSectionRevealed = marketplaceSectionEntryCount > 0;
@@ -494,7 +476,7 @@ export const HomePage: FC = () => {
           }
 
           .satx-home-hero-fixed-image--ready {
-            opacity: 0.8;
+            opacity: 0.6;
           }
 
           .satx-home-hero-mobile-scrim {
@@ -999,38 +981,6 @@ export const HomePage: FC = () => {
                 <ChevronRight size={17} />
               </Link>
             </div>
-
-            <dl
-              ref={heroStatsRef}
-              className="mt-10 inline-grid max-w-full grid-cols-[max-content_max-content_max-content] gap-x-5 gap-y-3 sm:mt-12 sm:gap-x-10"
-            >
-              {heroStats.map((stat, index) => (
-                <div
-                  key={stat.label}
-                  className={`satx-home-copy-motion satx-home-copy-motion--stat-${index} flex min-w-0 flex-col`}
-                >
-                  <dt className="order-2 mt-1 text-[11px] font-medium leading-tight text-white/50 sm:text-sm">
-                    {stat.label}
-                  </dt>
-                  <dd className="order-1 text-xl font-semibold leading-none text-white sm:text-2xl">
-                    {stat.loading ? (
-                      "..."
-                    ) : heroStatsEntryCount > 0 && isHeroCopyRevealed ? (
-                      <CountUp
-                        key={`${stat.label}-${heroStatsEntryCount}-${isHeroCopyRevealed}-${stat.value}`}
-                        end={stat.value}
-                        duration={1.4}
-                        delay={0.65 + index * 0.13}
-                        separator=","
-                        suffix={stat.suffix}
-                      />
-                    ) : (
-                      `${stat.value}${stat.suffix || ""}`
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
           </div>
 
           <HeroFeaturedArtistPanel
@@ -1537,7 +1487,8 @@ const HeroFeaturedArtistImageSlider = ({
               slide={slide}
               state={state}
               shouldLoad={
-                state !== "hidden" || (shouldWarmNextSlide && index === nextIndex)
+                state !== "hidden" ||
+                (shouldWarmNextSlide && index === nextIndex)
               }
               loading={index === activeIndex ? "eager" : "lazy"}
               fetchPriority={index === activeIndex ? "high" : "low"}
@@ -1898,9 +1849,7 @@ const PreviewRail = <T,>({
                 className="satx-market-card-motion flex min-w-0"
                 style={
                   {
-                    "--market-card-delay": `${
-                      railDelay + 180 + index * 82
-                    }ms`,
+                    "--market-card-delay": `${railDelay + 180 + index * 82}ms`,
                     "--market-card-x": reverse ? "-48px" : "48px",
                     "--market-card-tilt": reverse ? "-0.5deg" : "0.5deg",
                   } as CSSProperties
@@ -2270,10 +2219,7 @@ const isVisiblePublicArtist = (artist: PublicArtist): artist is PublicArtist =>
     artist.isVerified === "true" ||
     typeof artist.isVerified === "undefined");
 
-const artistHasBookingMonth = (
-  artist: PublicArtist,
-  monthKey?: string
-) => {
+const artistHasBookingMonth = (artist: PublicArtist, monthKey?: string) => {
   if (!monthKey) return false;
 
   return getBookingAvailabilityMonthKeys(artist.bookingAvailability).includes(
@@ -2313,7 +2259,9 @@ const getHomeBookingLabel = (artist: PublicArtist) => {
     (option) => option.key === selectedMonthKey
   );
 
-  return selectedMonth ? `Booking ${selectedMonth.shortLabel}` : "Requests open";
+  return selectedMonth
+    ? `Booking ${selectedMonth.shortLabel}`
+    : "Requests open";
 };
 
 const getFeaturedPreviewItems = (

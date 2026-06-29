@@ -173,11 +173,6 @@ export const FlashPreviewMeta = ({
                 <p className="my-0 truncate text-sm! font-semibold leading-tight text-white">
                   {artistName}
                 </p>
-                {visualTitle && (
-                  <p className="mt-1 truncate text-xs font-medium leading-tight text-white/55">
-                    {visualTitle}
-                  </p>
-                )}
               </>
             ) : visualTitle ? (
               <p className="my-0 truncate text-sm! font-semibold leading-tight text-white">
@@ -188,7 +183,7 @@ export const FlashPreviewMeta = ({
             )}
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.075] px-2.5 py-1 text-[11px] font-bold leading-none text-white/85 shadow-sm">
+        <span className="shrink-0 l  px-2.5 py-1 text-sm! font-bold leading-none text-white/85 shadow-sm">
           {formatFlashPrice(flash.price)}
         </span>
       </div>
