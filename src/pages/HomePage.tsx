@@ -14,8 +14,7 @@ import {
   ChevronRight,
   ImageOff,
   Quote,
-  Search,
-  Sparkles,
+  Flame,
   Store,
 } from "lucide-react";
 import {
@@ -1026,17 +1025,23 @@ export const HomePage: FC = () => {
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 hover:bg-white/[0.14]"
+                className="inline-flex min-h-10 group items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 "
               >
                 Browse artists
-                <ArrowRight size={17} className="text-white" />
+                <ChevronRight
+                  size={17}
+                  className="text-white transition group-hover:translate-x-1"
+                />
               </Link>
               <Link
                 to="/flash"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md group border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
                 Explore flash
-                <ChevronRight size={17} />
+                <ChevronRight
+                  size={17}
+                  className="text-white transition group-hover:translate-x-1"
+                />
               </Link>
             </div>
           </div>
@@ -1083,12 +1088,8 @@ export const HomePage: FC = () => {
               >
                 <Link
                   to={`/artists?style=${encodeURIComponent(style)}`}
-                  className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-sm font-semibold text-white/70 transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)]"
+                  className="group inline-flex items-center gap-2 rounded-full    px-4 py-2 text-sm font-semibold text-white/70 transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)]"
                 >
-                  <Search
-                    size={15}
-                    className="text-white/35 transition group-hover:text-white/60"
-                  />
                   {style}
                 </Link>
               </span>
@@ -1292,7 +1293,7 @@ const HeroFeaturedArtistPanel = ({
       >
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(0,0,0,0.1),rgba(0,0,0,0.76))]" />
         <div className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full  bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur">
-          <Sparkles size={13} aria-hidden="true" />
+          <Flame size={13} aria-hidden="true" />
           Artist Spotlight
         </div>
         <div className="absolute inset-x-0 bottom-0 z-20 p-4">
@@ -1388,10 +1389,13 @@ const HeroFeaturedArtistPanel = ({
           ) : (
             <Link
               to="/artists"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-white/20 bg-white/[0.09] px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 hover:bg-white/[0.14]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border group border-white/20 px-4 py-2 text-sm font-semibold text-white/70! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 "
             >
               Browse local artists
-              <ArrowRight size={16} className="text-white!" />
+              <ChevronRight
+                size={16}
+                className="text-white! transition group-hover:translate-x-1"
+              />
             </Link>
           )}
         </div>
