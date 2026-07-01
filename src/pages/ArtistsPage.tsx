@@ -59,7 +59,6 @@ type ArtistGridItem =
 type StyleFilterOption = {
   value: TattooStyle | "";
   label: string;
-  count: number;
 };
 
 const PAGE_SIZE = 6;
@@ -467,17 +466,13 @@ export const ArtistsPage = () => {
       {
         value: "",
         label: "All styles",
-        count: artists.length,
       },
       ...TATTOO_STYLES.map((style) => ({
         value: style,
         label: style,
-        count: artists.filter((artist) =>
-          artistHasTattooStyle(artist.specialties, style)
-        ).length,
       })),
     ],
-    [artists]
+    []
   );
 
   const visibleArtists = useMemo(
@@ -759,16 +754,9 @@ export const ArtistsPage = () => {
           <div className="hidden items-center justify-between gap-4 md:flex">
             <DesktopStyleDropdown
               activeValue={specialtyFilter}
-              filteredArtistLabel={filteredArtistLabel}
               options={styleFilterOptions}
               onSelect={applySpecialtyFilter}
             />
-            <div className="shrink-0 text-right text-xs leading-5 text-neutral-400">
-              <p className="font-semibold text-neutral-200">
-                {activeStyleLabel}
-              </p>
-              <p>{filteredArtistLabel}</p>
-            </div>
           </div>
         </div>
       </div>
@@ -864,12 +852,10 @@ export const ArtistsPage = () => {
 
 const DesktopStyleDropdown = ({
   activeValue,
-  filteredArtistLabel,
   options,
   onSelect,
 }: {
   activeValue: TattooStyle | "";
-  filteredArtistLabel: string;
   options: StyleFilterOption[];
   onSelect: (value: TattooStyle | "") => void;
 }) => {
@@ -877,6 +863,9 @@ const DesktopStyleDropdown = ({
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const activeOption =
     options.find((option) => option.value === activeValue) || options[0];
+  const viewingLabel = `Viewing ${
+    activeOption.value ? activeOption.label : activeOption.label.toLowerCase()
+  }`;
 
   useEffect(() => {
     if (!open) return;
@@ -915,15 +904,11 @@ const DesktopStyleDropdown = ({
         className="flex h-12 w-full items-center justify-between gap-4 rounded-xl border border-white/[0.14] bg-white/[0.04] px-4! py-0! text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur transition hover:border-white/25 hover:bg-white/[0.065] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/45"
       >
         <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">
-            Viewing style
-          </span>
-          <span className="mt-0.5 block truncate text-sm font-semibold text-white">
-            {activeOption.label}
+          <span className="block truncate text-sm font-semibold text-white">
+            {viewingLabel}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-neutral-400">
-          {filteredArtistLabel}
           <ChevronDown
             className={`h-4 w-4 text-neutral-300 transition ${
               open ? "rotate-180" : ""
@@ -950,7 +935,7 @@ const DesktopStyleDropdown = ({
                       onSelect(option.value);
                       setOpen(false);
                     }}
-                    className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3! py-2! text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/40 ${
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3! py-2! text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/40 ${
                       selected
                         ? "bg-[var(--color-primary)]/20 text-white"
                         : "text-neutral-300 hover:bg-white/[0.055] hover:text-white"
@@ -970,9 +955,6 @@ const DesktopStyleDropdown = ({
                       <span className="truncate font-semibold">
                         {option.label}
                       </span>
-                    </span>
-                    <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-0.5 text-[11px] font-semibold text-neutral-400">
-                      {option.count}
                     </span>
                   </button>
                 );
