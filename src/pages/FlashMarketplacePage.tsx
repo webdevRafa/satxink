@@ -768,7 +768,7 @@ const FlashDesignSkeletonCard = () => (
     className={`${flashPreviewCardClassName} w-full animate-pulse lg:max-w-[80%]`}
   >
     <div className="skeleton-sheen relative aspect-square bg-white/[0.045]">
-      <div className="absolute left-3 top-3 h-6 w-20 rounded-none border border-[#b6382d]/45 bg-[#b6382d]/25" />
+      <div className="skeleton-sheen absolute left-3 top-3 h-6 w-20 rounded-none border border-white/10 bg-white/[0.07]" />
     </div>
     <div className="p-3 lg:p-2.5">
       <div className="flex items-center justify-between gap-2.5">
