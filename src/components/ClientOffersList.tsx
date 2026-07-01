@@ -382,10 +382,6 @@ const OfferRow = ({
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const appointmentOptions = getSortedAppointmentOptions(offer.dateOptions);
-  const soonestDateOption = appointmentOptions[0];
-  const additionalAppointmentCount = Math.max(appointmentOptions.length - 1, 0);
-  const isFlashOffer = offer.sourceType === "flash";
-  const isMultiSessionOffer = offer.projectType === "multi_session";
   const depositLabel = formatDeposit(offer);
   const depositTooltip =
     offer.depositPolicy?.depositRequired && Number(offer.depositPolicy.amount || 0) > 0
@@ -446,27 +442,25 @@ const OfferRow = ({
         </p>
       </div>
 
-      <div className="min-w-0 pr-4" title={appointmentTooltip}>
-        <p className="truncate text-sm font-medium text-white">
-          {soonestDateOption
-            ? `Soonest: ${formatAppointment(soonestDateOption, "compact")}`
-            : "No date"}
-        </p>
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-          {additionalAppointmentCount > 0 && (
-            <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-neutral-300">
-              +{additionalAppointmentCount} more option
-              {additionalAppointmentCount === 1 ? "" : "s"}
-            </span>
-          )}
-          <span className="min-w-0 truncate text-xs text-neutral-500">
-            {isFlashOffer
-              ? offer.flashTitle || "Flash item"
-              : isMultiSessionOffer
-              ? `${offer.estimatedSessionCount || 2} sessions`
-              : offer.shopName || "Shop not set"}
+      <div
+        className="grid min-w-0 gap-1.5 pr-4"
+        title={appointmentTooltip}
+        aria-label={appointmentTooltip.replace(/\n/g, " ")}
+      >
+        {appointmentOptions.length ? (
+          appointmentOptions.map((option, index) => (
+            <div
+              key={`${option.date}-${option.time}-${index}`}
+              className="truncate rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-semibold text-white"
+            >
+              {formatAppointment(option, "compact")}
+            </div>
+          ))
+        ) : (
+          <span className="text-sm font-medium text-neutral-500">
+            No appointment options
           </span>
-        </div>
+        )}
       </div>
 
       <StatusBadge status={offer.status || "pending"} />
