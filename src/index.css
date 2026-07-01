@@ -27,6 +27,26 @@ a.bg-white {
   color: #0b0b0b !important;
 }
 
+button,
+[role="button"],
+[role="option"],
+[role="tab"],
+[role="menuitem"],
+summary {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button *,
+[role="button"] *,
+[role="option"] *,
+[role="tab"] *,
+[role="menuitem"] *,
+summary * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 button.bg-white svg,
 a.bg-white svg {
   color: #0b0b0b !important;

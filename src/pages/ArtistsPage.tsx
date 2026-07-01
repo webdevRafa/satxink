@@ -610,7 +610,7 @@ export const ArtistsPage = () => {
 
       <div
         ref={stylesToolbarRef}
-        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-18 ${
+        className={`sticky top-[73px] z-30 select-none border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-18 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
@@ -792,7 +792,7 @@ const DesktopStyleDropdown = ({
   }, [open]);
 
   return (
-    <div ref={dropdownRef} className="relative w-full max-w-[28rem]">
+    <div ref={dropdownRef} className="relative w-full max-w-[28rem] select-none">
       <button
         type="button"
         aria-haspopup="listbox"
