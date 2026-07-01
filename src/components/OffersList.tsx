@@ -968,7 +968,7 @@ const OfferDetailsDialog = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => (
   <Transition appear show={!!offer} as={Fragment}>
-    <Dialog as="div" className="relative z-[120]" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -982,7 +982,7 @@ const OfferDetailsDialog = ({
       </Transition.Child>
 
       <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
-        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
