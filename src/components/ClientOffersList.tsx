@@ -417,7 +417,7 @@ const OfferRow = ({
         aria-label="View offer sample"
       >
         {previewUrl ? (
-          <img src={previewUrl} alt="Offer sample" className="h-full w-full object-cover" />
+          <OfferPreviewImage src={previewUrl} alt="Offer sample" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-neutral-500">
             <ImageIcon size={18} />
@@ -478,6 +478,33 @@ const OfferRow = ({
         </button>
       </div>
     </div>
+  );
+};
+
+const OfferPreviewImage = ({ src, alt }: { src: string; alt: string }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-white/[0.035]">
+      {!loaded && (
+        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </span>
   );
 };
 

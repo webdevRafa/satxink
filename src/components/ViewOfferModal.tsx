@@ -219,14 +219,13 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </button>
         </div>
 
-        <div className="overflow-y-auto request-modal-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar">
           <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
             <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
               {offer.fullUrl || offer.thumbUrl ? (
-                <img
+                <OfferSampleImage
                   src={offer.fullUrl || offer.thumbUrl || undefined}
                   alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
-                  className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                 />
               ) : (
                 <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
@@ -383,9 +382,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
               </div>
             </div>
           </div>
+        </div>
 
-          {offer.status === "pending" && (
-            <div className="border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+        {offer.status === "pending" && (
+          <div className="shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6">
               {isDeclining && (
                 <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
                   <p className="text-sm font-semibold text-white">
@@ -574,9 +574,40 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 </div>
               )}
             </div>
-          )}
-        </div>
+        )}
       </div>
+    </div>
+  );
+};
+
+const OfferSampleImage = ({
+  src,
+  alt,
+}: {
+  src?: string;
+  alt: string;
+}) => {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
     </div>
   );
 };

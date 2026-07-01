@@ -443,10 +443,9 @@ const RequestRow = ({
         aria-label="View request reference"
       >
         {previewUrl ? (
-          <img
+          <RequestPreviewImage
             src={previewUrl}
             alt="Tattoo request reference"
-            className="h-full w-full object-cover"
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-neutral-500">
@@ -520,7 +519,7 @@ const RequestDetailsDialog = ({
                   <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {request.fullUrl || request.thumbUrl ? (
-                        <img src={request.fullUrl || request.thumbUrl} alt="Tattoo request reference" className="h-full max-h-[72vh] min-h-[420px] w-full object-contain" />
+                        <RequestModalImage src={request.fullUrl || request.thumbUrl} alt="Tattoo request reference" />
                       ) : (
                         <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
                           <ImageIcon size={34} />
@@ -562,6 +561,59 @@ const RequestDetailsDialog = ({
     </Dialog>
   </Transition>
 );
+
+const RequestPreviewImage = ({ src, alt }: { src: string; alt: string }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-white/[0.035]">
+      {!loaded && (
+        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </span>
+  );
+};
+
+const RequestModalImage = ({ src, alt }: { src?: string; alt: string }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
+  );
+};
 
 const DashboardHeader = ({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) => (
   <div>
