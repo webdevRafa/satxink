@@ -1014,13 +1014,12 @@ export const HomePage: FC = () => {
             className="satx-home-hero-copy max-w-3xl"
             data-revealed={isHeroCopyRevealed}
           >
-            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-5xl!">
-              Find the best tattoo artists in San Antonio, Texas.
+            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-4xl!">
+              Find the right San Antonio tattoo artist for your next piece.
             </h1>
             <p className="satx-home-copy-motion satx-home-copy-motion--body mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
-              Browse verified artists, discover ready-to-request flash, compare
-              styles, and move from discovery to a tattoo request with less
-              guesswork.
+              Browse verified San Antonio artists, view their work, and send
+              your idea when you find the right fit.
             </p>
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
@@ -1068,10 +1067,6 @@ export const HomePage: FC = () => {
             <h2 className="satx-style-motion satx-style-motion--title mt-3 text-3xl! font-semibold leading-tight text-white md:text-4xl!">
               Start with the look you already know you want.
             </h2>
-            <p className="satx-style-motion satx-style-motion--body mt-3 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-              Use style as a shortcut into the artist directory, then compare
-              portfolios until something feels right.
-            </p>
           </div>
 
           <div className="mt-7 flex flex-wrap gap-3">
