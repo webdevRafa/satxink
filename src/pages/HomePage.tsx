@@ -1024,7 +1024,7 @@ export const HomePage: FC = () => {
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
                 to="/artists"
-                className="inline-flex min-h-10 group items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 "
+                className="inline-flex min-h-10 select-none group items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 "
               >
                 Browse artists
                 <ChevronRight
@@ -1034,7 +1034,7 @@ export const HomePage: FC = () => {
               </Link>
               <Link
                 to="/flash"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md group border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                className="inline-flex min-h-10 select-none items-center gap-2 rounded-md group border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
                 Explore flash
                 <ChevronRight
@@ -1083,7 +1083,7 @@ export const HomePage: FC = () => {
               >
                 <Link
                   to={`/artists?style=${encodeURIComponent(style)}`}
-                  className="group inline-flex items-center gap-2 rounded-full    px-4 py-2 text-sm font-semibold text-white/70 transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)]"
+                  className="group inline-flex select-none items-center gap-2 rounded-full    px-4 py-2 text-sm font-semibold text-white/70 transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] hover:text-white hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)]"
                 >
                   {style}
                 </Link>
@@ -1114,7 +1114,7 @@ export const HomePage: FC = () => {
             </div>
             <Link
               to="/flash"
-              className="satx-market-motion satx-market-motion--cta inline-flex w-fit items-center gap-2 rounded-md    px-4 py-2.5 text-sm font-semibold text-white/70! hover:text-white! transition "
+              className="satx-market-motion satx-market-motion--cta inline-flex w-fit select-none items-center gap-2 rounded-md    px-4 py-2.5 text-sm font-semibold text-white/70! hover:text-white! transition "
             >
               Browse marketplace
               <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -1163,7 +1163,7 @@ export const HomePage: FC = () => {
             </div>
             <Link
               to="/artists"
-              className="inline-flex w-fit items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white/55 transition hover:text-white"
+              className="inline-flex w-fit select-none items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white/55 transition hover:text-white"
             >
               View all artists
               <ArrowRight size={16} />
@@ -1219,7 +1219,7 @@ export const HomePage: FC = () => {
               </p>
               <Link
                 to="/artists"
-                className="mt-5 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
+                className="mt-5 inline-flex select-none items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
               >
                 Browse artists
                 <ArrowRight size={16} className="text-[#0b0b0b]!" />
@@ -1373,7 +1373,7 @@ const HeroFeaturedArtistPanel = ({
           {artist ? (
             <Link
               to={`/artists/${artist.id}`}
-              className="inline-flex min-h-10 items-center gap-2  px-4 py-2 text-sm font-semibold bg-white/2 hover:bg-white/5 text-neutral-300! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition group"
+              className="inline-flex min-h-10 select-none items-center gap-2  px-4 py-2 text-sm font-semibold bg-white/2 hover:bg-white/5 text-neutral-300! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition group"
             >
               View artist profile
               <ArrowRight
@@ -1384,7 +1384,7 @@ const HeroFeaturedArtistPanel = ({
           ) : (
             <Link
               to="/artists"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border group border-white/20 px-4 py-2 text-sm font-semibold text-white/70! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 "
+              className="inline-flex min-h-10 select-none items-center gap-2 rounded-md border group border-white/20 px-4 py-2 text-sm font-semibold text-white/70! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition hover:border-white/35 "
             >
               Browse local artists
               <ChevronRight
@@ -1786,7 +1786,7 @@ const HeroFeaturedPreviewTile = ({ item }: { item: FeaturedPreviewItem }) => {
   return (
     <Link
       to={item.href}
-      className="group relative aspect-square overflow-hidden rounded-md border border-white/10 bg-[#080808]"
+      className="group relative aspect-square select-none overflow-hidden rounded-md border border-white/10 bg-[#080808]"
       aria-label={item.label}
     >
       {failed ? (
@@ -2027,14 +2027,14 @@ const FlashCardActions = ({
   <div className={className}>
     <Link
       to={`/artists/${flash.artistId}`}
-      className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
+      className="inline-flex h-9 select-none items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
     </Link>
     <button
       type="button"
       onClick={onRequest}
-      className="!inline-flex !h-9 !items-center !justify-center !whitespace-nowrap !rounded-lg !border !border-[color:rgba(255,142,126,0.36)] !bg-[color:rgba(138,54,46,0.92)] !px-2 !py-0 !text-[11px] font-semibold text-white/[0.92] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:!border-[color:rgba(255,172,158,0.55)] hover:!bg-[color:rgba(166,66,56,0.96)] hover:text-white"
+      className="!inline-flex !h-9 select-none !items-center !justify-center !whitespace-nowrap !rounded-lg !border !border-[color:rgba(255,142,126,0.36)] !bg-[color:rgba(138,54,46,0.92)] !px-2 !py-0 !text-[11px] font-semibold text-white/[0.92] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:!border-[color:rgba(255,172,158,0.55)] hover:!bg-[color:rgba(166,66,56,0.96)] hover:text-white"
       aria-label={`Request this flash: ${getFlashTitle(flash)}`}
     >
       Request
@@ -2080,7 +2080,7 @@ const FeaturedSheetPanel = ({
         </p>
         <Link
           to="/flash?tab=sheets"
-          className="mt-6 hidden w-fit items-center gap-2 text-sm font-semibold text-white/45 transition hover:text-white md:inline-flex"
+          className="mt-6 hidden w-fit select-none items-center gap-2 text-sm font-semibold text-white/45 transition hover:text-white md:inline-flex"
         >
           View more
           <ArrowRight size={16} />
@@ -2099,7 +2099,7 @@ const FeaturedSheetPanel = ({
       >
         <Link
           to={sheetHref}
-          className="relative block h-[18rem] overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
+          className="relative block h-[18rem] select-none overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
           aria-label={`Open ${sheet.title || "flash sheet"}`}
         >
           {sheet.thumbUrl || sheet.imageUrl ? (
@@ -2129,14 +2129,14 @@ const FeaturedSheetPanel = ({
           <div className="flex items-center justify-center gap-5">
             <Link
               to={sheetHref}
-              className="inline-flex w-fit items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white"
+              className="inline-flex w-fit select-none items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white/[0.08] group-hover:text-white"
             >
               Open sheet
               <ArrowRight size={15} />
             </Link>
             <Link
               to="/flash?tab=sheets"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/45 transition hover:text-white md:hidden"
+              className="inline-flex select-none items-center gap-1.5 text-sm font-semibold text-white/45 transition hover:text-white md:hidden"
             >
               View others
               <ArrowRight size={14} />
@@ -2190,7 +2190,7 @@ const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
 
       <Link
         to={`/artists/${artist.id}`}
-        className="mt-7 inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white group-hover:text-[#0b0b0b]!"
+        className="mt-7 inline-flex select-none items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white group-hover:text-[#0b0b0b]!"
       >
         View profile
         <ArrowRight size={15} />
