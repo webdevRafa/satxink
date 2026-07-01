@@ -728,7 +728,11 @@ const ArtistDashboardView = () => {
     const slug = slugify(displayName, { lower: true, strict: true });
     if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
 
-    const nameQuery = query(collection(db, "users"), where("slug", "==", slug));
+    const nameQuery = query(
+      collection(db, "users"),
+      where("role", "==", "artist"),
+      where("slug", "==", slug)
+    );
     const snapshot = await getDocs(nameQuery);
     const belongsToAnotherArtist = snapshot.docs.some(
       (docSnap) => docSnap.id !== uid
@@ -1331,59 +1335,16 @@ const ArtistDashboardView = () => {
                 (booking) => getBookingStatusFilterValue(booking) !== "all"
               );
 
-        const clientIds = Array.from(
-          new Set(
-            scopedBookings.map((booking) => booking.clientId).filter(Boolean)
-          )
-        );
-
-        const clientMap = new Map<
-          string,
-          {
-            firstName?: string;
-            lastName?: string;
-            name?: string;
-            displayName?: string;
-            avatarUrl?: string;
-          }
-        >();
-
-        await Promise.all(
-          clientIds.map(async (clientId) => {
-            try {
-              const clientSnap = await getDoc(doc(db, "users", clientId));
-              if (clientSnap.exists()) {
-                const user = clientSnap.data() as {
-                  firstName?: string;
-                  lastName?: string;
-                  name?: string;
-                  displayName?: string;
-                  avatarUrl?: string;
-                };
-
-                clientMap.set(clientId, user);
-              }
-            } catch (error) {
-              console.error(`Failed to fetch client ${clientId}:`, error);
-            }
-          })
-        );
-
         setBookings(
           scopedBookings.map((booking) => {
-            const user = clientMap.get(booking.clientId);
-            const clientNameParts = getClientNameParts({
-              ...booking,
-              ...user,
-            });
+            const clientNameParts = getClientNameParts(booking);
 
             return {
               ...booking,
-              user,
               clientFirstName: clientNameParts.firstName,
               clientLastName: clientNameParts.lastName,
               clientName: clientNameParts.fullName,
-              clientAvatar: user?.avatarUrl || "/default-avatar.png",
+              clientAvatar: booking.clientAvatar || "/default-avatar.png",
             };
           }) as Booking[]
         );

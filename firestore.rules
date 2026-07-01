@@ -1,0 +1,536 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function userExists(uid) {
+      return exists(userPath(uid));
+    }
+
+    function userData(uid) {
+      return get(userPath(uid)).data;
+    }
+
+    function roleOf(uid) {
+      return userExists(uid) ? userData(uid).role : null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function hasRole(role) {
+      return signedIn() && roleOf(request.auth.uid) == role;
+    }
+
+    function isAdmin() {
+      return hasRole("admin");
+    }
+
+    function isArtist() {
+      return hasRole("artist");
+    }
+
+    function isClient() {
+      return hasRole("client");
+    }
+
+    function isValidSignupRole() {
+      return request.resource.data.role == "client" ||
+        request.resource.data.role == "artist";
+    }
+
+    function userProtectedFields() {
+      return [
+        "role",
+        "isVerified",
+        "featured",
+        "stripeConnect",
+        "stripeConnectAccountId",
+        "stripeCustomerId",
+        "admin",
+        "claims"
+      ];
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function safeSelfUserCreate(userId) {
+      return isOwner(userId) &&
+        isValidSignupRole() &&
+        (
+          !request.resource.data.keys().hasAny(["featured"]) ||
+          request.resource.data.featured == false
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(["isVerified"]) ||
+          request.resource.data.isVerified == false
+        ) &&
+        !request.resource.data.keys().hasAny([
+          "admin",
+          "claims",
+          "stripeConnect",
+          "stripeConnectAccountId",
+          "stripeCustomerId"
+        ]);
+    }
+
+    function safeSelfUserUpdate(userId) {
+      return isOwner(userId) &&
+        request.resource.data.role == resource.data.role &&
+        !changedKeys().hasAny(userProtectedFields());
+    }
+
+    function onlyLikedByChanged() {
+      return changedKeys().hasOnly(["likedBy"]) &&
+        request.resource.data.role == resource.data.role;
+    }
+
+    function isParticipant(data) {
+      return signedIn() &&
+        (data.clientId == request.auth.uid || data.artistId == request.auth.uid);
+    }
+
+    function participantIdsUnchanged() {
+      return request.resource.data.clientId == resource.data.clientId &&
+        request.resource.data.artistId == resource.data.artistId;
+    }
+
+    function requestPath(requestId) {
+      return /databases/$(database)/documents/bookingRequests/$(requestId);
+    }
+
+    function offerPath(offerId) {
+      return /databases/$(database)/documents/offers/$(offerId);
+    }
+
+    function legacyOfferPath(offerId) {
+      return /databases/$(database)/documents/bookingOffers/$(offerId);
+    }
+
+    function bookingPath(bookingId) {
+      return /databases/$(database)/documents/bookings/$(bookingId);
+    }
+
+    function bookingData(bookingId) {
+      return get(bookingPath(bookingId)).data;
+    }
+
+    function isBookingParticipant(bookingId) {
+      return signedIn() &&
+        exists(bookingPath(bookingId)) &&
+        (bookingData(bookingId).clientId == request.auth.uid ||
+          bookingData(bookingId).artistId == request.auth.uid);
+    }
+
+    function offerMatchesRequest() {
+      return request.resource.data.requestId is string &&
+        exists(requestPath(request.resource.data.requestId)) &&
+        get(requestPath(request.resource.data.requestId)).data.artistId ==
+          request.auth.uid &&
+        get(requestPath(request.resource.data.requestId)).data.clientId ==
+          request.resource.data.clientId;
+    }
+
+    function acceptedOfferMatches(offerId) {
+      return exists(offerPath(offerId)) &&
+        get(offerPath(offerId)).data.clientId == request.auth.uid &&
+        get(offerPath(offerId)).data.artistId ==
+          request.resource.data.artistId &&
+        get(offerPath(offerId)).data.status == "accepted" &&
+        request.resource.data.price == get(offerPath(offerId)).data.price &&
+        request.resource.data.depositAmount ==
+          get(offerPath(offerId)).data.depositPolicy.amount;
+    }
+
+    function acceptedLegacyOfferMatches(offerId) {
+      return exists(legacyOfferPath(offerId)) &&
+        get(legacyOfferPath(offerId)).data.clientId == request.auth.uid &&
+        get(legacyOfferPath(offerId)).data.artistId ==
+          request.resource.data.artistId &&
+        get(legacyOfferPath(offerId)).data.status == "accepted" &&
+        request.resource.data.price == get(legacyOfferPath(offerId)).data.price;
+    }
+
+    function validBookingCreate() {
+      return request.resource.data.offerId is string &&
+        request.resource.data.clientId == request.auth.uid &&
+        (
+          acceptedOfferMatches(request.resource.data.offerId) ||
+          acceptedLegacyOfferMatches(request.resource.data.offerId)
+        );
+    }
+
+    function bookingProtectedFields() {
+      return [
+        "artistId",
+        "clientId",
+        "offerId",
+        "price",
+        "depositAmount",
+        "createdAt",
+        "stripeCheckoutSessionId",
+        "stripePaymentIntentId",
+        "stripeConnectedAccountId"
+      ];
+    }
+
+    function safeBookingParticipantUpdate() {
+      return isParticipant(resource.data) &&
+        participantIdsUnchanged() &&
+        !changedKeys().hasAny(bookingProtectedFields());
+    }
+
+    function stripeReady(uid) {
+      return userData(uid).keys().hasAny(["stripeConnect"]) &&
+        userData(uid).stripeConnect.onboardingComplete == true &&
+        userData(uid).stripeConnect.chargesEnabled == true &&
+        userData(uid).stripeConnect.payoutsEnabled == true &&
+        userData(uid).stripeConnect.detailsSubmitted == true;
+    }
+
+    function visibilityValidOnCreate() {
+      return (
+          !request.resource.data.keys().hasAny(["marketplaceVisible"]) ||
+          request.resource.data.marketplaceVisible != true ||
+          stripeReady(request.auth.uid)
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(["artistStripeConnectReady"]) ||
+          request.resource.data.artistStripeConnectReady != true ||
+          stripeReady(request.auth.uid)
+        ) &&
+        (
+          !request.resource.data.keys().hasAny(["marketplaceReady"]) ||
+          request.resource.data.marketplaceReady == false
+        );
+    }
+
+    function visibilityValidOnUpdate() {
+      return !changedKeys().hasAny([
+          "marketplaceVisible",
+          "artistStripeConnectReady"
+        ]) ||
+        (
+          (request.resource.data.marketplaceVisible != true ||
+            stripeReady(request.auth.uid)) &&
+          (request.resource.data.artistStripeConnectReady != true ||
+            stripeReady(request.auth.uid))
+        );
+    }
+
+    function marketplaceDerivedFields() {
+      return [
+        "marketplaceReady",
+        "artistPublic",
+        "searchTokens",
+        "searchTags"
+      ];
+    }
+
+    function noMarketplaceDerivedFieldsOnCreate() {
+      return !request.resource.data.keys().hasAny(marketplaceDerivedFields());
+    }
+
+    function noMarketplaceDerivedFieldsOnUpdate() {
+      return !changedKeys().hasAny(marketplaceDerivedFields());
+    }
+
+    function artistOwnsNewDoc() {
+      return isArtist() && request.resource.data.artistId == request.auth.uid;
+    }
+
+    function artistOwnsExistingDoc() {
+      return isArtist() && resource.data.artistId == request.auth.uid;
+    }
+
+    function publicMarketplaceDoc() {
+      return resource.data.marketplaceReady == true;
+    }
+
+    function validRequestStatus() {
+      return request.resource.data.status in [
+        "pending",
+        "offered",
+        "declined",
+        "cancelled"
+      ];
+    }
+
+    function safeBookingRequestClientUpdate() {
+      return request.auth.uid == resource.data.clientId &&
+        changedKeys().hasOnly([
+          "fullUrl",
+          "thumbUrl",
+          "referenceImages",
+          "referenceCleanupAt",
+          "updatedAt"
+        ]);
+    }
+
+    function safeBookingRequestArtistUpdate() {
+      return request.auth.uid == resource.data.artistId &&
+        changedKeys().hasOnly([
+          "status",
+          "declinedAt",
+          "offeredAt",
+          "referenceCleanupAt",
+          "offerPreparationStatus",
+          "offerPreparationEta",
+          "offerPreparationUpdatedAt",
+          "updatedAt"
+        ]) &&
+        validRequestStatus();
+    }
+
+    function safeBookingRequestUpdate() {
+      return isParticipant(resource.data) &&
+        participantIdsUnchanged() &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (
+          safeBookingRequestClientUpdate() ||
+          safeBookingRequestArtistUpdate()
+        );
+    }
+
+    function validOfferStatus() {
+      return request.resource.data.status in [
+        "pending",
+        "accepted",
+        "declined",
+        "revised"
+      ];
+    }
+
+    function safeOfferClientUpdate() {
+      return request.auth.uid == resource.data.clientId &&
+        changedKeys().hasOnly([
+          "status",
+          "respondedAt",
+          "declinedAt",
+          "declinedReason",
+          "declinedReasonLabel",
+          "bookingId",
+          "updatedAt"
+        ]) &&
+        validOfferStatus();
+    }
+
+    function safeOfferArtistUpdate() {
+      return request.auth.uid == resource.data.artistId &&
+        changedKeys().hasOnly([
+          "status",
+          "artistDismissedAt",
+          "artistDismissedReason",
+          "revisedAt",
+          "revisedByOfferId",
+          "updatedAt"
+        ]) &&
+        validOfferStatus();
+    }
+
+    function safeOfferParticipantUpdate() {
+      return isParticipant(resource.data) &&
+        participantIdsUnchanged() &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.requestId == resource.data.requestId &&
+        (
+          safeOfferClientUpdate() ||
+          safeOfferArtistUpdate()
+        );
+    }
+
+    match /users/{userId} {
+      allow get: if isAdmin() || isOwner(userId) ||
+        resource.data.role == "artist";
+      allow list: if isAdmin() || resource.data.role == "artist";
+      allow create: if isAdmin() || safeSelfUserCreate(userId);
+      allow update: if isAdmin() ||
+        safeSelfUserUpdate(userId) ||
+        (
+          signedIn() &&
+          resource.data.role == "artist" &&
+          onlyLikedByChanged()
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /shops/{shopId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /gallery/{itemId} {
+      allow read: if true;
+      allow create: if isAdmin() || artistOwnsNewDoc();
+      allow update: if isAdmin() ||
+        (
+          artistOwnsExistingDoc() &&
+          request.resource.data.artistId == resource.data.artistId
+        );
+      allow delete: if isAdmin() || artistOwnsExistingDoc();
+    }
+
+    match /flashes/{flashId} {
+      allow read: if isAdmin() || artistOwnsExistingDoc() ||
+        publicMarketplaceDoc();
+      allow create: if isAdmin() ||
+        (
+          artistOwnsNewDoc() &&
+          visibilityValidOnCreate() &&
+          noMarketplaceDerivedFieldsOnCreate()
+        );
+      allow update: if isAdmin() ||
+        (
+          artistOwnsExistingDoc() &&
+          request.resource.data.artistId == resource.data.artistId &&
+          visibilityValidOnUpdate() &&
+          noMarketplaceDerivedFieldsOnUpdate()
+        );
+      allow delete: if isAdmin() || artistOwnsExistingDoc();
+    }
+
+    match /flashSheets/{sheetId} {
+      allow read: if isAdmin() || artistOwnsExistingDoc() ||
+        publicMarketplaceDoc();
+      allow create: if isAdmin() ||
+        (
+          artistOwnsNewDoc() &&
+          visibilityValidOnCreate() &&
+          noMarketplaceDerivedFieldsOnCreate()
+        );
+      allow update: if isAdmin() ||
+        (
+          artistOwnsExistingDoc() &&
+          request.resource.data.artistId == resource.data.artistId &&
+          visibilityValidOnUpdate() &&
+          noMarketplaceDerivedFieldsOnUpdate()
+        );
+      allow delete: if isAdmin() || artistOwnsExistingDoc();
+    }
+
+    match /bookingRequests/{requestId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow create: if isAdmin() ||
+        (
+          isClient() &&
+          request.resource.data.clientId == request.auth.uid &&
+          request.resource.data.artistId is string &&
+          request.resource.data.status == "pending"
+        );
+      allow update: if isAdmin() || safeBookingRequestUpdate();
+      allow delete: if isAdmin();
+    }
+
+    match /offers/{offerId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow create: if isAdmin() ||
+        (
+          isArtist() &&
+          request.resource.data.artistId == request.auth.uid &&
+          request.resource.data.status == "pending" &&
+          offerMatchesRequest()
+        );
+      allow update: if isAdmin() || safeOfferParticipantUpdate();
+      allow delete: if isAdmin();
+    }
+
+    match /bookingOffers/{offerId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow create: if isAdmin() ||
+        (
+          isArtist() &&
+          request.resource.data.artistId == request.auth.uid &&
+          request.resource.data.status == "pending" &&
+          offerMatchesRequest()
+        );
+      allow update: if isAdmin() || safeOfferParticipantUpdate();
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || isParticipant(resource.data);
+      allow create: if isAdmin() || (isClient() && validBookingCreate());
+      allow update: if isAdmin() || safeBookingParticipantUpdate();
+      allow delete: if isAdmin();
+
+      match /amendments/{amendmentId} {
+        allow read: if isAdmin() || isBookingParticipant(bookingId);
+        allow write: if isAdmin();
+      }
+    }
+
+    match /bookingSessions/{bookingId} {
+      allow read: if isAdmin() ||
+        isBookingParticipant(bookingId) ||
+        isParticipant(resource.data);
+      allow create, update: if isAdmin() ||
+        (
+          isBookingParticipant(bookingId) &&
+          request.resource.data.bookingId == bookingId &&
+          request.resource.data.clientId == bookingData(bookingId).clientId &&
+          request.resource.data.artistId == bookingData(bookingId).artistId
+        );
+      allow delete: if isAdmin();
+
+      match /sessions/{sessionId} {
+        allow read: if isAdmin() || isBookingParticipant(bookingId);
+        allow create, update: if isAdmin() ||
+          (
+            isBookingParticipant(bookingId) &&
+            request.resource.data.bookingId == bookingId &&
+            request.resource.data.clientId == bookingData(bookingId).clientId &&
+            request.resource.data.artistId == bookingData(bookingId).artistId
+          );
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /sessions/{sessionId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /contactMessages/{messageId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          "name",
+          "email",
+          "audience",
+          "topic",
+          "message",
+          "source",
+          "status",
+          "createdAt"
+        ]) &&
+        request.resource.data.name is string &&
+        request.resource.data.email is string &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() >= 12 &&
+        request.resource.data.message.size() <= 5000 &&
+        request.resource.data.source == "footer" &&
+        request.resource.data.status == "new";
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /adminReports/{reportId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

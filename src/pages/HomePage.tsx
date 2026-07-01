@@ -320,16 +320,25 @@ export const HomePage: FC = () => {
           fallbackBookingArtistsSnapshot,
         ] = await Promise.all([
           getDocs(
-            query(collection(db, "flashes"), limit(HOME_FLASH_FETCH_LIMIT))
+            query(
+              collection(db, "flashes"),
+              where("marketplaceReady", "==", true),
+              limit(HOME_FLASH_FETCH_LIMIT)
+            )
           ),
           getDocs(
-            query(collection(db, "flashSheets"), limit(HOME_SHEET_FETCH_LIMIT))
+            query(
+              collection(db, "flashSheets"),
+              where("marketplaceReady", "==", true),
+              limit(HOME_SHEET_FETCH_LIMIT)
+            )
           ),
           getDoc(doc(db, "siteSettings", "homepage")),
           currentBookingMonthKey
             ? getDocs(
                 query(
                   collection(db, "users"),
+                  where("role", "==", "artist"),
                   where(
                     "bookingAvailability.monthKeys",
                     "array-contains",
@@ -2441,7 +2450,11 @@ const fetchArtistsById = async (artistIds: string[]) => {
       .filter((chunk) => chunk.length > 0)
       .map((chunk) =>
         getDocs(
-          query(collection(db, "users"), where(documentId(), "in", chunk))
+          query(
+            collection(db, "users"),
+            where("role", "==", "artist"),
+            where(documentId(), "in", chunk)
+          )
         )
       )
   );

@@ -813,6 +813,7 @@ const loadRequestArtists = async (
         getDocs(
           query(
             collection(db, "users"),
+            where("role", "==", "artist"),
             where(documentId(), "in", artistChunk)
           )
         )
