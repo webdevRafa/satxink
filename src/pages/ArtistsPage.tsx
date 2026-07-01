@@ -568,7 +568,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-24 sm:pt-20 lg:pt-16"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -592,22 +592,18 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,500px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-40"
+          className="pointer-events-none absolute bottom-0 left-1/2 w-[min(92vw,430px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:w-[min(70vw,470px)] lg:w-[min(42vw,440px)]"
           style={{ opacity: 0.04 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
-          <div className="max-w-3xl pb-2" style={heroFadeStyle}>
-            <div>
-              <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
-                <h1 className="mb-0! whitespace-nowrap text-[1.7rem]! font-bold leading-none text-white! text-4xl">
-                  Browse San Antonio Artists
-                </h1>
-              </div>
-            </div>
+        <div className="relative mx-auto flex min-h-[12rem] max-w-[1300px] items-end pb-7 pt-6 sm:min-h-[13rem] sm:pb-8 lg:min-h-[12.5rem] lg:pb-7">
+          <div className="max-w-3xl" style={heroFadeStyle}>
+            <h1 className="mb-0! text-[1.7rem]! font-bold leading-none text-white! sm:text-4xl!">
+              Browse San Antonio Artists
+            </h1>
           </div>
         </div>
       </section>
