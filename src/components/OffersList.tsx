@@ -968,7 +968,7 @@ const OfferDetailsDialog = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => (
   <Transition appear show={!!offer} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120]" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -978,11 +978,11 @@ const OfferDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
-        <div className="flex min-h-full items-center justify-center p-4">
+      <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -992,7 +992,7 @@ const OfferDetailsDialog = ({
             leaveFrom="scale-100 opacity-100"
             leaveTo="scale-95 opacity-0"
           >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
               {offer && (
                 <>
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
@@ -1018,16 +1018,16 @@ const OfferDetailsDialog = ({
                     </button>
                   </div>
 
-                  <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
-                    <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+                  <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[1fr_0.95fr]">
+                    <div className="flex items-center justify-center border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
                           src={offer.fullUrl || offer.thumbUrl || undefined}
                           alt={offer.sourceType === "flash" ? offer.flashTitle || "Flash offer" : "Offer sample"}
-                          className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                          className="max-h-[58dvh] w-full object-contain sm:max-h-[calc(100dvh-5.75rem-7rem)] lg:max-h-none"
                         />
                       ) : (
-                        <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                        <div className="flex min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
                           <span>No sample image uploaded</span>
                         </div>
@@ -1035,7 +1035,7 @@ const OfferDetailsDialog = ({
                     </div>
 
                     <div className="p-5 sm:p-6">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-center gap-4">
                           <img
                             src={offer.clientAvatar || "/default-avatar.png"}
@@ -1141,12 +1141,12 @@ const OfferDetailsDialog = ({
                             {offer.dateOptions.map((option, index) => (
                               <div
                                 key={`${option.date}-${option.time}-${index}`}
-                                className="flex items-center justify-between rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                                className="flex flex-col gap-1 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                               >
                                 <span className="text-neutral-500">
                                   Option {index + 1}
                                 </span>
-                                <span className="font-medium text-white">
+                                <span className="font-medium text-white sm:text-right">
                                   {formatAppointment(option)}
                                 </span>
                               </div>
