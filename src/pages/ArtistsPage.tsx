@@ -568,7 +568,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate h-[17rem] overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 sm:h-[18rem] lg:h-[18rem]"
+        className="relative isolate h-[14rem] overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 sm:h-[14.5rem] md:h-[15rem]"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -592,16 +592,16 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute bottom-0 left-1/2 w-[min(116vw,520px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:w-[min(82vw,520px)] md:w-[min(54vw,500px)] lg:w-[min(42vw,470px)]"
+          className="pointer-events-none absolute -bottom-px left-1/2 w-[min(116vw,520px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:w-[min(82vw,520px)] md:w-[min(54vw,500px)] lg:w-[min(42vw,470px)]"
           style={{ opacity: 0.04 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto flex h-full max-w-[1300px] items-start pt-[7.25rem] sm:pt-[7.5rem] md:items-end md:pb-8 md:pt-0 lg:pb-7">
+        <div className="relative z-10 mx-auto flex h-full max-w-[1300px] items-start pt-[6.95rem] sm:pt-[7.15rem] md:items-end md:pb-7 md:pt-0">
           <div className="max-w-3xl" style={heroFadeStyle}>
-            <h1 className="mb-0! text-[1.65rem]! font-bold leading-[1.05] text-white! sm:text-4xl! md:leading-none">
+            <h1 className="mb-0! text-[1.55rem]! font-bold leading-[1.05] text-white! sm:text-4xl! md:leading-none">
               Browse San Antonio Artists
             </h1>
           </div>
