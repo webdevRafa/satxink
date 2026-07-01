@@ -17,11 +17,7 @@ import {
   Check,
   ChevronDown,
   Image as ImageIcon,
-  Palette,
-  Search,
-  Users,
 } from "lucide-react";
-import CountUp from "react-countup";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
 import sa from "../assets/san-antonio.svg";
@@ -251,38 +247,6 @@ function useScrollScaledOpacity() {
   return { targetRef, progress };
 }
 
-function useViewportEntry<T extends Element>() {
-  const targetRef = useRef<T | null>(null);
-  const isInViewRef = useRef(false);
-  const [entryCount, setEntryCount] = useState(0);
-
-  useEffect(() => {
-    const target = targetRef.current;
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isInViewRef.current) {
-          isInViewRef.current = true;
-          setEntryCount((count) => count + 1);
-        } else if (!entry.isIntersecting) {
-          isInViewRef.current = false;
-        }
-      },
-      {
-        rootMargin: "0px 0px -12% 0px",
-        threshold: 0.35,
-      }
-    );
-
-    observer.observe(target);
-
-    return () => observer.disconnect();
-  }, []);
-
-  return { targetRef, entryCount };
-}
-
 function useScrollParallax(strength = 48) {
   const targetRef = useRef<HTMLElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -354,8 +318,7 @@ export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
   const { targetRef: heroRef, progress: heroFadeProgress } =
     useScrollScaledOpacity();
-  const { targetRef: metricsRef, entryCount: metricEntryCount } =
-    useViewportEntry<HTMLDivElement>();
+
   const stylesToolbarRef = useRef<HTMLDivElement | null>(null);
   const artistGridRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
@@ -493,9 +456,7 @@ export const ArtistsPage = () => {
       : `${filteredArtists.length} ${
           filteredArtists.length === 1 ? "artist" : "artists"
         }`;
-  const totalArtistValue =
-    loading && artists.length === 0 ? "..." : String(artists.length);
-  const totalArtistCount = loading && artists.length === 0 ? 0 : artists.length;
+
   const heroOpacity = 1 - heroFadeProgress;
   const heroFadeStyle = {
     opacity: heroOpacity,
@@ -505,26 +466,6 @@ export const ArtistsPage = () => {
     transformOrigin: "center top",
     willChange: "opacity, transform",
   };
-
-  const heroMetrics = [
-    {
-      label: "Verified artists",
-      value: totalArtistValue,
-      countValue: totalArtistCount,
-      icon: Users,
-    },
-    {
-      label: "Styles",
-      value: String(TATTOO_STYLES.length),
-      countValue: TATTOO_STYLES.length,
-      icon: Palette,
-    },
-    {
-      label: "Viewing",
-      value: activeStyleLabel,
-      icon: Search,
-    },
-  ];
 
   useEffect(() => {
     if (shouldHoldInitialSkeleton) {
@@ -663,44 +604,9 @@ export const ArtistsPage = () => {
             <div>
               <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
                 <h1 className="mb-0! whitespace-nowrap text-[1.7rem]! font-bold leading-none text-white! text-4xl">
-                  Find Your Artist
+                  Browse San Antonio Artists
                 </h1>
               </div>
-
-              <p className="mt-3 max-w-2xl leading-7 text-neutral-300! text-sm">
-                Browse verified San Antonio tattooers by style, portfolio
-                preview, and the kind of work you want to wear next.
-              </p>
-            </div>
-
-            <div
-              ref={metricsRef}
-              className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
-            >
-              {heroMetrics.map((metric) => {
-                const shouldAnimateCount =
-                  typeof metric.countValue === "number" && metricEntryCount > 0;
-
-                return (
-                  <div key={metric.label} className="min-w-0   ">
-                    <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
-                      {metric.label}
-                    </dt>
-                    <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
-                      {shouldAnimateCount ? (
-                        <CountUp
-                          key={`${metric.label}-${metricEntryCount}-${metric.countValue}`}
-                          end={metric.countValue}
-                          duration={1.4}
-                          separator=","
-                        />
-                      ) : (
-                        metric.value
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
@@ -726,9 +632,7 @@ export const ArtistsPage = () => {
           </div>
 
           <div className="md:hidden">
-            <div
-              className="flex min-w-0 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
+            <div className="flex min-w-0 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {TATTOO_STYLES.map((tag) => {
                 const selected = specialtyFilter === tag;
 
@@ -872,10 +776,7 @@ const DesktopStyleDropdown = ({
 
     const handlePointerDown = (event: globalThis.PointerEvent) => {
       const target = event.target;
-      if (
-        target instanceof Node &&
-        dropdownRef.current?.contains(target)
-      ) {
+      if (target instanceof Node && dropdownRef.current?.contains(target)) {
         return;
       }
 
