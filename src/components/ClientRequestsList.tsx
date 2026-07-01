@@ -498,12 +498,12 @@ const RequestDetailsDialog = ({
   onClose: () => void;
 }) => (
   <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
-        <div className="flex min-h-full items-center justify-center p-4">
+      <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="scale-95 opacity-0" enterTo="scale-100 opacity-100" leave="ease-in duration-150" leaveFrom="scale-100 opacity-100" leaveTo="scale-95 opacity-0">
             <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
               {request && (
