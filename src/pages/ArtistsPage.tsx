@@ -14,8 +14,8 @@ import "aos/dist/aos.css";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
+  Check,
+  ChevronDown,
   Image as ImageIcon,
   Palette,
   Search,
@@ -55,6 +55,12 @@ type ArtistGridItem =
       id: string;
       artist: Artist;
     };
+
+type StyleFilterOption = {
+  value: TattooStyle | "";
+  label: string;
+  count: number;
+};
 
 const PAGE_SIZE = 6;
 
@@ -351,7 +357,6 @@ export const ArtistsPage = () => {
     useScrollScaledOpacity();
   const { targetRef: metricsRef, entryCount: metricEntryCount } =
     useViewportEntry<HTMLDivElement>();
-  const styleRailRef = useRef<HTMLDivElement | null>(null);
   const stylesToolbarRef = useRef<HTMLDivElement | null>(null);
   const artistGridRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
@@ -370,15 +375,6 @@ export const ArtistsPage = () => {
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState(styleFromUrl);
-  const scrollStyleRail = useCallback((direction: -1 | 1) => {
-    const rail = styleRailRef.current;
-    if (!rail) return;
-
-    rail.scrollBy({
-      left: direction * Math.max(240, rail.clientWidth * 0.68),
-      behavior: "smooth",
-    });
-  }, []);
   const scrollArtistGridToTop = useCallback(() => {
     const grid = artistGridRef.current;
     if (!grid) return;
@@ -394,16 +390,22 @@ export const ArtistsPage = () => {
       behavior: "smooth",
     });
   }, []);
-  const handleSpecialtyFilterClick = useCallback(
-    (tag: TattooStyle) => {
+  const applySpecialtyFilter = useCallback(
+    (nextFilter: TattooStyle | "") => {
       setVisibleCount(PAGE_SIZE);
-      setSpecialtyFilter((currentFilter) => (currentFilter === tag ? "" : tag));
+      setSpecialtyFilter(nextFilter);
 
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(scrollArtistGridToTop);
       });
     },
     [scrollArtistGridToTop]
+  );
+  const handleSpecialtyFilterClick = useCallback(
+    (tag: TattooStyle) => {
+      applySpecialtyFilter(specialtyFilter === tag ? "" : tag);
+    },
+    [applySpecialtyFilter, specialtyFilter]
   );
 
   useEffect(() => {
@@ -459,6 +461,23 @@ export const ArtistsPage = () => {
           )
         : artists,
     [artists, specialtyFilter]
+  );
+  const styleFilterOptions = useMemo<StyleFilterOption[]>(
+    () => [
+      {
+        value: "",
+        label: "All styles",
+        count: artists.length,
+      },
+      ...TATTOO_STYLES.map((style) => ({
+        value: style,
+        label: style,
+        count: artists.filter((artist) =>
+          artistHasTattooStyle(artist.specialties, style)
+        ).length,
+      })),
+    ],
+    [artists]
   );
 
   const visibleArtists = useMemo(
@@ -703,7 +722,7 @@ export const ArtistsPage = () => {
             <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-neutral-300">
               Style filters
             </div>
-            <div className="inline-flex items-center gap-2 text-xs text-neutral-400">
+            <div className="inline-flex items-center gap-2 text-xs text-neutral-400 md:hidden">
               <span className=" bg-white/[0.04] px-2.5 py-1 text-neutral-200">
                 {activeStyleLabel}
               </span>
@@ -711,22 +730,9 @@ export const ArtistsPage = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Scroll styles left"
-              onClick={() => scrollStyleRail(-1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
-            >
-              <ChevronLeft
-                className="block h-5 w-5 text-white"
-                strokeWidth={3}
-                aria-hidden="true"
-              />
-            </button>
+          <div className="md:hidden">
             <div
-              ref={styleRailRef}
-              className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex min-w-0 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {TATTOO_STYLES.map((tag) => {
                 const selected = specialtyFilter === tag;
@@ -748,18 +754,21 @@ export const ArtistsPage = () => {
                 );
               })}
             </div>
-            <button
-              type="button"
-              aria-label="Scroll styles right"
-              onClick={() => scrollStyleRail(1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
-            >
-              <ChevronRight
-                className="block h-5 w-5 text-white "
-                strokeWidth={3}
-                aria-hidden="true"
-              />
-            </button>
+          </div>
+
+          <div className="hidden items-center justify-between gap-4 md:flex">
+            <DesktopStyleDropdown
+              activeValue={specialtyFilter}
+              filteredArtistLabel={filteredArtistLabel}
+              options={styleFilterOptions}
+              onSelect={applySpecialtyFilter}
+            />
+            <div className="shrink-0 text-right text-xs leading-5 text-neutral-400">
+              <p className="font-semibold text-neutral-200">
+                {activeStyleLabel}
+              </p>
+              <p>{filteredArtistLabel}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -850,6 +859,129 @@ export const ArtistsPage = () => {
         )}
       </section>
     </main>
+  );
+};
+
+const DesktopStyleDropdown = ({
+  activeValue,
+  filteredArtistLabel,
+  options,
+  onSelect,
+}: {
+  activeValue: TattooStyle | "";
+  filteredArtistLabel: string;
+  options: StyleFilterOption[];
+  onSelect: (value: TattooStyle | "") => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const activeOption =
+    options.find((option) => option.value === activeValue) || options[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        dropdownRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={dropdownRef} className="relative w-full max-w-[28rem]">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-12 w-full items-center justify-between gap-4 rounded-xl border border-white/[0.14] bg-white/[0.04] px-4! py-0! text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur transition hover:border-white/25 hover:bg-white/[0.065] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/45"
+      >
+        <span className="min-w-0">
+          <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">
+            Viewing style
+          </span>
+          <span className="mt-0.5 block truncate text-sm font-semibold text-white">
+            {activeOption.label}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-neutral-400">
+          {filteredArtistLabel}
+          <ChevronDown
+            className={`h-4 w-4 text-neutral-300 transition ${
+              open ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-full overflow-hidden rounded-xl border border-white/[0.12] bg-[#101010]/98 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <div className="max-h-[min(28rem,calc(100vh-14rem))] overflow-y-auto p-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.18)_transparent]">
+            <div role="listbox" aria-label="Filter artists by tattoo style">
+              {options.map((option) => {
+                const selected = option.value === activeValue;
+
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onSelect(option.value);
+                      setOpen(false);
+                    }}
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3! py-2! text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/40 ${
+                      selected
+                        ? "bg-[var(--color-primary)]/20 text-white"
+                        : "text-neutral-300 hover:bg-white/[0.055] hover:text-white"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                          selected
+                            ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/35"
+                            : "border-white/15 bg-white/[0.03]"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {selected && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="truncate font-semibold">
+                        {option.label}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-0.5 text-[11px] font-semibold text-neutral-400">
+                      {option.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
