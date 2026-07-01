@@ -568,7 +568,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate h-[14rem] overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 sm:h-[14.5rem] md:h-[15rem]"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-24 sm:pt-20 lg:pt-16"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -599,9 +599,9 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
 
-        <div className="relative z-10 mx-auto flex h-full max-w-[1300px] items-start pt-[6.95rem] sm:pt-[7.15rem] md:items-end md:pb-7 md:pt-0">
+        <div className="relative z-10 mx-auto flex min-h-[15rem] max-w-[1300px] items-end pb-8 pt-8 sm:min-h-[16rem] sm:pb-10 lg:min-h-[15rem] lg:pb-8">
           <div className="max-w-3xl" style={heroFadeStyle}>
-            <h1 className="mb-0! text-[1.55rem]! font-bold leading-[1.05] text-white! sm:text-4xl! md:leading-none">
+            <h1 className="mb-0! text-[1.7rem]! font-bold leading-none text-white! text-4xl">
               Browse San Antonio Artists
             </h1>
           </div>
