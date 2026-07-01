@@ -398,7 +398,7 @@ const FlashMarketplacePage = () => {
       </section>
 
       <section className="mx-auto max-w-[1300px] px-4 pt-6">
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3 shadow-lg shadow-black/20">
+        <section className="select-none rounded-xl border border-white/10 bg-white/[0.03] p-3 shadow-lg shadow-black/20">
           <div
             className={`grid gap-3 ${
               activeTab === "flashes"
@@ -406,7 +406,7 @@ const FlashMarketplacePage = () => {
                 : ""
             }`}
           >
-            <label className="relative block">
+            <label className="relative block select-none">
               <Search
                 size={18}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
@@ -415,13 +415,13 @@ const FlashMarketplacePage = () => {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by subject, style, artist, sheet, or flash title"
-                className="h-12 w-full rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35"
+                className="h-12 w-full select-none rounded-xl border border-white/10 bg-black/25 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-black/35 [&::placeholder]:select-none"
               />
             </label>
 
             {activeTab === "flashes" && (
               <>
-                <label className="relative block">
+                <label className="relative block select-none">
                   <SlidersHorizontal
                     size={18}
                     className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
@@ -431,7 +431,7 @@ const FlashMarketplacePage = () => {
                     onChange={(event) =>
                       setPriceSort(event.target.value as PriceSort)
                     }
-                    className="h-12 w-full appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
+                    className="h-12 w-full select-none appearance-none rounded-xl border border-white/10 bg-[#151515] pl-11 pr-4 text-sm font-semibold text-white outline-none transition focus:border-white/30"
                   >
                     <option value="newest">Sort: newest</option>
                     <option value="price_asc">Price: low to high</option>
@@ -439,7 +439,7 @@ const FlashMarketplacePage = () => {
                   </select>
                 </label>
 
-                <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+                <div className="select-none rounded-xl border border-white/10 bg-black/25 p-2">
                   <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] text-white/35">
                       <Filter size={16} />
@@ -464,7 +464,7 @@ const FlashMarketplacePage = () => {
           </div>
         </section>
 
-        <div className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="mt-8 flex select-none flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => handleTabChange("flashes")}
@@ -569,7 +569,7 @@ const BudgetInput = ({
   value: string;
   onChange: (value: string) => void;
 }) => (
-  <label className="relative block">
+  <label className="relative block select-none">
     <span className="sr-only">{label} budget</span>
     <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/35">
       $
@@ -581,7 +581,7 @@ const BudgetInput = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={label}
-      className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.035] pl-5 pr-2 text-xs font-semibold text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.06]"
+      className="h-8 w-full select-none rounded-lg border border-white/10 bg-white/[0.035] pl-5 pr-2 text-xs font-semibold text-white outline-none transition placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.06] [&::placeholder]:select-none"
     />
   </label>
 );
