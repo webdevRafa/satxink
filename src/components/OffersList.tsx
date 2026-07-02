@@ -419,8 +419,8 @@ const OffersList = ({
                   onClick={() => setStatusFilter(filter.value)}
                   className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     statusFilter === filter.value
-                      ? "border-white bg-white text-black"
-                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                      ? "border-white/40 bg-white/5 text-white"
+                      : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
                   }`}
                 >
                   {filter.label}
@@ -516,7 +516,7 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(170px,.86fr) 88px minmax(140px,.66fr) minmax(150px,.7fr) minmax(210px,.96fr) 96px minmax(230px,.82fr)";
+    "minmax(170px,.86fr) 88px minmax(104px,.48fr) minmax(96px,.42fr) minmax(136px,.58fr) minmax(160px,.72fr) 96px minmax(230px,.82fr)";
 
   return (
     <>
@@ -534,15 +534,16 @@ const OffersTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1120px]">
+          <div className="min-w-[1240px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Client</span>
               <span>Reference</span>
-              <span>Scope</span>
-              <span>Price | Deposit</span>
+              <span>Sessions</span>
+              <span>Total</span>
+              <span>Deposit to book</span>
               <span>Earliest option</span>
               <span>Status</span>
               <span className="text-right">Actions</span>
@@ -665,7 +666,7 @@ const OfferRow = ({
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
   const isFlashOffer = offer.sourceType === "flash";
-  const scopeLabel = getOfferScopeLabel(offer);
+  const sessionLabel = getOfferSessionLabel(offer);
   const statusTitle = getOfferStatusTitle(offer);
   const clientName = offer.clientName || "Client";
   const clientTableName = getClientFirstName(offer);
@@ -719,16 +720,18 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          {scopeLabel.primary}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {scopeLabel.secondary}
+          {sessionLabel}
         </p>
       </div>
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          ${offer.price} <span className="text-neutral-600">|</span>{" "}
+          ${offer.price}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">
           {formatDeposit(offer)}
         </p>
       </div>
@@ -738,9 +741,6 @@ const OfferRow = ({
           {earliestDateOption
             ? formatAppointment(earliestDateOption, "compact")
             : "No date set"}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {offer.shopName || (isFlashOffer ? "Flash item" : "Shop not set")}
         </p>
       </div>
 
@@ -1344,33 +1344,16 @@ const getDeclineReasonLabel = (offer: DashboardOffer) => {
   return "Reason not provided";
 };
 
-const getOfferScopeLabel = (offer: DashboardOffer) => {
-  if (offer.sourceType === "flash") {
-    return {
-      primary: "Flash",
-      secondary: offer.flashTitle || "Flash item",
-    };
-  }
-
+const getOfferSessionLabel = (offer: DashboardOffer) => {
   if (
     offer.projectType === "multi_session" ||
     Number(offer.estimatedSessionCount || 1) > 1
   ) {
     const count = Math.max(Number(offer.estimatedSessionCount || 2), 2);
-
-    return {
-      primary: `${count} sessions`,
-      secondary:
-        offer.sessionScheduling === "first_session_now_rest_later"
-          ? "Rest scheduled later"
-          : "Multi-session project",
-    };
+    return `${count} sessions`;
   }
 
-  return {
-    primary: "Single session",
-    secondary: offer.shopName || "Custom tattoo",
-  };
+  return "1 session";
 };
 
 const getRevisionRequestFromOffer = (

@@ -919,6 +919,7 @@ const RequestRow = ({
       </button>
 
       <PreviewMetaRows
+        labelWidth="3.9rem"
         rows={[
           {
             label: "Place",
