@@ -61,7 +61,12 @@ import {
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 import type { Booking, ProjectAmendment } from "../types/Booking";
 import type { Offer } from "../types/Offer";
 import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
@@ -75,7 +80,13 @@ const STYLE_OPTIONS = TATTOO_STYLES;
 const INTEREST_GROUPS = [
   {
     label: "Anime",
-    tags: ["Dragon Ball Z", "Naruto", "One Piece", "Demon Slayer", "Studio Ghibli"],
+    tags: [
+      "Dragon Ball Z",
+      "Naruto",
+      "One Piece",
+      "Demon Slayer",
+      "Studio Ghibli",
+    ],
   },
   {
     label: "Sports",
@@ -247,7 +258,9 @@ const createProfileFormState = (
     interestCategories: Array.isArray(client?.interestCategories)
       ? client.interestCategories
       : [],
-    interestTags: Array.isArray(client?.interestTags) ? client.interestTags : [],
+    interestTags: Array.isArray(client?.interestTags)
+      ? client.interestTags
+      : [],
     tattooGoals: Array.isArray(client?.tattooGoals) ? client.tattooGoals : [],
     budgetRange: client?.budgetRange || "",
     timeframe: client?.timeframe || "",
@@ -258,13 +271,19 @@ const ClientDashboardView = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(null);
-  const [selectedSession, setSelectedSession] = useState<ClientDashboardBooking | null>(null);
-  const [sessionAmendments, setSessionAmendments] = useState<ProjectAmendment[]>([]);
+  const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(
+    null
+  );
+  const [selectedSession, setSelectedSession] =
+    useState<ClientDashboardBooking | null>(null);
+  const [sessionAmendments, setSessionAmendments] = useState<
+    ProjectAmendment[]
+  >([]);
   const [scheduleProposalSession, setScheduleProposalSession] =
     useState<ClientDashboardBooking | null>(null);
-  const [pauseSessionMode, setPauseSessionMode] =
-    useState<"pause" | "resume" | null>(null);
+  const [pauseSessionMode, setPauseSessionMode] = useState<
+    "pause" | "resume" | null
+  >(null);
   const [activeView, setActiveView] = useState<ClientView>(() =>
     getClientDashboardView(searchParams.get("tab"))
   );
@@ -273,9 +292,9 @@ const ClientDashboardView = () => {
   const [dashboardRequests, setDashboardRequests] = useState<
     ClientDashboardRequest[]
   >([]);
-  const [dashboardOffers, setDashboardOffers] = useState<ClientDashboardOffer[]>(
-    []
-  );
+  const [dashboardOffers, setDashboardOffers] = useState<
+    ClientDashboardOffer[]
+  >([]);
   const [profileForm, setProfileForm] = useState<ClientProfileFormState>(
     createProfileFormState(null)
   );
@@ -303,10 +322,13 @@ const ClientDashboardView = () => {
     }
   }, [searchParams]);
 
-  const handleViewChange = useCallback((view: ClientView) => {
-    setActiveView(view);
-    setSearchParams(view === "overview" ? {} : { tab: view });
-  }, [setSearchParams]);
+  const handleViewChange = useCallback(
+    (view: ClientView) => {
+      setActiveView(view);
+      setSearchParams(view === "overview" ? {} : { tab: view });
+    },
+    [setSearchParams]
+  );
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -320,14 +342,21 @@ const ClientDashboardView = () => {
         return;
       }
 
-      if (user.providerData.some((provider) => provider.providerId === "google.com")) {
+      if (
+        user.providerData.some(
+          (provider) => provider.providerId === "google.com"
+        )
+      ) {
         await syncGoogleAvatar();
       }
 
       const userRef = doc(db, "users", user.uid);
       unsubscribeProfile = onSnapshot(userRef, (snap) => {
         const data = snap.exists() ? snap.data() : {};
-        const clientNameParts = getClientNameParts(data, user.displayName || "Client");
+        const clientNameParts = getClientNameParts(
+          data,
+          user.displayName || "Client"
+        );
         const nextClient = {
           id: user.uid,
           ...data,
@@ -343,11 +372,15 @@ const ClientDashboardView = () => {
           interestCategories: Array.isArray(data.interestCategories)
             ? data.interestCategories
             : [],
-          interestTags: Array.isArray(data.interestTags) ? data.interestTags : [],
+          interestTags: Array.isArray(data.interestTags)
+            ? data.interestTags
+            : [],
           tattooGoals: Array.isArray(data.tattooGoals) ? data.tattooGoals : [],
           budgetRange: data.budgetRange || "",
           timeframe: data.timeframe || "",
-          likedArtists: Array.isArray(data.likedArtists) ? data.likedArtists : [],
+          likedArtists: Array.isArray(data.likedArtists)
+            ? data.likedArtists
+            : [],
           savedPosts: Array.isArray(data.savedPosts) ? data.savedPosts : [],
         } as ClientProfile;
 
@@ -417,17 +450,18 @@ const ClientDashboardView = () => {
           })) as ClientDashboardBooking[];
           setBookings(nextBookings);
           updateCount("overview", nextBookings.length);
-          updateCount(
-            "bookings",
-            nextBookings.length
-          );
+          updateCount("bookings", nextBookings.length);
           updateCount(
             "sessions",
-            nextBookings.filter((booking) => isClientSessionLedgerBooking(booking)).length
+            nextBookings.filter((booking) =>
+              isClientSessionLedgerBooking(booking)
+            ).length
           );
           updateCount(
             "projects",
-            nextBookings.filter((booking) => isClientMultiSessionBooking(booking)).length
+            nextBookings.filter((booking) =>
+              isClientMultiSessionBooking(booking)
+            ).length
           );
         },
         (error) => console.error("Client booking listener failed:", error)
@@ -481,7 +515,11 @@ const ClientDashboardView = () => {
   };
 
   const toggleArrayValue = (
-    key: "preferredStyles" | "interestCategories" | "interestTags" | "tattooGoals",
+    key:
+      | "preferredStyles"
+      | "interestCategories"
+      | "interestTags"
+      | "tattooGoals",
     value: string
   ) => {
     updateProfileForm((current) => {
@@ -533,8 +571,13 @@ const ClientDashboardView = () => {
     setIsUploadingAvatar(true);
 
     try {
-      await Promise.allSettled([deleteObject(originalRef), deleteObject(processedRef)]);
-      await uploadBytes(originalRef, croppedFile, { contentType: croppedFile.type });
+      await Promise.allSettled([
+        deleteObject(originalRef),
+        deleteObject(processedRef),
+      ]);
+      await uploadBytes(originalRef, croppedFile, {
+        contentType: croppedFile.type,
+      });
 
       let avatarUrl = "";
       for (let attempt = 0; attempt < 12; attempt++) {
@@ -553,9 +596,16 @@ const ClientDashboardView = () => {
         updatedAt: serverTimestamp(),
       });
 
-      const previewAvatarUrl = `${avatarUrl}${avatarUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
-      setClient((current) => (current ? { ...current, avatarUrl: previewAvatarUrl } : current));
-      setProfileForm((current) => ({ ...current, avatarUrl: previewAvatarUrl }));
+      const previewAvatarUrl = `${avatarUrl}${
+        avatarUrl.includes("?") ? "&" : "?"
+      }t=${Date.now()}`;
+      setClient((current) =>
+        current ? { ...current, avatarUrl: previewAvatarUrl } : current
+      );
+      setProfileForm((current) => ({
+        ...current,
+        avatarUrl: previewAvatarUrl,
+      }));
       setAvatarCropSrc(null);
       toast.success("Profile photo updated.");
     } catch (error) {
@@ -635,7 +685,9 @@ const ClientDashboardView = () => {
     }
   };
 
-  const handleConfirmExternalPayment = async (booking: ClientDashboardBooking) => {
+  const handleConfirmExternalPayment = async (
+    booking: ClientDashboardBooking
+  ) => {
     const artistAlreadyConfirmed =
       booking.remainingPaymentStatus === "artist_confirmed";
     const confirmationSessionNumber = getPayableSessionNumber(booking);
@@ -694,13 +746,19 @@ const ClientDashboardView = () => {
         booking.depositAmount ||
         0
     );
-    const nextPaid = Math.min(Number(booking.price || 0), currentPaid + amountToConfirm);
+    const nextPaid = Math.min(
+      Number(booking.price || 0),
+      currentPaid + amountToConfirm
+    );
     const nextRemaining = Math.max(Number(booking.price || 0) - nextPaid, 0);
     const sessionNumber = Math.max(
       Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
       1
     );
-    const sessionCount = Math.max(Number(booking.estimatedSessionCount || 1), 1);
+    const sessionCount = Math.max(
+      Number(booking.estimatedSessionCount || 1),
+      1
+    );
     const installmentTiming =
       booking.sessionInstallmentTiming === "before_session"
         ? "before_session"
@@ -751,8 +809,11 @@ const ClientDashboardView = () => {
           remainingPaymentStatus: nextRemaining > 0 ? "not_due" : "confirmed",
           externalRemainingClientConfirmedAt: serverTimestamp(),
           remainingPaidAt:
-            nextRemaining > 0 ? booking.remainingPaidAt ?? null : serverTimestamp(),
-          paidAt: nextRemaining > 0 ? booking.paidAt ?? null : serverTimestamp(),
+            nextRemaining > 0
+              ? booking.remainingPaidAt ?? null
+              : serverTimestamp(),
+          paidAt:
+            nextRemaining > 0 ? booking.paidAt ?? null : serverTimestamp(),
           remainingPaidAmount:
             Number(booking.remainingPaidAmount || 0) + amountToConfirm,
           remainingPaidAmountCents:
@@ -784,7 +845,9 @@ const ClientDashboardView = () => {
     }
   };
 
-  const handleDisputeExternalPayment = async (booking: ClientDashboardBooking) => {
+  const handleDisputeExternalPayment = async (
+    booking: ClientDashboardBooking
+  ) => {
     const reason =
       window.prompt("Briefly describe the issue with this payment.")?.trim() ||
       "Client reported an issue with the direct payment.";
@@ -919,7 +982,9 @@ const ClientDashboardView = () => {
     profileForm.tattooGoals.length > 0,
   ];
   const profileCompletion = Math.round(
-    (profileCompletionItems.filter(Boolean).length / profileCompletionItems.length) * 100
+    (profileCompletionItems.filter(Boolean).length /
+      profileCompletionItems.length) *
+      100
   );
   const profileStrengthColor =
     profileCompletion === 100
@@ -981,7 +1046,9 @@ const ClientDashboardView = () => {
       actions.push({
         id: `deposit-${pendingDeposit.id}`,
         label: "Deposit payment needed",
-        description: `${pendingDeposit.artistName || "Artist"} is waiting for the deposit to confirm your appointment.`,
+        description: `${
+          pendingDeposit.artistName || "Artist"
+        } is waiting for the deposit to confirm your appointment.`,
         tone: "amber",
         cta: "Pay deposit",
         onClick: () => navigate(`/payment/${pendingDeposit.id}`),
@@ -994,7 +1061,9 @@ const ClientDashboardView = () => {
         label: isClientMultiSessionBooking(payableBooking)
           ? "Session payment requested"
           : "Remaining balance due",
-        description: `${formatMoney(getClientPayableAmount(payableBooking))} is ready to pay for ${payableBooking.artistName || "your artist"}.`,
+        description: `${formatMoney(
+          getClientPayableAmount(payableBooking)
+        )} is ready to pay for ${payableBooking.artistName || "your artist"}.`,
         tone: "amber",
         cta: "Pay now",
         onClick: () => navigate(`/payment/${payableBooking.id}`),
@@ -1005,7 +1074,9 @@ const ClientDashboardView = () => {
       actions.push({
         id: `direct-${directPaymentBooking.id}`,
         label: "Direct payment confirmation",
-        description: `Confirm or review the direct payment status for ${directPaymentBooking.artistName || "your artist"}.`,
+        description: `Confirm or review the direct payment status for ${
+          directPaymentBooking.artistName || "your artist"
+        }.`,
         tone: "sky",
         cta: "Open record",
         onClick: () => setSelectedSession(directPaymentBooking),
@@ -1016,7 +1087,9 @@ const ClientDashboardView = () => {
       actions.push({
         id: `offer-${pendingOffer.id}`,
         label: "Offer waiting for response",
-        description: `${pendingOffer.displayName || "An artist"} sent an offer for ${formatMoney(pendingOffer.price)}.`,
+        description: `${
+          pendingOffer.displayName || "An artist"
+        } sent an offer for ${formatMoney(pendingOffer.price)}.`,
         tone: "emerald",
         cta: "Review offers",
         onClick: () => handleViewChange("offers"),
@@ -1027,9 +1100,13 @@ const ClientDashboardView = () => {
       actions.push({
         id: `appointment-${nextAppointment.id}`,
         label: "Upcoming appointment",
-        description: `${formatAppointment(nextAppointment.selectedDate)} with ${nextAppointment.artistName || "your artist"}.`,
+        description: `${formatAppointment(nextAppointment.selectedDate)} with ${
+          nextAppointment.artistName || "your artist"
+        }.`,
         tone: "neutral",
-        cta: isClientMultiSessionBooking(nextAppointment) ? "Open project" : "Open booking",
+        cta: isClientMultiSessionBooking(nextAppointment)
+          ? "Open project"
+          : "Open booking",
         onClick: () =>
           isClientMultiSessionBooking(nextAppointment)
             ? handleViewChange("projects")
@@ -1041,7 +1118,8 @@ const ClientDashboardView = () => {
       actions.push({
         id: "profile-completion",
         label: "Complete your client profile",
-        description: "A stronger profile gives artists better context when you request work.",
+        description:
+          "A stronger profile gives artists better context when you request work.",
         tone: "neutral",
         cta: "Finish profile",
         onClick: () => handleViewChange("profile"),
@@ -1128,7 +1206,9 @@ const ClientDashboardView = () => {
             }}
           />
         )}
-        {client && activeView === "requests" && <ClientRequestsList clientId={client.id} />}
+        {client && activeView === "requests" && (
+          <ClientRequestsList clientId={client.id} />
+        )}
         {client && activeView === "offers" && (
           <ClientOffersList
             clientId={client.id}
@@ -1137,12 +1217,16 @@ const ClientDashboardView = () => {
                 ...current,
                 offers: Math.max(current.offers - 1, 0),
                 bookings:
-                  outcome === "accepted" ? current.bookings + 1 : current.bookings,
+                  outcome === "accepted"
+                    ? current.bookings + 1
+                    : current.bookings,
               }));
             }}
           />
         )}
-        {client && activeView === "bookings" && <ClientBookingsList clientId={client.id} />}
+        {client && activeView === "bookings" && (
+          <ClientBookingsList clientId={client.id} />
+        )}
         {client && activeView === "sessions" && (
           <ClientSessionsSection
             sessions={sessions}
@@ -1249,7 +1333,11 @@ const ClientProfileSettings = ({
       | ((current: ClientProfileFormState) => ClientProfileFormState)
   ) => void;
   onToggleArrayValue: (
-    key: "preferredStyles" | "interestCategories" | "interestTags" | "tattooGoals",
+    key:
+      | "preferredStyles"
+      | "interestCategories"
+      | "interestTags"
+      | "tattooGoals",
     value: string
   ) => void;
 }) => (
@@ -1319,7 +1407,9 @@ const ClientProfileSettings = ({
               <input
                 type="text"
                 value={profileForm.firstName}
-                onChange={(event) => onUpdate({ firstName: event.target.value })}
+                onChange={(event) =>
+                  onUpdate({ firstName: event.target.value })
+                }
                 className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
                 placeholder="Ralph"
               />
@@ -1384,14 +1474,20 @@ const ClientProfileSettings = ({
                   className="h-16 w-16 rounded-full border border-white/10 object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white">Update your avatar</p>
+                  <p className="text-sm font-medium text-white">
+                    Update your avatar
+                  </p>
                   <p className="mt-1 text-xs text-neutral-500">
                     Upload and crop a square image for SATX Ink.
                   </p>
                 </div>
                 <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white">
                   {isUploadingAvatar ? (
-                    <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+                    <LoaderCircle
+                      size={15}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
                   ) : (
                     <Camera size={15} aria-hidden="true" />
                   )}
@@ -1459,19 +1555,25 @@ const ClientProfileSettings = ({
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             {INTEREST_GROUPS.map((group) => {
-              const selected = profileForm.interestCategories.includes(group.label);
+              const selected = profileForm.interestCategories.includes(
+                group.label
+              );
               return (
                 <button
                   key={group.label}
                   type="button"
-                  onClick={() => onToggleArrayValue("interestCategories", group.label)}
+                  onClick={() =>
+                    onToggleArrayValue("interestCategories", group.label)
+                  }
                   className={`rounded-lg border p-4 text-left transition ${
                     selected
                       ? "border-white bg-white text-[#0b0b0b]"
                       : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
                   }`}
                 >
-                  <span className="block text-sm font-semibold">{group.label}</span>
+                  <span className="block text-sm font-semibold">
+                    {group.label}
+                  </span>
                   <span className="mt-1 block text-xs opacity-70">
                     {group.tags.slice(0, 3).join(", ")}
                   </span>
@@ -1512,7 +1614,9 @@ const ClientProfileSettings = ({
               <input
                 type="text"
                 value={customInterestTag}
-                onChange={(event) => onCustomInterestTagChange(event.target.value)}
+                onChange={(event) =>
+                  onCustomInterestTagChange(event.target.value)
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
@@ -1573,7 +1677,9 @@ const ClientProfileSettings = ({
               </span>
               <select
                 value={profileForm.budgetRange}
-                onChange={(event) => onUpdate({ budgetRange: event.target.value })}
+                onChange={(event) =>
+                  onUpdate({ budgetRange: event.target.value })
+                }
                 className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
               >
                 <option value="">Select a range</option>
@@ -1592,7 +1698,9 @@ const ClientProfileSettings = ({
               </span>
               <select
                 value={profileForm.timeframe}
-                onChange={(event) => onUpdate({ timeframe: event.target.value })}
+                onChange={(event) =>
+                  onUpdate({ timeframe: event.target.value })
+                }
                 className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
               >
                 <option value="">Select a timeline</option>
@@ -1667,9 +1775,18 @@ const ClientProfilePreview = ({
       </div>
 
       <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
-        <PreviewRow label="Location" value={profileForm.location || "Not selected"} />
-        <PreviewRow label="Budget" value={profileForm.budgetRange || "Not selected"} />
-        <PreviewRow label="Timeline" value={profileForm.timeframe || "Not selected"} />
+        <PreviewRow
+          label="Location"
+          value={profileForm.location || "Not selected"}
+        />
+        <PreviewRow
+          label="Budget"
+          value={profileForm.budgetRange || "Not selected"}
+        />
+        <PreviewRow
+          label="Timeline"
+          value={profileForm.timeframe || "Not selected"}
+        />
         <PreviewRow
           label="Interests"
           value={
@@ -1686,7 +1803,6 @@ const ClientProfilePreview = ({
 const ClientHero = ({
   client,
   activeView,
-  bookings,
 }: {
   client: ClientProfile;
   activeView: ClientView;
@@ -1721,34 +1837,12 @@ const ClientHero = ({
           )}
         </div>
       </div>
-
-      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:min-w-[560px]">
-        <ClientMetric icon={<Heart size={17} />} label="Following" value={client.likedArtists?.length || 0} />
-        <ClientMetric
-          icon={<Layers size={17} />}
-          label="Projects"
-          value={bookings.filter((booking) => isClientMultiSessionBooking(booking)).length}
-        />
-        <ClientMetric
-          icon={<CreditCard size={17} />}
-          label="Open balance"
-          value={formatMoney(
-            bookings.reduce((total, booking) => total + getRemainingBalance(booking), 0)
-          )}
-        />
-        <ClientMetric
-          icon={<CalendarCheck size={17} />}
-          label="Sessions"
-          value={bookings.filter((booking) => isClientSessionLedgerBooking(booking)).length}
-        />
-      </div>
     </div>
   </section>
 );
 
 const ClientOverviewSection = ({
   actions,
-  bookings,
   offers,
   projects,
   requests,
@@ -1767,13 +1861,6 @@ const ClientOverviewSection = ({
   onOpenView: (view: ClientView) => void;
   onPay: (bookingId: string) => void;
 }) => {
-  const openBalance = bookings.reduce(
-    (total, booking) => total + getRemainingBalance(booking),
-    0
-  );
-  const nextDue = bookings
-    .map((booking) => getClientPayableAmount(booking))
-    .find((amount) => amount > 0) || 0;
   const sortedOffers = [...offers].sort(
     (a, b) => getBookingCreatedTime(b) - getBookingCreatedTime(a)
   );
@@ -1783,13 +1870,6 @@ const ClientOverviewSection = ({
 
   return (
     <section className="w-full max-w-7xl space-y-6">
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Next due" value={formatMoney(nextDue)} />
-        <MetricCard label="Open balance" value={formatMoney(openBalance)} />
-        <MetricCard label="Active projects" value={projects.length} />
-        <MetricCard label="Pending offers" value={offers.length} />
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,.75fr)]">
         <section className="rounded-lg border border-white/10 bg-[#111111] p-5">
           <div className="flex items-start justify-between gap-4">
@@ -1812,7 +1892,8 @@ const ClientOverviewSection = ({
                 Everything is caught up
               </p>
               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                New offers, payment requests, and project updates will appear here.
+                New offers, payment requests, and project updates will appear
+                here.
               </p>
             </div>
           ) : (
@@ -1874,7 +1955,8 @@ const ClientOverviewSection = ({
             </button>
           </div>
           <p className="mt-3 text-sm leading-6 text-neutral-400">
-            Followed artist flash, sheets, and gallery updates live in Following.
+            Followed artist flash, sheets, and gallery updates live in
+            Following.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <DetailTile
@@ -1964,7 +2046,10 @@ const ClientOverviewSection = ({
               meta={request.status || "pending"}
               description={
                 request.offerPreparationStatus
-                  ? `Artist is ${request.offerPreparationStatus.replace("_", " ")}`
+                  ? `Artist is ${request.offerPreparationStatus.replace(
+                      "_",
+                      " "
+                    )}`
                   : request.bodyPlacement || "Custom tattoo request"
               }
               onAction={() => onOpenView("requests")}
@@ -1995,9 +2080,10 @@ const ClientProjectsSection = ({
     (total, booking) => total + getRemainingBalance(booking),
     0
   );
-  const nextDue = projects
-    .map((booking) => getClientPayableAmount(booking))
-    .find((amount) => amount > 0) || 0;
+  const nextDue =
+    projects
+      .map((booking) => getClientPayableAmount(booking))
+      .find((amount) => amount > 0) || 0;
   const pendingFollowUps = projects.filter(
     (booking) =>
       getClientPayableAmount(booking) > 0 ||
@@ -2187,7 +2273,9 @@ const OverviewList = ({
   onOpenAll: () => void;
   title: string;
 }) => {
-  const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  const hasChildren = Array.isArray(children)
+    ? children.length > 0
+    : Boolean(children);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#111111] p-5">
@@ -2238,7 +2326,8 @@ const OverviewBookingRow = ({
           {booking.artistName || "Artist"}
         </p>
         <p className="mt-0.5 truncate text-xs text-neutral-500">
-          {formatAppointment(booking.selectedDate)} - {getClientPaymentStatusLabel(booking)}
+          {formatAppointment(booking.selectedDate)} -{" "}
+          {getClientPaymentStatusLabel(booking)}
         </p>
       </div>
     </div>
@@ -2283,7 +2372,11 @@ const OverviewTextRow = ({
   </button>
 );
 
-const ProjectProgressMini = ({ booking }: { booking: ClientDashboardBooking }) => {
+const ProjectProgressMini = ({
+  booking,
+}: {
+  booking: ClientDashboardBooking;
+}) => {
   const completed = Math.min(
     Number(booking.completedSessionCount || 0),
     getEstimatedSessionCount(booking)
@@ -2326,9 +2419,7 @@ const ClientSessionsSection = ({
         <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
           Client ledger
         </p>
-        <h1 className="mt-2 text-3xl! font-semibold text-white">
-          Sessions
-        </h1>
+        <h1 className="mt-2 text-3xl! font-semibold text-white">Sessions</h1>
         <p className="mt-2 max-w-2xl text-sm text-neutral-400">
           Track upcoming, in-progress, completed, and payment-pending sessions
           without exposing artist-only controls.
@@ -2392,10 +2483,14 @@ const ClientSessionsTable = ({
           <div className="divide-y divide-white/10">
             {sessions.map((booking) => {
               const sessionStatus = booking.sessionStatus || "in_progress";
-              const remainingPaymentStatus = booking.remainingPaymentStatus || "not_due";
+              const remainingPaymentStatus =
+                booking.remainingPaymentStatus || "not_due";
               const isMultiSession = isClientMultiSessionBooking(booking);
               const activeSessionNumber = getPayableSessionNumber(booking);
-              const sessionCount = Math.max(Number(booking.estimatedSessionCount || 1), 1);
+              const sessionCount = Math.max(
+                Number(booking.estimatedSessionCount || 1),
+                1
+              );
               const remainingBalance = getRemainingBalance(booking);
               const payableAmount = getClientPayableAmount(booking);
               const dueThisSession =
@@ -2438,14 +2533,19 @@ const ClientSessionsTable = ({
 
                   <div className="flex min-w-0 flex-col items-start gap-2 pr-3">
                     <SessionStatusBadge status={sessionStatus} />
-                    <RemainingPaymentBadge status={remainingPaymentStatus} viewer="client" />
+                    <RemainingPaymentBadge
+                      status={remainingPaymentStatus}
+                      viewer="client"
+                    />
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
                       Session {activeSessionNumber} of {sessionCount}
                     </span>
                   </div>
 
                   <SessionPaymentSummary
-                    primaryLabel={isMultiSession ? "Due this session" : "Balance due"}
+                    primaryLabel={
+                      isMultiSession ? "Due this session" : "Balance due"
+                    }
                     primaryAmount={dueThisSession}
                     remainingBalance={remainingBalance}
                     depositAmount={booking.depositAmount}
@@ -2627,7 +2727,9 @@ const ClientSessionRecordDialog = ({
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex min-w-0 items-center gap-4">
                             <img
-                              src={booking.artistAvatar || "/default-avatar.png"}
+                              src={
+                                booking.artistAvatar || "/default-avatar.png"
+                              }
                               alt={booking.artistName || "Artist"}
                               className="h-14 w-14 rounded-full border border-white/10 object-cover"
                             />
@@ -2640,19 +2742,44 @@ const ClientSessionRecordDialog = ({
                               </p>
                             </div>
                           </div>
-                          <SessionStatusBadge status={booking.sessionStatus || "in_progress"} />
+                          <SessionStatusBadge
+                            status={booking.sessionStatus || "in_progress"}
+                          />
                         </div>
 
                         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                          <DetailTile icon={<DollarSign size={17} />} label="Offer price" value={formatMoney(booking.price)} />
-                          <DetailTile icon={<ReceiptText size={17} />} label="Deposit" value={formatMoney(booking.depositAmount)} />
-                          <DetailTile icon={<CreditCard size={17} />} label="Remaining" value={formatMoney(remainingBalance)} />
-                          <DetailTile icon={<CalendarDays size={17} />} label="Appointment" value={formatAppointment(booking.selectedDate)} />
-                          <DetailTile icon={<Store size={17} />} label="Studio" value={booking.shopName || "Private Studio"} />
+                          <DetailTile
+                            icon={<DollarSign size={17} />}
+                            label="Offer price"
+                            value={formatMoney(booking.price)}
+                          />
+                          <DetailTile
+                            icon={<ReceiptText size={17} />}
+                            label="Deposit"
+                            value={formatMoney(booking.depositAmount)}
+                          />
+                          <DetailTile
+                            icon={<CreditCard size={17} />}
+                            label="Remaining"
+                            value={formatMoney(remainingBalance)}
+                          />
+                          <DetailTile
+                            icon={<CalendarDays size={17} />}
+                            label="Appointment"
+                            value={formatAppointment(booking.selectedDate)}
+                          />
+                          <DetailTile
+                            icon={<Store size={17} />}
+                            label="Studio"
+                            value={booking.shopName || "Private Studio"}
+                          />
                           <DetailTile
                             icon={<DollarSign size={17} />}
                             label="Balance status"
-                            value={getRemainingPaymentLabel(booking.remainingPaymentStatus || "due", "client")}
+                            value={getRemainingPaymentLabel(
+                              booking.remainingPaymentStatus || "due",
+                              "client"
+                            )}
                           />
                         </div>
 
@@ -2663,7 +2790,10 @@ const ClientSessionRecordDialog = ({
                             rel="noopener noreferrer"
                             className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
                           >
-                            <MapPin size={17} className="mt-0.5 shrink-0 text-neutral-500" />
+                            <MapPin
+                              size={17}
+                              className="mt-0.5 shrink-0 text-neutral-500"
+                            />
                             {booking.shopAddress}
                           </a>
                         )}
@@ -2674,7 +2804,9 @@ const ClientSessionRecordDialog = ({
                           currentUserId={clientId}
                           amendments={amendments}
                           onRespondToAmendment={onRespondToAmendment}
-                          onPlanNextSession={() => onRequestNextSession(booking)}
+                          onPlanNextSession={() =>
+                            onRequestNextSession(booking)
+                          }
                           onPauseProject={onPauseProject}
                           onResumeProject={onResumeProject}
                           onPayPlatformFee={() => onPay(booking.id)}
@@ -2687,10 +2819,10 @@ const ClientSessionRecordDialog = ({
                                 Session progress
                               </p>
                               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                                Your artist controls session start and completion.
-                                If you pay directly at the shop, you can confirm
-                                that payment here before or after the artist
-                                confirms it.
+                                Your artist controls session start and
+                                completion. If you pay directly at the shop, you
+                                can confirm that payment here before or after
+                                the artist confirms it.
                               </p>
                             </div>
                             <RemainingPaymentBadge
@@ -2704,7 +2836,9 @@ const ClientSessionRecordDialog = ({
                               <button
                                 type="button"
                                 disabled={clientAlreadyConfirmed}
-                                onClick={() => onConfirmExternalPayment(booking)}
+                                onClick={() =>
+                                  onConfirmExternalPayment(booking)
+                                }
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 <Check size={16} />
@@ -2714,7 +2848,9 @@ const ClientSessionRecordDialog = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onDisputeExternalPayment(booking)}
+                                onClick={() =>
+                                  onDisputeExternalPayment(booking)
+                                }
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
                               >
                                 Report issue
@@ -2738,23 +2874,24 @@ const ClientSessionRecordDialog = ({
                           )}
                         </div>
 
-                        {booking.sessionPhotoUrls && booking.sessionPhotoUrls.length > 0 && (
-                          <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                            <p className="text-sm font-semibold text-white">
-                              Session photos
-                            </p>
-                            <div className="mt-3 grid grid-cols-3 gap-2">
-                              {booking.sessionPhotoUrls.map((url) => (
-                                <img
-                                  key={url}
-                                  src={url}
-                                  alt="Session record"
-                                  className="h-24 w-full rounded-md border border-white/10 object-cover"
-                                />
-                              ))}
+                        {booking.sessionPhotoUrls &&
+                          booking.sessionPhotoUrls.length > 0 && (
+                            <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                              <p className="text-sm font-semibold text-white">
+                                Session photos
+                              </p>
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                {booking.sessionPhotoUrls.map((url) => (
+                                  <img
+                                    key={url}
+                                    src={url}
+                                    alt="Session record"
+                                    className="h-24 w-full rounded-md border border-white/10 object-cover"
+                                  />
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                       </div>
                     </div>
                   </>
@@ -2788,43 +2925,43 @@ const PanelTitle = ({
   </div>
 );
 
-const ClientMetric = ({
-  icon,
+const MetricCard = ({
   label,
   value,
 }: {
-  icon: ReactNode;
   label: string;
   value: string | number;
 }) => (
-  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
-    <div className="flex min-w-0 items-center gap-1.5 text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
-      <span className="shrink-0 text-neutral-500 [&>svg]:h-3.5 [&>svg]:w-3.5">
-        {icon}
-      </span>
-      <span className="truncate">{label}</span>
-    </div>
-    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
-      {value}
-    </p>
-  </div>
-);
-
-const MetricCard = ({ label, value }: { label: string; value: string | number }) => (
   <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:min-w-[220px]">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">{label}</p>
+    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+      {label}
+    </p>
     <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
   </div>
 );
 
-const PreviewRow = ({ label, value }: { label: string; value: string | number }) => (
+const PreviewRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) => (
   <div className="flex items-center justify-between gap-4 text-sm">
     <span className="text-neutral-400">{label}</span>
     <span className="max-w-44 truncate text-right text-white">{value}</span>
   </div>
 );
 
-const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
+const DetailTile = ({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) => (
   <div className="rounded-lg border border-white/10 bg-black/25 p-3">
     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
       {icon}
@@ -2848,7 +2985,9 @@ const EmptyState = ({
       {icon}
     </div>
     <h2 className="mt-4 text-xl! font-semibold! text-white">{title}</h2>
-    <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">{description}</p>
+    <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
+      {description}
+    </p>
   </div>
 );
 
@@ -2898,7 +3037,9 @@ const SessionStatusBadge = ({ status }: { status: string }) => {
       : "border-sky-300/20 bg-sky-300/10 text-sky-100";
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+    >
       {status.replace("_", " ")}
     </span>
   );
@@ -2921,13 +3062,18 @@ const RemainingPaymentBadge = ({
       : "border-white/10 bg-white/[0.05] text-neutral-300";
 
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
+    >
       {getRemainingPaymentLabel(status, viewer)}
     </span>
   );
 };
 
-const getRemainingPaymentLabel = (status: string, viewer: "client" | "artist") => {
+const getRemainingPaymentLabel = (
+  status: string,
+  viewer: "client" | "artist"
+) => {
   if (status === "not_due") return "Not due yet";
   if (status === "due") return "Payment due";
   if (status === "artist_confirmed") {
@@ -2968,7 +3114,11 @@ const formatDashboardDate = (value?: Booking["createdAt"]) => {
 };
 
 const formatAppointment = (selectedDate?: { date: string; time: string }) => {
-  if (!selectedDate?.date || !selectedDate.time || selectedDate.date === "TBD") {
+  if (
+    !selectedDate?.date ||
+    !selectedDate.time ||
+    selectedDate.date === "TBD"
+  ) {
     return "TBD";
   }
 
@@ -3000,14 +3150,20 @@ const getBookingCreatedTime = (item: {
 
 const getAppointmentTime = (booking: Partial<Booking>) => {
   const selectedDate = booking.selectedDate;
-  if (!selectedDate?.date || !selectedDate.time || selectedDate.date === "TBD") {
+  if (
+    !selectedDate?.date ||
+    !selectedDate.time ||
+    selectedDate.date === "TBD"
+  ) {
     return Number.MAX_SAFE_INTEGER;
   }
 
   const [year, month, day] = selectedDate.date.split("-").map(Number);
   const [hours, minutes] = selectedDate.time.split(":").map(Number);
   const date = new Date(year, month - 1, day, hours, minutes);
-  return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime();
+  return Number.isNaN(date.getTime())
+    ? Number.MAX_SAFE_INTEGER
+    : date.getTime();
 };
 
 const compareClientBookingSchedule = (
@@ -3068,7 +3224,10 @@ const needsClientDirectPaymentAction = (booking: Partial<Booking>) =>
 const getClientPaymentStatusLabel = (booking: Partial<Booking>) => {
   if (booking.status === "pending_payment") return "Deposit due";
   if (booking.status === "cancelled") return "Cancelled";
-  if (getRemainingBalance(booking) <= 0 || booking.remainingPaymentStatus === "confirmed") {
+  if (
+    getRemainingBalance(booking) <= 0 ||
+    booking.remainingPaymentStatus === "confirmed"
+  ) {
     return "Paid";
   }
   if (booking.remainingPaymentStatus === "not_due") return "Not due yet";
@@ -3126,7 +3285,10 @@ const getRemainingInstallmentCount = (booking: Partial<Booking>) => {
     Number(booking.estimatedSessionCount || 1) - 1,
     1
   );
-  const lastPaidSessionNumber = Math.max(Number(booking.lastPaidSessionNumber || 0), 0);
+  const lastPaidSessionNumber = Math.max(
+    Number(booking.lastPaidSessionNumber || 0),
+    0
+  );
   const paidLaterInstallments =
     booking.sessionInstallmentTiming === "before_session"
       ? Math.max(lastPaidSessionNumber - 1, 0)
@@ -3182,11 +3344,13 @@ const getClientViewDescription = (view: ClientView, clientName: string) => {
 };
 
 const getActionToneClass = (tone: ClientDashboardAction["tone"]) => {
-  if (tone === "red") return "border border-red-300/25 bg-red-300/10 text-red-100";
+  if (tone === "red")
+    return "border border-red-300/25 bg-red-300/10 text-red-100";
   if (tone === "amber") {
     return "border border-amber-300/20 bg-amber-300/10 text-amber-100";
   }
-  if (tone === "sky") return "border border-sky-300/20 bg-sky-300/10 text-sky-100";
+  if (tone === "sky")
+    return "border border-sky-300/20 bg-sky-300/10 text-sky-100";
   if (tone === "emerald") {
     return "border border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
   }

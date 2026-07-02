@@ -76,7 +76,13 @@ const OFFERS_PER_PAGE = 6;
 const MOBILE_PAGINATION_SCROLL_OFFSET = 154;
 const DESKTOP_PAGINATION_SCROLL_OFFSET = 96;
 
-const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) => {
+const OffersList = ({
+  uid,
+  artist,
+}: {
+  uid: string;
+  artist: OffersListArtist;
+}) => {
   const [offers, setOffers] = useState<DashboardOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<DashboardOffer | null>(
     null
@@ -168,13 +174,23 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     [sortedOffers, statusFilter]
   );
 
-  const pendingCount = activeOffers.filter((offer) => offer.status === "pending").length;
-  const declinedCount = activeOffers.filter((offer) => offer.status === "declined").length;
+  const pendingCount = activeOffers.filter(
+    (offer) => offer.status === "pending"
+  ).length;
+  const declinedCount = activeOffers.filter(
+    (offer) => offer.status === "declined"
+  ).length;
   const newestOffer = sortedOffers[0];
-  const totalPages = Math.max(1, Math.ceil(filteredOffers.length / OFFERS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredOffers.length / OFFERS_PER_PAGE)
+  );
   const activePage = Math.min(currentPage, totalPages);
   const pageStartIndex = (activePage - 1) * OFFERS_PER_PAGE;
-  const pageEndIndex = Math.min(pageStartIndex + OFFERS_PER_PAGE, filteredOffers.length);
+  const pageEndIndex = Math.min(
+    pageStartIndex + OFFERS_PER_PAGE,
+    filteredOffers.length
+  );
   const paginatedOffers = useMemo(
     () => filteredOffers.slice(pageStartIndex, pageEndIndex),
     [filteredOffers, pageEndIndex, pageStartIndex]
@@ -310,7 +326,10 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     setRevisionRequest(null);
   };
 
-  const handleRevisionSent = async (_requestId: string, revisedOfferId?: string) => {
+  const handleRevisionSent = async (
+    _requestId: string,
+    revisedOfferId?: string
+  ) => {
     if (!revisionSourceOffer) return;
     await updateDoc(doc(db, "offers", revisionSourceOffer.id), {
       status: "revised",
@@ -339,7 +358,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl! font-semibold text-white">
-            Sent offers
+            Offers you've sent
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-neutral-400">
             Track every offer you have sent, review proposed dates, and keep an
@@ -353,13 +372,19 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
           <MetricCard
             label="Newest"
             value={
-              !loading && newestOffer ? formatShortDate(newestOffer.createdAt) : "-"
+              !loading && newestOffer
+                ? formatShortDate(newestOffer.createdAt)
+                : "-"
             }
           />
         </div>
       </div>
 
-      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        ref={filtersAnchorRef}
+        className="h-px md:hidden"
+        aria-hidden="true"
+      />
       <div
         ref={filtersPanelRef}
         className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
@@ -467,7 +492,8 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
             ? {
                 previousOfferId: revisionSourceOffer.id,
                 revisionOfOfferId:
-                  revisionSourceOffer.revisionOfOfferId || revisionSourceOffer.id,
+                  revisionSourceOffer.revisionOfOfferId ||
+                  revisionSourceOffer.id,
                 revisionReason: "client_declined",
               }
             : undefined
@@ -679,7 +705,9 @@ const OfferRow = ({
         {previewUrl ? (
           <img
             src={previewUrl}
-            alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+            alt={
+              isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"
+            }
             className="h-full w-full object-cover"
           />
         ) : (
@@ -832,7 +860,11 @@ const OfferMobileCard = ({
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+              alt={
+                isFlashOffer
+                  ? offer.flashTitle || "Flash offer"
+                  : "Offer sample"
+              }
               className="h-full w-full object-cover"
             />
           ) : (
@@ -1004,7 +1036,9 @@ const OfferDetailsDialog = ({
                       </p>
                       <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
                         {offer.sourceType === "flash"
-                          ? `Flash offer sent to ${offer.clientName || "Client"}`
+                          ? `Flash offer sent to ${
+                              offer.clientName || "Client"
+                            }`
                           : `Offer sent to ${offer.clientName || "Client"}`}
                       </Dialog.Title>
                     </div>
@@ -1023,7 +1057,11 @@ const OfferDetailsDialog = ({
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
                           src={offer.fullUrl || offer.thumbUrl || undefined}
-                          alt={offer.sourceType === "flash" ? offer.flashTitle || "Flash offer" : "Offer sample"}
+                          alt={
+                            offer.sourceType === "flash"
+                              ? offer.flashTitle || "Flash offer"
+                              : "Offer sample"
+                          }
                           className="max-h-[58dvh] w-full object-contain sm:max-h-[calc(100dvh-5.75rem-7rem)] lg:max-h-none"
                         />
                       ) : (
@@ -1060,9 +1098,9 @@ const OfferDetailsDialog = ({
                             Client declined this offer
                           </p>
                           <p className="mt-1 text-sm leading-6 text-red-50/75">
-                            You can send a fresh offer with updated price, deposit,
-                            message, or appointment options. Clearing it only removes
-                            it from your list.
+                            You can send a fresh offer with updated price,
+                            deposit, message, or appointment options. Clearing
+                            it only removes it from your list.
                           </p>
                           <div className="mt-3 inline-flex rounded-md border border-red-100/20 bg-black/20 px-3 py-2 text-sm font-semibold text-red-50">
                             Reason: {getDeclineReasonLabel(offer)}
@@ -1335,7 +1373,9 @@ const getOfferScopeLabel = (offer: DashboardOffer) => {
   };
 };
 
-const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
+const getRevisionRequestFromOffer = (
+  offer: DashboardOffer
+): RevisionRequest => ({
   id: offer.requestId || offer.id,
   clientId: offer.clientId,
   clientFirstName: offer.clientFirstName || "",
@@ -1362,9 +1402,7 @@ const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => 
 const normalizeDateOptions = (
   options: { date: string; time: string }[] | undefined
 ) => {
-  const next = options?.length
-    ? options.slice(0, 3)
-    : [{ date: "", time: "" }];
+  const next = options?.length ? options.slice(0, 3) : [{ date: "", time: "" }];
 
   while (next.length < 3) next.push({ date: "", time: "" });
   return next;
@@ -1434,7 +1472,8 @@ const getOfferTime = (offer: DashboardOffer) => {
   const createdAt = offer.createdAt;
   if (!createdAt) return 0;
   if (createdAt instanceof Date) return createdAt.getTime();
-  if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+  if (typeof createdAt.toDate === "function")
+    return createdAt.toDate().getTime();
   if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
   return 0;
 };

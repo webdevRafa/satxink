@@ -10,6 +10,7 @@ import {
   Eye,
   Filter,
   ImageIcon,
+  Timer,
   MapPin,
   MessageSquareText,
   Ruler,
@@ -148,30 +149,27 @@ const BookingRequestsList: React.FC<Props> = ({
     [bookingRequests, declinedRequestIds]
   );
 
-  const filteredRequests = useMemo(
-    () => {
-      const dateFilteredRequests = isFiltering
-        ? visibleRequests.filter((request) =>
-            requestMatchesMonth(request, selectedMonth, selectedYear)
-          )
-        : visibleRequests;
+  const filteredRequests = useMemo(() => {
+    const dateFilteredRequests = isFiltering
+      ? visibleRequests.filter((request) =>
+          requestMatchesMonth(request, selectedMonth, selectedYear)
+        )
+      : visibleRequests;
 
-      if (preparationFilter === "all") return dateFilteredRequests;
+    if (preparationFilter === "all") return dateFilteredRequests;
 
-      return dateFilteredRequests.filter((request) =>
-        preparationFilter === "preparing"
-          ? request.offerPreparationStatus === "preparing"
-          : request.offerPreparationStatus !== "preparing"
-      );
-    },
-    [
-      isFiltering,
-      preparationFilter,
-      selectedMonth,
-      selectedYear,
-      visibleRequests,
-    ]
-  );
+    return dateFilteredRequests.filter((request) =>
+      preparationFilter === "preparing"
+        ? request.offerPreparationStatus === "preparing"
+        : request.offerPreparationStatus !== "preparing"
+    );
+  }, [
+    isFiltering,
+    preparationFilter,
+    selectedMonth,
+    selectedYear,
+    visibleRequests,
+  ]);
 
   const preparingCount = visibleRequests.filter(
     (request) => request.offerPreparationStatus === "preparing"
@@ -379,12 +377,10 @@ const BookingRequestsList: React.FC<Props> = ({
     <section className="mt-6 w-full max-w-7xl space-y-6">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl! font-semibold text-white">
-            Tattoo requests
-          </h1>
+          <h1 className="text-3xl! font-semibold text-white">Client Ideas</h1>
           <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-            Review new client ideas, check availability details, and move the
-            right projects into offers.
+            Review new client ideas, check availability details, and send offers
+            when it makes sense.
           </p>
         </div>
 
@@ -393,12 +389,18 @@ const BookingRequestsList: React.FC<Props> = ({
           <MetricCard label="Preparing" value={preparingCount} />
           <MetricCard
             label="Newest"
-            value={newestRequest ? formatShortDate(newestRequest.createdAt) : "-"}
+            value={
+              newestRequest ? formatShortDate(newestRequest.createdAt) : "-"
+            }
           />
         </div>
       </div>
 
-      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        ref={filtersAnchorRef}
+        className="h-px md:hidden"
+        aria-hidden="true"
+      />
       <div
         ref={filtersPanelRef}
         className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
@@ -433,8 +435,8 @@ const BookingRequestsList: React.FC<Props> = ({
                   onClick={() => setPreparationFilter(filter.value)}
                   className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     preparationFilter === filter.value
-                      ? "border-white bg-white text-black"
-                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                      ? "border-white/40 bg-white/5 text-white"
+                      : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
                   }`}
                 >
                   {filter.label}
@@ -445,7 +447,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(Number(event.target.value))}
-              className="h-9 w-[7rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-[7.5rem] sm:px-3 sm:text-xs!"
+              className="h-9 w-[7rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold  outline-none transition focus:border-white/40 sm:h-10 sm:w-[7.5rem] sm:px-3 sm:text-xs!"
             >
               {Array.from({ length: 12 }, (_, index) => (
                 <option key={index} value={index}>
@@ -459,9 +461,9 @@ const BookingRequestsList: React.FC<Props> = ({
             <select
               value={selectedYear}
               onChange={(event) => setSelectedYear(Number(event.target.value))}
-              className="h-9 w-[4.75rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-[var(--color-primary)] sm:h-10 sm:w-20 sm:px-3 sm:text-xs!"
+              className="h-9 w-[4.75rem] rounded-md border border-white/10 bg-[#101010] px-2.5 text-[11px]! font-semibold text-white outline-none transition focus:border-white/40 sm:h-10 sm:w-20 sm:px-3 sm:text-xs!"
             >
-              {[2025, 2026, 2027].map((year) => (
+              {[2026, 2027].map((year) => (
                 <option key={year} value={year}>
                   {year}
                 </option>
@@ -471,7 +473,7 @@ const BookingRequestsList: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsFiltering(true)}
-              className="inline-flex h-9 w-[5.25rem] items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-[11px]! font-semibold text-black transition hover:bg-white/85 sm:h-10 sm:w-[5.5rem] sm:gap-2 sm:px-3! sm:text-xs!"
+              className="inline-flex h-9 w-[5.25rem] items-center justify-center gap-1.5 rounded-md bg-white/5 px-2.5! text-[11px]! font-semibold text-white transition border-white/40 border sm:h-10 sm:w-[5.5rem] sm:gap-2 sm:px-3! sm:text-xs!"
             >
               <Filter size={16} />
               Filter
@@ -650,7 +652,7 @@ const PrepareOfferDialog = ({
                       <select
                         value={selectedEta}
                         onChange={(event) => setSelectedEta(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-semibold text-white outline-none transition focus:border-[var(--color-primary)]"
+                        className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-semibold text-white outline-none transition focus:border-white/30"
                       >
                         <option value="">Choose expected timing</option>
                         {OFFER_PREPARATION_ETA_OPTIONS.map((eta) => (
@@ -665,7 +667,7 @@ const PrepareOfferDialog = ({
                       <button
                         type="button"
                         onClick={onClose}
-                        className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
+                        className="modal-action-button inline-flex items-center justify-center  px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
                       >
                         Cancel
                       </button>
@@ -673,9 +675,9 @@ const PrepareOfferDialog = ({
                         type="button"
                         disabled={!selectedEta || isSaving}
                         onClick={() => onConfirm(request, selectedEta)}
-                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white/3 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <Send size={15} />
+                        <Timer size={15} />
                         {isSaving ? "Updating..." : "Notify client"}
                       </button>
                     </div>
@@ -781,8 +783,7 @@ const RequestPagination = ({
         <span className="font-semibold text-neutral-300">
           {pageStart}-{pageEnd}
         </span>{" "}
-        of{" "}
-        <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
+        of <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
         requests
       </p>
 
@@ -888,7 +889,7 @@ const RequestRow = ({
 
       <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
         <span
-          className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+          className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
             request.sourceType === "flash"
               ? "border-amber-200/25 bg-amber-300/10 text-amber-50"
               : "border-white/10 bg-white/[0.035] text-neutral-200"
@@ -954,18 +955,6 @@ const RequestRow = ({
             ? formatFlashPrice(request.flashPrice)
             : formatBudget(request.budget)}
         </p>
-        {isPreparingOffer && (
-          <div className="mt-2 flex min-w-0">
-            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[11px] font-medium text-amber-50">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
-              <span className="truncate">
-                {request.offerPreparationEta
-                  ? `Preparing: ${request.offerPreparationEta}`
-                  : "Preparing offer"}
-              </span>
-            </span>
-          </div>
-        )}
       </div>
 
       <div className="flex min-w-0 items-center justify-end gap-1.5 pr-0">
@@ -973,7 +962,7 @@ const RequestRow = ({
           <button
             type="button"
             onClick={onPrepareOffer}
-            className={`group relative z-10 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200/55 bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:z-[70] hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white focus-visible:z-[70] ${
+            className={`group relative z-10 inline-flex h-9 items-center justify-center gap-1.5 rounded-md  bg-amber-300/3 hover:bg-amber-300/10 px-2.5! text-xs! font-semibold text-amber-50 backdrop-blur transition hover:z-[70] hover:border-amber-100/75  hover:text-white focus-visible:z-[70] ${
               isPreparingOffer ? "min-w-[88px]" : "min-w-[96px]"
             }`}
             aria-label={
@@ -982,7 +971,7 @@ const RequestRow = ({
                 : "Prepare offer and notify client"
             }
           >
-            <Send size={14} className="text-amber-200" />
+            <Timer size={14} className="text-amber-200" />
             {isPreparingOffer ? "Timing" : "Prepare"}
             <span className="pointer-events-none absolute right-0 top-[calc(100%+0.5rem)] z-[80] w-max max-w-[240px] rounded-md border border-amber-100/20 bg-[#1b1b1b] px-2.5 py-1.5 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-visible:opacity-100">
               {isPreparingOffer
@@ -994,7 +983,7 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-2.5! text-xs! font-semibold text-white transition bg-white/3 hover:bg-white/10"
         >
           <Eye size={14} />
           Details
@@ -1002,9 +991,9 @@ const RequestRow = ({
         <button
           type="button"
           onClick={onMakeOffer}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md   px-2.5! text-xs! font-semibold  text-white transition bg-white/3 hover:bg-green-300/10"
         >
-          <Send size={14} />
+          <DollarSign className="text-green-200" size={14} />
           Offer
         </button>
       </div>
@@ -1459,7 +1448,10 @@ const LoadAwareZoomImage = ({
 };
 
 const RequestReferenceGallery = ({ request }: { request: BookingRequest }) => {
-  const references = useMemo(() => getRequestReferenceImages(request), [request]);
+  const references = useMemo(
+    () => getRequestReferenceImages(request),
+    [request]
+  );
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedReference = references[selectedIndex] || references[0];
   const selectedUrl =
@@ -1572,8 +1564,9 @@ const RequestDetailsDialog = ({
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
-  const { scrollContainerRef, mobileActionsVisible } =
-    useMobileModalActionDock(Boolean(request));
+  const { scrollContainerRef, mobileActionsVisible } = useMobileModalActionDock(
+    Boolean(request)
+  );
 
   if (request?.sourceType === "flash") {
     return (
@@ -1589,183 +1582,186 @@ const RequestDetailsDialog = ({
   }
 
   return (
-  <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
-      <Transition.Child
-        as={Fragment}
-        enter="ease-out duration-300"
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        leave="ease-in duration-150"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-      >
-        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
-      </Transition.Child>
+    <Transition appear show={!!request} as={Fragment}>
+      <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
 
-      <div
-        ref={scrollContainerRef}
-        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
-      >
-        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="scale-95 opacity-0"
-            enterTo="scale-100 opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="scale-100 opacity-100"
-            leaveTo="scale-95 opacity-0"
-          >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
-              {request && (
-                <>
-                  <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        Request details
-                      </p>
-                      <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                        {request.clientName || "Client"} wants to work with you
-                      </Dialog.Title>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-                      aria-label="Close request details"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
-                    <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                      <RequestReferenceGallery request={request} />
-                    </div>
-
-                    <div className="p-5 pb-28 sm:p-6">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={request.clientAvatar || "/default-avatar.png"}
-                          alt={request.clientName}
-                          className="h-14 w-14 rounded-full border border-white/10 object-cover"
-                        />
-                        <div>
-                          <p className="font-semibold text-white">
-                            {request.clientName || "Client"}
-                          </p>
-                          <p className="text-sm text-neutral-500">
-                            Sent {formatShortDate(request.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <DetailTile
-                          icon={<MapPin size={17} />}
-                          label="Placement"
-                          value={request.bodyPlacement || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<Ruler size={17} />}
-                          label="Size"
-                          value={request.size || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<DollarSign size={17} />}
-                          label="Budget"
-                          value={formatBudget(request.budget)}
-                        />
-                        <DetailTile
-                          icon={<CalendarDays size={17} />}
-                          label="Preferred dates"
-                          value={
-                            request.preferredDateRange?.length === 2
-                              ? formatDateRange(request.preferredDateRange)
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<Clock size={17} />}
-                          label="Preferred time"
-                          value={
-                            request.availableTime?.from &&
-                            request.availableTime?.to
-                              ? `${formatTime(
-                                  request.availableTime.from
-                                )} - ${formatTime(request.availableTime.to)}`
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<Check size={17} />}
-                          label="Available days"
-                          value={
-                            request.availableDays?.length
-                              ? getFormattedAvailableDays(request.availableDays)
-                              : "Flexible"
-                          }
-                        />
-                      </div>
-
-                      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                          <MessageSquareText size={17} />
-                          Client message
-                        </div>
-                        <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
-                          {request.description || "No description provided."}
+        <div
+          ref={scrollContainerRef}
+          className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
+        >
+          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="ease-in duration-150"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+                {request && (
+                  <>
+                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Request details
                         </p>
+                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                          {request.clientName || "Client"} wants to work with
+                          you
+                        </Dialog.Title>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                        aria-label="Close request details"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
+                      <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+                        <RequestReferenceGallery request={request} />
                       </div>
 
-                      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <button
-                          type="button"
-                          disabled={isDeclining}
-                          onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isDeclining ? "Declining..." : "Decline"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPrepareOffer(request)}
-                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white"
-                        >
-                          <Send size={16} className="text-amber-200" />
-                          Prepare offer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onMakeOffer(request)}
-                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
-                        >
-                          <Send size={16} />
-                          Make an offer
-                        </button>
+                      <div className="p-5 pb-28 sm:p-6">
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={request.clientAvatar || "/default-avatar.png"}
+                            alt={request.clientName}
+                            className="h-14 w-14 rounded-full border border-white/10 object-cover"
+                          />
+                          <div>
+                            <p className="font-semibold text-white">
+                              {request.clientName || "Client"}
+                            </p>
+                            <p className="text-sm text-neutral-500">
+                              Sent {formatShortDate(request.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                          <DetailTile
+                            icon={<MapPin size={17} />}
+                            label="Placement"
+                            value={request.bodyPlacement || "Not specified"}
+                          />
+                          <DetailTile
+                            icon={<Ruler size={17} />}
+                            label="Size"
+                            value={request.size || "Not specified"}
+                          />
+                          <DetailTile
+                            icon={<DollarSign size={17} />}
+                            label="Budget"
+                            value={formatBudget(request.budget)}
+                          />
+                          <DetailTile
+                            icon={<CalendarDays size={17} />}
+                            label="Preferred dates"
+                            value={
+                              request.preferredDateRange?.length === 2
+                                ? formatDateRange(request.preferredDateRange)
+                                : "Flexible"
+                            }
+                          />
+                          <DetailTile
+                            icon={<Clock size={17} />}
+                            label="Preferred time"
+                            value={
+                              request.availableTime?.from &&
+                              request.availableTime?.to
+                                ? `${formatTime(
+                                    request.availableTime.from
+                                  )} - ${formatTime(request.availableTime.to)}`
+                                : "Flexible"
+                            }
+                          />
+                          <DetailTile
+                            icon={<Check size={17} />}
+                            label="Available days"
+                            value={
+                              request.availableDays?.length
+                                ? getFormattedAvailableDays(
+                                    request.availableDays
+                                  )
+                                : "Flexible"
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                            <MessageSquareText size={17} />
+                            Client message
+                          </div>
+                          <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
+                            {request.description || "No description provided."}
+                          </p>
+                        </div>
+
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                          <button
+                            type="button"
+                            disabled={isDeclining}
+                            onClick={() => onDecline(request)}
+                            className="modal-action-button inline-flex items-center justify-center rounded-lg!   px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isDeclining ? "Declining..." : "Decline"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPrepareOffer(request)}
+                            className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg!  px-3! py-2! text-xs! font-semibold text-amber-50  backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/10 hover:text-white"
+                          >
+                            <Timer size={16} className="text-amber-200" />
+                            Prepare offer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onMakeOffer(request)}
+                            className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg!   px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 "
+                          >
+                            <DollarSign size={16} />
+                            Make an offer
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </Dialog.Panel>
-          </Transition.Child>
-          {request && (
-            <MobileRequestActionDock
-              request={request}
-              visible={mobileActionsVisible}
-              isDeclining={isDeclining}
-              primaryLabel="Make an offer"
-              onDecline={onDecline}
-              onMakeOffer={onMakeOffer}
-              onPrepareOffer={onPrepareOffer}
-            />
-          )}
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+            {request && (
+              <MobileRequestActionDock
+                request={request}
+                visible={mobileActionsVisible}
+                isDeclining={isDeclining}
+                primaryLabel="Make an offer"
+                onDecline={onDecline}
+                onMakeOffer={onMakeOffer}
+                onPrepareOffer={onPrepareOffer}
+              />
+            )}
+          </div>
         </div>
-      </div>
-    </Dialog>
-  </Transition>
+      </Dialog>
+    </Transition>
   );
 };
 
@@ -1784,180 +1780,184 @@ const FlashRequestDetailsDialog = ({
   onMakeOffer: (request: BookingRequest) => void;
   onPrepareOffer: (request: BookingRequest) => void;
 }) => {
-  const { scrollContainerRef, mobileActionsVisible } =
-    useMobileModalActionDock(Boolean(request));
+  const { scrollContainerRef, mobileActionsVisible } = useMobileModalActionDock(
+    Boolean(request)
+  );
 
   return (
-  <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
-      <Transition.Child
-        as={Fragment}
-        enter="ease-out duration-300"
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        leave="ease-in duration-150"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-      >
-        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
-      </Transition.Child>
+    <Transition appear show={!!request} as={Fragment}>
+      <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
 
-      <div
-        ref={scrollContainerRef}
-        className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
-      >
-        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="scale-95 opacity-0"
-            enterTo="scale-100 opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="scale-100 opacity-100"
-            leaveTo="scale-95 opacity-0"
-          >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
-              {request && (
-                <>
-                  <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        Flash request
-                      </p>
-                      <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                        {request.clientName || "Client"} requested a flash item
-                      </Dialog.Title>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-                      aria-label="Close flash request details"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
-                    <div className="flex items-start justify-center border-b border-white/10 bg-black/35 p-5 lg:border-b-0 lg:border-r lg:p-6">
-                      <FlashRequestPreviewCard request={request} />
-                    </div>
-
-                    <div className="p-5 pb-28 sm:p-6">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={request.clientAvatar || "/default-avatar.png"}
-                          alt={request.clientName}
-                          className="h-14 w-14 rounded-full border border-white/10 object-cover"
-                        />
-                        <div>
-                          <p className="font-semibold text-white">
-                            {request.clientName || "Client"}
-                          </p>
-                          <p className="text-sm text-neutral-500">
-                            Sent {formatShortDate(request.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <DetailTile
-                          icon={<DollarSign size={17} />}
-                          label="Listed flash price"
-                          value={formatFlashPrice(request.flashPrice)}
-                        />
-                        <DetailTile
-                          icon={<MapPin size={17} />}
-                          label="Placement"
-                          value={request.bodyPlacement || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<Ruler size={17} />}
-                          label="Size"
-                          value={request.size || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<CalendarDays size={17} />}
-                          label="Preferred dates"
-                          value={
-                            request.preferredDateRange?.length === 2
-                              ? formatDateRange(request.preferredDateRange)
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<Clock size={17} />}
-                          label="Preferred time"
-                          value={
-                            request.availableTime?.from &&
-                            request.availableTime?.to
-                              ? `${formatTime(
-                                  request.availableTime.from
-                                )} - ${formatTime(request.availableTime.to)}`
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<Check size={17} />}
-                          label="Available days"
-                          value={
-                            request.availableDays?.length
-                              ? getFormattedAvailableDays(request.availableDays)
-                              : "Flexible"
-                          }
-                        />
-                      </div>
-
-                      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                          <MessageSquareText size={17} />
-                          Client note
-                        </div>
-                        <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
-                          {request.description || "No note provided."}
+        <div
+          ref={scrollContainerRef}
+          className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
+        >
+          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="scale-95 opacity-0"
+              enterTo="scale-100 opacity-100"
+              leave="ease-in duration-150"
+              leaveFrom="scale-100 opacity-100"
+              leaveTo="scale-95 opacity-0"
+            >
+              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
+                {request && (
+                  <>
+                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Flash request
                         </p>
+                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                          {request.clientName || "Client"} requested a flash
+                          item
+                        </Dialog.Title>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                        aria-label="Close flash request details"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
+                      <div className="flex items-start justify-center border-b border-white/10 bg-black/35 p-5 lg:border-b-0 lg:border-r lg:p-6">
+                        <FlashRequestPreviewCard request={request} />
                       </div>
 
-                      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <button
-                          type="button"
-                          disabled={isDeclining}
-                          onClick={() => onDecline(request)}
-                          className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isDeclining ? "Declining..." : "Decline"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onMakeOffer(request)}
-                          className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
-                        >
-                          <Send size={16} />
-                          Make flash offer
-                        </button>
+                      <div className="p-5 pb-28 sm:p-6">
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={request.clientAvatar || "/default-avatar.png"}
+                            alt={request.clientName}
+                            className="h-14 w-14 rounded-full border border-white/10 object-cover"
+                          />
+                          <div>
+                            <p className="font-semibold text-white">
+                              {request.clientName || "Client"}
+                            </p>
+                            <p className="text-sm text-neutral-500">
+                              Sent {formatShortDate(request.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                          <DetailTile
+                            icon={<DollarSign size={17} />}
+                            label="Listed flash price"
+                            value={formatFlashPrice(request.flashPrice)}
+                          />
+                          <DetailTile
+                            icon={<MapPin size={17} />}
+                            label="Placement"
+                            value={request.bodyPlacement || "Not specified"}
+                          />
+                          <DetailTile
+                            icon={<Ruler size={17} />}
+                            label="Size"
+                            value={request.size || "Not specified"}
+                          />
+                          <DetailTile
+                            icon={<CalendarDays size={17} />}
+                            label="Preferred dates"
+                            value={
+                              request.preferredDateRange?.length === 2
+                                ? formatDateRange(request.preferredDateRange)
+                                : "Flexible"
+                            }
+                          />
+                          <DetailTile
+                            icon={<Clock size={17} />}
+                            label="Preferred time"
+                            value={
+                              request.availableTime?.from &&
+                              request.availableTime?.to
+                                ? `${formatTime(
+                                    request.availableTime.from
+                                  )} - ${formatTime(request.availableTime.to)}`
+                                : "Flexible"
+                            }
+                          />
+                          <DetailTile
+                            icon={<Check size={17} />}
+                            label="Available days"
+                            value={
+                              request.availableDays?.length
+                                ? getFormattedAvailableDays(
+                                    request.availableDays
+                                  )
+                                : "Flexible"
+                            }
+                          />
+                        </div>
+
+                        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                            <MessageSquareText size={17} />
+                            Client note
+                          </div>
+                          <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
+                            {request.description || "No note provided."}
+                          </p>
+                        </div>
+
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                          <button
+                            type="button"
+                            disabled={isDeclining}
+                            onClick={() => onDecline(request)}
+                            className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-300/20 bg-red-500/[0.06] px-3! py-2! text-xs! font-semibold text-red-100/90 transition hover:border-red-300/35 hover:bg-red-500/[0.12] hover:text-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isDeclining ? "Declining..." : "Decline"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onMakeOffer(request)}
+                            className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
+                          >
+                            <Send size={16} />
+                            Make flash offer
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </Dialog.Panel>
-          </Transition.Child>
-          {request && (
-            <MobileRequestActionDock
-              request={request}
-              visible={mobileActionsVisible}
-              isDeclining={isDeclining}
-              primaryLabel="Make flash offer"
-              showPrepareOffer={false}
-              onDecline={onDecline}
-              onMakeOffer={onMakeOffer}
-              onPrepareOffer={onPrepareOffer}
-            />
-          )}
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+            {request && (
+              <MobileRequestActionDock
+                request={request}
+                visible={mobileActionsVisible}
+                isDeclining={isDeclining}
+                primaryLabel="Make flash offer"
+                showPrepareOffer={false}
+                onDecline={onDecline}
+                onMakeOffer={onMakeOffer}
+                onPrepareOffer={onPrepareOffer}
+              />
+            )}
+          </div>
         </div>
-      </div>
-    </Dialog>
-  </Transition>
+      </Dialog>
+    </Transition>
   );
 };
 
@@ -2123,9 +2123,7 @@ const getRequestReferenceImages = (
 
   if (Array.isArray(request.referenceImages)) {
     [...request.referenceImages]
-      .sort(
-        (a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b)
-      )
+      .sort((a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b))
       .forEach(addReference);
   }
 
@@ -2184,10 +2182,10 @@ const formatCompactDateRange = (dates: string[]) => {
   const [start, end] = dates;
   if (!start || !end) return "Flexible";
 
-  return `${formatDate(start, { month: "short", day: "numeric" })} - ${formatDate(
-    end,
-    { month: "short", day: "numeric" }
-  )}`;
+  return `${formatDate(start, {
+    month: "short",
+    day: "numeric",
+  })} - ${formatDate(end, { month: "short", day: "numeric" })}`;
 };
 
 const formatDate = (
@@ -2240,9 +2238,10 @@ const requestMatchesMonth = (
 ) => {
   if (!request.preferredDateRange?.length) return false;
   const [startStr, endStr] = request.preferredDateRange;
-  const requestDates = [parseLocalDate(startStr), parseLocalDate(endStr)].filter(
-    Boolean
-  ) as Date[];
+  const requestDates = [
+    parseLocalDate(startStr),
+    parseLocalDate(endStr),
+  ].filter(Boolean) as Date[];
 
   return requestDates.some(
     (date) =>
@@ -2261,7 +2260,8 @@ const getRequestTime = (request: BookingRequest) => {
   const createdAt = request.createdAt;
   if (!createdAt) return 0;
   if (createdAt instanceof Date) return createdAt.getTime();
-  if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+  if (typeof createdAt.toDate === "function")
+    return createdAt.toDate().getTime();
   if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
   return 0;
 };
