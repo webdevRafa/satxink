@@ -348,30 +348,44 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div className="mt-6 space-y-8">
-      <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121212]">
-        <div className="flex flex-col gap-5 border-b border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+    <div className="mt-6 w-full max-w-7xl space-y-8">
+      <section className="space-y-6">
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
-              Gallery library
-            </p>
-            <h2 className="mt-2 text-2xl! font-bold text-white">
-              Your portfolio gallery
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+            <h1 className="text-3xl! font-semibold text-white">
+              Gallery Library
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-neutral-400">
               Keep finished work polished, tagged, and ready for clients to
               explore from your public profile.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
-              {items.length} total
-            </span>
+          <div className="grid w-full grid-cols-1 gap-2 lg:w-auto lg:min-w-[140px]">
+            <GalleryMetricCard label="Total" value={items.length} />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
+          <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
+                <ImageIcon size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="mb-0! text-base! sm:text-lg!">
+                  Gallery actions
+                </h2>
+                <p className="text-sm text-neutral-400">
+                  Add finished work and keep portfolio pieces ready for clients.
+                </p>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={() => setIsUploadOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5! py-3! text-sm font-semibold text-black transition hover:bg-zinc-200"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-zinc-200 sm:w-auto sm:px-4!"
             >
               <Upload size={16} />
               Add work
@@ -566,6 +580,23 @@ const GalleryManager = ({ uid }: { uid: string }) => {
     </div>
   );
 };
+
+const GalleryMetricCard = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) => (
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
+      {label}
+    </p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
+  </div>
+);
 
 const PortfolioLightbox = ({
   item,
