@@ -921,7 +921,7 @@ const RequestRow = ({
       <PreviewMetaRows
         rows={[
           {
-            label: "Placement",
+            label: "Place",
             value: request.bodyPlacement || "Placement open",
           },
           {
