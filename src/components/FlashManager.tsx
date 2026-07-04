@@ -8,7 +8,7 @@ import {
   Grid2X2,
   Image as ImageIcon,
   Layers,
-  Plus,
+  Layers2,
   Scissors,
   Sparkles,
   Tag,
@@ -328,7 +328,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                 />
                 <ModeCard
                   active={mode === "individual"}
-                  icon={<Plus size={15} />}
+                  icon={<Layers2 size={15} />}
                   title="Individual flash"
                   onClick={() => setMode("individual")}
                 />
@@ -423,8 +423,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                     Name the collection
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">
-                    This title appears on your dashboard, public profile, and the
-                    sheet editor where you crop individual flash.
+                    This title appears on your dashboard, public profile, and
+                    the sheet editor where you crop individual flash.
                   </p>
                   {sheetImage && (
                     <div className="flash-sheet-preview-enter mt-4 flex max-h-[38dvh] min-h-[220px] overflow-hidden rounded-2xl border border-white/10 bg-black md:mt-5 md:aspect-square md:max-h-none">
@@ -444,16 +444,20 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         Resolution
                       </p>
                       <p className="mt-1 text-xs leading-5 text-zinc-400">
-                        {sheetSourceMetadata.width} x {sheetSourceMetadata.height}
+                        {sheetSourceMetadata.width} x{" "}
+                        {sheetSourceMetadata.height}
                         {sheetMegapixels ? ` - ${sheetMegapixels} MP` : ""}
                         {formatFileSize(sheetSourceMetadata.fileSizeBytes)
-                          ? ` - ${formatFileSize(sheetSourceMetadata.fileSizeBytes)}`
+                          ? ` - ${formatFileSize(
+                              sheetSourceMetadata.fileSizeBytes
+                            )}`
                           : ""}
                       </p>
                       <p className="mt-3 text-sm leading-6 text-zinc-400">
                         Original camera photos or scans crop best. Avoid
-                        screenshots or social downloads, photograph the sheet flat
-                        in even light, and leave breathing room between designs.
+                        screenshots or social downloads, photograph the sheet
+                        flat in even light, and leave breathing room between
+                        designs.
                       </p>
                     </div>
                   )}
@@ -508,8 +512,8 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
                         Continue in sheet editor
                       </p>
                       <p className="mt-1 text-sm leading-6 text-zinc-400">
-                        Once the sheet is saved, the full editor opens so you can
-                        crop designs and review itemized flash beneath it.
+                        Once the sheet is saved, the full editor opens so you
+                        can crop designs and review itemized flash beneath it.
                       </p>
                     </div>
                   </div>
@@ -544,25 +548,6 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         )}
 
       <section>
-        <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
-              Sheet library
-            </p>
-            <h2 className="mt-2 text-2xl! font-bold text-white">
-              Your flash sheets
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Open any sheet to review the full artwork and keep itemizing it.
-            </p>
-          </div>
-          {flashSheets.length > 0 && (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
-              {flashSheets.length} total
-            </span>
-          )}
-        </div>
-
         {loading && (
           <div className="mt-6 grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -610,7 +595,9 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
               const itemCount = flashes.filter(
                 (flash) => flash.sheetId === sheet.id
               ).length;
-              const tags = Array.isArray(sheet.tags) ? sheet.tags.slice(0, 3) : [];
+              const tags = Array.isArray(sheet.tags)
+                ? sheet.tags.slice(0, 3)
+                : [];
               const sheetPreviewUrl = sheet.thumbUrl || sheet.imageUrl;
 
               return (
@@ -696,16 +683,12 @@ const ModeCard = ({
   <button
     type="button"
     onClick={onClick}
-    className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md border px-3! text-left text-xs! font-semibold transition ${
-      active
-        ? "border-white/40 bg-white/5 text-white"
-        : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
+    className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md  px-3! text-left text-xs! font-semibold transition ${
+      active ? " bg-white/5 text-white" : " text-white/70 hover:bg-white/10"
     }`}
   >
     <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
-      <span
-        className="flex h-5 w-5 shrink-0 items-center justify-center text-current"
-      >
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-current">
         {icon}
       </span>
       <span className="flex min-w-0 items-center gap-1 md:gap-1.5">
