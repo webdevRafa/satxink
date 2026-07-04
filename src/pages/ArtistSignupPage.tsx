@@ -254,6 +254,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       setIsCheckingName(true);
       const nameQuery = query(
         collection(db, "users"),
+        where("role", "==", "artist"),
         where("slug", "==", slug)
       );
       const snapshot = await getDocs(nameQuery);
@@ -414,6 +415,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       const profileCreationResult = runTransaction(db, async (transaction) => {
         const slugQuery = query(
           collection(db, "users"),
+          where("role", "==", "artist"),
           where("slug", "==", slug)
         );
         const slugSnapshot = await getDocs(slugQuery);

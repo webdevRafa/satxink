@@ -123,7 +123,8 @@ const PublicFlashSheetPage = () => {
 
         const flashesQuery = query(
           collection(db, "flashes"),
-          where("sheetId", "==", sheetId)
+          where("sheetId", "==", sheetId),
+          where("marketplaceReady", "==", true)
         );
 
         const [flashesSnap, artistSnap] = await Promise.all([

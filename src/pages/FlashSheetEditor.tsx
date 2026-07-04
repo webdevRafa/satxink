@@ -66,16 +66,19 @@ const FlashSheetEditor = () => {
         setStripeReady(
           isStripeConnectReady(artistSnap.exists() ? artistSnap.data() : null)
         );
+        return typeof data.artistId === "string" ? data.artistId : null;
       } catch (err) {
         console.error("fetchSheet error:", err);
         alert("Could not load image. Please try again.");
+        return null;
       }
     };
 
-    const fetchFlashes = async () => {
+    const fetchFlashes = async (artistId: string) => {
       const q = query(
         collection(db, "flashes"),
-        where("sheetId", "==", sheetId)
+        where("sheetId", "==", sheetId),
+        where("artistId", "==", artistId)
       );
       const snap = await getDocs(q);
       setFlashes(
@@ -84,8 +87,9 @@ const FlashSheetEditor = () => {
     };
 
     if (sheetId) {
-      fetchSheet();
-      fetchFlashes();
+      fetchSheet().then((artistId) => {
+        if (artistId) fetchFlashes(artistId);
+      });
     }
   }, [sheetId]);
   const imageRef = useRef<HTMLImageElement | null>(null);

@@ -114,6 +114,7 @@ const UploadModal: React.FC<Props> = ({
     (!isGalleryUpload || Boolean(originalGalleryFile)) &&
     (!isLinkingExistingSheet || Boolean(selectedSheetId)) &&
     (!isFlashUpload || parsedFlashPrice !== null);
+  const showPublishingBorder = isGalleryUpload && isUploading;
 
   useEffect(() => {
     if (!croppedFile) {
@@ -309,6 +310,14 @@ const UploadModal: React.FC<Props> = ({
     <div className="request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto overscroll-contain bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
       <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
         <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[calc(100dvh-4rem)] md:grid-cols-[0.95fr_1.05fr]">
+          {showPublishingBorder && (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3px] overflow-hidden bg-white/5"
+              aria-hidden="true"
+            >
+              <div className="h-full w-full bg-[linear-gradient(110deg,rgba(255,255,255,0.02),rgba(248,113,113,0.95),rgba(255,255,255,0.68),rgba(248,113,113,0.95),rgba(255,255,255,0.02))] bg-[length:220%_100%] shadow-[0_0_18px_rgba(248,113,113,0.45)] motion-safe:animate-[satx-upload-shimmer_1.25s_linear_infinite]" />
+            </div>
+          )}
         <button
           type="button"
           onClick={resetAndClose}

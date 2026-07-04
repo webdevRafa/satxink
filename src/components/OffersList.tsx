@@ -76,7 +76,13 @@ const OFFERS_PER_PAGE = 6;
 const MOBILE_PAGINATION_SCROLL_OFFSET = 154;
 const DESKTOP_PAGINATION_SCROLL_OFFSET = 96;
 
-const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) => {
+const OffersList = ({
+  uid,
+  artist,
+}: {
+  uid: string;
+  artist: OffersListArtist;
+}) => {
   const [offers, setOffers] = useState<DashboardOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<DashboardOffer | null>(
     null
@@ -168,13 +174,23 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     [sortedOffers, statusFilter]
   );
 
-  const pendingCount = activeOffers.filter((offer) => offer.status === "pending").length;
-  const declinedCount = activeOffers.filter((offer) => offer.status === "declined").length;
+  const pendingCount = activeOffers.filter(
+    (offer) => offer.status === "pending"
+  ).length;
+  const declinedCount = activeOffers.filter(
+    (offer) => offer.status === "declined"
+  ).length;
   const newestOffer = sortedOffers[0];
-  const totalPages = Math.max(1, Math.ceil(filteredOffers.length / OFFERS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredOffers.length / OFFERS_PER_PAGE)
+  );
   const activePage = Math.min(currentPage, totalPages);
   const pageStartIndex = (activePage - 1) * OFFERS_PER_PAGE;
-  const pageEndIndex = Math.min(pageStartIndex + OFFERS_PER_PAGE, filteredOffers.length);
+  const pageEndIndex = Math.min(
+    pageStartIndex + OFFERS_PER_PAGE,
+    filteredOffers.length
+  );
   const paginatedOffers = useMemo(
     () => filteredOffers.slice(pageStartIndex, pageEndIndex),
     [filteredOffers, pageEndIndex, pageStartIndex]
@@ -310,7 +326,10 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
     setRevisionRequest(null);
   };
 
-  const handleRevisionSent = async (_requestId: string, revisedOfferId?: string) => {
+  const handleRevisionSent = async (
+    _requestId: string,
+    revisedOfferId?: string
+  ) => {
     if (!revisionSourceOffer) return;
     await updateDoc(doc(db, "offers", revisionSourceOffer.id), {
       status: "revised",
@@ -339,7 +358,7 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl! font-semibold text-white">
-            Sent offers
+            Offers you've sent
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-neutral-400">
             Track every offer you have sent, review proposed dates, and keep an
@@ -353,13 +372,19 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
           <MetricCard
             label="Newest"
             value={
-              !loading && newestOffer ? formatShortDate(newestOffer.createdAt) : "-"
+              !loading && newestOffer
+                ? formatShortDate(newestOffer.createdAt)
+                : "-"
             }
           />
         </div>
       </div>
 
-      <div ref={filtersAnchorRef} className="h-px md:hidden" aria-hidden="true" />
+      <div
+        ref={filtersAnchorRef}
+        className="h-px md:hidden"
+        aria-hidden="true"
+      />
       <div
         ref={filtersPanelRef}
         className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
@@ -394,8 +419,8 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
                   onClick={() => setStatusFilter(filter.value)}
                   className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                     statusFilter === filter.value
-                      ? "border-white bg-white text-black"
-                      : "border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
+                      ? "border-white/40 bg-white/5 text-white"
+                      : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
                   }`}
                 >
                   {filter.label}
@@ -467,7 +492,8 @@ const OffersList = ({ uid, artist }: { uid: string; artist: OffersListArtist }) 
             ? {
                 previousOfferId: revisionSourceOffer.id,
                 revisionOfOfferId:
-                  revisionSourceOffer.revisionOfOfferId || revisionSourceOffer.id,
+                  revisionSourceOffer.revisionOfOfferId ||
+                  revisionSourceOffer.id,
                 revisionReason: "client_declined",
               }
             : undefined
@@ -490,7 +516,7 @@ const OffersTable = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => {
   const columns =
-    "minmax(170px,.86fr) 88px minmax(140px,.66fr) minmax(150px,.7fr) minmax(210px,.96fr) 96px minmax(230px,.82fr)";
+    "minmax(170px,.86fr) 88px minmax(104px,.48fr) minmax(96px,.42fr) minmax(136px,.58fr) minmax(160px,.72fr) 96px minmax(230px,.82fr)";
 
   return (
     <>
@@ -508,15 +534,16 @@ const OffersTable = ({
 
       <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
         <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1120px]">
+          <div className="min-w-[1240px]">
             <div
               className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
               style={{ gridTemplateColumns: columns }}
             >
               <span>Client</span>
               <span>Reference</span>
-              <span>Scope</span>
-              <span>Price | Deposit</span>
+              <span>Sessions</span>
+              <span>Total</span>
+              <span>Deposit to book</span>
               <span>Earliest option</span>
               <span>Status</span>
               <span className="text-right">Actions</span>
@@ -639,7 +666,7 @@ const OfferRow = ({
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
   const isFlashOffer = offer.sourceType === "flash";
-  const scopeLabel = getOfferScopeLabel(offer);
+  const sessionLabel = getOfferSessionLabel(offer);
   const statusTitle = getOfferStatusTitle(offer);
   const clientName = offer.clientName || "Client";
   const clientTableName = getClientFirstName(offer);
@@ -679,7 +706,9 @@ const OfferRow = ({
         {previewUrl ? (
           <img
             src={previewUrl}
-            alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+            alt={
+              isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"
+            }
             className="h-full w-full object-cover"
           />
         ) : (
@@ -691,16 +720,18 @@ const OfferRow = ({
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          {scopeLabel.primary}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {scopeLabel.secondary}
+          {sessionLabel}
         </p>
       </div>
 
       <div className="min-w-0 pr-4">
         <p className="truncate text-sm font-semibold text-white">
-          ${offer.price} <span className="text-neutral-600">|</span>{" "}
+          ${offer.price}
+        </p>
+      </div>
+
+      <div className="min-w-0 pr-4">
+        <p className="truncate text-sm font-semibold text-white">
           {formatDeposit(offer)}
         </p>
       </div>
@@ -710,9 +741,6 @@ const OfferRow = ({
           {earliestDateOption
             ? formatAppointment(earliestDateOption, "compact")
             : "No date set"}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">
-          {offer.shopName || (isFlashOffer ? "Flash item" : "Shop not set")}
         </p>
       </div>
 
@@ -832,7 +860,11 @@ const OfferMobileCard = ({
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+              alt={
+                isFlashOffer
+                  ? offer.flashTitle || "Flash offer"
+                  : "Offer sample"
+              }
               className="h-full w-full object-cover"
             />
           ) : (
@@ -968,7 +1000,7 @@ const OfferDetailsDialog = ({
   onDismiss: (offer: DashboardOffer) => void;
 }) => (
   <Transition appear show={!!offer} as={Fragment}>
-    <Dialog as="div" className="relative z-50" onClose={onClose}>
+    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
       <Transition.Child
         as={Fragment}
         enter="ease-out duration-300"
@@ -978,11 +1010,11 @@ const OfferDetailsDialog = ({
         leaveFrom="opacity-100"
         leaveTo="opacity-0"
       >
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
       </Transition.Child>
 
-      <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
-        <div className="flex min-h-full items-center justify-center p-4">
+      <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
+        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -992,7 +1024,7 @@ const OfferDetailsDialog = ({
             leaveFrom="scale-100 opacity-100"
             leaveTo="scale-95 opacity-0"
           >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
               {offer && (
                 <>
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
@@ -1004,7 +1036,9 @@ const OfferDetailsDialog = ({
                       </p>
                       <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
                         {offer.sourceType === "flash"
-                          ? `Flash offer sent to ${offer.clientName || "Client"}`
+                          ? `Flash offer sent to ${
+                              offer.clientName || "Client"
+                            }`
                           : `Offer sent to ${offer.clientName || "Client"}`}
                       </Dialog.Title>
                     </div>
@@ -1018,16 +1052,20 @@ const OfferDetailsDialog = ({
                     </button>
                   </div>
 
-                  <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
-                    <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+                  <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[1fr_0.95fr]">
+                    <div className="flex items-center justify-center border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
                           src={offer.fullUrl || offer.thumbUrl || undefined}
-                          alt={offer.sourceType === "flash" ? offer.flashTitle || "Flash offer" : "Offer sample"}
-                          className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                          alt={
+                            offer.sourceType === "flash"
+                              ? offer.flashTitle || "Flash offer"
+                              : "Offer sample"
+                          }
+                          className="max-h-[58dvh] w-full object-contain sm:max-h-[calc(100dvh-5.75rem-7rem)] lg:max-h-none"
                         />
                       ) : (
-                        <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                        <div className="flex min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
                           <span>No sample image uploaded</span>
                         </div>
@@ -1035,7 +1073,7 @@ const OfferDetailsDialog = ({
                     </div>
 
                     <div className="p-5 sm:p-6">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-center gap-4">
                           <img
                             src={offer.clientAvatar || "/default-avatar.png"}
@@ -1060,9 +1098,9 @@ const OfferDetailsDialog = ({
                             Client declined this offer
                           </p>
                           <p className="mt-1 text-sm leading-6 text-red-50/75">
-                            You can send a fresh offer with updated price, deposit,
-                            message, or appointment options. Clearing it only removes
-                            it from your list.
+                            You can send a fresh offer with updated price,
+                            deposit, message, or appointment options. Clearing
+                            it only removes it from your list.
                           </p>
                           <div className="mt-3 inline-flex rounded-md border border-red-100/20 bg-black/20 px-3 py-2 text-sm font-semibold text-red-50">
                             Reason: {getDeclineReasonLabel(offer)}
@@ -1141,12 +1179,12 @@ const OfferDetailsDialog = ({
                             {offer.dateOptions.map((option, index) => (
                               <div
                                 key={`${option.date}-${option.time}-${index}`}
-                                className="flex items-center justify-between rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                                className="flex flex-col gap-1 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                               >
                                 <span className="text-neutral-500">
                                   Option {index + 1}
                                 </span>
-                                <span className="font-medium text-white">
+                                <span className="font-medium text-white sm:text-right">
                                   {formatAppointment(option)}
                                 </span>
                               </div>
@@ -1306,36 +1344,21 @@ const getDeclineReasonLabel = (offer: DashboardOffer) => {
   return "Reason not provided";
 };
 
-const getOfferScopeLabel = (offer: DashboardOffer) => {
-  if (offer.sourceType === "flash") {
-    return {
-      primary: "Flash",
-      secondary: offer.flashTitle || "Flash item",
-    };
-  }
-
+const getOfferSessionLabel = (offer: DashboardOffer) => {
   if (
     offer.projectType === "multi_session" ||
     Number(offer.estimatedSessionCount || 1) > 1
   ) {
     const count = Math.max(Number(offer.estimatedSessionCount || 2), 2);
-
-    return {
-      primary: `${count} sessions`,
-      secondary:
-        offer.sessionScheduling === "first_session_now_rest_later"
-          ? "Rest scheduled later"
-          : "Multi-session project",
-    };
+    return `${count} sessions`;
   }
 
-  return {
-    primary: "Single session",
-    secondary: offer.shopName || "Custom tattoo",
-  };
+  return "1 session";
 };
 
-const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => ({
+const getRevisionRequestFromOffer = (
+  offer: DashboardOffer
+): RevisionRequest => ({
   id: offer.requestId || offer.id,
   clientId: offer.clientId,
   clientFirstName: offer.clientFirstName || "",
@@ -1362,9 +1385,7 @@ const getRevisionRequestFromOffer = (offer: DashboardOffer): RevisionRequest => 
 const normalizeDateOptions = (
   options: { date: string; time: string }[] | undefined
 ) => {
-  const next = options?.length
-    ? options.slice(0, 3)
-    : [{ date: "", time: "" }];
+  const next = options?.length ? options.slice(0, 3) : [{ date: "", time: "" }];
 
   while (next.length < 3) next.push({ date: "", time: "" });
   return next;
@@ -1434,7 +1455,8 @@ const getOfferTime = (offer: DashboardOffer) => {
   const createdAt = offer.createdAt;
   if (!createdAt) return 0;
   if (createdAt instanceof Date) return createdAt.getTime();
-  if (typeof createdAt.toDate === "function") return createdAt.toDate().getTime();
+  if (typeof createdAt.toDate === "function")
+    return createdAt.toDate().getTime();
   if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
   return 0;
 };

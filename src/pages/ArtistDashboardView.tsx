@@ -1,4 +1,11 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { onAuthStateChanged } from "firebase/auth";
@@ -7,7 +14,6 @@ import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
-import { FaFacebook } from "react-icons/fa";
 import { RiInstagramFill } from "react-icons/ri";
 import {
   CalendarDays,
@@ -16,7 +22,6 @@ import {
   CreditCard,
   DollarSign,
   Eye,
-  Globe,
   Image as ImageIcon,
   Instagram,
   LoaderCircle,
@@ -344,7 +349,11 @@ const getInstagramUrlFromHandle = (handle: string) =>
   handle ? `${INSTAGRAM_PROFILE_BASE}${handle}` : "";
 
 const getHomepageFeatureImageUrl = (image?: HomepageFeatureImage | null) =>
-  image?.webp90Url || image?.imageUrl || image?.fullUrl || image?.thumbUrl || "";
+  image?.webp90Url ||
+  image?.imageUrl ||
+  image?.fullUrl ||
+  image?.thumbUrl ||
+  "";
 
 const normalizeHomepageFeatureImage = (
   value: unknown,
@@ -357,12 +366,12 @@ const normalizeHomepageFeatureImage = (
     typeof record.imageUrl === "string"
       ? record.imageUrl
       : typeof record.webp90Url === "string"
-        ? record.webp90Url
-        : typeof record.fullUrl === "string"
-          ? record.fullUrl
-          : typeof record.thumbUrl === "string"
-            ? record.thumbUrl
-            : "";
+      ? record.webp90Url
+      : typeof record.fullUrl === "string"
+      ? record.fullUrl
+      : typeof record.thumbUrl === "string"
+      ? record.thumbUrl
+      : "";
 
   if (!imageUrl) return null;
 
@@ -518,22 +527,23 @@ const createProfileFormState = (
 
 const getFinalPaymentDeadlineHours = (
   value: unknown
-): FinalPaymentDeadlineHours =>
-  value === 48 ? 48 : 24;
+): FinalPaymentDeadlineHours => (value === 48 ? 48 : 24);
 
 const createPaymentPreferencesFormState = (
   artist: DashboardArtist | null
 ): ArtistPaymentPreferencesFormState => ({
-    finalPaymentTiming: artist?.finalPaymentTiming || "after",
-    finalPaymentDeadlineHours: getFinalPaymentDeadlineHours(
-      artist?.finalPaymentDeadlineHours
-    ),
-  });
+  finalPaymentTiming: artist?.finalPaymentTiming || "after",
+  finalPaymentDeadlineHours: getFinalPaymentDeadlineHours(
+    artist?.finalPaymentDeadlineHours
+  ),
+});
 
 const ArtistDashboardView = () => {
   const [searchParams] = useSearchParams();
   const [artist, setArtist] = useState<DashboardArtist | null>(null);
-  const [bookingRequests, setBookingRequests] = useState<DashboardBookingRequest[]>([]);
+  const [bookingRequests, setBookingRequests] = useState<
+    DashboardBookingRequest[]
+  >([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingSearchTerm, setBookingSearchTerm] = useState("");
   const [bookingSortMode, setBookingSortMode] =
@@ -564,8 +574,9 @@ const ArtistDashboardView = () => {
     useState<DashboardBookingRequest | null>(null);
   const [selectedBookingRecord, setSelectedBookingRecord] =
     useState<DashboardBooking | null>(null);
-  const [bookingToStart, setBookingToStart] =
-    useState<DashboardBooking | null>(null);
+  const [bookingToStart, setBookingToStart] = useState<DashboardBooking | null>(
+    null
+  );
   const [addSessionsBooking, setAddSessionsBooking] =
     useState<DashboardBooking | null>(null);
   const [sessionPaymentBooking, setSessionPaymentBooking] =
@@ -596,7 +607,10 @@ const ArtistDashboardView = () => {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingHomepageFeatureImage, setIsUploadingHomepageFeatureImage] =
     useState(false);
-  const bookingMonthOptions = useMemo(() => getRollingBookingMonthOptions(), []);
+  const bookingMonthOptions = useMemo(
+    () => getRollingBookingMonthOptions(),
+    []
+  );
   const allowedBookingMonthKeys = useMemo(
     () => bookingMonthOptions.map((option) => option.key),
     [bookingMonthOptions]
@@ -672,7 +686,9 @@ const ArtistDashboardView = () => {
           setAccountEmail(user.email || artistData.email || "");
           setArtist(artistData);
           setProfileForm(createProfileFormState(artistData));
-          setPaymentPreferencesForm(createPaymentPreferencesFormState(artistData));
+          setPaymentPreferencesForm(
+            createPaymentPreferencesFormState(artistData)
+          );
           setCurrentSlug(
             artistData.slug ||
               slugify(artistData.displayName || artistData.name || "", {
@@ -722,22 +738,29 @@ const ArtistDashboardView = () => {
     setIsPaymentPreferencesDirty(true);
   };
 
-  const checkDisplayNameAvailability = useCallback(async (displayName: string) => {
-    if (!uid) return "idle" as DisplayNameStatus;
+  const checkDisplayNameAvailability = useCallback(
+    async (displayName: string) => {
+      if (!uid) return "idle" as DisplayNameStatus;
 
-    const slug = slugify(displayName, { lower: true, strict: true });
-    if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
+      const slug = slugify(displayName, { lower: true, strict: true });
+      if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
 
-    const nameQuery = query(collection(db, "users"), where("slug", "==", slug));
-    const snapshot = await getDocs(nameQuery);
-    const belongsToAnotherArtist = snapshot.docs.some(
-      (docSnap) => docSnap.id !== uid
-    );
+      const nameQuery = query(
+        collection(db, "users"),
+        where("role", "==", "artist"),
+        where("slug", "==", slug)
+      );
+      const snapshot = await getDocs(nameQuery);
+      const belongsToAnotherArtist = snapshot.docs.some(
+        (docSnap) => docSnap.id !== uid
+      );
 
-    return belongsToAnotherArtist
-      ? ("taken" as DisplayNameStatus)
-      : ("available" as DisplayNameStatus);
-  }, [currentSlug, uid]);
+      return belongsToAnotherArtist
+        ? ("taken" as DisplayNameStatus)
+        : ("available" as DisplayNameStatus);
+    },
+    [currentSlug, uid]
+  );
 
   useEffect(() => {
     const displayName = profileForm.displayName.trim();
@@ -973,7 +996,9 @@ const ArtistDashboardView = () => {
         homepageFeature: {
           ...current.homepageFeature,
           images,
-          imageUrl: primaryImage ? getHomepageFeatureImageUrl(primaryImage) : "",
+          imageUrl: primaryImage
+            ? getHomepageFeatureImageUrl(primaryImage)
+            : "",
         },
       };
     });
@@ -1206,9 +1231,13 @@ const ArtistDashboardView = () => {
           updateCount(
             "offers",
             snap.docs
-              .filter((offerDoc) => !["accepted", "revised"].includes(String(offerDoc.data().status)))
-              .filter((offerDoc) => !offerDoc.data().artistDismissedAt)
-              .length
+              .filter(
+                (offerDoc) =>
+                  !["accepted", "revised"].includes(
+                    String(offerDoc.data().status)
+                  )
+              )
+              .filter((offerDoc) => !offerDoc.data().artistDismissedAt).length
           ),
         (error) => console.error("Artist offer count listener failed:", error)
       ),
@@ -1280,8 +1309,7 @@ const ArtistDashboardView = () => {
               isSessionWorkspaceBooking(bookingDoc.data())
             ).length
           ),
-        (error) =>
-          console.error("Artist session count listener failed:", error)
+        (error) => console.error("Artist session count listener failed:", error)
       ),
       onSnapshot(
         query(collection(db, "bookings"), where("artistId", "==", uid)),
@@ -1292,8 +1320,7 @@ const ArtistDashboardView = () => {
               isOngoingProjectBooking(bookingDoc.data())
             ).length
           ),
-        (error) =>
-          console.error("Artist project count listener failed:", error)
+        (error) => console.error("Artist project count listener failed:", error)
       ),
     ];
 
@@ -1304,14 +1331,15 @@ const ArtistDashboardView = () => {
 
   // Fetch bookings based on the current workspace.
   useEffect(() => {
-    if (!uid || !["bookings", "sessions", "projects"].includes(activeTab)) return;
+    if (!uid || !["bookings", "sessions", "projects"].includes(activeTab))
+      return;
 
     setBookings([]);
 
     const q =
       activeTab === "sessions"
         ? query(collection(db, "bookings"), where("artistId", "==", uid))
-      : activeTab === "projects"
+        : activeTab === "projects"
         ? query(collection(db, "bookings"), where("artistId", "==", uid))
         : query(collection(db, "bookings"), where("artistId", "==", uid));
 
@@ -1324,66 +1352,25 @@ const ArtistDashboardView = () => {
         })) as Booking[];
         const scopedBookings =
           activeTab === "sessions"
-            ? rawBookings.filter((booking) => isSessionWorkspaceBooking(booking))
+            ? rawBookings.filter((booking) =>
+                isSessionWorkspaceBooking(booking)
+              )
             : activeTab === "projects"
             ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
             : rawBookings.filter(
                 (booking) => getBookingStatusFilterValue(booking) !== "all"
               );
 
-        const clientIds = Array.from(
-          new Set(
-            scopedBookings.map((booking) => booking.clientId).filter(Boolean)
-          )
-        );
-
-        const clientMap = new Map<
-          string,
-          {
-            firstName?: string;
-            lastName?: string;
-            name?: string;
-            displayName?: string;
-            avatarUrl?: string;
-          }
-        >();
-
-        await Promise.all(
-          clientIds.map(async (clientId) => {
-            try {
-              const clientSnap = await getDoc(doc(db, "users", clientId));
-              if (clientSnap.exists()) {
-                const user = clientSnap.data() as {
-                  firstName?: string;
-                  lastName?: string;
-                  name?: string;
-                  displayName?: string;
-                  avatarUrl?: string;
-                };
-
-                clientMap.set(clientId, user);
-              }
-            } catch (error) {
-              console.error(`Failed to fetch client ${clientId}:`, error);
-            }
-          })
-        );
-
         setBookings(
           scopedBookings.map((booking) => {
-            const user = clientMap.get(booking.clientId);
-            const clientNameParts = getClientNameParts({
-              ...booking,
-              ...user,
-            });
+            const clientNameParts = getClientNameParts(booking);
 
             return {
               ...booking,
-              user,
               clientFirstName: clientNameParts.firstName,
               clientLastName: clientNameParts.lastName,
               clientName: clientNameParts.fullName,
-              clientAvatar: user?.avatarUrl || "/default-avatar.png",
+              clientAvatar: booking.clientAvatar || "/default-avatar.png",
             };
           }) as Booking[]
         );
@@ -1539,7 +1526,10 @@ const ArtistDashboardView = () => {
 
   const handleCompleteSessionFromRow = async (booking: DashboardBooking) => {
     try {
-      const completeSession = httpsCallable(functions, "completeProjectSession");
+      const completeSession = httpsCallable(
+        functions,
+        "completeProjectSession"
+      );
       await completeSession({ bookingId: booking.id });
       toast.success("Session completed.");
     } catch (error) {
@@ -1654,8 +1644,9 @@ const ArtistDashboardView = () => {
     { label: "Cancelled", value: navCounts.cancelled || 0 },
   ];
   const activeBookingFilterLabel =
-    BOOKING_STATUS_FILTERS.find((filter) => filter.value === bookingStatusFilter)
-      ?.label || "All";
+    BOOKING_STATUS_FILTERS.find(
+      (filter) => filter.value === bookingStatusFilter
+    )?.label || "All";
   const homepageFeatureImages = profileForm.homepageFeature.images;
   const primaryHomepageFeatureImage = homepageFeatureImages[0];
   const primaryHomepageFeatureImageUrl = primaryHomepageFeatureImage
@@ -1665,9 +1656,7 @@ const ArtistDashboardView = () => {
   const canUploadHomepageFeatureImage =
     homepageFeatureImageCount < HOMEPAGE_FEATURE_IMAGE_LIMIT &&
     !isUploadingHomepageFeatureImage;
-  const instagramHandle = getInstagramHandle(
-    profileForm.socialLinks.instagram
-  );
+  const instagramHandle = getInstagramHandle(profileForm.socialLinks.instagram);
   const profilePreviewStory = profileForm.homepageFeature.story.trim();
   const profileSaveButtonIsActive = isProfileDirty && !isSaveDisabled;
   const accountProviderCopy = getAccountProviderCopy(accountProviderId);
@@ -1719,26 +1708,21 @@ const ArtistDashboardView = () => {
       />
 
       <main className="relative min-w-0 flex-1 p-6">
-        {artist && (
-          <ArtistDashboardProfileHeader artist={artist} />
-        )}
+        {artist && <ArtistDashboardProfileHeader artist={artist} />}
 
-        <div ref={dashboardContentStartRef} className="h-px" aria-hidden="true" />
+        <div
+          ref={dashboardContentStartRef}
+          className="h-px"
+          aria-hidden="true"
+        />
 
         {activeTab === "profile" && (
           <section className="mt-6 w-full max-w-6xl space-y-6">
             <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                  Artist account
-                </p>
                 <h1 className="mt-2 text-3xl! font-semibold text-white">
                   Profile settings
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-                  Keep your public profile and artist spotlight polished from
-                  one place.
-                </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:hidden">
@@ -1806,9 +1790,9 @@ const ArtistDashboardView = () => {
                         aria-controls={`profile-panel-${tab.value}`}
                         id={`profile-tab-${tab.value}`}
                         onClick={() => setActiveProfileSubTab(tab.value)}
-                        className={`shrink-0 rounded-md border px-4 py-2 text-sm font-semibold transition ${
+                        className={`shrink-0  px-2 py-1.5! text-sm font-semibold transition ${
                           isActive
-                            ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                            ? " bg-white/[0.05]   text-white!"
                             : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/25 hover:text-white"
                         }`}
                       >
@@ -1819,101 +1803,314 @@ const ArtistDashboardView = () => {
                 </div>
 
                 {activeProfileSubTab === "identity" && (
-                <section
-                  id="profile-panel-identity"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-identity"
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
-                >
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <UserRound size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Public identity</h2>
-                      <p className="text-sm text-neutral-400">
-                        This is what clients see across SATX Ink.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Display name
+                  <section
+                    id="profile-panel-identity"
+                    role="tabpanel"
+                    aria-labelledby="profile-tab-identity"
+                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                  >
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                        <UserRound size={18} aria-hidden="true" />
                       </span>
-                      <input
-                        type="text"
-                        value={profileForm.displayName}
-                        onChange={(event) =>
-                          updateProfileForm({ displayName: event.target.value })
-                        }
-                        className={`w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
-                          displayNameStatus === "taken"
-                            ? "border-red-400 focus:border-red-400"
-                            : displayNameStatus === "available"
-                            ? "border-emerald-400 focus:border-emerald-400"
-                            : "border-white/10 focus:border-[var(--color-primary)]"
-                        }`}
-                        placeholder="Ink by Alex"
-                      />
-                      <span
-                        className={`block text-xs ${
-                          displayNameStatus === "taken"
-                            ? "text-red-300"
-                            : displayNameStatus === "available"
-                            ? "text-emerald-300"
-                            : "text-neutral-500"
-                        }`}
-                      >
-                        {displayNameStatus === "checking" &&
-                          "Checking name availability..."}
-                        {displayNameStatus === "available" &&
-                          "This display name is available."}
-                        {displayNameStatus === "taken" &&
-                          "This display name is already taken."}
-                        {displayNameStatus === "idle" &&
-                          "Changing this also updates your public profile handle."}
-                      </span>
-                    </label>
-
-                    <div className="space-y-2">
-                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                        <Mail size={15} aria-hidden="true" />
-                        {accountProviderCopy.accountLabel}
-                      </span>
-                      <div className="flex min-h-10 flex-col items-start gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                        <span className="min-w-0 max-w-full truncate text-neutral-300">
-                          {accountEmail || accountProviderCopy.fallbackEmailLabel}
-                        </span>
-                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
-                          <ShieldCheck size={13} aria-hidden="true" />
-                          {accountProviderCopy.managedLabel}
-                        </span>
+                      <div>
+                        <h2 className="mb-0! text-lg!">Public identity</h2>
+                        <p className="text-sm text-neutral-400">
+                          This is what clients see across SATX Ink.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                        <ImageIcon size={15} aria-hidden="true" />
-                        Profile photo
-                      </span>
-                      <div className="flex items-center gap-4 rounded-md border border-white/10 bg-[#101010] p-3">
-                        <img
-                          src={profileForm.avatarUrl || "/fallback-avatar.jpg"}
-                          alt="Current artist avatar"
-                          className="h-16 w-16 rounded-full border border-white/10 object-cover"
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Display name
+                        </span>
+                        <input
+                          type="text"
+                          value={profileForm.displayName}
+                          onChange={(event) =>
+                            updateProfileForm({
+                              displayName: event.target.value,
+                            })
+                          }
+                          className={`w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
+                            displayNameStatus === "taken"
+                              ? "border-red-400 focus:border-red-400"
+                              : displayNameStatus === "available"
+                              ? "border-emerald-400 focus:border-emerald-400"
+                              : "border-white/10 focus:border-[var(--color-primary)]"
+                          }`}
+                          placeholder="Ink by Alex"
                         />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-white">
-                            Update your avatar
-                          </p>
-                          <p className="mt-1 text-xs text-neutral-500">
-                            Upload and crop a square image for the platform.
-                          </p>
+                        <span
+                          className={`block text-xs ${
+                            displayNameStatus === "taken"
+                              ? "text-red-300"
+                              : displayNameStatus === "available"
+                              ? "text-emerald-300"
+                              : "text-neutral-500"
+                          }`}
+                        >
+                          {displayNameStatus === "checking" &&
+                            "Checking name availability..."}
+                          {displayNameStatus === "available" &&
+                            "This display name is available."}
+                          {displayNameStatus === "taken" &&
+                            "This display name is already taken."}
+                          {displayNameStatus === "idle" &&
+                            "Changing this also updates your public profile handle."}
+                        </span>
+                      </label>
+
+                      <div className="space-y-2">
+                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                          <Mail size={15} aria-hidden="true" />
+                          {accountProviderCopy.accountLabel}
+                        </span>
+                        <div className="flex min-h-10 flex-col items-start gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <span className="min-w-0 max-w-full truncate text-neutral-300">
+                            {accountEmail ||
+                              accountProviderCopy.fallbackEmailLabel}
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                            <ShieldCheck size={13} aria-hidden="true" />
+                            {accountProviderCopy.managedLabel}
+                          </span>
                         </div>
-                        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white">
-                          {isUploadingAvatar ? (
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                          <ImageIcon size={15} aria-hidden="true" />
+                          Profile photo
+                        </span>
+                        <div className="flex items-center gap-4 rounded-md border border-white/10 bg-[#101010] p-3">
+                          <img
+                            src={
+                              profileForm.avatarUrl || "/fallback-avatar.jpg"
+                            }
+                            alt="Current artist avatar"
+                            className="h-16 w-16 rounded-full border border-white/10 object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-white">
+                              Update your avatar
+                            </p>
+                            <p className="mt-1 text-xs text-neutral-500">
+                              Upload and crop a square image for the platform.
+                            </p>
+                          </div>
+                          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white">
+                            {isUploadingAvatar ? (
+                              <LoaderCircle
+                                size={15}
+                                className="animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Camera size={15} aria-hidden="true" />
+                            )}
+                            {isUploadingAvatar ? "Uploading" : "Edit"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              disabled={isUploadingAvatar}
+                              onChange={handleAvatarFileSelect}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="mt-4 block space-y-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
+                        <Instagram size={15} aria-hidden="true" />
+                        Instagram
+                      </span>
+                      <span className="flex min-w-0 rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
+                        <span className="shrink-0 border-r border-white/10 px-3 py-2 text-xs text-neutral-500 sm:text-sm">
+                          {INSTAGRAM_PROFILE_BASE}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="text"
+                          autoCapitalize="none"
+                          autoComplete="off"
+                          value={instagramHandle}
+                          onChange={(event) => {
+                            const nextHandle = getInstagramHandle(
+                              event.target.value
+                            );
+
+                            updateProfileForm((current) => ({
+                              ...current,
+                              socialLinks: {
+                                ...current.socialLinks,
+                                instagram:
+                                  getInstagramUrlFromHandle(nextHandle),
+                              },
+                            }));
+                          }}
+                          className="min-w-0 flex-1 bg-transparent px-3 py-2 text-white outline-none"
+                          placeholder="artist"
+                        />
+                      </span>
+                    </label>
+                  </section>
+                )}
+
+                {activeProfileSubTab === "spotlight" && (
+                  <section
+                    id="profile-panel-spotlight"
+                    role="tabpanel"
+                    aria-labelledby="profile-tab-spotlight"
+                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                  >
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                        <ImageIcon size={18} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h2 className="mb-0! text-lg!">Artist spotlight</h2>
+                        <p className="text-sm text-neutral-400">
+                          Prepare your spotlight story for when SATX Ink
+                          features you on the homepage.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="space-y-4">
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-neutral-200">
+                            Feature story
+                          </span>
+                          <textarea
+                            value={profileForm.homepageFeature.story}
+                            onChange={(event) =>
+                              updateProfileForm((current) => ({
+                                ...current,
+                                homepageFeature: {
+                                  ...current.homepageFeature,
+                                  story: event.target.value,
+                                },
+                              }))
+                            }
+                            rows={5}
+                            maxLength={520}
+                            className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                            placeholder="Share the work, style, or creative point of view you want clients to remember."
+                          />
+                          <span className="block text-right text-xs text-neutral-500">
+                            {profileForm.homepageFeature.story.length}/520
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-neutral-100">
+                              Spotlight images
+                            </p>
+                            <p className="text-xs text-neutral-500">
+                              {homepageFeatureImageCount}/
+                              {HOMEPAGE_FEATURE_IMAGE_LIMIT} slides ready
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                            Slider
+                          </span>
+                        </div>
+
+                        <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-black">
+                          {primaryHomepageFeatureImageUrl ? (
+                            <img
+                              src={primaryHomepageFeatureImageUrl}
+                              alt={
+                                profileForm.displayName ||
+                                "Artist spotlight preview"
+                              }
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-500">
+                              Upload up to four editorial images for the
+                              homepage spotlight slider.
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-4 gap-2">
+                          {Array.from({
+                            length: HOMEPAGE_FEATURE_IMAGE_LIMIT,
+                          }).map((_, index) => {
+                            const image = homepageFeatureImages[index];
+                            const imageUrl = image
+                              ? getHomepageFeatureImageUrl(image)
+                              : "";
+
+                            return (
+                              <div
+                                key={
+                                  image?.id || `homepage-feature-empty-${index}`
+                                }
+                                className={`group relative aspect-square overflow-hidden rounded-md border ${
+                                  image
+                                    ? "border-white/15 bg-black"
+                                    : "border-dashed border-white/10 bg-white/[0.035]"
+                                }`}
+                              >
+                                {image && imageUrl ? (
+                                  <>
+                                    <img
+                                      src={imageUrl}
+                                      alt=""
+                                      className="h-full w-full object-cover"
+                                      loading="lazy"
+                                    />
+                                    <span className="absolute left-1.5 top-1.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-bold text-white/80">
+                                      {index + 1}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleRemoveHomepageFeatureImage(
+                                          image
+                                        )
+                                      }
+                                      className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-red-300/35 bg-red-950/80 text-red-100 opacity-0 shadow-[0_8px_18px_rgba(0,0,0,0.35)] backdrop-blur transition hover:border-red-200/70 hover:bg-red-500 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/70 group-hover:opacity-100"
+                                      aria-label={`Remove homepage image ${
+                                        index + 1
+                                      }`}
+                                      title={`Remove slide ${index + 1}`}
+                                    >
+                                      <X size={13} aria-hidden="true" />
+                                      <span className="pointer-events-none absolute right-7 top-1/2 hidden -translate-y-1/2 rounded-full border border-red-300/25 bg-red-950/90 px-2 py-0.5 text-[10px] font-semibold text-red-50 shadow-lg shadow-black/30 sm:group-hover:block">
+                                        Remove
+                                      </span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-neutral-600">
+                                    {index + 1}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <label
+                          className={`mt-3 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition ${
+                            canUploadHomepageFeatureImage
+                              ? "cursor-pointer border-white/10 text-neutral-200 hover:border-white/25 hover:text-white"
+                              : "cursor-not-allowed border-white/5 text-neutral-500"
+                          }`}
+                        >
+                          {isUploadingHomepageFeatureImage ? (
                             <LoaderCircle
                               size={15}
                               className="animate-spin"
@@ -1922,434 +2119,229 @@ const ArtistDashboardView = () => {
                           ) : (
                             <Camera size={15} aria-hidden="true" />
                           )}
-                          {isUploadingAvatar ? "Uploading" : "Edit"}
+                          {isUploadingHomepageFeatureImage
+                            ? "Processing with Sharp"
+                            : homepageFeatureImageCount >=
+                              HOMEPAGE_FEATURE_IMAGE_LIMIT
+                            ? "Four-image limit reached"
+                            : "Upload image"}
                           <input
                             type="file"
                             accept="image/*"
                             className="sr-only"
-                            disabled={isUploadingAvatar}
-                            onChange={handleAvatarFileSelect}
+                            disabled={!canUploadHomepageFeatureImage}
+                            onChange={handleHomepageFeatureFileSelect}
                           />
                         </label>
+                        <p className="mt-2 text-xs leading-5 text-neutral-500">
+                          Admin controls who appears on the homepage. These
+                          images slide in the order shown and are saved to your
+                          artist profile.
+                        </p>
                       </div>
                     </div>
-                  </div>
-
-                  <label className="mt-4 block space-y-2">
-                    <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                      <Instagram size={15} aria-hidden="true" />
-                      Instagram
-                    </span>
-                    <span className="flex min-w-0 rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
-                      <span className="shrink-0 border-r border-white/10 px-3 py-2 text-xs text-neutral-500 sm:text-sm">
-                        {INSTAGRAM_PROFILE_BASE}
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="text"
-                        autoCapitalize="none"
-                        autoComplete="off"
-                        value={instagramHandle}
-                        onChange={(event) => {
-                          const nextHandle = getInstagramHandle(
-                            event.target.value
-                          );
-
-                          updateProfileForm((current) => ({
-                            ...current,
-                            socialLinks: {
-                              ...current.socialLinks,
-                              instagram:
-                                getInstagramUrlFromHandle(nextHandle),
-                            },
-                          }));
-                        }}
-                        className="min-w-0 flex-1 bg-transparent px-3 py-2 text-white outline-none"
-                        placeholder="artist"
-                      />
-                    </span>
-                  </label>
-                </section>
-                )}
-
-                {activeProfileSubTab === "spotlight" && (
-                <section
-                  id="profile-panel-spotlight"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-spotlight"
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
-                >
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <ImageIcon size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Artist spotlight</h2>
-                      <p className="text-sm text-neutral-400">
-                        Prepare your spotlight story for when SATX Ink features
-                        you on the homepage.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                    <div className="space-y-4">
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          Feature story
-                        </span>
-                        <textarea
-                          value={profileForm.homepageFeature.story}
-                          onChange={(event) =>
-                            updateProfileForm((current) => ({
-                              ...current,
-                              homepageFeature: {
-                                ...current.homepageFeature,
-                                story: event.target.value,
-                              },
-                            }))
-                          }
-                          rows={5}
-                          maxLength={520}
-                          className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                          placeholder="Share the work, style, or creative point of view you want clients to remember."
-                        />
-                        <span className="block text-right text-xs text-neutral-500">
-                          {profileForm.homepageFeature.story.length}/520
-                        </span>
-                      </label>
-                    </div>
-
-                    <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-neutral-100">
-                            Spotlight images
-                          </p>
-                          <p className="text-xs text-neutral-500">
-                            {homepageFeatureImageCount}/
-                            {HOMEPAGE_FEATURE_IMAGE_LIMIT} slides ready
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                          Slider
-                        </span>
-                      </div>
-
-                      <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-white/10 bg-black">
-                        {primaryHomepageFeatureImageUrl ? (
-                          <img
-                            src={primaryHomepageFeatureImageUrl}
-                            alt={
-                              profileForm.displayName ||
-                              "Artist spotlight preview"
-                            }
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-500">
-                            Upload up to four editorial images for the homepage
-                            spotlight slider.
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-4 gap-2">
-                        {Array.from({
-                          length: HOMEPAGE_FEATURE_IMAGE_LIMIT,
-                        }).map((_, index) => {
-                          const image = homepageFeatureImages[index];
-                          const imageUrl = image
-                            ? getHomepageFeatureImageUrl(image)
-                            : "";
-
-                          return (
-                            <div
-                              key={image?.id || `homepage-feature-empty-${index}`}
-                              className={`group relative aspect-square overflow-hidden rounded-md border ${
-                                image
-                                  ? "border-white/15 bg-black"
-                                  : "border-dashed border-white/10 bg-white/[0.035]"
-                              }`}
-                            >
-                              {image && imageUrl ? (
-                                <>
-                                  <img
-                                    src={imageUrl}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                    loading="lazy"
-                                  />
-                                  <span className="absolute left-1.5 top-1.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-bold text-white/80">
-                                    {index + 1}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void handleRemoveHomepageFeatureImage(
-                                        image
-                                      )
-                                    }
-                                    className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-red-300/35 bg-red-950/80 text-red-100 opacity-0 shadow-[0_8px_18px_rgba(0,0,0,0.35)] backdrop-blur transition hover:border-red-200/70 hover:bg-red-500 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/70 group-hover:opacity-100"
-                                    aria-label={`Remove homepage image ${
-                                      index + 1
-                                    }`}
-                                    title={`Remove slide ${index + 1}`}
-                                  >
-                                    <X size={13} aria-hidden="true" />
-                                    <span className="pointer-events-none absolute right-7 top-1/2 hidden -translate-y-1/2 rounded-full border border-red-300/25 bg-red-950/90 px-2 py-0.5 text-[10px] font-semibold text-red-50 shadow-lg shadow-black/30 sm:group-hover:block">
-                                      Remove
-                                    </span>
-                                  </button>
-                                </>
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-neutral-600">
-                                  {index + 1}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <label
-                        className={`mt-3 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                          canUploadHomepageFeatureImage
-                            ? "cursor-pointer border-white/10 text-neutral-200 hover:border-white/25 hover:text-white"
-                            : "cursor-not-allowed border-white/5 text-neutral-500"
-                        }`}
-                      >
-                        {isUploadingHomepageFeatureImage ? (
-                          <LoaderCircle
-                            size={15}
-                            className="animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <Camera size={15} aria-hidden="true" />
-                        )}
-                        {isUploadingHomepageFeatureImage
-                          ? "Processing with Sharp"
-                          : homepageFeatureImageCount >=
-                              HOMEPAGE_FEATURE_IMAGE_LIMIT
-                            ? "Four-image limit reached"
-                            : "Upload image"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="sr-only"
-                          disabled={!canUploadHomepageFeatureImage}
-                          onChange={handleHomepageFeatureFileSelect}
-                        />
-                      </label>
-                      <p className="mt-2 text-xs leading-5 text-neutral-500">
-                        Admin controls who appears on the homepage. These
-                        images slide in the order shown and are saved to your
-                        artist profile.
-                      </p>
-                    </div>
-                  </div>
-                </section>
+                  </section>
                 )}
 
                 {activeProfileSubTab === "specialties" && (
-                <section
-                  id="profile-panel-specialties"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-specialties"
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
-                >
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <Check size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Specialties</h2>
-                      <p className="text-sm text-neutral-400">
-                        Choose the styles clients should associate with your
-                        work.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                    {SPECIALTY_OPTIONS.map((specialty) => {
-                      const selected =
-                        profileForm.specialties.includes(specialty);
-                      return (
-                        <button
-                          key={specialty}
-                          type="button"
-                          onClick={() => toggleSpecialty(specialty)}
-                          className={`rounded-md border px-3 py-2 text-left text-sm transition ${
-                            selected
-                              ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
-                              : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
-                          }`}
-                        >
-                          {specialty}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <AnimatedTagInput
-                    className="mt-4"
-                    value={profileForm.specialties}
-                    onChange={(nextSpecialties) =>
-                      updateProfileForm({
-                        specialties:
-                          getCanonicalTattooStyles(nextSpecialties),
-                      })
-                    }
-                    label="Custom specialties"
-                    helperText="Press space or comma to add a custom specialty."
-                    emptyPlaceholder="fine-line, realism, lettering"
-                    addPlaceholder="Add another style"
-                    displayPrefix=""
-                    normalizeTag={getTattooStyleLabel}
-                    inputAriaLabel="Add custom specialty"
-                  />
-                </section>
-                )}
-
-                {activeProfileSubTab === "availability" && (
-                <section
-                  id="profile-panel-availability"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-availability"
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
-                >
-                  <div className="mb-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-                      <CalendarDays size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h2 className="mb-0! text-lg!">Booking availability</h2>
-                      <p className="text-sm text-neutral-400">
-                        Tell clients which upcoming months you are actively
-                        booking.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <section
+                    id="profile-panel-specialties"
+                    role="tabpanel"
+                    aria-labelledby="profile-tab-specialties"
+                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                  >
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                        <Check size={18} aria-hidden="true" />
+                      </span>
                       <div>
-                        <p className="text-sm font-semibold text-white">
-                          Public booking months
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-neutral-500">
-                          Select any months in the next 12 months. These appear
-                          on your public profile and in clients' Following list.
+                        <h2 className="mb-0! text-lg!">Specialties</h2>
+                        <p className="text-sm text-neutral-400">
+                          Choose the styles clients should associate with your
+                          work.
                         </p>
                       </div>
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-neutral-300">
-                        {selectedBookingMonthKeys.length} selected
-                      </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                      {bookingMonthOptions.map((month) => {
-                        const selected = selectedBookingMonthKeys.includes(
-                          month.key
-                        );
-
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                      {SPECIALTY_OPTIONS.map((specialty) => {
+                        const selected =
+                          profileForm.specialties.includes(specialty);
                         return (
                           <button
-                            key={month.key}
+                            key={specialty}
                             type="button"
-                            onClick={() => toggleBookingMonth(month.key)}
-                            aria-pressed={selected}
-                            className={`rounded-md border px-3! py-2.5! text-left transition ${
+                            onClick={() => toggleSpecialty(specialty)}
+                            className={`rounded-md border px-3 py-2 text-left text-sm transition ${
                               selected
                                 ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
-                                : "border-white/10 bg-white/[0.025] text-neutral-400 hover:border-white/25 hover:text-white"
+                                : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
                             }`}
                           >
-                            <span className="block text-sm font-semibold">
-                              {month.label.split(" ")[0]}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-neutral-500">
-                              {month.year}
-                            </span>
+                            {specialty}
                           </button>
                         );
                       })}
                     </div>
 
-                    <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
-                      <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
-                        Client-facing label
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-white">
-                        {bookingAvailabilityPreviewLabel
-                          ? `Booking ${bookingAvailabilityPreviewLabel}`
-                          : "Availability not listed"}
-                      </p>
+                    <AnimatedTagInput
+                      className="mt-4"
+                      value={profileForm.specialties}
+                      onChange={(nextSpecialties) =>
+                        updateProfileForm({
+                          specialties:
+                            getCanonicalTattooStyles(nextSpecialties),
+                        })
+                      }
+                      label="Custom specialties"
+                      helperText="Press space or comma to add a custom specialty."
+                      emptyPlaceholder="fine-line, realism, lettering"
+                      addPlaceholder="Add another style"
+                      displayPrefix=""
+                      normalizeTag={getTattooStyleLabel}
+                      inputAriaLabel="Add custom specialty"
+                    />
+                  </section>
+                )}
+
+                {activeProfileSubTab === "availability" && (
+                  <section
+                    id="profile-panel-availability"
+                    role="tabpanel"
+                    aria-labelledby="profile-tab-availability"
+                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                  >
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+                        <CalendarDays size={18} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h2 className="mb-0! text-lg!">Booking availability</h2>
+                        <p className="text-sm text-neutral-400">
+                          Tell clients which upcoming months you are actively
+                          booking.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </section>
+
+                    <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            Public booking months
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-neutral-500">
+                            Select any months in the next 12 months. These
+                            appear on your public profile and in clients'
+                            Following list.
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-neutral-300">
+                          {selectedBookingMonthKeys.length} selected
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {bookingMonthOptions.map((month) => {
+                          const selected = selectedBookingMonthKeys.includes(
+                            month.key
+                          );
+
+                          return (
+                            <button
+                              key={month.key}
+                              type="button"
+                              onClick={() => toggleBookingMonth(month.key)}
+                              aria-pressed={selected}
+                              className={`rounded-md border px-3! py-2.5! text-left transition ${
+                                selected
+                                  ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-white"
+                                  : "border-white/10 bg-white/[0.025] text-neutral-400 hover:border-white/25 hover:text-white"
+                              }`}
+                            >
+                              <span className="block text-sm font-semibold">
+                                {month.label.split(" ")[0]}
+                              </span>
+                              <span className="mt-0.5 block text-xs text-neutral-500">
+                                {month.year}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3">
+                        <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
+                          Client-facing label
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {bookingAvailabilityPreviewLabel
+                            ? `Booking ${bookingAvailabilityPreviewLabel}`
+                            : "Availability not listed"}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
                 )}
               </div>
 
               <aside className="h-fit space-y-4 xl:sticky xl:top-24 xl:self-start">
                 <div className="rounded-lg border border-white/10 bg-[#101010] p-5">
                   <div className="flex items-center gap-4">
-                  <img
-                    src={
-                      profileForm.avatarUrl.trim() ||
-                      artist?.avatarUrl ||
-                      "/fallback-avatar.jpg"
-                    }
-                    alt={profileForm.displayName || "Artist avatar preview"}
-                    className="h-20 w-20 rounded-full border border-white/10 object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold text-white">
-                      {profileForm.displayName || "Display name"}
-                    </p>
+                    <img
+                      src={
+                        profileForm.avatarUrl.trim() ||
+                        artist?.avatarUrl ||
+                        "/fallback-avatar.jpg"
+                      }
+                      alt={profileForm.displayName || "Artist avatar preview"}
+                      className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-semibold text-white">
+                        {profileForm.displayName || "Display name"}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <p className="mt-5 line-clamp-5 text-sm leading-6 text-neutral-300">
-                  {profilePreviewStory ||
-                    "Your artist spotlight story will appear here as clients browse your profile."}
-                </p>
+                  <p className="mt-5 line-clamp-5 text-sm leading-6 text-neutral-300">
+                    {profilePreviewStory ||
+                      "Your artist spotlight story will appear here as clients browse your profile."}
+                  </p>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {profileForm.specialties.length > 0 ? (
-                    profileForm.specialties.slice(0, 6).map((specialty) => (
-                      <span
-                        key={specialty}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
-                      >
-                        {specialty}
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {profileForm.specialties.length > 0 ? (
+                      profileForm.specialties.slice(0, 6).map((specialty) => (
+                        <span
+                          key={specialty}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-200"
+                        >
+                          {specialty}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-neutral-500">
+                        No specialties selected yet.
                       </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-neutral-500">
-                      No specialties selected yet.
-                    </span>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="text-neutral-400">Booking</span>
-                    <span className="max-w-[180px] truncate text-right text-white">
-                      {bookingAvailabilityPreviewLabel || "Not listed"}
-                    </span>
+                  <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-neutral-400">Booking</span>
+                      <span className="max-w-[180px] truncate text-right text-white">
+                        {bookingAvailabilityPreviewLabel || "Not listed"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-400">Instagram</span>
+                      <span className="max-w-[180px] truncate text-white">
+                        {instagramHandle
+                          ? getInstagramUrlFromHandle(instagramHandle)
+                          : "Not added"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Instagram</span>
-                    <span className="max-w-[180px] truncate text-white">
-                      {instagramHandle
-                        ? getInstagramUrlFromHandle(instagramHandle)
-                        : "Not added"}
-                    </span>
-                  </div>
-                </div>
                 </div>
 
                 <div className="hidden rounded-lg border border-white/10 bg-white/[0.03] p-5 xl:block">
@@ -2518,7 +2510,8 @@ const ArtistDashboardView = () => {
                               Booking filters
                             </h2>
                             <p className="text-sm text-neutral-400">
-                              Move between payment stages without leaving bookings.
+                              Move between payment stages without leaving
+                              bookings.
                             </p>
                           </div>
                         </div>
@@ -2529,7 +2522,9 @@ const ArtistDashboardView = () => {
                               <button
                                 key={filter.value}
                                 type="button"
-                                onClick={() => setBookingStatusFilter(filter.value)}
+                                onClick={() =>
+                                  setBookingStatusFilter(filter.value)
+                                }
                                 className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
                                   bookingStatusFilter === filter.value
                                     ? "border-white bg-white text-black"
@@ -2552,7 +2547,8 @@ const ArtistDashboardView = () => {
                             ))}
                           </div>
                           <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
-                            Showing {visibleBookings.length} of {bookings.length}
+                            Showing {visibleBookings.length} of{" "}
+                            {bookings.length}
                           </span>
                         </div>
                       </div>
@@ -2578,7 +2574,9 @@ const ArtistDashboardView = () => {
                         <select
                           value={bookingSortMode}
                           onChange={(event) =>
-                            setBookingSortMode(event.target.value as BookingSortMode)
+                            setBookingSortMode(
+                              event.target.value as BookingSortMode
+                            )
                           }
                           className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
                           aria-label="Sort bookings"
@@ -2603,7 +2601,8 @@ const ArtistDashboardView = () => {
                               Session filters
                             </h2>
                             <p className="text-sm text-neutral-400">
-                              Start ready appointments and spot sessions that need a date or follow-up.
+                              Start ready appointments and spot sessions that
+                              need a date or follow-up.
                             </p>
                           </div>
                         </div>
@@ -2637,7 +2636,8 @@ const ArtistDashboardView = () => {
                             ))}
                           </div>
                           <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
-                            Showing {visibleBookings.length} of {bookings.length}
+                            Showing {visibleBookings.length} of{" "}
+                            {bookings.length}
                           </span>
                         </div>
                       </div>
@@ -2663,7 +2663,9 @@ const ArtistDashboardView = () => {
                         <select
                           value={bookingSortMode}
                           onChange={(event) =>
-                            setBookingSortMode(event.target.value as BookingSortMode)
+                            setBookingSortMode(
+                              event.target.value as BookingSortMode
+                            )
                           }
                           className="h-10 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
                           aria-label="Sort sessions"
@@ -2701,7 +2703,9 @@ const ArtistDashboardView = () => {
                       <select
                         value={bookingSortMode}
                         onChange={(event) =>
-                          setBookingSortMode(event.target.value as BookingSortMode)
+                          setBookingSortMode(
+                            event.target.value as BookingSortMode
+                          )
                         }
                         className="h-11 rounded-md border border-white/10 bg-[#101010] px-3 text-sm font-medium text-white outline-none transition focus:border-[var(--color-primary)]"
                       >
@@ -2723,13 +2727,25 @@ const ArtistDashboardView = () => {
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
                       Try another client name or clear the search to return to
-                      all {activeTab === "bookings" ? (bookingStatusFilter === "all" ? "bookings" : `${activeBookingFilterLabel.toLowerCase()} bookings`) : activeTab === "sessions" ? "active session records" : activeTab === "projects" ? "projects" : "bookings"}.
+                      all{" "}
+                      {activeTab === "bookings"
+                        ? bookingStatusFilter === "all"
+                          ? "bookings"
+                          : `${activeBookingFilterLabel.toLowerCase()} bookings`
+                        : activeTab === "sessions"
+                        ? "active session records"
+                        : activeTab === "projects"
+                        ? "projects"
+                        : "bookings"}
+                      .
                     </p>
                   </div>
                 ) : activeTab === "sessions" ? (
                   <SessionsTable
                     sessions={visibleBookings as DashboardBooking[]}
-                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onOpenRecord={(booking) =>
+                      setSelectedBookingRecord(booking)
+                    }
                     onOpenProject={(booking) => {
                       setActiveTab("projects");
                       setBookingStatusFilter("all");
@@ -2746,7 +2762,9 @@ const ArtistDashboardView = () => {
                 ) : activeTab === "projects" ? (
                   <ProjectsTable
                     projects={visibleBookings as DashboardBooking[]}
-                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onOpenRecord={(booking) =>
+                      setSelectedBookingRecord(booking)
+                    }
                     onBalancePaid={handleBalancePaidFromRow}
                     onRequestPayment={(booking) =>
                       setSessionPaymentBooking(booking)
@@ -2756,7 +2774,9 @@ const ArtistDashboardView = () => {
                 ) : (
                   <ArtistBookingsTable
                     bookings={visibleBookings as DashboardBooking[]}
-                    onOpenRecord={(booking) => setSelectedBookingRecord(booking)}
+                    onOpenRecord={(booking) =>
+                      setSelectedBookingRecord(booking)
+                    }
                     onOpenProjectRecord={(booking) => {
                       setActiveTab("projects");
                       setBookingStatusFilter("all");
@@ -3110,131 +3130,131 @@ const PaymentPreferencesPanel = ({
   onReset,
   onSave,
 }: PaymentPreferencesPanelProps) => (
-    <section className="rounded-xl border border-white/10 bg-[#101010]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-5">
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+  <section className="rounded-xl border border-white/10 bg-[#101010]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-5">
+    <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+          <CreditCard size={18} aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="mb-0! text-xl! font-semibold text-white">
+            Payment preferences
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
+            Stripe collects every SATX Ink deposit. Remaining balances can be
+            handled through Stripe or settled directly with the artist per
+            offer.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={!isDirty || isSaving}
+          className="inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.02] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <RefreshCcw size={14} aria-hidden="true" />
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={isSaveDisabled}
+          className={`inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! px-4! py-2! text-xs! font-semibold transition disabled:cursor-not-allowed ${
+            isDirty
+              ? "bg-white text-[#0b0b0b]! shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] hover:bg-white/90"
+              : "border border-white/10 bg-white/[0.03] text-neutral-500 disabled:opacity-50"
+          }`}
+        >
+          <Save
+            size={14}
+            className={isDirty ? "text-[#0b0b0b]!" : ""}
+            aria-hidden="true"
+          />
+          {isSaving ? "Saving..." : "Save preferences"}
+        </button>
+      </div>
+    </div>
+
+    <div className="mt-4 space-y-3">
+      <div className="flex flex-col gap-3 rounded-lg border border-emerald-300/15 bg-emerald-300/[0.045] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-            <CreditCard size={18} aria-hidden="true" />
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-300">
+            <ShieldCheck size={15} aria-hidden="true" />
           </span>
           <div>
-            <h2 className="mb-0! text-xl! font-semibold text-white">
-              Payment preferences
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-              Stripe collects every SATX Ink deposit. Remaining balances can be
-              handled through Stripe or settled directly with the artist per
-              offer.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={!isDirty || isSaving}
-            className="inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.02] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <RefreshCcw size={14} aria-hidden="true" />
-            Reset
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={isSaveDisabled}
-            className={`inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! px-4! py-2! text-xs! font-semibold transition disabled:cursor-not-allowed ${
-              isDirty
-                ? "bg-white text-[#0b0b0b]! shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] hover:bg-white/90"
-                : "border border-white/10 bg-white/[0.03] text-neutral-500 disabled:opacity-50"
-            }`}
-          >
-            <Save
-              size={14}
-              className={isDirty ? "text-[#0b0b0b]!" : ""}
-              aria-hidden="true"
-            />
-            {isSaving ? "Saving..." : "Save preferences"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <div className="flex flex-col gap-3 rounded-lg border border-emerald-300/15 bg-emerald-300/[0.045] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-300">
-              <ShieldCheck size={15} aria-hidden="true" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-white">
-                Stripe deposits
-              </div>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-emerald-50/70">
-                Deposits are always required, non-refundable, and collected
-                through SATX Ink checkout before a booking is confirmed.
-              </p>
+            <div className="text-sm font-semibold text-white">
+              Stripe deposits
             </div>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-emerald-50/70">
+              Deposits are always required, non-refundable, and collected
+              through SATX Ink checkout before a booking is confirmed.
+            </p>
           </div>
-          <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
-            Always on
-          </span>
+        </div>
+        <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+          Always on
+        </span>
+      </div>
+    </div>
+
+    <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3.5 sm:p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h3 className="mb-0! text-sm! font-semibold text-white">
+            Final payment terms
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-neutral-500">
+            Set the default timing clients see before accepting an offer.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(["before", "after"] as FinalPaymentTiming[]).map((timing) => (
+            <button
+              key={timing}
+              type="button"
+              onClick={() => onChange({ finalPaymentTiming: timing })}
+              className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
+                form.finalPaymentTiming === timing
+                  ? "border-white/30 bg-white text-black"
+                  : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
+              }`}
+            >
+              {timing === "before" ? "Before appointment" : "After appointment"}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3.5 sm:p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h3 className="mb-0! text-sm! font-semibold text-white">
-              Final payment terms
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-neutral-500">
-              Set the default timing clients see before accepting an offer.
-            </p>
-          </div>
+      {form.finalPaymentTiming === "before" && (
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+            Deadline
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {(["before", "after"] as FinalPaymentTiming[]).map((timing) => (
+            {FINAL_PAYMENT_DEADLINE_OPTIONS.map((option) => (
               <button
-                key={timing}
+                key={option.hours}
                 type="button"
-                onClick={() => onChange({ finalPaymentTiming: timing })}
+                onClick={() =>
+                  onChange({ finalPaymentDeadlineHours: option.hours })
+                }
                 className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
-                  form.finalPaymentTiming === timing
+                  form.finalPaymentDeadlineHours === option.hours
                     ? "border-white/30 bg-white text-black"
                     : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
                 }`}
               >
-                {timing === "before" ? "Before appointment" : "After appointment"}
+                {option.label}
               </button>
             ))}
           </div>
         </div>
-
-        {form.finalPaymentTiming === "before" && (
-          <div className="mt-4 border-t border-white/10 pt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-              Deadline
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {FINAL_PAYMENT_DEADLINE_OPTIONS.map((option) => (
-                <button
-                  key={option.hours}
-                  type="button"
-                  onClick={() =>
-                    onChange({ finalPaymentDeadlineHours: option.hours })
-                  }
-                  className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
-                    form.finalPaymentDeadlineHours === option.hours
-                      ? "border-white/30 bg-white text-black"
-                      : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
+      )}
+    </div>
+  </section>
 );
 
 const ArtistDashboardProfileHeader = ({
@@ -3262,10 +3282,27 @@ const ArtistDashboardProfileHeader = ({
         />
 
         <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
             <h1 className="my-0! min-w-0 truncate text-xl! font-semibold leading-tight text-white sm:text-2xl!">
               {artistDisplayName}
             </h1>
+            {socialLinks.length > 0 && (
+              <div className="">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={link.label}
+                    title={link.label}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-white/85 transition hover:bg-white/[0.06] hover:text-white sm:h-7 sm:w-7"
+                  >
+                    {link.icon}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {(artistStyles.length > 0 || socialLinks.length > 0) && (
@@ -3285,24 +3322,6 @@ const ArtistDashboardProfileHeader = ({
                   ))}
                 </ul>
               )}
-
-              {socialLinks.length > 0 && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {socialLinks.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={link.label}
-                      title={link.label}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-white/85 transition hover:bg-white/[0.06] hover:text-white sm:h-7 sm:w-7"
-                    >
-                      {link.icon}
-                    </a>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -3317,16 +3336,6 @@ const getArtistDashboardSocialLinks = (artist: DashboardArtist) =>
       label: "Instagram",
       value: artist.socialLinks?.instagram,
       icon: <RiInstagramFill size={20} />,
-    },
-    {
-      label: "Facebook",
-      value: artist.socialLinks?.facebook,
-      icon: <FaFacebook size={19} />,
-    },
-    {
-      label: "Website",
-      value: artist.socialLinks?.website,
-      icon: <Globe size={19} />,
     },
   ]
     .filter((link) => Boolean(link.value?.trim()))
@@ -3411,7 +3420,8 @@ const SessionsTable = ({
 
         {activeSessions.length === 0 ? (
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 text-sm text-neutral-400">
-            No session is currently active. Start the next ready appointment from Upcoming Sessions.
+            No session is currently active. Start the next ready appointment
+            from Upcoming Sessions.
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -3509,7 +3519,8 @@ const SessionsTable = ({
               Upcoming Sessions
             </h2>
             <p className="mt-1 text-sm text-neutral-400">
-              Start ready appointments, or open records that need a date or project follow-up.
+              Start ready appointments, or open records that need a date or
+              project follow-up.
             </p>
           </div>
           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
@@ -3540,12 +3551,14 @@ const SessionsTable = ({
                   {upcomingSessions.map((booking) => {
                     const clientName = getDashboardClientName(booking);
                     const clientAvatar = getDashboardClientAvatar(booking);
-                    const sessionStatus = booking.sessionStatus || "not_started";
+                    const sessionStatus =
+                      booking.sessionStatus || "not_started";
                     const activeSessionNumber = getActiveSessionNumber(booking);
                     const sessionCount = getEstimatedSessionCount(booking);
                     const sessionLabel = `${activeSessionNumber} / ${sessionCount}`;
                     const readiness = getSessionReadinessFilterValue(booking);
-                    const startBlockReason = getSessionStartBlockReason(booking);
+                    const startBlockReason =
+                      getSessionStartBlockReason(booking);
                     const canStart = !startBlockReason;
                     const shouldPlanNext = readiness === "needs_schedule";
                     const shouldOpenProject =
@@ -3592,7 +3605,9 @@ const SessionsTable = ({
                           {(canStart || startBlockReason) && (
                             <button
                               type="button"
-                              disabled={hasActiveSession || Boolean(startBlockReason)}
+                              disabled={
+                                hasActiveSession || Boolean(startBlockReason)
+                              }
                               onClick={() => onStart(booking)}
                               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
                               title={
@@ -3726,7 +3741,9 @@ const SessionStateCell = ({ booking }: { booking: DashboardBooking }) => {
 
   return (
     <div className="min-w-0 pr-4">
-      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${readiness.className}`}>
+      <span
+        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${readiness.className}`}
+      >
         {readiness.label}
       </span>
       <p className="mt-1 truncate text-xs text-neutral-500">
@@ -3759,7 +3776,9 @@ const ProjectsTable = ({
     (total, booking) => total + getDashboardSessionInstallmentAmount(booking),
     0
   );
-  const paymentFollowUpCount = projects.filter(hasProjectPaymentFollowUp).length;
+  const paymentFollowUpCount = projects.filter(
+    hasProjectPaymentFollowUp
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -3803,12 +3822,19 @@ const ProjectsTable = ({
                   clientTableName
                 );
                 const clientAvatar = getDashboardClientAvatar(booking);
-                const completedCount = Number(booking.completedSessionCount || 0);
+                const completedCount = Number(
+                  booking.completedSessionCount || 0
+                );
                 const sessionCount = getEstimatedSessionCount(booking);
                 const activeSessionNumber = getActiveSessionNumber(booking);
-                const progress = Math.min((completedCount / sessionCount) * 100, 100);
-                const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
-                const canRequestPayment = canRequestProjectSessionPayment(booking);
+                const progress = Math.min(
+                  (completedCount / sessionCount) * 100,
+                  100
+                );
+                const canConfirmInShopPayment =
+                  canConfirmBookingInShopPayment(booking);
+                const canRequestPayment =
+                  canRequestProjectSessionPayment(booking);
                 const canAddSessions = canProposeProjectScopeChange(booking);
                 const projectQuickAction = getProjectQuickAction(booking);
 
@@ -3946,7 +3972,11 @@ const ProjectBalanceStat = ({
   </div>
 );
 
-const ProjectLedgerStatusBadge = ({ booking }: { booking: DashboardBooking }) => {
+const ProjectLedgerStatusBadge = ({
+  booking,
+}: {
+  booking: DashboardBooking;
+}) => {
   const status = booking.projectStatus || "active";
   const className =
     status === "paused"
@@ -3957,7 +3987,9 @@ const ProjectLedgerStatusBadge = ({ booking }: { booking: DashboardBooking }) =>
 
   return (
     <div className="pr-4">
-      <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+      <span
+        className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+      >
         {status}
       </span>
       <p className="mt-1 truncate text-xs capitalize text-neutral-500">
@@ -4032,8 +4064,9 @@ const ConfirmStartSessionDialog = ({
             )}
 
             <p className="mt-4 text-sm leading-6 text-neutral-400">
-              This moves the booking into the Sessions workspace so you can complete
-              the session record, add photos, and manage any remaining balance.
+              This moves the booking into the Sessions workspace so you can
+              complete the session record, add photos, and manage any remaining
+              balance.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -4082,11 +4115,14 @@ const BookingRecordDialog = ({
   const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
   const [isUpdatingSession, setIsUpdatingSession] = useState(false);
   const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
-  const [pendingAmendments, setPendingAmendments] = useState<ProjectAmendment[]>([]);
+  const [pendingAmendments, setPendingAmendments] = useState<
+    ProjectAmendment[]
+  >([]);
   const [scheduleProposalBooking, setScheduleProposalBooking] =
     useState<DashboardBooking | null>(null);
-  const [pauseDialogMode, setPauseDialogMode] =
-    useState<"pause" | "resume" | null>(null);
+  const [pauseDialogMode, setPauseDialogMode] = useState<
+    "pause" | "resume" | null
+  >(null);
 
   useEffect(() => {
     setSessionStatus(booking?.sessionStatus || "not_started");
@@ -4123,18 +4159,20 @@ const BookingRecordDialog = ({
 
   const clientName = booking ? getDashboardClientName(booking) : "Client";
   const clientAvatar =
-    booking?.user?.avatarUrl ||
-    booking?.clientAvatar ||
-    "/default-avatar.png";
+    booking?.user?.avatarUrl || booking?.clientAvatar || "/default-avatar.png";
   const remainingBalance =
     typeof booking?.remainingBalanceAmount === "number"
       ? Math.max(booking.remainingBalanceAmount, 0)
       : Math.max(
           Number(booking?.price || 0) -
-            Number(booking?.totalArtistPaidAmount || booking?.depositAmount || 0),
+            Number(
+              booking?.totalArtistPaidAmount || booking?.depositAmount || 0
+            ),
           0
         );
-  const isMultiSession = booking ? isDashboardMultiSessionBooking(booking) : false;
+  const isMultiSession = booking
+    ? isDashboardMultiSessionBooking(booking)
+    : false;
   const activeSessionNumber = booking ? getActiveSessionNumber(booking) : 1;
   const sessionCount = booking ? getEstimatedSessionCount(booking) : 1;
   const sessionInstallment = booking
@@ -4144,8 +4182,7 @@ const BookingRecordDialog = ({
     ? getSessionStartBlockReason(booking)
     : null;
   const showSessionWorkspace =
-    booking?.status !== "pending_payment" &&
-    isSessionView;
+    booking?.status !== "pending_payment" && isSessionView;
 
   const handleStartSession = async () => {
     if (!booking) return;
@@ -4170,7 +4207,10 @@ const BookingRecordDialog = ({
 
     setIsUpdatingSession(true);
     try {
-      const completeSession = httpsCallable(functions, "completeProjectSession");
+      const completeSession = httpsCallable(
+        functions,
+        "completeProjectSession"
+      );
       await completeSession({
         bookingId: booking.id,
         photoUrls: sessionPhotoUrls,
@@ -4302,297 +4342,318 @@ const BookingRecordDialog = ({
         onSubmit={handleSetProjectPaused}
       />
       <Transition appear show={!!booking} as={Fragment}>
-      <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-150"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
-        </Transition.Child>
+        <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-150"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
+          </Transition.Child>
 
-        <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
-          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="scale-95 opacity-0"
-              enterTo="scale-100 opacity-100"
-              leave="ease-in duration-150"
-              leaveFrom="scale-100 opacity-100"
-              leaveTo="scale-95 opacity-0"
-            >
-              <Dialog.Panel className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
-                {booking && (
-                  <>
-                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                          Booking details
-                        </p>
-                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                          Appointment with {clientName}
-                        </Dialog.Title>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-                        aria-label="Close booking details"
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
-
-                    <div className="grid min-h-0 gap-0 overflow-y-auto overscroll-contain request-modal-scrollbar lg:grid-cols-[1fr_0.95fr]">
-                      <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                        {booking.sampleImageUrl ? (
-                          <img
-                            src={booking.sampleImageUrl}
-                            alt="Booking sample"
-                            className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
-                          />
-                        ) : (
-                          <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                            <ImageIcon size={34} />
-                            <span>No sample image uploaded</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-5 sm:p-6">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex min-w-0 items-center gap-4">
-                            <img
-                              src={clientAvatar}
-                              alt={clientName}
-                              className="h-14 w-14 rounded-full border border-white/10 object-cover"
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold text-white">
-                                {clientName}
-                              </p>
-                              <p className="text-sm text-neutral-500">
-                                {booking.shopName || "Studio not listed"}
-                              </p>
-                            </div>
-                          </div>
-                          <BookingStatusBadge status={booking.status} />
-                        </div>
-
-                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                          <BookingDetailTile
-                            icon={<DollarSign size={17} />}
-                            label="Offer price"
-                            value={formatDashboardMoney(booking.price)}
-                          />
-                          <BookingDetailTile
-                            icon={<ReceiptText size={17} />}
-                            label="Deposit"
-                            value={formatDashboardMoney(booking.depositAmount)}
-                          />
-                          <BookingDetailTile
-                            icon={<DollarSign size={17} />}
-                            label="You were paid"
-                            value={formatDashboardMoney(booking.totalArtistPaidAmount)}
-                          />
-                          <BookingDetailTile
-                            icon={<CreditCard size={17} />}
-                            label="Remaining"
-                            value={formatDashboardMoney(remainingBalance)}
-                          />
-                          {isMultiSession && (
-                            <>
-                              <BookingDetailTile
-                                icon={<CalendarDays size={17} />}
-                                label="Session"
-                                value={`${activeSessionNumber}/${sessionCount}`}
-                              />
-                              <BookingDetailTile
-                                icon={<DollarSign size={17} />}
-                                label="Session estimate"
-                                value={formatDashboardMoney(sessionInstallment)}
-                              />
-                            </>
-                          )}
-                          <BookingDetailTile
-                            icon={<CalendarDays size={17} />}
-                            label="Appointment"
-                            value={formatBookingAppointment(booking.selectedDate)}
-                          />
-                          <BookingDetailTile
-                            icon={<Store size={17} />}
-                            label="Payment"
-                            value={
-                              booking.paymentType === "internal"
-                                ? "Stripe"
-                                : "Direct"
-                            }
-                          />
-                          <BookingDetailTile
-                            icon={<CreditCard size={17} />}
-                            label="Final terms"
-                            value={getDashboardFinalPaymentTermsLabel(booking)}
-                          />
-                        </div>
-
-                        {booking.remainingPaymentMethod === "external" && (
-                          <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                            <p className="text-sm font-semibold text-white">
-                              Direct remaining balance
-                            </p>
-                            <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                              Settle this balance directly with the client
-                              outside SATX Ink checkout.
-                            </p>
-                          </div>
-                        )}
-
-                        {booking.shopAddress && (
-                          <a
-                            href={booking.shopMapLink || undefined}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
-                          >
-                            <MapPin
-                              size={17}
-                              className="mt-0.5 shrink-0 text-neutral-500"
-                            />
-                            {booking.shopAddress}
-                          </a>
-                        )}
-
-                        <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                            <MessageSquareText size={17} />
-                            Client notes
-                          </div>
-                          <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
-                            {booking.message ||
-                              booking.description ||
-                              "No notes were included with this booking."}
+          <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
+            <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="scale-95 opacity-0"
+                enterTo="scale-100 opacity-100"
+                leave="ease-in duration-150"
+                leaveFrom="scale-100 opacity-100"
+                leaveTo="scale-95 opacity-0"
+              >
+                <Dialog.Panel className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
+                  {booking && (
+                    <>
+                      <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-white/45">
+                            Booking details
                           </p>
+                          <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                            Appointment with {clientName}
+                          </Dialog.Title>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
+                          aria-label="Close booking details"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      <div className="grid min-h-0 gap-0 overflow-y-auto overscroll-contain request-modal-scrollbar lg:grid-cols-[1fr_0.95fr]">
+                        <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
+                          {booking.sampleImageUrl ? (
+                            <img
+                              src={booking.sampleImageUrl}
+                              alt="Booking sample"
+                              className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
+                            />
+                          ) : (
+                            <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
+                              <ImageIcon size={34} />
+                              <span>No sample image uploaded</span>
+                            </div>
+                          )}
                         </div>
 
-                        {showProjectControls && (
-                          <ProjectControlsPanel
-                            booking={booking}
-                            viewerRole="artist"
-                            currentUserId={currentUserId}
-                            amendments={pendingAmendments}
-                            onRespondToAmendment={handleRespondToAmendment}
-                            onAddSessions={() => onAddSessions(booking)}
-                            onPlanNextSession={() =>
-                              setScheduleProposalBooking(booking)
-                            }
-                            onPauseProject={() => setPauseDialogMode("pause")}
-                            onResumeProject={() => setPauseDialogMode("resume")}
-                          />
-                        )}
-
-                        {showSessionWorkspace && (
-                          <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-white">
-                                  {isSessionView
-                                    ? isMultiSession
-                                      ? `Session ${activeSessionNumber} of ${sessionCount}`
-                                      : "Sessions workspace"
-                                    : "Ready to start session"}
+                        <div className="p-5 sm:p-6">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex min-w-0 items-center gap-4">
+                              <img
+                                src={clientAvatar}
+                                alt={clientName}
+                                className="h-14 w-14 rounded-full border border-white/10 object-cover"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-white">
+                                  {clientName}
                                 </p>
-                                <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                                  {isSessionView
-                                    ? "Attach a photo if needed, then complete this active session. Any payment follow-up returns to Bookings or Projects."
-                                    : "The booking is confirmed. Start this appointment when the client arrives, then close it out from the Sessions workspace."}
+                                <p className="text-sm text-neutral-500">
+                                  {booking.shopName || "Studio not listed"}
                                 </p>
                               </div>
-                              <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
-                                {sessionStatus?.replace("_", " ")}
-                              </span>
                             </div>
+                            <BookingStatusBadge status={booking.status} />
+                          </div>
 
-                            <div className={`mt-4 grid gap-3 ${isSessionView ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-1"}`}>
-                              {!isSessionView && (
-                                <button
-                                  type="button"
-                                  disabled={
-                                    isUpdatingSession ||
-                                    Boolean(sessionStartBlockReason)
-                                  }
-                                  onClick={handleStartSession}
-                                  title={sessionStartBlockReason || "Start this session"}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <CalendarDays size={16} />
-                                  Start session
-                                </button>
+                          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                            <BookingDetailTile
+                              icon={<DollarSign size={17} />}
+                              label="Offer price"
+                              value={formatDashboardMoney(booking.price)}
+                            />
+                            <BookingDetailTile
+                              icon={<ReceiptText size={17} />}
+                              label="Deposit"
+                              value={formatDashboardMoney(
+                                booking.depositAmount
                               )}
-                              {isSessionView && (
-                                <>
-                                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
-                                    <Camera size={16} />
-                                    {isUploadingSessionPhoto
-                                      ? "Uploading..."
-                                      : "Add photo"}
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      disabled={isUploadingSessionPhoto}
-                                      onChange={handleSessionPhotoUpload}
-                                      className="sr-only"
-                                    />
-                                  </label>
+                            />
+                            <BookingDetailTile
+                              icon={<DollarSign size={17} />}
+                              label="You were paid"
+                              value={formatDashboardMoney(
+                                booking.totalArtistPaidAmount
+                              )}
+                            />
+                            <BookingDetailTile
+                              icon={<CreditCard size={17} />}
+                              label="Remaining"
+                              value={formatDashboardMoney(remainingBalance)}
+                            />
+                            {isMultiSession && (
+                              <>
+                                <BookingDetailTile
+                                  icon={<CalendarDays size={17} />}
+                                  label="Session"
+                                  value={`${activeSessionNumber}/${sessionCount}`}
+                                />
+                                <BookingDetailTile
+                                  icon={<DollarSign size={17} />}
+                                  label="Session estimate"
+                                  value={formatDashboardMoney(
+                                    sessionInstallment
+                                  )}
+                                />
+                              </>
+                            )}
+                            <BookingDetailTile
+                              icon={<CalendarDays size={17} />}
+                              label="Appointment"
+                              value={formatBookingAppointment(
+                                booking.selectedDate
+                              )}
+                            />
+                            <BookingDetailTile
+                              icon={<Store size={17} />}
+                              label="Payment"
+                              value={
+                                booking.paymentType === "internal"
+                                  ? "Stripe"
+                                  : "Direct"
+                              }
+                            />
+                            <BookingDetailTile
+                              icon={<CreditCard size={17} />}
+                              label="Final terms"
+                              value={getDashboardFinalPaymentTermsLabel(
+                                booking
+                              )}
+                            />
+                          </div>
+
+                          {booking.remainingPaymentMethod === "external" && (
+                            <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                              <p className="text-sm font-semibold text-white">
+                                Direct remaining balance
+                              </p>
+                              <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                                Settle this balance directly with the client
+                                outside SATX Ink checkout.
+                              </p>
+                            </div>
+                          )}
+
+                          {booking.shopAddress && (
+                            <a
+                              href={booking.shopMapLink || undefined}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
+                            >
+                              <MapPin
+                                size={17}
+                                className="mt-0.5 shrink-0 text-neutral-500"
+                              />
+                              {booking.shopAddress}
+                            </a>
+                          )}
+
+                          <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                              <MessageSquareText size={17} />
+                              Client notes
+                            </div>
+                            <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
+                              {booking.message ||
+                                booking.description ||
+                                "No notes were included with this booking."}
+                            </p>
+                          </div>
+
+                          {showProjectControls && (
+                            <ProjectControlsPanel
+                              booking={booking}
+                              viewerRole="artist"
+                              currentUserId={currentUserId}
+                              amendments={pendingAmendments}
+                              onRespondToAmendment={handleRespondToAmendment}
+                              onAddSessions={() => onAddSessions(booking)}
+                              onPlanNextSession={() =>
+                                setScheduleProposalBooking(booking)
+                              }
+                              onPauseProject={() => setPauseDialogMode("pause")}
+                              onResumeProject={() =>
+                                setPauseDialogMode("resume")
+                              }
+                            />
+                          )}
+
+                          {showSessionWorkspace && (
+                            <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">
+                                    {isSessionView
+                                      ? isMultiSession
+                                        ? `Session ${activeSessionNumber} of ${sessionCount}`
+                                        : "Sessions workspace"
+                                      : "Ready to start session"}
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                                    {isSessionView
+                                      ? "Attach a photo if needed, then complete this active session. Any payment follow-up returns to Bookings or Projects."
+                                      : "The booking is confirmed. Start this appointment when the client arrives, then close it out from the Sessions workspace."}
+                                  </p>
+                                </div>
+                                <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium capitalize text-white">
+                                  {sessionStatus?.replace("_", " ")}
+                                </span>
+                              </div>
+
+                              <div
+                                className={`mt-4 grid gap-3 ${
+                                  isSessionView
+                                    ? "sm:grid-cols-2 xl:grid-cols-3"
+                                    : "sm:grid-cols-1"
+                                }`}
+                              >
+                                {!isSessionView && (
                                   <button
                                     type="button"
                                     disabled={
                                       isUpdatingSession ||
-                                      isUploadingSessionPhoto ||
-                                      sessionStatus !== "in_progress"
+                                      Boolean(sessionStartBlockReason)
                                     }
-                                    onClick={handleCompleteSession}
-                                    className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                                    onClick={handleStartSession}
+                                    title={
+                                      sessionStartBlockReason ||
+                                      "Start this session"
+                                    }
+                                    className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
-                                    <Check size={16} />
-                                    Complete session
+                                    <CalendarDays size={16} />
+                                    Start session
                                   </button>
-                                </>
-                              )}
-                            </div>
+                                )}
+                                {isSessionView && (
+                                  <>
+                                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-black/30 px-3! py-2.5! text-sm! font-semibold text-white transition hover:bg-white/10">
+                                      <Camera size={16} />
+                                      {isUploadingSessionPhoto
+                                        ? "Uploading..."
+                                        : "Add photo"}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        disabled={isUploadingSessionPhoto}
+                                        onChange={handleSessionPhotoUpload}
+                                        className="sr-only"
+                                      />
+                                    </label>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        isUpdatingSession ||
+                                        isUploadingSessionPhoto ||
+                                        sessionStatus !== "in_progress"
+                                      }
+                                      onClick={handleCompleteSession}
+                                      className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <Check size={16} />
+                                      Complete session
+                                    </button>
+                                  </>
+                                )}
+                              </div>
 
-                            {isSessionView && (
-                              <div className="mt-4">
-                              {sessionPhotoUrls.length > 0 && (
-                                <div className="mt-3 grid grid-cols-3 gap-2">
-                                  {sessionPhotoUrls.map((url) => (
-                                    <img
-                                      key={url}
-                                      src={url}
-                                      alt="Session record"
-                                      className="h-20 w-full rounded-md border border-white/10 object-cover"
-                                    />
-                                  ))}
+                              {isSessionView && (
+                                <div className="mt-4">
+                                  {sessionPhotoUrls.length > 0 && (
+                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                      {sessionPhotoUrls.map((url) => (
+                                        <img
+                                          key={url}
+                                          src={url}
+                                          alt="Session record"
+                                          className="h-20 w-full rounded-md border border-white/10 object-cover"
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
-              </Dialog.Panel>
-            </Transition.Child>
+                    </>
+                  )}
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
           </div>
-        </div>
-      </Dialog>
-    </Transition>
+        </Dialog>
+      </Transition>
     </>
   );
 };
@@ -4651,10 +4712,13 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
       : status === "cancelled"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  const label = status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
+  const label =
+    status === "deposit_paid" ? "Deposit paid" : status.replace("_", " ");
 
   return (
-    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+    <span
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+    >
       {label}
     </span>
   );
@@ -4699,7 +4763,9 @@ const SessionStatusBadge = ({
   const label = status.replace("_", " ");
 
   return (
-    <span className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}>
+    <span
+      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
+    >
       {prefix ? `${prefix}: ${label}` : label}
     </span>
   );
@@ -4795,7 +4861,10 @@ const getLastPaidSessionNumber = (booking: Partial<Booking>) =>
   Math.max(Number(booking.lastPaidSessionNumber || 0), 0);
 
 const getRemainingInstallmentCount = (booking: Partial<Booking>) => {
-  const totalLaterInstallments = Math.max(getEstimatedSessionCount(booking) - 1, 1);
+  const totalLaterInstallments = Math.max(
+    getEstimatedSessionCount(booking) - 1,
+    1
+  );
   const lastPaidSessionNumber = getLastPaidSessionNumber(booking);
   const paidLaterInstallments =
     getDashboardSessionInstallmentTiming(booking) === "before_session"
@@ -4818,7 +4887,10 @@ const isBookingFullyCompleted = (booking: Partial<Booking>) => {
 
 const getDisplaySessionNumber = (booking: Partial<Booking>) => {
   const sessionCount = getEstimatedSessionCount(booking);
-  const completedCount = Math.min(getCompletedSessionCount(booking), sessionCount);
+  const completedCount = Math.min(
+    getCompletedSessionCount(booking),
+    sessionCount
+  );
 
   if (isBookingFullyCompleted(booking)) return sessionCount;
   if (booking.sessionStatus === "awaiting_next_session") {
@@ -4829,7 +4901,9 @@ const getDisplaySessionNumber = (booking: Partial<Booking>) => {
 };
 
 const getBookingSessionDisplay = (booking: Partial<Booking>) => {
-  const primary = `Session ${getDisplaySessionNumber(booking)} of ${getEstimatedSessionCount(booking)}`;
+  const primary = `Session ${getDisplaySessionNumber(
+    booking
+  )} of ${getEstimatedSessionCount(booking)}`;
   const remainingBalance = getDashboardRemainingBalance(booking);
   const paymentStatus = booking.remainingPaymentStatus || "not_due";
 
@@ -4901,11 +4975,19 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
   }
 
   if (isBookingFullyCompleted(booking)) {
-    return { primary, secondary: "All sessions complete", tone: "emerald" as const };
+    return {
+      primary,
+      secondary: "All sessions complete",
+      tone: "emerald" as const,
+    };
   }
 
   if (booking.sessionStatus === "awaiting_next_session") {
-    return { primary, secondary: "Next session ready", tone: "emerald" as const };
+    return {
+      primary,
+      secondary: "Next session ready",
+      tone: "emerald" as const,
+    };
   }
 
   return { primary, secondary: "Ready to start", tone: "emerald" as const };
@@ -5023,7 +5105,10 @@ const getSessionReadinessFilterValue = (
     return "needs_schedule";
   }
 
-  if (needsSessionPaymentRequest(booking) || hasSessionBalanceFollowUp(booking)) {
+  if (
+    needsSessionPaymentRequest(booking) ||
+    hasSessionBalanceFollowUp(booking)
+  ) {
     return "follow_up";
   }
 
@@ -5279,7 +5364,11 @@ const getSessionAppointmentDisplay = (booking: Partial<Booking>) => {
 
 const getBookingStartTime = (booking: Partial<Booking>) => {
   const selectedDate = booking.selectedDate;
-  if (!selectedDate?.date || !selectedDate.time || selectedDate.date === "TBD") {
+  if (
+    !selectedDate?.date ||
+    !selectedDate.time ||
+    selectedDate.date === "TBD"
+  ) {
     return Number.MAX_SAFE_INTEGER;
   }
 
@@ -5333,7 +5422,11 @@ const isSessionWorkspaceBooking = (
   if (partialBooking.status === "cancelled") return false;
   if (partialBooking.projectStatus === "completed") return false;
   if (isActiveSessionBooking(booking)) return true;
-  if (!["confirmed", "deposit_paid", "paid"].includes(String(partialBooking.status))) {
+  if (
+    !["confirmed", "deposit_paid", "paid"].includes(
+      String(partialBooking.status)
+    )
+  ) {
     return false;
   }
 

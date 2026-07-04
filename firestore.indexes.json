@@ -69,6 +69,41 @@
         { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketplaceReady", "order": "ASCENDING" },
+        { "fieldPath": "sheetId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "flashes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "artistId", "order": "ASCENDING" },
+        { "fieldPath": "sheetId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "slug", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        {
+          "fieldPath": "bookingAvailability.monthKeys",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

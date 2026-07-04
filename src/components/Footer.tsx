@@ -86,36 +86,33 @@ export const Footer = () => {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.52fr)] lg:items-end">
             <section className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white!">
                 SATX INK<sup className="ml-1 text-[0.58em]">TM</sup>
-              </p>
-              <h2 className="mt-3 text-2xl! font-semibold leading-tight text-white md:text-3xl!">
-                San Antonio tattoo discovery, kept focused.
-              </h2>
-              <p className="mt-4 max-w-xl text-sm leading-7 text-neutral-400 md:text-base">
-                Artist profiles, public flash drops, shop context, and request
-                tools built around the way clients actually choose their next
-                tattoo.
               </p>
             </section>
 
-            <section className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end lg:grid-cols-1 lg:justify-items-end lg:text-right">
-              <div className="max-w-md">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
-                  Local focus
-                </p>
-                <p className="mt-3 leading-6 text-neutral-400">
-                  Built for San Antonio artists, shops, clients, and the flash
-                  drops that turn browsing into a cleaner booking path.
-                </p>
+            <section className="flex gap-3 items-center">
+              <div className="flex flex-col md:flex-row w-full gap-1 md:gap-5">
+                <Link
+                  to="/terms"
+                  className="transition w-full hover:text-white"
+                >
+                  Terms of Service
+                </Link>
+                <Link
+                  to="/privacy"
+                  className="transition w-full  hover:text-white"
+                >
+                  Privacy Policy
+                </Link>
               </div>
               <button
                 type="button"
                 onClick={() => setIsContactOpen(true)}
-                className="group inline-flex h-11! w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white px-4! py-0! text-sm! font-semibold text-[#0b0b0b]! transition hover:bg-white/85 sm:w-auto"
+                className="group inline-flex h-11! w-full max-w-[200px] items-center justify-center gap-2 rounded-md border border-white/10  px-4! py-0! text-sm! font-semibold text-white/75 hover:text-white transition  sm:w-auto"
               >
                 <Mail size={16} aria-hidden="true" />
-                Contact SATX INK
+                Contact
                 <ArrowUpRight
                   size={15}
                   className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -123,22 +120,6 @@ export const Footer = () => {
                 />
               </button>
             </section>
-          </div>
-
-          <div className="flex flex-col gap-4 pt-5 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {new Date().getFullYear()} SATX INK
-              <sup className="ml-0.5 text-[0.62em]">TM</sup>. Built for San
-              Antonio tattoo culture.
-            </p>
-            <div className="flex flex-wrap gap-5">
-              <Link to="/terms" className="transition hover:text-white">
-                Terms of Service
-              </Link>
-              <Link to="/privacy" className="transition hover:text-white">
-                Privacy Policy
-              </Link>
-            </div>
           </div>
         </div>
       </footer>
@@ -149,7 +130,7 @@ export const Footer = () => {
             <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Contact SATX INK
+                  Contact SATX Ink
                 </p>
                 <h2 className="mt-1 text-xl! font-semibold! text-white">
                   Tell us what you need
@@ -228,10 +209,14 @@ export const Footer = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-5! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-white/10 px-5! text-sm! font-semibold text-white transition  disabled:cursor-wait disabled:opacity-60 sm:w-auto group"
                 >
                   {isSubmitting ? "Sending..." : "Send message"}
-                  <Send size={16} aria-hidden="true" />
+                  <Send
+                    size={16}
+                    className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    aria-hidden="true"
+                  />
                 </button>
               </div>
             </form>

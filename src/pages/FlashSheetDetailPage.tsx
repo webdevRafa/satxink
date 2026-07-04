@@ -210,10 +210,13 @@ const FlashSheetDetailPage = () => {
     [createdDraftIds, flashes]
   );
 
-  const fetchFlashes = async (sheetId: string) => {
+  const fetchFlashes = async (sheetId: string, artistId?: string) => {
     const flashesQuery = query(
       collection(db, "flashes"),
-      where("sheetId", "==", sheetId)
+      where("sheetId", "==", sheetId),
+      artistId
+        ? where("artistId", "==", artistId)
+        : where("marketplaceReady", "==", true)
     );
     const snapshot = await getDocs(flashesQuery);
     const nextFlashes = snapshot.docs.map((flashDoc) => ({
@@ -230,10 +233,7 @@ const FlashSheetDetailPage = () => {
 
     try {
       setIsLoading(true);
-      const [docSnap] = await Promise.all([
-        getDoc(doc(db, "flashSheets", id)),
-        fetchFlashes(id),
-      ]);
+      const docSnap = await getDoc(doc(db, "flashSheets", id));
 
       if (docSnap.exists()) {
         const sheetData = docSnap.data() as Omit<FlashSheet, "id">;
@@ -244,6 +244,7 @@ const FlashSheetDetailPage = () => {
         }
 
         setSheet({ id: docSnap.id, ...sheetData, imageUrl } as FlashSheet);
+        await fetchFlashes(id, sheetData.artistId);
       } else {
         toast.error("Flash sheet not found.");
       }
@@ -275,7 +276,7 @@ const FlashSheetDetailPage = () => {
       repeatability,
     });
     setEditingFlash(null);
-    if (id) fetchFlashes(id);
+    if (id) fetchFlashes(id, sheet?.artistId);
     toast.success("Flash updated.");
   };
 
@@ -420,7 +421,9 @@ const FlashSheetDetailPage = () => {
       setCropArea(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
-      if (publicationStatus === "published" && id) fetchFlashes(id);
+      if (publicationStatus === "published" && id) {
+        fetchFlashes(id, sheet.artistId);
+      }
       toast.success(
         publicationStatus === "draft"
           ? "Flash draft created."
@@ -483,7 +486,7 @@ const FlashSheetDetailPage = () => {
       setCreatedDraftIds((current) =>
         current.filter((draftId) => !draftIdSet.has(draftId))
       );
-      if (id) await fetchFlashes(id);
+      if (id) await fetchFlashes(id, sheet.artistId);
       if (closeCropper) setShowCropModal(false);
       toast.success(
         draftIds.length === 1 ? "Flash published." : "Flash drafts published."

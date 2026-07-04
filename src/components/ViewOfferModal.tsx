@@ -196,8 +196,8 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6 text-white backdrop-blur-md">
-      <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl">
+    <div className="fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
+      <div className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -219,14 +219,13 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </button>
         </div>
 
-        <div className="overflow-y-auto request-modal-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar">
           <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
             <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
               {offer.fullUrl || offer.thumbUrl ? (
-                <img
+                <OfferSampleImage
                   src={offer.fullUrl || offer.thumbUrl || undefined}
                   alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
-                  className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                 />
               ) : (
                 <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
@@ -383,9 +382,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
               </div>
             </div>
           </div>
+        </div>
 
-          {offer.status === "pending" && (
-            <div className="border-t border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+        {offer.status === "pending" && (
+          <div className="shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6">
               {isDeclining && (
                 <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
                   <p className="text-sm font-semibold text-white">
@@ -414,7 +414,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 </div>
               )}
 
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <div className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
                 {isDeclining ? (
                   <>
                     <button
@@ -424,7 +424,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                         setIsDeclining(false);
                         setDeclineReason("");
                       }}
-                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       Back
                     </button>
@@ -432,7 +432,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding || !declineReason}
                       onClick={handleDecline}
-                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-red-200/40 bg-red-200 px-3! py-2! text-xs! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-red-200/40 bg-red-200 px-2! py-2! text-xs! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       {isResponding ? "Declining..." : "Submit decline"}
                     </button>
@@ -443,7 +443,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={() => setIsDeclining(true)}
-                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       Decline
                     </button>
@@ -451,7 +451,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={handleReviewCheckout}
-                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       Review checkout
                       <CreditCard size={16} />
@@ -552,12 +552,12 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     </div>
                   )}
 
-                  <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <div className="mt-4 grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
                     <button
                       type="button"
                       disabled={isResponding}
                       onClick={() => setIsReviewingCheckout(false)}
-                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       Back
                     </button>
@@ -565,7 +565,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       type="button"
                       disabled={isResponding}
                       onClick={handleAccept}
-                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
                       {isResponding ? "Creating checkout..." : "Continue to Stripe"}
                       <Send size={16} />
@@ -574,9 +574,40 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 </div>
               )}
             </div>
-          )}
-        </div>
+        )}
       </div>
+    </div>
+  );
+};
+
+const OfferSampleImage = ({
+  src,
+  alt,
+}: {
+  src?: string;
+  alt: string;
+}) => {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
     </div>
   );
 };

@@ -14,14 +14,10 @@ import "aos/dist/aos.css";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
+  Check,
+  ChevronDown,
   Image as ImageIcon,
-  Palette,
-  Search,
-  Users,
 } from "lucide-react";
-import CountUp from "react-countup";
 import { Link, useSearchParams } from "react-router-dom";
 import ArtistCard from "../components/ArtistCard";
 import sa from "../assets/san-antonio.svg";
@@ -55,6 +51,11 @@ type ArtistGridItem =
       id: string;
       artist: Artist;
     };
+
+type StyleFilterOption = {
+  value: TattooStyle | "";
+  label: string;
+};
 
 const PAGE_SIZE = 6;
 
@@ -246,38 +247,6 @@ function useScrollScaledOpacity() {
   return { targetRef, progress };
 }
 
-function useViewportEntry<T extends Element>() {
-  const targetRef = useRef<T | null>(null);
-  const isInViewRef = useRef(false);
-  const [entryCount, setEntryCount] = useState(0);
-
-  useEffect(() => {
-    const target = targetRef.current;
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isInViewRef.current) {
-          isInViewRef.current = true;
-          setEntryCount((count) => count + 1);
-        } else if (!entry.isIntersecting) {
-          isInViewRef.current = false;
-        }
-      },
-      {
-        rootMargin: "0px 0px -12% 0px",
-        threshold: 0.35,
-      }
-    );
-
-    observer.observe(target);
-
-    return () => observer.disconnect();
-  }, []);
-
-  return { targetRef, entryCount };
-}
-
 function useScrollParallax(strength = 48) {
   const targetRef = useRef<HTMLElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -349,9 +318,7 @@ export const ArtistsPage = () => {
   const isStylesVisible = useStickyReveal(5);
   const { targetRef: heroRef, progress: heroFadeProgress } =
     useScrollScaledOpacity();
-  const { targetRef: metricsRef, entryCount: metricEntryCount } =
-    useViewportEntry<HTMLDivElement>();
-  const styleRailRef = useRef<HTMLDivElement | null>(null);
+
   const stylesToolbarRef = useRef<HTMLDivElement | null>(null);
   const artistGridRef = useRef<HTMLDivElement | null>(null);
   const [searchParams] = useSearchParams();
@@ -370,15 +337,6 @@ export const ArtistsPage = () => {
   const [isSkeletonExiting, setIsSkeletonExiting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [specialtyFilter, setSpecialtyFilter] = useState(styleFromUrl);
-  const scrollStyleRail = useCallback((direction: -1 | 1) => {
-    const rail = styleRailRef.current;
-    if (!rail) return;
-
-    rail.scrollBy({
-      left: direction * Math.max(240, rail.clientWidth * 0.68),
-      behavior: "smooth",
-    });
-  }, []);
   const scrollArtistGridToTop = useCallback(() => {
     const grid = artistGridRef.current;
     if (!grid) return;
@@ -394,16 +352,22 @@ export const ArtistsPage = () => {
       behavior: "smooth",
     });
   }, []);
-  const handleSpecialtyFilterClick = useCallback(
-    (tag: TattooStyle) => {
+  const applySpecialtyFilter = useCallback(
+    (nextFilter: TattooStyle | "") => {
       setVisibleCount(PAGE_SIZE);
-      setSpecialtyFilter((currentFilter) => (currentFilter === tag ? "" : tag));
+      setSpecialtyFilter(nextFilter);
 
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(scrollArtistGridToTop);
       });
     },
     [scrollArtistGridToTop]
+  );
+  const handleSpecialtyFilterClick = useCallback(
+    (tag: TattooStyle) => {
+      applySpecialtyFilter(specialtyFilter === tag ? "" : tag);
+    },
+    [applySpecialtyFilter, specialtyFilter]
   );
 
   useEffect(() => {
@@ -460,6 +424,19 @@ export const ArtistsPage = () => {
         : artists,
     [artists, specialtyFilter]
   );
+  const styleFilterOptions = useMemo<StyleFilterOption[]>(
+    () => [
+      {
+        value: "",
+        label: "All styles",
+      },
+      ...TATTOO_STYLES.map((style) => ({
+        value: style,
+        label: style,
+      })),
+    ],
+    []
+  );
 
   const visibleArtists = useMemo(
     () => filteredArtists.slice(0, visibleCount),
@@ -479,9 +456,7 @@ export const ArtistsPage = () => {
       : `${filteredArtists.length} ${
           filteredArtists.length === 1 ? "artist" : "artists"
         }`;
-  const totalArtistValue =
-    loading && artists.length === 0 ? "..." : String(artists.length);
-  const totalArtistCount = loading && artists.length === 0 ? 0 : artists.length;
+
   const heroOpacity = 1 - heroFadeProgress;
   const heroFadeStyle = {
     opacity: heroOpacity,
@@ -491,26 +466,6 @@ export const ArtistsPage = () => {
     transformOrigin: "center top",
     willChange: "opacity, transform",
   };
-
-  const heroMetrics = [
-    {
-      label: "Verified artists",
-      value: totalArtistValue,
-      countValue: totalArtistCount,
-      icon: Users,
-    },
-    {
-      label: "Styles",
-      value: String(TATTOO_STYLES.length),
-      countValue: TATTOO_STYLES.length,
-      icon: Palette,
-    },
-    {
-      label: "Viewing",
-      value: activeStyleLabel,
-      icon: Search,
-    },
-  ];
 
   useEffect(() => {
     if (shouldHoldInitialSkeleton) {
@@ -613,7 +568,7 @@ export const ArtistsPage = () => {
       <section
         ref={heroRef}
         data-aos="fade-in"
-        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-28 sm:pt-24 lg:pt-16"
+        className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#090909] px-4 pt-24 sm:pt-20 lg:pt-16"
       >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.18]"
@@ -637,64 +592,25 @@ export const ArtistsPage = () => {
           aria-hidden="true"
         />
         <img
-          className="pointer-events-none absolute left-1/2 top-14 w-[min(94vw,500px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:top-10 lg:top-40"
+          className="pointer-events-none absolute -bottom-px left-1/2 w-[min(116vw,520px)] -translate-x-1/2 opacity-[0.055] blur-[0.5px] sm:w-[min(82vw,520px)] md:w-[min(54vw,500px)] lg:w-[min(42vw,470px)]"
           style={{ opacity: 0.04 * heroOpacity }}
           src={sa}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative mx-auto grid min-h-[288px] max-w-[1300px] gap-8 pb-7 pt-0 sm:min-h-[320px] lg:min-h-[300px] lg:grid-cols-[minmax(0,1fr)_390px] lg:items-end lg:pb-6">
-          <div className="max-w-3xl pb-2" style={heroFadeStyle}>
-            <div>
-              <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
-                <h1 className="mb-0! whitespace-nowrap text-[1.7rem]! font-bold leading-none text-white! text-4xl">
-                  Find Your Artist
-                </h1>
-              </div>
-
-              <p className="mt-3 max-w-2xl leading-7 text-neutral-300! text-sm">
-                Browse verified San Antonio tattooers by style, portfolio
-                preview, and the kind of work you want to wear next.
-              </p>
-            </div>
-
-            <div
-              ref={metricsRef}
-              className="mt-5 grid max-w-2xl grid-cols-3 gap-2 sm:mt-6 sm:gap-3"
-            >
-              {heroMetrics.map((metric) => {
-                const shouldAnimateCount =
-                  typeof metric.countValue === "number" && metricEntryCount > 0;
-
-                return (
-                  <div key={metric.label} className="min-w-0   ">
-                    <dt className="flex items-start gap-1.5 text-[10px] font-medium leading-tight text-neutral-400 sm:items-center sm:gap-2 sm:text-xs">
-                      {metric.label}
-                    </dt>
-                    <dd className="mt-1 truncate text-base font-semibold leading-tight text-white sm:text-lg">
-                      {shouldAnimateCount ? (
-                        <CountUp
-                          key={`${metric.label}-${metricEntryCount}-${metric.countValue}`}
-                          end={metric.countValue}
-                          duration={1.4}
-                          separator=","
-                        />
-                      ) : (
-                        metric.value
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
-            </div>
+        <div className="relative z-10 mx-auto flex min-h-[15rem] max-w-[1300px] items-end pb-8 pt-8 sm:min-h-[16rem] sm:pb-10 lg:min-h-[15rem] lg:pb-8">
+          <div className="max-w-3xl" style={heroFadeStyle}>
+            <h1 className="mb-0! text-[1.7rem]! font-bold leading-none text-white! text-4xl">
+              Browse San Antonio Artists
+            </h1>
           </div>
         </div>
       </section>
 
       <div
         ref={stylesToolbarRef}
-        className={`sticky top-[73px] z-30 border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-18 ${
+        className={`sticky top-[73px] z-30 select-none border-b border-white/[0.08] bg-[#0b0b0b]/90 backdrop-blur-xl transition-transform duration-300 md:top-18 ${
           !isStylesVisible ? "-translate-y-full" : "translate-y-0"
         }`}
       >
@@ -703,7 +619,7 @@ export const ArtistsPage = () => {
             <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-neutral-300">
               Style filters
             </div>
-            <div className="inline-flex items-center gap-2 text-xs text-neutral-400">
+            <div className="inline-flex items-center gap-2 text-xs text-neutral-400 md:hidden">
               <span className=" bg-white/[0.04] px-2.5 py-1 text-neutral-200">
                 {activeStyleLabel}
               </span>
@@ -711,23 +627,8 @@ export const ArtistsPage = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Scroll styles left"
-              onClick={() => scrollStyleRail(-1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
-            >
-              <ChevronLeft
-                className="block h-5 w-5 text-white"
-                strokeWidth={3}
-                aria-hidden="true"
-              />
-            </button>
-            <div
-              ref={styleRailRef}
-              className="flex min-w-0 flex-1 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
+          <div className="md:hidden">
+            <div className="flex min-w-0 gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {TATTOO_STYLES.map((tag) => {
                 const selected = specialtyFilter === tag;
 
@@ -748,18 +649,14 @@ export const ArtistsPage = () => {
                 );
               })}
             </div>
-            <button
-              type="button"
-              aria-label="Scroll styles right"
-              onClick={() => scrollStyleRail(1)}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-primary-hover)]/45 bg-[linear-gradient(135deg,rgba(182,56,45,0.22),rgba(255,255,255,0.01))] p-0! text-white shadow-[0_10px_28px_rgba(0,0,0,0.38),inset_0_0_18px_rgba(182,56,45,0.16)] backdrop-blur transition  hover:border-[var(--color-primary-hover)] hover:bg-[var(--color-primary)]/24 focus:outline-none  md:inline-flex"
-            >
-              <ChevronRight
-                className="block h-5 w-5 text-white "
-                strokeWidth={3}
-                aria-hidden="true"
-              />
-            </button>
+          </div>
+
+          <div className="hidden items-center justify-between gap-4 md:flex">
+            <DesktopStyleDropdown
+              activeValue={specialtyFilter}
+              options={styleFilterOptions}
+              onSelect={applySpecialtyFilter}
+            />
           </div>
         </div>
       </div>
@@ -850,6 +747,120 @@ export const ArtistsPage = () => {
         )}
       </section>
     </main>
+  );
+};
+
+const DesktopStyleDropdown = ({
+  activeValue,
+  options,
+  onSelect,
+}: {
+  activeValue: TattooStyle | "";
+  options: StyleFilterOption[];
+  onSelect: (value: TattooStyle | "") => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const activeOption =
+    options.find((option) => option.value === activeValue) || options[0];
+  const viewingLabel = `Viewing ${
+    activeOption.value ? activeOption.label : activeOption.label.toLowerCase()
+  }`;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && dropdownRef.current?.contains(target)) {
+        return;
+      }
+
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={dropdownRef} className="relative w-full max-w-[28rem] select-none">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-12 w-full items-center justify-between gap-4 rounded-xl border border-white/[0.14] bg-white/[0.04] px-4! py-0! text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur transition hover:border-white/25 hover:bg-white/[0.065] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/45"
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-white">
+            {viewingLabel}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-neutral-400">
+          <ChevronDown
+            className={`h-4 w-4 text-neutral-300 transition ${
+              open ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-50 w-full overflow-hidden rounded-xl border border-white/[0.12] bg-[#101010]/98 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <div className="max-h-[min(28rem,calc(100vh-14rem))] overflow-y-auto p-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.18)_transparent]">
+            <div role="listbox" aria-label="Filter artists by tattoo style">
+              {options.map((option) => {
+                const selected = option.value === activeValue;
+
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onSelect(option.value);
+                      setOpen(false);
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3! py-2! text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-hover)]/40 ${
+                      selected
+                        ? "bg-[var(--color-primary)]/20 text-white"
+                        : "text-neutral-300 hover:bg-white/[0.055] hover:text-white"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                          selected
+                            ? "border-[var(--color-primary-hover)] bg-[var(--color-primary)]/35"
+                            : "border-white/15 bg-white/[0.03]"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {selected && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="truncate font-semibold">
+                        {option.label}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

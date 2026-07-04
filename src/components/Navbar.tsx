@@ -229,7 +229,7 @@ export const Navbar = () => {
 
   return (
     <nav
-      className={`fixed top-0 left-0 w-full z-[90] px-4 py-4 transition-colors duration-400 ${
+      className={`fixed top-0 left-0 w-full z-[90] select-none px-4 py-4 transition-colors duration-400 ${
         isScrolled
           ? "bg-[var(--color-bg-footer)]  shadow-sm"
           : "bg-transparent border-transparent"

@@ -93,7 +93,11 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
         const artistSnapshots = await Promise.all(
           chunks.map((chunk) =>
             getDocs(
-              query(collection(db, "users"), where(documentId(), "in", chunk))
+              query(
+                collection(db, "users"),
+                where("role", "==", "artist"),
+                where(documentId(), "in", chunk)
+              )
             )
           )
         );
