@@ -105,7 +105,10 @@ const PaymentPage = () => {
       booking.status === "confirmed" ||
       booking.status === "cancelled"
     ) {
-      if (checkoutPaymentMode !== "platform_fee" || booking.status === "cancelled") {
+      if (
+        checkoutPaymentMode !== "platform_fee" ||
+        booking.status === "cancelled"
+      ) {
         navigate("/dashboard");
         return;
       }
@@ -216,7 +219,8 @@ const PaymentPage = () => {
     0
   );
   const usesExternalRemaining =
-    booking.remainingPaymentMethod === "external" && externalRemainingAmount > 0;
+    booking.remainingPaymentMethod === "external" &&
+    externalRemainingAmount > 0;
   const isPlatformFeeCheckout =
     usesExternalRemaining &&
     pendingPlatformFeeCents > 0 &&
@@ -243,7 +247,10 @@ const PaymentPage = () => {
       : paymentMode === "remaining"
       ? isMultiSession
         ? customSessionPaymentAmount
-        : Math.max(Number(booking.remainingBalanceAmount ?? price - alreadyPaid), 0)
+        : Math.max(
+            Number(booking.remainingBalanceAmount ?? price - alreadyPaid),
+            0
+          )
       : deposit;
   const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
     platformFeeBaseAmount: price,
@@ -269,7 +276,8 @@ const PaymentPage = () => {
     { platformFeeCentsOverride: 0 }
   );
   const splitPaymentTotalCents =
-    depositBreakdown.clientTotalCents + remainingLaterBreakdown.clientTotalCents;
+    depositBreakdown.clientTotalCents +
+    remainingLaterBreakdown.clientTotalCents;
   const splitPaymentDifferenceCents = Math.max(
     splitPaymentTotalCents - fullBreakdown.clientTotalCents,
     0
@@ -283,10 +291,9 @@ const PaymentPage = () => {
                 {
                   mode: "deposit" as PaymentMode,
                   title: "Pay deposit",
-                  description:
-                    usesExternalRemaining
-                      ? "Confirm the appointment now and settle the artist balance directly with the artist."
-                      : "Confirm the appointment now and pay the artist balance later.",
+                  description: usesExternalRemaining
+                    ? "Confirm the appointment now and settle the artist balance directly with the artist."
+                    : "Confirm the appointment now and pay the artist balance later.",
                   breakdown: depositBreakdown,
                 },
               ]
@@ -296,7 +303,8 @@ const PaymentPage = () => {
                 {
                   mode: "full" as PaymentMode,
                   title: "Pay in full",
-                  description: "Take care of the full artist quote in one checkout.",
+                  description:
+                    "Take care of the full artist quote in one checkout.",
                   breakdown: fullBreakdown,
                 },
               ]
@@ -306,7 +314,9 @@ const PaymentPage = () => {
     ? "Return to dashboard"
     : isStartingCheckout
     ? "Opening Stripe..."
-    : booking.status === "deposit_paid" && usesExternalRemaining && !isPlatformFeeCheckout
+    : booking.status === "deposit_paid" &&
+      usesExternalRemaining &&
+      !isPlatformFeeCheckout
     ? "Return to dashboard"
     : "Continue to Stripe";
 
@@ -417,7 +427,9 @@ const PaymentPage = () => {
                             {option.description}
                           </span>
                           <span className="mt-4 block text-xl font-semibold text-white">
-                            {formatMoneyFromCents(option.breakdown.clientTotalCents)}
+                            {formatMoneyFromCents(
+                              option.breakdown.clientTotalCents
+                            )}
                           </span>
                         </button>
                       );
@@ -505,8 +517,8 @@ const PaymentPage = () => {
                         Split-payment estimate
                       </p>
                       <p className="mt-1 text-sm leading-6 text-amber-50/80">
-                        Paying the balance later creates a second Stripe checkout,
-                        so the overall total is estimated at{" "}
+                        Paying the balance later creates a second Stripe
+                        checkout, so the overall total is estimated at{" "}
                         <span className="font-semibold text-white">
                           {formatMoneyFromCents(splitPaymentTotalCents)}
                         </span>
@@ -701,14 +713,22 @@ const PaymentPage = () => {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {checkoutActionLabel}
-                  {isPaid ? <CheckCircle2 size={16} /> : <CreditCard size={16} />}
+                  {isPaid ? (
+                    <CheckCircle2 size={16} />
+                  ) : (
+                    <CreditCard size={16} />
+                  )}
                 </button>
               </>
             )}
 
             <p className="mt-3 text-xs leading-5 text-neutral-500">
               By continuing, you agree to the{" "}
-              <Link to="/terms" target="_blank" className="text-white underline">
+              <Link
+                to="/terms"
+                target="_blank"
+                className="text-white underline"
+              >
                 Terms of Service
               </Link>
               .
@@ -770,10 +790,13 @@ const StatusBadge = ({ status }: { status: string }) => {
       : status === "cancelled"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  const label = status === "deposit_paid" ? "deposit paid" : status.replace("_", " ");
+  const label =
+    status === "deposit_paid" ? "deposit paid" : status.replace("_", " ");
 
   return (
-    <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${className}`}>
+    <span
+      className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${className}`}
+    >
       {label}
     </span>
   );
@@ -783,13 +806,16 @@ const formatAppointment = (date: { date: string; time: string }) => {
   if (!date?.date || !date?.time || date.date === "TBD") return "TBD";
   const [year, month, day] = date.date.split("-").map(Number);
   const [hours, minutes] = date.time.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes).toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return new Date(year, month - 1, day, hours, minutes).toLocaleString(
+    "en-US",
+    {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  );
 };
 
 const getRemainingBalance = (booking: Booking) => {
@@ -849,7 +875,10 @@ const getRemainingInstallmentCount = (booking: Booking) => {
     Number(booking.estimatedSessionCount || 1) - 1,
     1
   );
-  const lastPaidSessionNumber = Math.max(Number(booking.lastPaidSessionNumber || 0), 0);
+  const lastPaidSessionNumber = Math.max(
+    Number(booking.lastPaidSessionNumber || 0),
+    0
+  );
   const paidLaterInstallments =
     booking.sessionInstallmentTiming === "before_session"
       ? Math.max(lastPaidSessionNumber - 1, 0)
