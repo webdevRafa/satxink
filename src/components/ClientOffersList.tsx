@@ -51,7 +51,6 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod: "stripe" | "external" = "stripe",
     declinedReason?: { value: string; label: string }
   ) => {
     try {
@@ -112,8 +111,6 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
             : null;
         const usesExternalRemaining =
           offerData.paymentType === "internal" &&
-          offerData.allowExternalRemainingPayment === true &&
-          remainingPaymentMethod === "external" &&
           depositAmount > 0 &&
           remainingAmount > 0;
         let flashRepeatability = offerData.flashRepeatability;
@@ -177,7 +174,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
               : null,
           remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
           remainingPaymentStatus:
-            usesExternalRemaining && !isMultiSessionProject ? "due" : "not_due",
+            usesExternalRemaining ? "due" : "not_due",
           externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
           externalRemainingAmountCents: usesExternalRemaining
             ? Math.round(remainingAmount * 100)
@@ -310,14 +307,12 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           offerId,
           action,
           selectedDate,
-          remainingPaymentMethod,
           declinedReason
         ) => {
           const bookingId = await handleResponse(
             offerId,
             action,
             selectedDate,
-            remainingPaymentMethod,
             declinedReason
           );
           if (bookingId) {

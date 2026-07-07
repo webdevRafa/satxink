@@ -66,8 +66,6 @@ const PaymentPage = () => {
 
   useEffect(() => {
     if (!booking) return;
-    const price = Number(booking.price || 0);
-    const deposit = Number(booking.depositAmount || price);
     const hasPendingPlatformFee =
       booking.remainingPaymentMethod === "external" &&
       Number(booking.pendingPlatformFeeCents || 0) > 0;
@@ -77,8 +75,6 @@ const PaymentPage = () => {
         : booking.status === "deposit_paid" &&
           booking.remainingPaymentMethod !== "external"
         ? "remaining"
-        : deposit >= price
-        ? "full"
         : "deposit"
     );
     if (
@@ -98,6 +94,8 @@ const PaymentPage = () => {
       Number(booking.pendingPlatformFeeCents || 0) > 0;
     const checkoutPaymentMode: PaymentMode = hasPendingPlatformFee
       ? "platform_fee"
+      : booking.status === "pending_payment"
+      ? "deposit"
       : paymentMode;
 
     if (
@@ -265,51 +263,36 @@ const PaymentPage = () => {
       : paymentBreakdown.clientTotalCents;
   const remainingAfterPayment =
     paymentMode === "deposit" ? Math.max(price - deposit, 0) : 0;
+  const isDepositWithShopBalance =
+    booking.status === "pending_payment" &&
+    paymentMode === "deposit" &&
+    remainingAfterPayment > 0;
+  const todayTotalLabel = isDepositWithShopBalance
+    ? "Deposit due today"
+    : "Total due today";
   const depositBreakdown = calculateClientPaymentBreakdown(deposit, {
     platformFeeBaseAmount: price,
   });
-  const fullBreakdown = calculateClientPaymentBreakdown(price, {
-    platformFeeBaseAmount: price,
-  });
-  const remainingLaterBreakdown = calculateClientPaymentBreakdown(
-    remainingAfterPayment,
-    { platformFeeCentsOverride: 0 }
-  );
-  const splitPaymentTotalCents =
-    depositBreakdown.clientTotalCents +
-    remainingLaterBreakdown.clientTotalCents;
-  const splitPaymentDifferenceCents = Math.max(
-    splitPaymentTotalCents - fullBreakdown.clientTotalCents,
-    0
-  );
   const paymentOptions =
     booking.status === "deposit_paid"
       ? []
       : [
-          ...(deposit < price
-            ? [
-                {
-                  mode: "deposit" as PaymentMode,
-                  title: "Pay deposit",
-                  description: usesExternalRemaining
-                    ? "Confirm the appointment now and settle the artist balance directly with the artist."
-                    : "Confirm the appointment now and pay the artist balance later.",
-                  breakdown: depositBreakdown,
-                },
-              ]
-            : []),
-          ...(!usesExternalRemaining
-            ? [
-                {
-                  mode: "full" as PaymentMode,
-                  title: "Pay in full",
-                  description:
-                    "Take care of the full artist quote in one checkout.",
-                  breakdown: fullBreakdown,
-                },
-              ]
-            : []),
+          {
+            mode: "deposit" as PaymentMode,
+            title: "Pay deposit",
+            description:
+              remainingAfterPayment > 0
+                ? "Confirm the appointment now and settle the artist balance directly with the artist."
+                : "Confirm the appointment with the artist's required deposit.",
+            breakdown: depositBreakdown,
+          },
         ];
+  const shouldShowPaymentChoice = paymentOptions.length > 1;
+  const shouldShowPaymentOptionPanel =
+    shouldShowPaymentChoice ||
+    (booking.status === "deposit_paid" &&
+      isMultiSession &&
+      !usesExternalRemaining);
   const checkoutActionLabel = isPaid
     ? "Return to dashboard"
     : isStartingCheckout
@@ -362,14 +345,23 @@ const PaymentPage = () => {
           </div>
 
           <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            {isInternalPayment && !isPaid && booking.status !== "cancelled" && (
+            {isInternalPayment &&
+              !isPaid &&
+              booking.status !== "cancelled" &&
+              shouldShowPaymentOptionPanel && (
               <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                 <div className="mb-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-emerald-50/60">
-                    Payment choice
+                    {shouldShowPaymentChoice
+                      ? "Payment choice"
+                      : "Session payment"}
                   </p>
                   <h2 className="mt-1 text-lg! font-semibold text-white">
-                    {booking.status === "deposit_paid"
+                    {!shouldShowPaymentChoice
+                      ? isMultiSession
+                        ? `Pay ${sessionPaymentLabel}`
+                        : "Payment due"
+                      : booking.status === "deposit_paid"
                       ? isPlatformFeeCheckout
                         ? "Platform fee due"
                         : usesExternalRemaining
@@ -380,7 +372,9 @@ const PaymentPage = () => {
                       : "Choose how much to pay today"}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                    {booking.status === "deposit_paid"
+                    {!shouldShowPaymentChoice
+                      ? `This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
+                      : booking.status === "deposit_paid"
                       ? isPlatformFeeCheckout
                         ? "This fee covers the SATX Ink platform difference from your accepted project amendment."
                         : usesExternalRemaining
@@ -392,7 +386,7 @@ const PaymentPage = () => {
                   </p>
                 </div>
 
-                {paymentOptions.length > 0 ? (
+                {shouldShowPaymentChoice ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {paymentOptions.map((option) => {
                       const isSelected = paymentMode === option.mode;
@@ -509,52 +503,13 @@ const PaymentPage = () => {
                     </label>
                   )}
 
-                {paymentMode === "deposit" &&
-                  remainingAfterPayment > 0 &&
-                  !usesExternalRemaining && (
-                    <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-amber-50">
-                        Split-payment estimate
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-amber-50/80">
-                        Paying the balance later creates a second Stripe
-                        checkout, so the overall total is estimated at{" "}
-                        <span className="font-semibold text-white">
-                          {formatMoneyFromCents(splitPaymentTotalCents)}
-                        </span>
-                        , about{" "}
-                        <span className="font-semibold text-white">
-                          {formatMoneyFromCents(splitPaymentDifferenceCents)}
-                        </span>{" "}
-                        more than paying in full today.
-                      </p>
-                    </div>
-                  )}
-                {paymentMode === "deposit" && usesExternalRemaining && (
-                  <div className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
-                    <p className="text-sm font-semibold text-amber-50">
-                      Deposit now, settle balance directly
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-amber-50/80">
-                      SATX Ink's platform fee is calculated from the full artist
-                      quote and collected today with your deposit. The remaining{" "}
-                      <span className="font-semibold text-white">
-                        {formatMoneyFromCents(
-                          Math.round(externalRemainingAmount * 100)
-                        )}
-                      </span>{" "}
-                      is paid directly to the artist and confirmed after the
-                      session.
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <DetailTile
                 icon={<DollarSign size={17} />}
-                label="Total due today"
+                label={todayTotalLabel}
                 value={formatMoneyFromCents(totalDueTodayCents)}
               />
               <DetailTile
@@ -647,35 +602,46 @@ const PaymentPage = () => {
                 />
                 <div className="border-t border-white/10 pt-2">
                   <BreakdownRow
-                    label="Total due today"
+                    label={todayTotalLabel}
                     value={formatMoneyFromCents(totalDueTodayCents)}
                     strong
                   />
                 </div>
               </div>
               <p className="mt-3 text-sm leading-6 text-neutral-400">
+                {externalBalanceDue &&
+                  !isPlatformFeeCheckout &&
+                  `Your deposit is paid. The remaining artist balance is ${formatMoneyFromCents(
+                    Math.round(externalRemainingAmount * 100)
+                  )} and is settled directly with the artist.`}
                 {paymentMode === "full" &&
                   "This payment covers the full artist quote and secures your appointment."}
                 {paymentMode === "remaining" &&
                   (isMultiSession
                     ? "This payment applies one session installment toward your larger project balance."
                     : "This payment clears the remaining artist balance on your confirmed booking.")}
-                {paymentMode === "deposit" && (
+                {paymentMode === "deposit" && !externalBalanceDue && (
                   <>
-                    This non-refundable deposit secures your appointment. The
-                    remaining artist balance is{" "}
-                    <span className="font-semibold text-white">
-                      {formatMoneyFromCents(
-                        Math.round(remainingAfterPayment * 100)
-                      )}
-                    </span>
-                    {usesExternalRemaining
-                      ? " and will be paid directly to the artist."
-                      : booking.finalPaymentTiming === "before"
-                      ? " and may be collected before your appointment."
-                      : " and may be collected after the session with your artist."}
-                    {!usesExternalRemaining &&
-                      " A second checkout for that balance will include its own Stripe processing fee."}
+                    {remainingAfterPayment > 0 ? (
+                      <>
+                        This non-refundable deposit secures your appointment.
+                        The remaining artist balance is{" "}
+                        <span className="font-semibold text-white">
+                          {formatMoneyFromCents(
+                            Math.round(remainingAfterPayment * 100)
+                          )}
+                        </span>
+                        {usesExternalRemaining
+                          ? " and will be paid directly to the artist."
+                          : booking.finalPaymentTiming === "before"
+                          ? " and may be collected before your appointment."
+                          : " and may be collected after the session with your artist."}
+                        {!usesExternalRemaining &&
+                          " A second checkout for that balance will include its own Stripe processing fee."}
+                      </>
+                    ) : (
+                      "This non-refundable payment secures your appointment and covers the artist quote."
+                    )}
                   </>
                 )}
               </p>
@@ -700,7 +666,7 @@ const PaymentPage = () => {
               <>
                 {!isPaid && (
                   <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm">
-                    <span className="text-neutral-400">Total due today</span>
+                    <span className="text-neutral-400">{todayTotalLabel}</span>
                     <span className="font-semibold text-white">
                       {formatMoneyFromCents(totalDueTodayCents)}
                     </span>

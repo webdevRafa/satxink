@@ -28,7 +28,6 @@ type Props = {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod?: "stripe" | "external",
     declinedReason?: { value: string; label: string }
   ) => Promise<string | void>;
 };
@@ -57,13 +56,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [isDeclining, setIsDeclining] = useState(false);
   const [isReviewingCheckout, setIsReviewingCheckout] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
-  const [remainingPaymentMethod, setRemainingPaymentMethod] = useState<
-    "stripe" | "external"
-  >("stripe");
 
   useEffect(() => {
     setSelectedDateOption(null);
-    setRemainingPaymentMethod("stripe");
     setIsDeclining(false);
     setIsReviewingCheckout(false);
     setDeclineReason("");
@@ -98,11 +93,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     offer.sessionInstallmentTiming === "before_session"
       ? "before_session"
       : "after_session";
-  const canChooseExternalRemaining =
-    offer.paymentType === "internal" &&
-    Boolean(offer.allowExternalRemainingPayment) &&
-    depositAmount > 0 &&
-    remainingAmount > 0;
   const checkoutPreview =
     offer.paymentType === "internal"
       ? calculateClientPaymentBreakdown(depositAmount, {
@@ -135,8 +125,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       const bookingId = await onRespond(
         offer.id,
         "accepted",
-        offer.dateOptions[selectedDateOption],
-        canChooseExternalRemaining ? remainingPaymentMethod : "stripe"
+        offer.dateOptions[selectedDateOption]
       );
       if (bookingId) {
         onClose();
@@ -161,7 +150,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     }
 
     setIsResponding(true);
-    await onRespond(offer.id, "declined", undefined, undefined, selectedReason);
+    await onRespond(offer.id, "declined", undefined, selectedReason);
     setIsResponding(false);
     onClose();
   };
@@ -466,9 +455,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       Confirm checkout details
                     </p>
                     <p className="mt-1 text-sm leading-6 text-neutral-400">
-                      Next, you will choose deposit or full payment before
-                      Stripe opens. Review the appointment and how you want to
-                      handle the later artist balance.
+                      Next, you will pay the non-refundable deposit through
+                      Stripe. Any remaining artist balance is settled directly
+                      with the artist.
                     </p>
                   </div>
                 </div>
@@ -502,50 +491,12 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   />
                 </div>
 
-                {canChooseExternalRemaining && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-                      Later balance
-                    </p>
-                    <div className="grid gap-3">
-                      <PaymentChoice
-                        title="Pay remaining balance through SATX Ink"
-                        description={
-                          isMultiSessionOffer
-                            ? "Pay each session installment later through Stripe. Later checkouts have Stripe processing only."
-                            : "Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
-                        }
-                        amount={`$${remainingAmount}`}
-                        checked={remainingPaymentMethod === "stripe"}
-                        onSelect={() => setRemainingPaymentMethod("stripe")}
-                      />
-                      <PaymentChoice
-                        title="Settle remaining balance directly"
-                        description={
-                          isMultiSessionOffer
-                            ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
-                            : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist."
-                        }
-                        amount={`$${remainingAmount}`}
-                        checked={remainingPaymentMethod === "external"}
-                        onSelect={() => setRemainingPaymentMethod("external")}
-                      />
-                    </div>
-                    {remainingPaymentMethod === "external" && (
-                      <div className="mt-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
-                        SATX Ink's platform fee is calculated from the full
-                        artist quote and collected with today's deposit
-                        checkout. The remaining artist balance is confirmed by
-                        both you and the artist after the session.
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!canChooseExternalRemaining && remainingAmount > 0 && (
-                  <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-neutral-400">
-                    The remaining artist balance will be handled through the
-                    payment method set by the artist for this offer.
+                {remainingAmount > 0 && (
+                  <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
+                    SATX Ink's platform fee is calculated from the full artist
+                    quote and collected with today's deposit checkout. The
+                    remaining artist balance is paid directly to the artist and
+                    can be confirmed by both sides after the session.
                   </div>
                 )}
 
@@ -636,38 +587,6 @@ const CheckoutSummaryRow = ({
     </p>
     <p className="text-sm font-semibold text-white sm:text-right">{value}</p>
   </div>
-);
-
-const PaymentChoice = ({
-  title,
-  description,
-  amount,
-  checked,
-  onSelect,
-}: {
-  title: string;
-  description: string;
-  amount: string;
-  checked: boolean;
-  onSelect: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    className={`rounded-md border p-3! text-left transition ${
-      checked
-        ? "border-white/35 bg-white/[0.08]"
-        : "border-white/10 bg-black/25 hover:bg-white/[0.04]"
-    }`}
-  >
-    <span className="flex items-center justify-between gap-3">
-      <span className="font-semibold text-white">{title}</span>
-      <span className="text-sm font-semibold text-white">{amount}</span>
-    </span>
-    <span className="mt-1 block text-sm leading-5 text-neutral-400">
-      {description}
-    </span>
-  </button>
 );
 
 const formatAppointment = (option: { date: string; time: string }) => {
