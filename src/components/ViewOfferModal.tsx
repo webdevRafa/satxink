@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { httpsCallable } from "firebase/functions";
-import { getAuth } from "firebase/auth";
 import {
   CalendarDays,
   Clock,
@@ -17,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import type { Offer } from "../types/Offer";
-import { functions } from "../firebase/firebaseConfig";
 import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
@@ -113,28 +110,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     ? formatMoneyFromCents(checkoutPreview.clientTotalCents)
     : `$${depositAmount}`;
 
-  const handleCheckout = async (bookingId?: string) => {
-    if (!bookingId) {
-      toast.error("Booking could not be created. Please try again.");
-      return;
-    }
-
-    const currentUser = getAuth().currentUser;
-    if (!currentUser) {
-      toast.error("You must be logged in to proceed with checkout.");
-      return;
-    }
-
-    const createSession = httpsCallable(functions, "createCheckoutSession");
-    const response = await createSession({
-      bookingId,
-      successUrl: `${window.location.origin}/payment-success?bookingId=${bookingId}`,
-      cancelUrl: `${window.location.origin}/payment/${bookingId}`,
-    });
-    const { sessionUrl } = response.data as { sessionUrl: string };
-    window.location.href = sessionUrl;
-  };
-
   const handleReviewCheckout = () => {
     if (selectedDateOption === null) {
       toast.error("Please select a date before accepting.");
@@ -163,7 +138,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       if (bookingId) {
         onClose();
         setIsReviewingCheckout(false);
-        await handleCheckout(bookingId);
       }
     } catch (error) {
       console.error("Error during offer acceptance or checkout:", error);
@@ -471,9 +445,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                         Confirm checkout details
                       </p>
                       <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                        Nothing is final until you continue to Stripe. Review
-                        the appointment and how you want to handle the later
-                        artist balance.
+                        Next, you will choose deposit or full payment before
+                        Stripe opens. Review the appointment and how you want
+                        to handle the later artist balance.
                       </p>
                     </div>
                   </div>
@@ -567,7 +541,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       onClick={handleAccept}
                       className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
                     >
-                      {isResponding ? "Creating checkout..." : "Continue to Stripe"}
+                      {isResponding
+                        ? "Creating booking..."
+                        : "Continue to payment options"}
                       <Send size={16} />
                     </button>
                   </div>
