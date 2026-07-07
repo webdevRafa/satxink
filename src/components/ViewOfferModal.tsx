@@ -168,7 +168,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   return (
     <div className="fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
-      <div className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
+      <div
+        className={`relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)] ${
+          isReviewingCheckout && !isDeclining ? "max-w-3xl" : "max-w-6xl"
+        }`}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -190,7 +194,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar ${
+            isReviewingCheckout && !isDeclining ? "hidden" : ""
+          }`}
+        >
           <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
             <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
               {offer.fullUrl || offer.thumbUrl ? (
@@ -366,7 +374,13 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
         </div>
 
         {offer.status === "pending" && (
-          <div className="shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6">
+          <div
+            className={
+              isReviewingCheckout && !isDeclining
+                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#111111] px-4 py-5 request-modal-scrollbar sm:px-6 sm:py-6"
+                : "shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6"
+            }
+          >
             {isDeclining && (
               <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
                 <p className="text-sm font-semibold text-white">
@@ -442,16 +456,16 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
             </div>
 
             {isReviewingCheckout && !isDeclining && (
-              <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+              <div className="mx-auto w-full max-w-2xl rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5">
                 <div className="mb-4 flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
                     <CreditCard size={18} />
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-white">
                       Confirm checkout details
                     </p>
-                    <p className="mt-1 text-sm leading-6 text-emerald-50/75">
+                    <p className="mt-1 text-sm leading-6 text-neutral-400">
                       Next, you will choose deposit or full payment before
                       Stripe opens. Review the appointment and how you want to
                       handle the later artist balance.
@@ -459,7 +473,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   </div>
                 </div>
 
-                <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-lg border border-white/10 bg-black/25 px-4">
                   <CheckoutSummaryRow
                     label="Appointment selected"
                     value={
@@ -490,7 +504,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
                 {canChooseExternalRemaining && (
                   <div className="mt-4">
-                    <p className="mb-2 text-xs uppercase tracking-[0.14em] text-emerald-50/60">
+                    <p className="mb-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
                       Later balance
                     </p>
                     <div className="grid gap-3">
@@ -529,7 +543,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 )}
 
                 {!canChooseExternalRemaining && remainingAmount > 0 && (
-                  <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-emerald-50/75">
+                  <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-neutral-400">
                     The remaining artist balance will be handled through the
                     payment method set by the artist for this offer.
                   </div>
@@ -616,11 +630,11 @@ const CheckoutSummaryRow = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-md border border-white/10 bg-black/25 p-3">
-    <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+  <div className="flex flex-col gap-1 border-b border-white/10 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    <p className="text-sm font-semibold text-white sm:text-right">{value}</p>
   </div>
 );
 
@@ -642,7 +656,7 @@ const PaymentChoice = ({
     onClick={onSelect}
     className={`rounded-md border p-3! text-left transition ${
       checked
-        ? "border-emerald-300/45 bg-emerald-300/10"
+        ? "border-white/35 bg-white/[0.08]"
         : "border-white/10 bg-black/25 hover:bg-white/[0.04]"
     }`}
   >
