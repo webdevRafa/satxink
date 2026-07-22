@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 
 import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
-import { ViewportReveal } from "../components/ViewportReveal";
 import logo from "../assets/satx-short-sep.svg";
 import { auth, db } from "../firebase/firebaseConfig";
 import { TATTOO_STYLES } from "../types/TattooStyle";
@@ -541,26 +540,25 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           document.body
         )}
 
-      <div data-aos="fade-up" className="w-full px-4 pb-24 pt-0 text-white">
+      <div
+        data-aos="fade-up"
+        data-aos-delay="0"
+        data-aos-duration="450"
+        className="w-full px-4 pb-24 pt-0 text-white"
+      >
         <div className="mx-auto w-full max-w-6xl">
           {!user && (
             <section className="mx-auto flex w-full max-w-6xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
-              <ViewportReveal delay={40} direction="up">
-                <button
-                  type="button"
-                  onClick={() => (onBack ? onBack() : navigate("/signup"))}
-                  className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
-                >
-                  <ArrowLeft size={16} aria-hidden="true" />
-                  Back
-                </button>
-              </ViewportReveal>
-
-              <ViewportReveal
-                className="mt-10 w-full max-w-2xl pt-8 md:mt-14 md:pt-10"
-                delay={120}
-                direction="up"
+              <button
+                type="button"
+                onClick={() => (onBack ? onBack() : navigate("/signup"))}
+                className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
               >
+                <ArrowLeft size={16} aria-hidden="true" />
+                Back
+              </button>
+
+              <div className="mt-10 w-full max-w-2xl pt-8 md:mt-14 md:pt-10">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
                   Get listed
                 </p>
@@ -604,7 +602,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     Privacy Policy
                   </Link>
                 </p>
-              </ViewportReveal>
+              </div>
 
               <div className="mt-12 grid w-full max-w-6xl auto-rows-fr items-stretch gap-4 md:mt-16 md:grid-cols-3">
                 {artistSignupBenefits.map((benefit) => (

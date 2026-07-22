@@ -2,7 +2,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart, MessageSquareText, Search } from "lucide-react";
 
 import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
-import { ViewportReveal } from "../components/ViewportReveal";
 import logo from "../assets/satx-short-sep.svg";
 
 const clientBenefits = [
@@ -70,25 +69,24 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
   };
 
   return (
-    <div data-aos="fade-up" className="w-full px-4 pb-24 pt-4 text-white">
+    <div
+      data-aos="fade-up"
+      data-aos-delay="0"
+      data-aos-duration="450"
+      className="w-full px-4 pb-24 pt-4 text-white"
+    >
       <div className="mx-auto w-full max-w-6xl">
         <section className="mx-auto flex w-full max-w-4xl flex-col items-center py-8 text-center md:py-14 lg:py-16">
-          <ViewportReveal delay={40} direction="up">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              Back
-            </button>
-          </ViewportReveal>
-
-          <ViewportReveal
-            className="mt-12 w-full max-w-2xl  pt-10 md:mt-16 md:pt-12"
-            delay={720}
-            direction="up"
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 text-sm text-neutral-400 transition hover:text-white"
           >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back
+          </button>
+
+          <div className="mt-12 w-full max-w-2xl pt-10 md:mt-16 md:pt-12">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
               Browse / book
             </p>
@@ -131,7 +129,7 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 Privacy Policy
               </Link>
             </p>
-          </ViewportReveal>
+          </div>
 
           <div className="mt-12 w-full max-w-3xl md:mt-16">
             {clientBenefits.map((benefit) => (
