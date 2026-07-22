@@ -19,7 +19,7 @@ import {
   Building2,
   Check,
   ChevronDown,
-  Facebook,
+  CircleHelp,
   Images,
   Instagram,
   LoaderCircle,
@@ -51,6 +51,26 @@ type Shop = {
 };
 
 const SPECIALTIES = TATTOO_STYLES;
+const UNLISTED_SHOP_ID = "__unlisted_shop__";
+const INSTAGRAM_PROFILE_BASE = "https://instagram.com/";
+const INSTAGRAM_PROFILE_LABEL = "instagram.com/";
+
+const unlistedShopOption: Shop = {
+  id: UNLISTED_SHOP_ID,
+  name: "My shop isn't listed",
+  address: "",
+  mapLink: "",
+};
+
+const getInstagramHandle = (value: string) => {
+  const withoutDomain = value
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^(www\.)?instagram\.com\//i, "");
+  const pathOnly = withoutDomain.replace(/^@+/, "").replace(/^\/+/, "");
+
+  return pathOnly.split(/[/?#]/)[0].replace(/[^a-zA-Z0-9._]/g, "");
+};
 
 const artistSignupBenefits = [
   {
@@ -137,6 +157,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [unlistedShopName, setUnlistedShopName] = useState<string>("");
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [profileCreationPhase, setProfileCreationPhase] =
@@ -145,8 +166,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [displayName, setDisplayName] = useState<string>("");
   const [bio, setBio] = useState<string>("");
   const [specialties, setSpecialties] = useState<string[]>([]);
-  const [instagram, setInstagram] = useState<string>("");
-  const [facebook, setFacebook] = useState<string>("");
+  const [instagramHandle, setInstagramHandle] = useState<string>("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invitedShopId = searchParams.get("shopId") || "";
@@ -259,25 +279,6 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     return () => window.clearTimeout(timer);
   }, [displayName, user]);
 
-  const sanitizeUrl = (url: string) => {
-    if (!url) return "";
-    const trimmed = url.trim();
-    if (!/^https?:\/\//i.test(trimmed)) {
-      return "https://" + trimmed;
-    }
-    return trimmed;
-  };
-
-  const isValidUrl = (url: string) => {
-    try {
-      if (!url) return true;
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const toggleSpecialty = (style: string) => {
     setSpecialties((prev) =>
       prev.includes(style)
@@ -383,13 +384,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       return;
     }
 
-    const sanitizedInstagram = sanitizeUrl(instagram);
-    const sanitizedFacebook = sanitizeUrl(facebook);
-    if (!isValidUrl(sanitizedInstagram) || !isValidUrl(sanitizedFacebook)) {
-      toast.error("One or more of your social links are not valid URLs.");
-      setSubmitting(false);
-      return;
-    }
+    const isUnlistedShop = selectedShop?.id === UNLISTED_SHOP_ID;
+    const requestedShopName = unlistedShopName.trim();
+    const instagramUrl = instagramHandle
+      ? `${INSTAGRAM_PROFILE_BASE}${instagramHandle}`
+      : "";
 
     if (isCheckingName || isNameTaken) {
       toast.error("Choose an available display name before submitting.");
@@ -424,11 +423,19 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
           displayName,
           slug,
           bio,
-          shopId: selectedShop ? selectedShop.id : "",
+          shopId: isUnlistedShop ? "" : selectedShop?.id || "",
+          shopName: isUnlistedShop
+            ? requestedShopName
+            : selectedShop?.name || "",
+          studioName: isUnlistedShop
+            ? requestedShopName
+            : selectedShop?.name || "",
+          shopRequestPending: isUnlistedShop,
+          requestedShopName: isUnlistedShop ? requestedShopName : "",
           specialties,
           socialLinks: {
-            instagram: sanitizedInstagram,
-            facebook: sanitizedFacebook,
+            instagram: instagramUrl,
+            facebook: "",
           },
           avatarUrl: user.photoURL || "",
           email: user.email || "",
@@ -451,6 +458,21 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
         const artistRef = doc(db, "users", user.uid);
         transaction.set(artistRef, newArtist, { merge: true });
+
+        if (isUnlistedShop) {
+          const shopRequestRef = doc(db, "unlistedShopRequests", user.uid);
+          transaction.set(shopRequestRef, {
+            artistId: user.uid,
+            artistName: displayName.trim() || user.displayName || "",
+            artistEmail: user.email || "",
+            artistAvatarUrl: user.photoURL || "",
+            requestedShopName,
+            status: "new",
+            source: "artist_onboarding",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
       }).then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error })
@@ -748,11 +770,29 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         >
                           {({ open }) => (
                             <div className="space-y-3">
-                              <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-white/10 bg-[#101010] px-3 py-3 pr-10 text-left text-white outline-none transition hover:border-white/25 focus:border-[var(--color-primary)]">
-                                <span className="block truncate">
+                              <Listbox.Label className="sr-only">
+                                Select your tattoo shop
+                              </Listbox.Label>
+                              <Listbox.Button
+                                className={`relative w-full cursor-pointer rounded-md border bg-[#101010] px-3 py-3 pr-10 text-left outline-none transition hover:border-white/25 focus:border-[var(--color-primary)] ${
+                                  selectedShop?.id === UNLISTED_SHOP_ID
+                                    ? "border-amber-300/30 text-amber-100"
+                                    : "border-white/10 text-white"
+                                }`}
+                              >
+                                <span className="flex min-w-0 items-center gap-2">
+                                  {selectedShop?.id === UNLISTED_SHOP_ID && (
+                                    <CircleHelp
+                                      size={16}
+                                      className="shrink-0 text-amber-300"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <span className="block truncate">
                                   {selectedShop
                                     ? selectedShop.name
                                     : "Select your shop"}
+                                  </span>
                                 </span>
                                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                                   <ChevronDown
@@ -768,6 +808,39 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                     Available shops
                                   </p>
                                 </div>
+                                <Listbox.Option
+                                  value={unlistedShopOption}
+                                  className={({ active, selected }) =>
+                                    `relative mb-2 cursor-pointer select-none rounded-md border px-4 py-3 text-sm transition ${
+                                      active || selected
+                                        ? "border-amber-300/35 bg-amber-300/15 text-amber-50"
+                                        : "border-amber-300/20 bg-amber-300/[0.07] text-amber-100"
+                                    }`
+                                  }
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="flex min-w-0 items-center gap-2 font-semibold">
+                                      <CircleHelp
+                                        size={16}
+                                        className="shrink-0 text-amber-300"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="truncate">
+                                        My shop isn't listed
+                                      </span>
+                                    </span>
+                                    {selectedShop?.id === UNLISTED_SHOP_ID && (
+                                      <Check
+                                        size={16}
+                                        className="shrink-0 text-amber-200"
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                  </div>
+                                  <p className="mt-1 pl-6 text-xs leading-5 text-amber-100/65">
+                                    Send the shop to the SATX Ink team for review.
+                                  </p>
+                                </Listbox.Option>
                                 {shops.map((shop) => (
                                   <Listbox.Option
                                     key={shop.id}
@@ -797,7 +870,42 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           )}
                         </Listbox>
 
-                        {selectedShop && (
+                        {selectedShop?.id === UNLISTED_SHOP_ID ? (
+                          <div className="space-y-4 rounded-md border border-amber-300/20 bg-amber-300/[0.07] p-4">
+                            <div className="flex items-start gap-3">
+                              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-300/10 text-amber-200">
+                                <CircleHelp size={17} aria-hidden="true" />
+                              </span>
+                              <div>
+                                <p className="text-sm font-semibold text-amber-50">
+                                  No problem—you can keep going.
+                                </p>
+                                <p className="mt-1 text-sm leading-6 text-amber-100/70">
+                                  We’ll review your request promptly and follow up
+                                  by email. This won’t delay your profile setup.
+                                </p>
+                              </div>
+                            </div>
+                            <label className="block space-y-2">
+                              <span className="text-sm font-medium text-neutral-200">
+                                Shop or studio name{" "}
+                                <span className="font-normal text-neutral-500">
+                                  (optional)
+                                </span>
+                              </span>
+                              <input
+                                type="text"
+                                value={unlistedShopName}
+                                onChange={(event) =>
+                                  setUnlistedShopName(event.target.value)
+                                }
+                                maxLength={160}
+                                placeholder="Enter the shop name if you know it"
+                                className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition placeholder:text-neutral-600 focus:border-amber-300/60"
+                              />
+                            </label>
+                          </div>
+                        ) : selectedShop ? (
                           <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
                             {invitedShopId === selectedShop.id && (
                               <p className="mb-3 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-50/85">
@@ -808,7 +916,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                               {selectedShop.name}
                             </p>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )}
 
@@ -897,38 +1005,37 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           </span>
                         </label>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <label className="space-y-2">
+                        <div>
+                          <label className="block space-y-2">
                             <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                               <Instagram size={15} aria-hidden="true" />
                               Instagram
                             </span>
-                            <input
-                              type="text"
-                              inputMode="url"
-                              autoCapitalize="none"
-                              name="instagram"
-                              value={instagram}
-                              onChange={(e) => setInstagram(e.target.value)}
-                              placeholder="instagram.com/artist"
-                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                            />
-                          </label>
-                          <label className="space-y-2">
-                            <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                              <Facebook size={15} aria-hidden="true" />
-                              Facebook
+                            <span className="flex min-h-11 overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
+                              <span className="flex shrink-0 items-center border-r border-white/10 bg-white/[0.03] px-3 text-sm text-neutral-500">
+                                {INSTAGRAM_PROFILE_LABEL}
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="text"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                name="instagram"
+                                value={instagramHandle}
+                                onChange={(event) =>
+                                  setInstagramHandle(
+                                    getInstagramHandle(event.target.value)
+                                  )
+                                }
+                                placeholder="artist"
+                                aria-label="Instagram profile path"
+                                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-white outline-none placeholder:text-neutral-600"
+                              />
                             </span>
-                            <input
-                              type="text"
-                              inputMode="url"
-                              autoCapitalize="none"
-                              name="facebook"
-                              value={facebook}
-                              onChange={(e) => setFacebook(e.target.value)}
-                              placeholder="facebook.com/artist"
-                              className="w-full rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
-                            />
+                            <span className="block text-xs text-neutral-500">
+                              Paste a profile link or enter only your username.
+                            </span>
                           </label>
                         </div>
                       </div>
@@ -1030,7 +1137,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-neutral-400">Shop</span>
                       <span className="max-w-44 truncate text-right text-white">
-                        {selectedShop?.name || "Not selected"}
+                        {selectedShop?.id === UNLISTED_SHOP_ID
+                          ? unlistedShopName.trim() || "Pending shop review"
+                          : selectedShop?.name || "Not selected"}
                       </span>
                     </div>
                   </div>
