@@ -25,22 +25,15 @@ const clientBenefits = [
 
 type ClientSignupBenefit = (typeof clientBenefits)[number];
 
-const ClientSignupRevealSection = ({
+const ClientSignupBenefitSection = ({
   benefit,
-  index,
 }: {
   benefit: ClientSignupBenefit;
-  index: number;
 }) => {
   const BenefitIcon = benefit.icon;
-  const directions = ["left", "right", "up"] as const;
 
   return (
-    <ViewportReveal
-      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10"
-      delay={260 + index * 140}
-      direction={directions[index] ?? "up"}
-    >
+    <article className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-8 md:py-10">
       <div className="flex items-center gap-3 sm:block">
         <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-5">
           <BenefitIcon size={21} aria-hidden="true" />
@@ -60,7 +53,7 @@ const ClientSignupRevealSection = ({
         className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700"
         aria-hidden="true"
       />
-    </ViewportReveal>
+    </article>
   );
 };
 
@@ -141,11 +134,10 @@ const ClientSignupPage = ({ onBack }: { onBack?: () => void }) => {
           </ViewportReveal>
 
           <div className="mt-12 w-full max-w-3xl md:mt-16">
-            {clientBenefits.map((benefit, index) => (
-              <ClientSignupRevealSection
+            {clientBenefits.map((benefit) => (
+              <ClientSignupBenefitSection
                 key={benefit.title}
                 benefit={benefit}
-                index={index}
               />
             ))}
           </div>

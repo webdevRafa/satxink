@@ -100,42 +100,31 @@ const waitFor = (durationMs: number) =>
 
 type ArtistSignupBenefit = (typeof artistSignupBenefits)[number];
 
-const ArtistSignupRevealSection = ({
+const ArtistSignupBenefitCard = ({
   benefit,
-  index,
 }: {
   benefit: ArtistSignupBenefit;
-  index: number;
 }) => {
   const BenefitIcon = benefit.icon;
-  const directions = ["left", "right", "up"] as const;
 
   return (
-    <ViewportReveal
-      className="group relative grid gap-4 border-t border-white/10 py-8 text-left sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-6 md:py-8 lg:flex lg:h-full lg:min-h-[260px] lg:flex-col lg:justify-between lg:overflow-hidden lg:rounded-lg lg:border lg:border-white/10 lg:bg-white/[0.035] lg:p-5 lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] lg:backdrop-blur"
-      delay={120 + index * 60}
-      direction={index === 1 ? "up" : directions[index] ?? "up"}
-    >
-      <div className="flex items-center gap-3 sm:block lg:flex">
-        <span className="mt-0 inline-flex text-neutral-500 transition duration-500 group-hover:text-neutral-200 sm:mt-4 lg:mt-0 lg:h-10 lg:w-10 lg:items-center lg:justify-center lg:rounded-md lg:border lg:border-white/10 lg:bg-white/[0.04] lg:text-neutral-300">
-          <BenefitIcon size={21} aria-hidden="true" />
-        </span>
-      </div>
+    <article className="group relative flex min-h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] p-5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05] sm:p-6">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-neutral-300 transition duration-300 group-hover:border-white/20 group-hover:text-white">
+        <BenefitIcon size={21} aria-hidden="true" />
+      </span>
 
-      <div>
-        <h2 className="text-xl! font-bold leading-tight text-white sm:text-2xl! lg:text-xl!">
-          {benefit.title}
-        </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300!">
-          {benefit.body}
-        </p>
-      </div>
+      <h2 className="mt-8 min-h-14 text-xl! font-bold leading-tight text-white">
+        {benefit.title}
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300!">
+        {benefit.body}
+      </p>
 
       <span
-        className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-100 transition-all duration-700 lg:w-full lg:opacity-70"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-[var(--color-primary)] via-white/50 to-transparent opacity-70"
         aria-hidden="true"
       />
-    </ViewportReveal>
+    </article>
   );
 };
 
@@ -568,36 +557,35 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               </ViewportReveal>
 
               <ViewportReveal
-                className="mt-0 max-w-3xl md:mt-5"
+                className="mt-10 w-full max-w-2xl pt-8 md:mt-14 md:pt-10"
                 delay={120}
                 direction="up"
               >
-                <h1 className=" text-4xl! font-bold leading-[0.95] text-white ">
-                  Make your work easier to find.
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                  Get listed
+                </p>
+                <h1 className="mt-4 flex flex-wrap items-center justify-center gap-2 text-3xl! font-semibold leading-tight text-white sm:text-4xl!">
+                  <span>Join</span>
+                  <img
+                    src={logo}
+                    alt="SATX Ink logo"
+                    className="max-w-[112px] translate-y-[-2px]"
+                  />
+                  <span>as an Artist</span>
                 </h1>
-
-                <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-neutral-300">
-                  Join SATX Ink as an artist, declare the shop, show your
-                  specialties, and make it easier for local clients to connect
-                  and book.
-                </p>
-              </ViewportReveal>
-
-              <ViewportReveal
-                className="mt-8 w-full max-w-xl border-y border-white/10 py-7"
-                delay={220}
-                direction="up"
-              >
-                <p className="mx-auto max-w-lg text-sm leading-6 text-neutral-300 sm:text-base">
+                <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-neutral-400 sm:text-base">
                   Start with Google or Apple, then complete a guided profile
-                  setup for shop, style, and bio.
+                  setup for your shop, styles, and bio.
                 </p>
 
-                <AuthProviderSignupButtons className="mt-6" role="artist" />
+                <div className="mt-7 flex justify-center">
+                  <AuthProviderSignupButtons role="artist" />
+                </div>
 
-                <p className="mx-auto mt-5 max-w-md text-xs! leading-5 text-neutral-500!">
-                  We use the name and email from your sign-in provider to set up
-                  your account. By signing up, you agree to our{" "}
+                <p className="mx-auto mt-6 text-xs! leading-5 text-neutral-500!">
+                  We only use the name, email and avatar from your sign-in
+                  provider to set up your account. For more information, please
+                  view our&nbsp;
                   <Link
                     to="/terms"
                     target="_blank"
@@ -606,16 +594,23 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   >
                     Terms
                   </Link>
-                  .
+                  &nbsp; and &nbsp;
+                  <Link
+                    to="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline transition hover:text-white"
+                  >
+                    Privacy Policy
+                  </Link>
                 </p>
               </ViewportReveal>
 
-              <div className="mt-10 grid w-full max-w-6xl gap-0 md:mt-12 lg:grid-cols-3 lg:gap-4">
-                {artistSignupBenefits.map((benefit, index) => (
-                  <ArtistSignupRevealSection
+              <div className="mt-12 grid w-full max-w-6xl auto-rows-fr items-stretch gap-4 md:mt-16 md:grid-cols-3">
+                {artistSignupBenefits.map((benefit) => (
+                  <ArtistSignupBenefitCard
                     key={benefit.title}
                     benefit={benefit}
-                    index={index}
                   />
                 ))}
               </div>
