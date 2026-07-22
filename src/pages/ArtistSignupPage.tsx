@@ -94,8 +94,8 @@ const stepHeadings = ["Shop", "Style", "You"];
 
 const stepDescriptions = [
   "Connect your profile to the studio clients should see on your public profile.",
-  "Choose the styles that best describe your work and add your social channels.",
-  "Choose the public name and bio clients will remember.",
+  "Choose the styles that best describe your work.",
+  "Add your public name and Instagram profile. Your bio is optional.",
 ];
 
 const stepIcons = [Building2, Sparkles, UserRound];
@@ -293,14 +293,20 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       : currentStep === 1
       ? specialties.length > 0
       : Boolean(
-          displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
+          displayName.trim() &&
+            instagramHandle.trim() &&
+            !isNameTaken &&
+            !isCheckingName
         );
 
   const stepCompletion = [
     Boolean(selectedShop),
     specialties.length > 0,
     Boolean(
-      displayName.trim() && bio.trim() && !isNameTaken && !isCheckingName
+      displayName.trim() &&
+        instagramHandle.trim() &&
+        !isNameTaken &&
+        !isCheckingName
     ),
   ];
   const allStepsComplete = stepCompletion.every(Boolean);
@@ -317,7 +323,10 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const getStepWarning = (step: number) => {
     if (step === 0) return "Select your shop before continuing.";
     if (step === 1) return "Choose at least one specialty before continuing.";
-    return "Add an available display name and a bio before creating your profile.";
+    return (
+      "Add an available display name and Instagram handle before creating " +
+      "your profile."
+    );
   };
 
   const navigateToStep = useCallback(
@@ -947,12 +956,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     {currentStep === 2 && (
                       <div data-aos="fade-in" className="space-y-4">
                         <label className="space-y-2">
-                          <span className="text-sm font-medium text-neutral-200">
-                            Display name
+                          <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
+                            <span>Display name</span>
+                            <span className="text-xs font-normal text-neutral-500">
+                              Required
+                            </span>
                           </span>
                           <input
                             type="text"
                             name="displayName"
+                            required
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             placeholder="Ink by Alex"
@@ -988,8 +1001,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         </label>
 
                         <label className="space-y-2">
-                          <span className="text-sm font-medium text-neutral-200">
-                            Bio
+                          <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
+                            <span>Bio</span>
+                            <span className="text-xs font-normal text-neutral-500">
+                              Optional
+                            </span>
                           </span>
                           <textarea
                             name="bio"
@@ -998,7 +1014,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             rows={6}
                             maxLength={700}
                             placeholder="Tell clients about your style, process, and booking vibe."
-                            className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-[var(--color-primary)]"
+                            className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-white/35 focus:ring-2 focus:ring-white/10"
                           />
                           <span className="block text-right text-xs text-neutral-500">
                             {bio.length}/700
@@ -1007,11 +1023,16 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
                         <div>
                           <label className="block space-y-2">
-                            <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-                              <Instagram size={15} aria-hidden="true" />
-                              Instagram
+                            <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
+                              <span className="flex items-center gap-2">
+                                <Instagram size={15} aria-hidden="true" />
+                                Instagram
+                              </span>
+                              <span className="text-xs font-normal text-neutral-500">
+                                Required
+                              </span>
                             </span>
-                            <span className="flex min-h-11 overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
+                            <span className="flex min-h-11 overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-white/35 focus-within:ring-2 focus-within:ring-white/10">
                               <span className="flex shrink-0 items-center border-r border-white/10 bg-white/[0.03] px-3 text-sm text-neutral-500">
                                 {INSTAGRAM_PROFILE_LABEL}
                               </span>
@@ -1022,6 +1043,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 autoCorrect="off"
                                 spellCheck={false}
                                 name="instagram"
+                                required
                                 value={instagramHandle}
                                 onChange={(event) =>
                                   setInstagramHandle(
