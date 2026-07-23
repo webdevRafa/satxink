@@ -2001,6 +2001,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         (booking.status === "deposit_paid" ? depositCents : 0)
     );
 
+    if (booking.status === "pending_payment" && paymentMode === "full") {
+      paymentMode = "deposit";
+    }
+
     if (booking.status === "deposit_paid" && !isPlatformFeeOnlyPayment) {
       paymentMode = "remaining";
     }

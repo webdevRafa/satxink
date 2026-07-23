@@ -78,6 +78,11 @@ const getProfileValue = (profile: unknown, key: string) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
+const getExistingAccountDestination = (profile: unknown) =>
+  getProfileValue(profile, "role").toLowerCase() === "admin"
+    ? "/admin"
+    : "/dashboard";
+
 const getObjectNamePart = (value: unknown, keys: string[]) => {
   if (!value || typeof value !== "object") return "";
   const record = value as ProfileRecord;
@@ -224,6 +229,7 @@ const createClientProfile = (role: SignupRole, result: UserCredential) => {
 const createArtistProfile = (result: UserCredential) => {
   const user = result.user;
   const providerDisplayName = getCredentialDisplayName(result);
+  const providerName = splitFullName(providerDisplayName);
 
   return {
     avatarUrl: user.photoURL || "",
@@ -233,7 +239,10 @@ const createArtistProfile = (result: UserCredential) => {
     displayName: providerDisplayName,
     email: user.email || "",
     featured: false,
+    firstName: providerName.firstName,
     isVerified: false,
+    lastName: providerName.lastName,
+    name: providerName.fullName || providerDisplayName,
     phoneNumber: user.phoneNumber || "",
     paymentType: "internal",
     depositPolicy: {
@@ -324,7 +333,7 @@ const useAuthProviderSignup = (role: SignupRole) => {
 
       if (userSnap.exists()) {
         toast.success("Welcome back");
-        navigate("/dashboard");
+        navigate(getExistingAccountDestination(userSnap.data()));
         return;
       }
 
@@ -416,7 +425,11 @@ export const AuthProviderSignInButtons = ({
       const userSnap = await getDoc(userRef);
 
       onComplete?.();
-      navigate(userSnap.exists() ? "/dashboard" : "/signup");
+      navigate(
+        userSnap.exists()
+          ? getExistingAccountDestination(userSnap.data())
+          : "/signup"
+      );
     } catch (error) {
       reportAuthError(error, `${AUTH_PROVIDER_META[providerKey].name} sign-in`);
     } finally {

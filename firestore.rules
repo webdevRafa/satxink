@@ -51,6 +51,10 @@ service cloud.firestore {
       return [
         "role",
         "isVerified",
+        "verifiedAt",
+        "verifiedBy",
+        "verifiedByEmail",
+        "verificationSource",
         "featured",
         "stripeConnect",
         "stripeConnectAccountId",
@@ -78,6 +82,10 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny([
           "admin",
           "claims",
+          "verifiedAt",
+          "verifiedBy",
+          "verifiedByEmail",
+          "verificationSource",
           "stripeConnect",
           "stripeConnectAccountId",
           "stripeCustomerId"
@@ -367,6 +375,39 @@ service cloud.firestore {
     match /shops/{shopId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /unlistedShopRequests/{artistId} {
+      allow get: if isAdmin() || isOwner(artistId);
+      allow list: if isAdmin();
+      allow create: if isArtist() &&
+        isOwner(artistId) &&
+        request.resource.data.keys().hasOnly([
+          "artistId",
+          "artistName",
+          "artistEmail",
+          "artistAvatarUrl",
+          "requestedShopName",
+          "status",
+          "source",
+          "createdAt",
+          "updatedAt"
+        ]) &&
+        request.resource.data.artistId == request.auth.uid &&
+        request.resource.data.artistName is string &&
+        request.resource.data.artistName.size() > 0 &&
+        request.resource.data.artistName.size() <= 160 &&
+        request.resource.data.artistEmail is string &&
+        request.resource.data.artistEmail.size() <= 320 &&
+        request.resource.data.artistAvatarUrl is string &&
+        request.resource.data.artistAvatarUrl.size() <= 2048 &&
+        request.resource.data.requestedShopName is string &&
+        request.resource.data.requestedShopName.size() <= 160 &&
+        request.resource.data.status == "new" &&
+        request.resource.data.source == "artist_onboarding" &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+      allow update, delete: if isAdmin();
     }
 
     match /siteSettings/{settingId} {

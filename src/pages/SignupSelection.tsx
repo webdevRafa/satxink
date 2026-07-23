@@ -90,7 +90,7 @@ export default function SignupSelection({
         className="fixed inset-0 h-screen w-full object-cover"
         style={{ minWidth: "100vw", minHeight: "100vh" }}
       />
-      <div className="fixed inset-0 bg-black/75 backdrop-blur-xs" />
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-xs" />
 
       <div className={signupShellClass}>
         {!selectedRole && (
@@ -101,21 +101,11 @@ export default function SignupSelection({
               direction="up"
             >
               <h1 className="text-2xl! md:text-3xl! font-bold leading-tight text-white ">
-                San Antonio's Tattoo Hub.
+                How will you use the platform?
               </h1>
               <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-neutral-200! md:text-lg">
-                Built to connect tattoo ideas with the artists who can bring
-                them to life.
+                Choose whether you're signing up as a client or artist.
               </p>
-              <div className="mx-auto mt-6 inline-flex max-w-full items-center gap-2  px-4 py-2 text-xs font-semibold text-neutral-200  backdrop-blur sm:text-sm">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-primary)] shadow-[0_0_14px_rgba(204,63,50,0.55)]"
-                  aria-hidden="true"
-                />
-                <span>
-                  Choose whether you're signing up as a client or an artist.
-                </span>
-              </div>
             </ViewportReveal>
 
             <div className="mt-10 grid gap-4 text-left md:grid-cols-2 px-2 md:px-5">
@@ -130,7 +120,7 @@ export default function SignupSelection({
                     <button
                       type="button"
                       onClick={() => handleRoleSelect(card.role)}
-                      className="signup-role-card group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/20 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500! hover:bg-[#171717]/95 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
+                      className="signup-role-card group relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#121212]/20 p-5 text-left shadow-2xl shadow-black/20 backdrop-blur transition duration-500! hover:bg-[#171717]/60 hover:shadow-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
                     >
                       <span
                         className="spotlight-border-glint signup-role-card-glint signup-role-card-glint--left"
@@ -140,7 +130,7 @@ export default function SignupSelection({
                         className="spotlight-border-glint signup-role-card-glint signup-role-card-glint--right"
                         aria-hidden="true"
                       />
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
                           <p className="mt-5 text-xs uppercase tracking-[0.18em] text-neutral-500 transition duration-500 group-hover:text-neutral-300">
                             {card.eyebrow}
@@ -149,7 +139,7 @@ export default function SignupSelection({
                             {card.title}
                           </h2>
                         </div>
-                        <span className="translate-x-[-5px] hover:translate-x-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition duration-500 group-hover:translate-x-0.5 group-hover:border-white group-hover:bg-white group-hover:text-[#0b0b0b]">
+                        <span className="inline-flex opacity-50 group-hover:opacity-100 translate-x-[-5px] hover:translate-x-0  h-9 w-9 items-center justify-center rounded-full  text-neutral-300 group-hover:text-white transition duration-500 group-hover:translate-x-0.5   ">
                           <ArrowRight
                             className="w-[40px] "
                             size={17}

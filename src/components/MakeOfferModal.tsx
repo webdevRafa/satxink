@@ -13,7 +13,6 @@ import {
   Clock,
   DollarSign,
   ImageIcon,
-  Info,
   Layers,
   MapPin,
   MessageSquareText,
@@ -168,10 +167,6 @@ const MakeOfferModal = ({
   const [offerImage, setOfferImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewingOffer, setIsPreviewingOffer] = useState(false);
-  const [allowExternalRemainingPayment, setAllowExternalRemainingPayment] =
-    useState(false);
-  const [isRemainingPaymentHelpOpen, setIsRemainingPaymentHelpOpen] =
-    useState(false);
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
   const [estimatedHoursPerSession, setEstimatedHoursPerSession] = useState("");
@@ -209,10 +204,9 @@ const MakeOfferModal = ({
     effectiveOfferPrice - Number(depositAmount || 0),
     0
   );
-  const canAllowExternalRemainingPayment =
+  const hasRemainingArtistBalance =
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
-  const shouldShowRemainingPaymentChoice = canAllowExternalRemainingPayment;
   const laterSessionCount =
     !isFlashRequest && isMultiSessionProject
       ? Math.max(estimatedSessionCount - 1, 1)
@@ -285,13 +279,6 @@ const MakeOfferModal = ({
   }, [isOpen, selectedRequest?.id]);
 
   useEffect(() => {
-    if (!canAllowExternalRemainingPayment) {
-      setAllowExternalRemainingPayment(false);
-      setIsRemainingPaymentHelpOpen(false);
-    }
-  }, [canAllowExternalRemainingPayment]);
-
-  useEffect(() => {
     if (!isOpen || !selectedRequest) return;
 
     if (selectedRequest.sourceType === "flash") {
@@ -319,8 +306,6 @@ const MakeOfferModal = ({
     ]);
     setOfferImage(null);
     setPreviewUrl(null);
-    setAllowExternalRemainingPayment(false);
-    setIsRemainingPaymentHelpOpen(false);
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
     setEstimatedHoursPerSession("");
@@ -552,8 +537,7 @@ const MakeOfferModal = ({
           artist.finalPaymentTiming === "before"
             ? artist.finalPaymentDeadlineHours || 24
             : null,
-        allowExternalRemainingPayment:
-          canAllowExternalRemainingPayment && allowExternalRemainingPayment,
+        allowExternalRemainingPayment: hasRemainingArtistBalance,
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         depositApplication: "project_credit",
         estimatedSessionCount: submitAsMultiSession
@@ -758,10 +742,6 @@ const MakeOfferModal = ({
                 depositAmount={Number(depositAmount || 0)}
                 remainingArtistBalance={remainingArtistBalance}
                 paymentPreview={paymentPreview}
-                allowExternalRemainingPayment={
-                  canAllowExternalRemainingPayment &&
-                  allowExternalRemainingPayment
-                }
                 sessionCount={estimatedSessionCount}
                 sessionEstimate={sessionEstimate}
                 estimatedHoursPerSession={normalizedEstimatedHoursPerSession}
@@ -933,80 +913,27 @@ const MakeOfferModal = ({
                   </p>
                 )}
 
-                {shouldShowRemainingPaymentChoice && (
+                {hasRemainingArtistBalance && (
                   <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
                     <div className="flex items-start gap-3">
-                      <input
-                        id="allow-external-remaining-payment"
-                        type="checkbox"
-                        checked={allowExternalRemainingPayment}
-                        disabled={!canAllowExternalRemainingPayment}
-                        onChange={(event) =>
-                          setAllowExternalRemainingPayment(event.target.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-white/20 bg-black accent-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                      />
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
+                        <ReceiptText size={16} />
+                      </span>
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                          <label
-                            htmlFor="allow-external-remaining-payment"
-                            className="cursor-pointer text-sm font-semibold text-white"
-                          >
-                            Allow direct settlement for remaining balance
-                          </label>
-                          {canAllowExternalRemainingPayment && (
-                            <span
-                              className="relative inline-flex"
-                              onMouseEnter={() =>
-                                setIsRemainingPaymentHelpOpen(true)
-                              }
-                              onMouseLeave={() =>
-                                setIsRemainingPaymentHelpOpen(false)
-                              }
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setIsRemainingPaymentHelpOpen(true)
-                                }
-                                onFocus={() =>
-                                  setIsRemainingPaymentHelpOpen(true)
-                                }
-                                onBlur={() =>
-                                  setIsRemainingPaymentHelpOpen(false)
-                                }
-                                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] p-0! text-neutral-400 transition hover:border-white/30 hover:text-white"
-                                aria-label="How remaining balance payment works"
-                              >
-                                <Info size={12} />
-                              </button>
-                              {isRemainingPaymentHelpOpen && (
-                                <span className="absolute left-1/2 top-full z-[80] mt-5 block w-[min(20rem,calc(100vw-3rem))] -translate-x-1/2 rounded-md border border-white/10 bg-[#090909] p-3 text-xs leading-5 text-neutral-300 shadow-2xl sm:left-0 sm:translate-x-0">
-                                  If this is off, the client pays the remaining
-                                  balance later through Stripe and the payout
-                                  goes to your Stripe Connect account. If this
-                                  is on, the client can choose to settle the
-                                  remaining balance directly with you outside
-                                  SATX Ink checkout.
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        <label
-                          htmlFor="allow-external-remaining-payment"
-                          className="mt-1 block cursor-pointer text-sm leading-6 text-neutral-400"
-                        >
-                          The client can pay the deposit through SATX Ink now and
-                          choose to pay the remaining{" "}
+                        <p className="text-sm font-semibold text-white">
+                          Remaining balance is settled at the shop
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-neutral-400">
+                          SATX Ink collects the non-refundable deposit today.
+                          The remaining{" "}
                           <span className="font-semibold text-white">
                             {formatMoneyFromCents(
                               Math.round(remainingArtistBalance * 100)
                             )}
                           </span>{" "}
-                          directly with you at the shop or however you and the
-                          client arrange it.
-                        </label>
+                          is paid directly to you at the shop or however you and
+                          the client arrange it.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1553,7 +1480,6 @@ const OfferPreview = ({
   depositAmount,
   remainingArtistBalance,
   paymentPreview,
-  allowExternalRemainingPayment,
   sessionCount,
   sessionEstimate,
   estimatedHoursPerSession,
@@ -1571,7 +1497,6 @@ const OfferPreview = ({
   depositAmount: number;
   remainingArtistBalance: number;
   paymentPreview: ReturnType<typeof calculateClientPaymentBreakdown>;
-  allowExternalRemainingPayment: boolean;
   sessionCount: number;
   sessionEstimate: number;
   estimatedHoursPerSession: number | null;
@@ -1588,9 +1513,7 @@ const OfferPreview = ({
   const laterPaymentLabel =
     remainingArtistBalance <= 0
       ? "No later balance"
-      : allowExternalRemainingPayment
-      ? "Client can choose to settle the remaining balance directly with you."
-      : "Client pays the remaining balance later through Stripe.";
+      : "Remaining balance is settled directly with you outside SATX Ink checkout.";
 
   return (
     <div className="p-5 sm:p-6">

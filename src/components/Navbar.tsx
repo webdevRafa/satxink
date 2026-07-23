@@ -4,7 +4,7 @@ import { signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { AuthProviderSignInButtons } from "./GoogleSignupButton";
 import {
   ArrowRight,
@@ -16,6 +16,9 @@ import {
   Menu,
   UserPlus,
   X,
+  ChevronDown,
+  LayoutDashboard,
+  ShieldCheck,
 } from "lucide-react";
 
 const mobileNavItems = [
@@ -47,8 +50,30 @@ const desktopNavItems = [
 type NavbarUserDoc = {
   avatarUrl?: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
-  role?: "artist" | "client";
+  role?: "artist" | "client" | "admin";
+};
+
+const normalizeFirestoreName = (value?: string) =>
+  value?.trim().replace(/\s+/g, " ") || "";
+
+const getFirestoreAccountName = (userDoc: NavbarUserDoc | null) => {
+  if (!userDoc) return "";
+
+  const fullName = [
+    normalizeFirestoreName(userDoc.firstName),
+    normalizeFirestoreName(userDoc.lastName),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    fullName ||
+    normalizeFirestoreName(userDoc.name) ||
+    normalizeFirestoreName(userDoc.displayName)
+  );
 };
 
 const getAvatarInitial = (label?: string | null) => {
@@ -60,7 +85,9 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
-  const [userRole, setUserRole] = useState<"artist" | "client" | null>(null);
+  const [userRole, setUserRole] = useState<
+    "artist" | "client" | "admin" | null
+  >(null);
   const [userDoc, setUserDoc] = useState<NavbarUserDoc | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isUserDocLoading, setIsUserDocLoading] = useState(
@@ -68,14 +95,20 @@ export const Navbar = () => {
   );
   const [isScrolled, setIsScrolled] = useState(false);
   const [showSignInOptions, setShowSignInOptions] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const signInMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const firestoreAvatarUrl = userDoc?.avatarUrl?.trim() || "";
-  const avatarLabel =
-    userDoc?.name || userDoc?.displayName || user?.displayName || "User avatar";
-  const avatarInitial = getAvatarInitial(
-    userDoc?.name || userDoc?.displayName || user?.displayName || user?.email
-  );
+  const firestoreAccountName = getFirestoreAccountName(userDoc);
+  const avatarLabel = firestoreAccountName || "User avatar";
+  const avatarInitial = getAvatarInitial(firestoreAccountName || user?.email);
+  const accountDisplayName = firestoreAccountName || "Signed in";
+  const isAccountLoading =
+    isAuthLoading || Boolean(user && isUserDocLoading);
+  const accountDestination = userRole === "admin" ? "/admin" : "/dashboard";
+  const accountDestinationLabel =
+    userRole === "admin" ? "Open admin dashboard" : "Open dashboard";
 
   const renderNavbarAvatar = (
     className: string,
@@ -109,6 +142,7 @@ export const Navbar = () => {
   const handleLogout = () => {
     setIsOpen(false);
     setShowSignInOptions(false);
+    setShowAccountMenu(false);
     signOutUser(navigate);
   };
   useEffect(() => {
@@ -122,54 +156,47 @@ export const Navbar = () => {
 
   useEffect(() => {
     let isSubscribed = true;
-    const retryTimers: number[] = [];
+    let unsubscribeUserDoc: (() => void) | null = null;
 
-    const clearRetryTimers = () => {
-      retryTimers.forEach((timerId) => window.clearTimeout(timerId));
-      retryTimers.length = 0;
-    };
-
-    const tryFetchUserData = async (uid: string, retries = 2) => {
-      try {
-        const userRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
-
-        if (userSnap.exists()) {
-          const data = userSnap.data() as NavbarUserDoc;
-          setUserRole(data.role ?? null);
-          setUserDoc(data);
-          setIsUserDocLoading(false);
-        } else if (retries > 0) {
-          const retryTimerId = window.setTimeout(() => {
-            tryFetchUserData(uid, retries - 1);
-          }, 1000);
-          retryTimers.push(retryTimerId);
-        } else {
-          setUserRole(null);
-          setUserDoc(null);
-          setIsUserDocLoading(false);
-        }
-      } catch {
-        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
-        setUserRole(null);
-        setUserDoc(null);
-        setIsUserDocLoading(false);
-      }
+    const clearUserDocSubscription = () => {
+      unsubscribeUserDoc?.();
+      unsubscribeUserDoc = null;
     };
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      clearRetryTimers();
+      clearUserDocSubscription();
       setIsAuthLoading(false);
       setUser(firebaseUser);
       setUserRole(null);
       setUserDoc(null);
+      setShowAccountMenu(false);
       if (firebaseUser) setShowSignInOptions(false);
 
       if (firebaseUser) {
         setIsUserDocLoading(true);
-        tryFetchUserData(firebaseUser.uid);
+        const uid = firebaseUser.uid;
+        unsubscribeUserDoc = onSnapshot(
+          doc(db, "users", uid),
+          (userSnapshot) => {
+            if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+
+            if (userSnapshot.exists()) {
+              const data = userSnapshot.data() as NavbarUserDoc;
+              setUserRole(data.role ?? null);
+              setUserDoc(data);
+            } else {
+              setUserRole(null);
+              setUserDoc(null);
+            }
+            setIsUserDocLoading(false);
+          },
+          () => {
+            if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+            setUserRole(null);
+            setUserDoc(null);
+            setIsUserDocLoading(false);
+          }
+        );
       } else {
         setIsUserDocLoading(false);
       }
@@ -177,7 +204,7 @@ export const Navbar = () => {
 
     return () => {
       isSubscribed = false;
-      clearRetryTimers();
+      clearUserDocSubscription();
       unsubscribe();
     };
   }, []);
@@ -205,6 +232,30 @@ export const Navbar = () => {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [showSignInOptions]);
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowAccountMenu(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowAccountMenu(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showAccountMenu]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -276,8 +327,8 @@ export const Navbar = () => {
             About SATX INK
           </NavLink>
 
-          <div className="flex w-[168px] shrink-0 justify-end">
-            {isAuthLoading ? (
+          <div className="flex w-[184px] shrink-0 justify-end">
+            {isAccountLoading ? (
               <div
                 className={`flex h-10 w-full items-center justify-between rounded-full border px-3 transition duration-300 ${
                   isScrolled
@@ -290,16 +341,87 @@ export const Navbar = () => {
                 <span className="h-8 w-8 animate-pulse rounded-full border border-white/10 bg-white/[0.08]" />
               </div>
             ) : user ? (
-              <Link
-                to="/dashboard"
-                aria-label="Open dashboard"
-                className="flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-neutral-200 transition hover:border-orange-400/60 hover:text-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/50"
-              >
-                {renderNavbarAvatar(
-                  "w-8 h-8 rounded-full border border-white/30 object-cover",
-                  "text-sm font-semibold text-white"
+              <div ref={accountMenuRef} className="relative w-full">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAccountMenu((current) => !current)
+                  }
+                  aria-expanded={showAccountMenu}
+                  aria-haspopup="menu"
+                  aria-label="Open account menu"
+                  className={`flex h-10 w-full items-center gap-2 rounded-full border p-1 pr-2! text-left transition focus:outline-none focus:ring-2 focus:ring-white/20 ${
+                    showAccountMenu
+                      ? "border-white/20 bg-white/[0.09] text-white"
+                      : "border-white/10 bg-white/[0.04] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {renderNavbarAvatar(
+                    "h-8 w-8 shrink-0 rounded-full border border-white/20 object-cover",
+                    "text-sm font-semibold text-white"
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                    {accountDisplayName}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-neutral-500 transition-transform ${
+                      showAccountMenu ? "rotate-180 text-neutral-300" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {showAccountMenu && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-72 overflow-hidden rounded-xl border border-white/10 bg-[#101010]/98 shadow-2xl shadow-black/55 backdrop-blur-xl"
+                  >
+                    <div className="border-b border-white/10 px-4 py-3.5">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {accountDisplayName}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-neutral-500">
+                        {user.email || `${userRole || "SATX Ink"} account`}
+                      </p>
+                      <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                        {userRole === "admin" && (
+                          <ShieldCheck size={11} aria-hidden="true" />
+                        )}
+                        {userRole || "Account"}
+                      </span>
+                    </div>
+                    <div className="p-2">
+                      <Link
+                        to={accountDestination}
+                        role="menuitem"
+                        onClick={() => setShowAccountMenu(false)}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <LayoutDashboard
+                          size={16}
+                          className="text-neutral-500"
+                          aria-hidden="true"
+                        />
+                        {accountDestinationLabel}
+                      </Link>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleLogout}
+                        className="flex h-10! w-full items-center gap-3 rounded-lg px-3! py-0! text-sm! font-medium! text-neutral-300 transition hover:bg-red-500/10 hover:text-red-200"
+                      >
+                        <LogOut
+                          size={16}
+                          className="text-neutral-500"
+                          aria-hidden="true"
+                        />
+                        Sign out
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </Link>
+              </div>
             ) : (
               <div
                 ref={signInMenuRef}
@@ -388,7 +510,7 @@ export const Navbar = () => {
           </div>
 
           <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            {isAuthLoading ? (
+            {isAccountLoading ? (
               <section
                 className="rounded-lg border border-white/10 bg-white/[0.04] p-4"
                 aria-hidden="true"
@@ -411,7 +533,7 @@ export const Navbar = () => {
                   )}
                   <div className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-white">
-                      {userDoc?.name || user.displayName || "Signed in"}
+                      {accountDisplayName}
                     </span>
                     <span className="mt-0.5 block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       {userRole || "Account"}
@@ -419,11 +541,11 @@ export const Navbar = () => {
                   </div>
                 </div>
                 <Link
-                  to="/dashboard"
+                  to={accountDestination}
                   onClick={() => setIsOpen(false)}
                   className="mt-4 flex h-10 items-center justify-between rounded-md bg-white px-3 text-sm font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
                 >
-                  Open dashboard
+                  {accountDestinationLabel}
                   <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </section>

@@ -9,9 +9,9 @@ export const AboutPage = () => {
       <div>
         <p className="text-gray-300 leading-relaxed mb-6">
           SATXINK is a community-driven platform dedicated to connecting tattoo
-          clients with the best artists in San Antonio, Texas. Whether you're
-          looking to find the perfect artist for your next piece or you're a
-          talented artist wanting to showcase your work.
+          clients with artists in San Antonio, Texas. Whether you're looking to
+          find the perfect artist for your next piece or you're a talented
+          artist wanting to showcase your work.
         </p>
 
         <p className="text-gray-300 leading-relaxed mb-6">

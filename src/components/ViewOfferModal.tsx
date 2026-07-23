@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { httpsCallable } from "firebase/functions";
-import { getAuth } from "firebase/auth";
 import {
   CalendarDays,
   Clock,
@@ -17,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import type { Offer } from "../types/Offer";
-import { functions } from "../firebase/firebaseConfig";
 import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
@@ -31,7 +28,6 @@ type Props = {
     offerId: string,
     action: "accepted" | "declined",
     selectedDate?: { date: string; time: string },
-    remainingPaymentMethod?: "stripe" | "external",
     declinedReason?: { value: string; label: string }
   ) => Promise<string | void>;
 };
@@ -53,17 +49,16 @@ const getFinalPaymentTermsLabel = (offer: Offer) => {
 };
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
-  const [selectedDateOption, setSelectedDateOption] = useState<number | null>(null);
+  const [selectedDateOption, setSelectedDateOption] = useState<number | null>(
+    null
+  );
   const [isResponding, setIsResponding] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [isReviewingCheckout, setIsReviewingCheckout] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
-  const [remainingPaymentMethod, setRemainingPaymentMethod] =
-    useState<"stripe" | "external">("stripe");
 
   useEffect(() => {
     setSelectedDateOption(null);
-    setRemainingPaymentMethod("stripe");
     setIsDeclining(false);
     setIsReviewingCheckout(false);
     setDeclineReason("");
@@ -98,11 +93,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     offer.sessionInstallmentTiming === "before_session"
       ? "before_session"
       : "after_session";
-  const canChooseExternalRemaining =
-    offer.paymentType === "internal" &&
-    Boolean(offer.allowExternalRemainingPayment) &&
-    depositAmount > 0 &&
-    remainingAmount > 0;
   const checkoutPreview =
     offer.paymentType === "internal"
       ? calculateClientPaymentBreakdown(depositAmount, {
@@ -112,28 +102,6 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const clientPaysToday = checkoutPreview
     ? formatMoneyFromCents(checkoutPreview.clientTotalCents)
     : `$${depositAmount}`;
-
-  const handleCheckout = async (bookingId?: string) => {
-    if (!bookingId) {
-      toast.error("Booking could not be created. Please try again.");
-      return;
-    }
-
-    const currentUser = getAuth().currentUser;
-    if (!currentUser) {
-      toast.error("You must be logged in to proceed with checkout.");
-      return;
-    }
-
-    const createSession = httpsCallable(functions, "createCheckoutSession");
-    const response = await createSession({
-      bookingId,
-      successUrl: `${window.location.origin}/payment-success?bookingId=${bookingId}`,
-      cancelUrl: `${window.location.origin}/payment/${bookingId}`,
-    });
-    const { sessionUrl } = response.data as { sessionUrl: string };
-    window.location.href = sessionUrl;
-  };
 
   const handleReviewCheckout = () => {
     if (selectedDateOption === null) {
@@ -157,13 +125,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
       const bookingId = await onRespond(
         offer.id,
         "accepted",
-        offer.dateOptions[selectedDateOption],
-        canChooseExternalRemaining ? remainingPaymentMethod : "stripe"
+        offer.dateOptions[selectedDateOption]
       );
       if (bookingId) {
         onClose();
         setIsReviewingCheckout(false);
-        await handleCheckout(bookingId);
       }
     } catch (error) {
       console.error("Error during offer acceptance or checkout:", error);
@@ -184,20 +150,18 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     }
 
     setIsResponding(true);
-    await onRespond(
-      offer.id,
-      "declined",
-      undefined,
-      undefined,
-      selectedReason
-    );
+    await onRespond(offer.id, "declined", undefined, selectedReason);
     setIsResponding(false);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5">
-      <div className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
+      <div
+        className={`relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)] ${
+          isReviewingCheckout && !isDeclining ? "max-w-3xl" : "max-w-6xl"
+        }`}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -219,13 +183,21 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain request-modal-scrollbar ${
+            isReviewingCheckout && !isDeclining ? "hidden" : ""
+          }`}
+        >
           <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
             <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
               {offer.fullUrl || offer.thumbUrl ? (
                 <OfferSampleImage
                   src={offer.fullUrl || offer.thumbUrl || undefined}
-                  alt={isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"}
+                  alt={
+                    isFlashOffer
+                      ? offer.flashTitle || "Flash offer"
+                      : "Offer sample"
+                  }
                 />
               ) : (
                 <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
@@ -243,7 +215,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   className="h-14 w-14 rounded-full border border-white/10 object-cover"
                 />
                 <div>
-                  <p className="font-semibold text-white">{offer.displayName}</p>
+                  <p className="font-semibold text-white">
+                    {offer.displayName}
+                  </p>
                   <p className="text-sm text-neutral-500">
                     {offer.shopName || "Studio not listed"}
                   </p>
@@ -280,10 +254,14 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 />
                 <DetailTile
                   icon={<ReceiptText size={17} />}
-                  label="Deposit due today"
+                  label="Deposit due"
                   value={`$${offer.depositPolicy?.amount || 0}`}
                 />
-                <DetailTile icon={<Store size={17} />} label="Studio" value={offer.shopName || "Unavailable"} />
+                <DetailTile
+                  icon={<Store size={17} />}
+                  label="Studio"
+                  value={offer.shopName || "Unavailable"}
+                />
               </div>
 
               {isMultiSessionOffer && (
@@ -352,7 +330,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       key={`${option.date}-${option.time}-${index}`}
                       className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-3 text-sm transition ${
                         selectedDateOption === index
-                          ? "border-[#19d69b]/60 bg-[#19d69b]/10"
+                          ? "border-[#19d69b]/30 bg-[#19d69b]/5"
                           : "border-white/10 bg-black/25 hover:bg-white/[0.04]"
                       }`}
                     >
@@ -385,208 +363,174 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
         </div>
 
         {offer.status === "pending" && (
-          <div className="shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6">
-              {isDeclining && (
-                <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
-                  <p className="text-sm font-semibold text-white">
-                    Why are you declining this offer?
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-red-50/75">
-                    This helps the artist understand whether to adjust timing,
-                    pricing, or the overall offer.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {DECLINE_REASON_OPTIONS.map((reason) => (
-                      <button
-                        key={reason.value}
-                        type="button"
-                        onClick={() => setDeclineReason(reason.value)}
-                        className={`inline-flex h-9 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
-                          declineReason === reason.value
-                            ? "border-red-100 bg-red-100 text-black"
-                            : "border-red-100/20 bg-black/20 text-red-50 hover:bg-red-100/10"
-                        }`}
-                      >
-                        {reason.label}
-                      </button>
-                    ))}
-                  </div>
+          <div
+            className={
+              isReviewingCheckout && !isDeclining
+                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#111111] px-4 py-5 request-modal-scrollbar sm:px-6 sm:py-6"
+                : "shrink-0 border-t border-white/10 bg-[#151515]/95 px-5 py-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:px-6"
+            }
+          >
+            {isDeclining && (
+              <div className="mb-4 rounded-lg border border-red-300/20 bg-red-300/10 p-4">
+                <p className="text-sm font-semibold text-white">
+                  Why are you declining this offer?
+                </p>
+                <p className="mt-1 text-sm leading-6 text-red-50/75">
+                  This helps the artist understand whether to adjust timing,
+                  pricing, or the overall offer.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {DECLINE_REASON_OPTIONS.map((reason) => (
+                    <button
+                      key={reason.value}
+                      type="button"
+                      onClick={() => setDeclineReason(reason.value)}
+                      className={`inline-flex h-9 items-center justify-center rounded-md border px-3! text-xs! font-semibold transition ${
+                        declineReason === reason.value
+                          ? "border-red-100 bg-red-100 text-black"
+                          : "border-red-100/20 bg-black/20 text-red-50 hover:bg-red-100/10"
+                      }`}
+                    >
+                      {reason.label}
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              <div className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
-                {isDeclining ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={() => {
-                        setIsDeclining(false);
-                        setDeclineReason("");
-                      }}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isResponding || !declineReason}
-                      onClick={handleDecline}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-red-200/40 bg-red-200 px-2! py-2! text-xs! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      {isResponding ? "Declining..." : "Submit decline"}
-                    </button>
-                  </>
-                ) : isReviewingCheckout ? null : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={() => setIsDeclining(true)}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={handleReviewCheckout}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      Review checkout
-                      <CreditCard size={16} />
-                    </button>
-                  </>
-                )}
               </div>
+            )}
 
-              {isReviewingCheckout && !isDeclining && (
-                <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                  <div className="mb-4 flex items-start gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
-                      <CreditCard size={18} />
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Confirm checkout details
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                        Nothing is final until you continue to Stripe. Review
-                        the appointment and how you want to handle the later
-                        artist balance.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    <CheckoutSummaryRow
-                      label="Appointment selected"
-                      value={
-                        selectedDateOption !== null
-                          ? formatAppointment(offer.dateOptions[selectedDateOption])
-                          : "Select an appointment"
-                      }
-                    />
-                    <CheckoutSummaryRow
-                      label="Checkout due today"
-                      value={clientPaysToday}
-                    />
-                    <CheckoutSummaryRow
-                      label="Artist deposit"
-                      value={`$${depositAmount}`}
-                    />
-                    <CheckoutSummaryRow
-                      label="Remaining artist balance"
-                      value={`$${remainingAmount}`}
-                    />
-                    <CheckoutSummaryRow
-                      label="Final payment terms"
-                      value={getFinalPaymentTermsLabel(offer)}
-                    />
-                  </div>
-
-                  {canChooseExternalRemaining && (
-                    <div className="mt-4">
-                      <p className="mb-2 text-xs uppercase tracking-[0.14em] text-emerald-50/60">
-                        Later balance
-                      </p>
-                      <div className="grid gap-3">
-                        <PaymentChoice
-                          title="Pay remaining balance through SATX Ink"
-                          description={
-                            isMultiSessionOffer
-                              ? "Pay each session installment later through Stripe. Later checkouts have Stripe processing only."
-                              : "Pay the remaining artist balance later through Stripe. The later checkout has Stripe processing only."
-                          }
-                          amount={`$${remainingAmount}`}
-                          checked={remainingPaymentMethod === "stripe"}
-                          onSelect={() => setRemainingPaymentMethod("stripe")}
-                        />
-                        <PaymentChoice
-                          title="Settle remaining balance directly"
-                          description={
-                            isMultiSessionOffer
-                              ? "Pay the deposit on SATX Ink today, then settle each session installment directly with the artist."
-                              : "Pay the deposit on SATX Ink today, then settle the remaining artist balance directly with the artist."
-                          }
-                          amount={`$${remainingAmount}`}
-                          checked={remainingPaymentMethod === "external"}
-                          onSelect={() => setRemainingPaymentMethod("external")}
-                        />
-                      </div>
-                      {remainingPaymentMethod === "external" && (
-                        <div className="mt-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
-                          SATX Ink's platform fee is calculated from the full
-                          artist quote and collected with today's deposit
-                          checkout. The remaining artist balance is confirmed by
-                          both you and the artist after the session.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {!canChooseExternalRemaining && remainingAmount > 0 && (
-                    <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-emerald-50/75">
-                      The remaining artist balance will be handled through the
-                      payment method set by the artist for this offer.
-                    </div>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={() => setIsReviewingCheckout(false)}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isResponding}
-                      onClick={handleAccept}
-                      className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
-                    >
-                      {isResponding ? "Creating checkout..." : "Continue to Stripe"}
-                      <Send size={16} />
-                    </button>
-                  </div>
-                </div>
+            <div className="grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
+              {isDeclining ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={() => {
+                      setIsDeclining(false);
+                      setDeclineReason("");
+                    }}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isResponding || !declineReason}
+                    onClick={handleDecline}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-red-200/40 bg-red-200 px-2! py-2! text-xs! font-semibold text-black transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    {isResponding ? "Declining..." : "Submit decline"}
+                  </button>
+                </>
+              ) : isReviewingCheckout ? null : (
+                <>
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={() => setIsDeclining(true)}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg!  px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={handleReviewCheckout}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.03] hover:bg-white/10  px-2! py-2! text-xs! font-semibold text-white transition  disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    Review checkout
+                    <CreditCard size={16} />
+                  </button>
+                </>
               )}
             </div>
+
+            {isReviewingCheckout && !isDeclining && (
+              <div className="mx-auto w-full max-w-2xl rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                <div className="mb-4 flex items-start gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
+                    <CreditCard size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Confirm checkout details
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-neutral-400">
+                      Next, you will pay the non-refundable deposit through
+                      Stripe. Any remaining artist balance is settled directly
+                      with the artist.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/10 bg-black/25 px-4">
+                  <CheckoutSummaryRow
+                    label="Appointment selected"
+                    value={
+                      selectedDateOption !== null
+                        ? formatAppointment(
+                            offer.dateOptions[selectedDateOption]
+                          )
+                        : "Select an appointment"
+                    }
+                  />
+                  <CheckoutSummaryRow
+                    label="Checkout due today"
+                    value={clientPaysToday}
+                  />
+                  <CheckoutSummaryRow
+                    label="Artist deposit"
+                    value={`$${depositAmount}`}
+                  />
+                  <CheckoutSummaryRow
+                    label="Remaining artist balance"
+                    value={`$${remainingAmount}`}
+                  />
+                  <CheckoutSummaryRow
+                    label="Final payment terms"
+                    value={getFinalPaymentTermsLabel(offer)}
+                  />
+                </div>
+
+                {remainingAmount > 0 && (
+                  <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
+                    SATX Ink's platform fee is calculated from the full artist
+                    quote and collected with today's deposit checkout. The
+                    remaining artist balance is paid directly to the artist and
+                    can be confirmed by both sides after the session.
+                  </div>
+                )}
+
+                <div className="mt-4 grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-2 sm:flex sm:justify-end sm:gap-3">
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={() => setIsReviewingCheckout(false)}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-2! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isResponding}
+                    onClick={handleAccept}
+                    className="modal-action-button inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg! bg-white px-2! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3!"
+                  >
+                    {isResponding
+                      ? "Creating booking..."
+                      : "Continue to payment options"}
+                    <Send size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-const OfferSampleImage = ({
-  src,
-  alt,
-}: {
-  src?: string;
-  alt: string;
-}) => {
+const OfferSampleImage = ({ src, alt }: { src?: string; alt: string }) => {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -637,56 +581,27 @@ const CheckoutSummaryRow = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-md border border-white/10 bg-black/25 p-3">
-    <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
+  <div className="flex flex-col gap-1 border-b border-white/10 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    <p className="text-sm font-semibold text-white sm:text-right">{value}</p>
   </div>
-);
-
-const PaymentChoice = ({
-  title,
-  description,
-  amount,
-  checked,
-  onSelect,
-}: {
-  title: string;
-  description: string;
-  amount: string;
-  checked: boolean;
-  onSelect: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    className={`rounded-md border p-3! text-left transition ${
-      checked
-        ? "border-emerald-300/45 bg-emerald-300/10"
-        : "border-white/10 bg-black/25 hover:bg-white/[0.04]"
-    }`}
-  >
-    <span className="flex items-center justify-between gap-3">
-      <span className="font-semibold text-white">{title}</span>
-      <span className="text-sm font-semibold text-white">{amount}</span>
-    </span>
-    <span className="mt-1 block text-sm leading-5 text-neutral-400">
-      {description}
-    </span>
-  </button>
 );
 
 const formatAppointment = (option: { date: string; time: string }) => {
   const [year, month, day] = option.date.split("-").map(Number);
   const [hours, minutes] = option.time.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes).toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return new Date(year, month - 1, day, hours, minutes).toLocaleString(
+    "en-US",
+    {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  );
 };
 
 export default ViewOfferModal;

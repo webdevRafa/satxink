@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebase/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import { Navigate } from "react-router-dom";
 
 import ArtistDashboardView from "../pages/ArtistDashboardView";
 import ClientDashboardView from "../pages/ClientDashboardView";
@@ -46,9 +47,15 @@ const Dashboard = () => {
     );
   }
 
+  const userRole = user.role?.trim().toLowerCase();
+
+  if (userRole === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
   return (
     <div className="h-full w-full">
-      {user.role === "artist" ? (
+      {userRole === "artist" ? (
         <ArtistDashboardView />
       ) : (
         <ClientDashboardView />
