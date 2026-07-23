@@ -153,7 +153,7 @@ const tableRowClass =
   "grid min-h-[62px] w-full items-center gap-4 px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white";
 const inlineCellClass = "flex min-h-8 min-w-0 items-center";
 const artistTableGridClass =
-  "grid-cols-[minmax(170px,.9fr)_minmax(130px,.7fr)_minmax(150px,.8fr)_minmax(180px,.9fr)_minmax(105px,.55fr)_minmax(90px,.5fr)_95px]";
+  "grid-cols-[minmax(150px,.85fr)_minmax(120px,.68fr)_minmax(140px,.8fr)_minmax(172px,.9fr)_minmax(95px,.55fr)_minmax(84px,.48fr)_90px]";
 
 const normalizeSearch = (value: unknown) =>
   String(value || "").trim().toLowerCase();
@@ -774,7 +774,7 @@ const PersonCell = ({
               e.stopPropagation();
               copyToClipboard(copyValue);
             }}
-            className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+            className="ml-0.5 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md p-0! text-xs! leading-none text-neutral-500 transition hover:bg-white/[0.06] hover:text-white"
             aria-label={`Copy ${fallbackLabel} ID`}
           >
             <Copy size={14} />
@@ -952,7 +952,7 @@ const ToggleFeaturedButton = ({
       type="button"
       onClick={handleToggle}
       disabled={isSaving}
-      className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition ${
+      className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full! border px-2.5! py-0! text-[11px]! font-semibold leading-none transition ${
         featured
           ? "border-amber-300/25 bg-amber-300/10 text-amber-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           : "border-white/10 bg-white/[0.025] text-neutral-400 hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
@@ -1754,7 +1754,7 @@ const ArtistsTable: React.FC<
         />
       </ToolPanel>
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[1020px] divide-y divide-white/10">
+        <div className="min-w-[960px] divide-y divide-white/10">
           {/* Header */}
           <div
             className={`${tableHeaderClass} ${artistTableGridClass} gap-3! px-3!`}
