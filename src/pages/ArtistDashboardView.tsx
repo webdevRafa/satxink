@@ -1592,14 +1592,37 @@ const ArtistDashboardView = () => {
     setActiveTab("sessions");
   };
 
-  const handleBalancePaidFromRow = (booking: DashboardBooking) => {
+  const handleBalancePaidFromRow = async (booking: DashboardBooking) => {
+    if (booking.paymentModelVersion === 2) {
+      try {
+        const confirmExternalPayment = httpsCallable(
+          functions,
+          "attestExternalSessionPayment"
+        );
+        const response = await confirmExternalPayment({
+          bookingId: booking.id,
+          action: "confirm",
+        });
+        const { settled } = response.data as { settled: boolean };
+        toast.success(
+          settled
+            ? "Session balance confirmed by both sides."
+            : "Your confirmation was recorded. Waiting for the client."
+        );
+      } catch (error) {
+        console.error("Session balance confirmation failed:", error);
+        toast.error("Could not confirm this session payment.");
+      }
+      return;
+    }
+
     const amountPaid = getDashboardSessionInstallmentAmount(booking);
     const completion =
       booking.remainingPaymentStatus === "client_confirmed"
         ? buildExternalPaymentCompletionUpdates(booking, amountPaid)
         : null;
 
-    return updateSessionRecord(
+    await updateSessionRecord(
       booking,
       completion?.sessionUpdate || {
         remainingPaymentStatus: "artist_confirmed",
@@ -4776,6 +4799,15 @@ const uploadBookingSessionPhoto = async (
   );
   await uploadBytes(photoRef, file);
   const url = await getDownloadURL(photoRef);
+  if (booking.paymentModelVersion === 2) {
+    const saveSessionPhoto = httpsCallable(functions, "addProjectSessionPhoto");
+    await saveSessionPhoto({
+      bookingId: booking.id,
+      photoUrl: url,
+    });
+    return url;
+  }
+
   await setDoc(
     doc(db, "bookingSessions", booking.id),
     {
@@ -4965,6 +4997,9 @@ const getRemainingInstallmentCount = (booking: Partial<Booking>) => {
 };
 
 const isBookingFullyCompleted = (booking: Partial<Booking>) => {
+  if (booking.paymentModelVersion === 2) {
+    return booking.projectStatus === "completed" || booking.status === "paid";
+  }
   const sessionCount = getEstimatedSessionCount(booking);
   const completedCount = getCompletedSessionCount(booking);
 
@@ -5289,7 +5324,8 @@ const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
   const paymentStatus = booking.remainingPaymentStatus || "not_due";
 
   return (
-    booking.remainingPaymentMethod === "external" &&
+    (booking.remainingPaymentMethod === "external" ||
+      booking.paymentModelVersion === 2) &&
     getDashboardRemainingBalance(booking) > 0 &&
     (booking.sessionStatus === "completed" ||
       Number(booking.pendingSessionPaymentAmount || 0) > 0) &&

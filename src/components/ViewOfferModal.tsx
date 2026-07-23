@@ -19,6 +19,7 @@ import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
 } from "../utils/paymentFees";
+import { getAllocationForSession } from "../utils/projectPayments";
 
 type Props = {
   offer: (Offer & { bookingId?: string }) | null;
@@ -68,6 +69,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
 
   const depositAmount = Number(offer.depositPolicy?.amount || 0);
   const remainingAmount = Math.max(Number(offer.price || 0) - depositAmount, 0);
+  const usesProtectedSessionPayments = offer.paymentModelVersion === 2;
   const isFlashOffer = offer.sourceType === "flash";
   const isMultiSessionOffer = offer.projectType === "multi_session";
   const estimatedSessionCount = Math.max(
@@ -78,12 +80,18 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
     ? Math.max(estimatedSessionCount - 1, 1)
     : 1;
   const estimatedSessionPrice =
-    typeof offer.estimatedSessionPrice === "number" &&
+    usesProtectedSessionPayments
+      ? (getAllocationForSession(offer.sessionAllocations, 1)
+          ?.quotedAmountCents || 0) / 100
+      : typeof offer.estimatedSessionPrice === "number" &&
     offer.estimatedSessionPrice > 0
       ? offer.estimatedSessionPrice
       : estimatedSessionCount > 1
       ? Math.ceil(remainingAmount / laterSessionCount)
       : remainingAmount;
+  const firstSessionBalance = usesProtectedSessionPayments
+    ? Math.max(estimatedSessionPrice - depositAmount, 0)
+    : remainingAmount;
   const estimatedHoursPerSession =
     typeof offer.estimatedHoursPerSession === "number" &&
     offer.estimatedHoursPerSession > 0
@@ -278,7 +286,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     />
                     <DetailTile
                       icon={<DollarSign size={17} />}
-                      label="Later session estimate"
+                      label="Price per session"
                       value={`$${estimatedSessionPrice}`}
                     />
                     {estimatedHoursPerSession && (
@@ -299,10 +307,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     />
                   </div>
                   <p className="mt-3 text-sm leading-6 text-emerald-50/75">
-                    Your deposit confirms and credits the first appointment.
-                    Later sessions can be scheduled with the artist after each
-                    visit, with each installment applied toward the remaining
-                    project balance.
+                    Each session has its own deposit. The balance for that
+                    session becomes payable only after the artist marks it
+                    complete. Later sessions are scheduled one at a time.
                   </p>
                 </div>
               )}
@@ -455,9 +462,9 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                       Confirm checkout details
                     </p>
                     <p className="mt-1 text-sm leading-6 text-neutral-400">
-                      Next, you will pay the non-refundable deposit through
-                      Stripe. Any remaining artist balance is settled directly
-                      with the artist.
+                      Next, you will pay only the non-refundable deposit for
+                      session 1 through Stripe. The session balance cannot be
+                      paid until after the appointment is complete.
                     </p>
                   </div>
                 </div>
@@ -478,12 +485,20 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     value={clientPaysToday}
                   />
                   <CheckoutSummaryRow
-                    label="Artist deposit"
+                    label="Session 1 deposit"
                     value={`$${depositAmount}`}
                   />
                   <CheckoutSummaryRow
-                    label="Remaining artist balance"
-                    value={`$${remainingAmount}`}
+                    label={
+                      usesProtectedSessionPayments
+                        ? "Session 1 after-session balance"
+                        : "Remaining artist balance"
+                    }
+                    value={`$${
+                      usesProtectedSessionPayments
+                        ? firstSessionBalance
+                        : remainingAmount
+                    }`}
                   />
                   <CheckoutSummaryRow
                     label="Final payment terms"
@@ -494,9 +509,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 {remainingAmount > 0 && (
                   <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
                     SATX Ink's platform fee is calculated from the full artist
-                    quote and collected with today's deposit checkout. The
-                    remaining artist balance is paid directly to the artist and
-                    can be confirmed by both sides after the session.
+                    quote, capped at $10, and collected with today's deposit.
+                    After each completed session, choose Stripe or payment at
+                    the shop. Shop payments require confirmation from both
+                    sides.
                   </div>
                 )}
 

@@ -50,7 +50,11 @@ import type {
   FlashAvailabilityStatus,
   FlashRepeatability,
 } from "../types/Flash";
-import type { SessionInstallmentTiming } from "../types/Booking";
+import {
+  buildEqualSessionAllocations,
+  fromCents,
+  getSessionAllocationError,
+} from "../utils/projectPayments";
 import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
@@ -170,8 +174,6 @@ const MakeOfferModal = ({
   const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
   const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
   const [estimatedHoursPerSession, setEstimatedHoursPerSession] = useState("");
-  const [sessionInstallmentTiming, setSessionInstallmentTiming] =
-    useState<SessionInstallmentTiming>("after_session");
   const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
   const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
     useState(0);
@@ -207,14 +209,28 @@ const MakeOfferModal = ({
   const hasRemainingArtistBalance =
     Number(depositAmount || 0) > 0 &&
     remainingArtistBalance > 0;
-  const laterSessionCount =
-    !isFlashRequest && isMultiSessionProject
-      ? Math.max(estimatedSessionCount - 1, 1)
-      : 1;
-  const sessionEstimate =
-    !isFlashRequest && isMultiSessionProject && estimatedSessionCount > 0
-      ? Math.ceil(remainingArtistBalance / laterSessionCount)
-      : remainingArtistBalance;
+  const projectSessionCount =
+    !isFlashRequest && isMultiSessionProject ? estimatedSessionCount : 1;
+  const sessionAllocations = useMemo(
+    () =>
+      buildEqualSessionAllocations({
+        totalQuote: effectiveOfferPrice,
+        sessionCount: projectSessionCount,
+        depositAmount: Number(depositAmount || 0),
+      }),
+    [depositAmount, effectiveOfferPrice, projectSessionCount]
+  );
+  const firstSessionAllocation = sessionAllocations[0];
+  const sessionEstimate = fromCents(
+    firstSessionAllocation?.quotedAmountCents || 0
+  );
+  const firstSessionBalance = fromCents(
+    Math.max(
+      (firstSessionAllocation?.quotedAmountCents || 0) -
+        (firstSessionAllocation?.depositAmountCents || 0),
+      0
+    )
+  );
   const parsedEstimatedHoursPerSession = Number(estimatedHoursPerSession);
   const normalizedEstimatedHoursPerSession =
     !isFlashRequest &&
@@ -233,12 +249,17 @@ const MakeOfferModal = ({
   );
   const currentOfferPrice = Number(offerPrice || 0);
   const currentDepositAmount = Number(depositAmount || 0);
-  const pricingStepInlineError =
-    !isFlashRequest && currentOfferPrice > 0 && currentDepositAmount <= 0
-      ? "Enter a deposit to book before continuing."
-      : !isFlashRequest && currentDepositAmount > currentOfferPrice
-      ? "Deposit cannot be greater than the offer price."
-      : "";
+  const pricingStepInlineError = !isFlashRequest
+    ? getSessionAllocationError({
+        totalQuote: currentOfferPrice,
+        sessionCount: projectSessionCount,
+        depositAmount: currentDepositAmount,
+      }) || ""
+    : currentDepositAmount <= 0
+    ? "Enter a deposit to book before continuing."
+    : currentDepositAmount > currentOfferPrice
+    ? "Deposit cannot be greater than the offer price."
+    : "";
   const currentCustomOfferStepId =
     CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
   const appointmentStepIndex = CUSTOM_OFFER_STEPS.findIndex(
@@ -309,7 +330,6 @@ const MakeOfferModal = ({
     setIsMultiSessionProject(false);
     setEstimatedSessionCount(2);
     setEstimatedHoursPerSession("");
-    setSessionInstallmentTiming("after_session");
     setIsPreviewingOffer(false);
     setCustomOfferStepIndex(0);
     setFurthestCustomOfferStepIndex(0);
@@ -339,7 +359,14 @@ const MakeOfferModal = ({
       return "Enter a deposit to book before sending this offer.";
     }
 
-    if (depositAmount > submissionOfferPrice) {
+    if (selectedRequest.sourceType !== "flash") {
+      const allocationError = getSessionAllocationError({
+        totalQuote: submissionOfferPrice,
+        sessionCount: isMultiSessionProject ? estimatedSessionCount : 1,
+        depositAmount,
+      });
+      if (allocationError) return allocationError;
+    } else if (depositAmount > submissionOfferPrice) {
       return "Deposit cannot be greater than the offer price.";
     }
 
@@ -357,10 +384,6 @@ const MakeOfferModal = ({
     if (submitAsMultiSession) {
       if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
         return "Multi-session projects need 2 to 12 estimated sessions.";
-      }
-
-      if (remainingArtistBalance <= 0) {
-        return "Multi-session projects need a remaining balance after the deposit.";
       }
 
       if (
@@ -540,10 +563,21 @@ const MakeOfferModal = ({
         allowExternalRemainingPayment: hasRemainingArtistBalance,
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         depositApplication: "project_credit",
+        paymentModelVersion:
+          selectedRequest.sourceType === "flash" ? 1 : 2,
+        sessionPricingStrategy:
+          selectedRequest.sourceType === "flash" ? null : "equal_split",
+        sessionAllocations:
+          selectedRequest.sourceType === "flash" ? null : sessionAllocations,
+        allowedSessionBalanceMethods:
+          selectedRequest.sourceType === "flash"
+            ? null
+            : ["stripe", "external"],
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
           : 1,
-        estimatedSessionPrice: submitAsMultiSession ? sessionEstimate : null,
+        estimatedSessionPrice:
+          selectedRequest.sourceType === "flash" ? null : sessionEstimate,
         estimatedHoursPerSession: submitAsMultiSession
           ? normalizedEstimatedHoursPerSession
           : null,
@@ -553,9 +587,7 @@ const MakeOfferModal = ({
         sessionScheduling: submitAsMultiSession
           ? "first_session_now_rest_later"
           : "single_session",
-        sessionInstallmentTiming: submitAsMultiSession
-          ? sessionInstallmentTiming
-          : "after_session",
+        sessionInstallmentTiming: "after_session",
         ...additionalOfferData,
         status: "pending",
         createdAt: serverTimestamp(),
@@ -745,7 +777,6 @@ const MakeOfferModal = ({
                 sessionCount={estimatedSessionCount}
                 sessionEstimate={sessionEstimate}
                 estimatedHoursPerSession={normalizedEstimatedHoursPerSession}
-                sessionInstallmentTiming={sessionInstallmentTiming}
                 dateOptions={completedDateOptions}
                 message={offerMessage}
               />
@@ -899,7 +930,9 @@ const MakeOfferModal = ({
                     />
                   )}
                   <MoneyInput
-                    label="Deposit to book"
+                    label={
+                      isFlashRequest ? "Deposit to book" : "Deposit per session"
+                    }
                     value={depositAmount === 0 ? "" : depositAmount}
                     onChange={(value) =>
                       setDepositAmount(value ? Number(value) : 0)
@@ -921,18 +954,34 @@ const MakeOfferModal = ({
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white">
-                          Remaining balance is settled at the shop
+                          Only the session deposit is collected before tattooing
                         </p>
                         <p className="mt-1 text-sm leading-6 text-neutral-400">
-                          SATX Ink collects the non-refundable deposit today.
-                          The remaining{" "}
-                          <span className="font-semibold text-white">
-                            {formatMoneyFromCents(
-                              Math.round(remainingArtistBalance * 100)
-                            )}
-                          </span>{" "}
-                          is paid directly to you at the shop or however you and
-                          the client arrange it.
+                          {isFlashRequest ? (
+                            <>
+                              SATX Ink collects the non-refundable deposit today.
+                              The remaining balance is settled after the
+                              appointment.
+                            </>
+                          ) : (
+                            <>
+                              SATX Ink splits the quote evenly across the project.
+                              Each session reserves with a{" "}
+                              <span className="font-semibold text-white">
+                                {formatMoneyFromCents(
+                                  Math.round(Number(depositAmount || 0) * 100)
+                                )}
+                              </span>{" "}
+                              deposit. The{" "}
+                              <span className="font-semibold text-white">
+                                {formatMoneyFromCents(
+                                  Math.round(firstSessionBalance * 100)
+                                )}
+                              </span>{" "}
+                              session balance becomes due only after that session
+                              is completed, by Stripe or at the shop.
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1036,61 +1085,51 @@ const MakeOfferModal = ({
                     </label>
                     <div className="space-y-2">
                       <span className="text-sm font-medium text-neutral-200">
-                        Later session estimate
+                        Price per session
                       </span>
                       <div className="flex min-h-11 items-center text-sm font-semibold text-white">
                         {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
                       </div>
                       <p className="text-[11px] leading-4 text-neutral-500">
-                        Calculated from the remaining{" "}
-                        {formatMoneyFromCents(
-                          Math.round(remainingArtistBalance * 100)
-                        )}{" "}
-                        balance after session 1.
+                        The full quote is split evenly. Any leftover cents are
+                        applied to the earliest sessions.
                       </p>
                     </div>
                     </div>
 
-                    <div className="rounded-lg border border-white/10 bg-black/25 p-4">
+                    <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                       <p className="text-sm font-semibold text-white">
-                        Later installment timing
+                        Protected session-by-session payment plan
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-neutral-500">
-                        The deposit reserves and credits the first appointment. Choose when later session installments become due.
+                      <p className="mt-1 text-xs leading-5 text-neutral-400">
+                        A client can never prepay an entire custom project or
+                        session. Every session has its own deposit, and its
+                        remaining balance unlocks only after you mark the session
+                        complete.
                       </p>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => setSessionInstallmentTiming("after_session")}
-                          className={`rounded-md border p-3! text-left transition ${
-                            sessionInstallmentTiming === "after_session"
-                              ? "border-emerald-300/45 bg-emerald-300/10"
-                              : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold text-white">
-                            Due after each session
-                          </span>
-                          <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                            Completing a session creates the next installment follow-up.
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSessionInstallmentTiming("before_session")}
-                          className={`rounded-md border p-3! text-left transition ${
-                            sessionInstallmentTiming === "before_session"
-                              ? "border-emerald-300/45 bg-emerald-300/10"
-                              : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          <span className="block text-sm font-semibold text-white">
-                            Due before later sessions
-                          </span>
-                          <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                            Sessions 2+ stay locked until the requested installment is paid.
-                          </span>
-                        </button>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <PlanMetric
+                          label="Session price"
+                          value={formatMoneyFromCents(
+                            firstSessionAllocation?.quotedAmountCents || 0
+                          )}
+                        />
+                        <PlanMetric
+                          label="Deposit"
+                          value={formatMoneyFromCents(
+                            firstSessionAllocation?.depositAmountCents || 0
+                          )}
+                        />
+                        <PlanMetric
+                          label="After-session balance"
+                          value={formatMoneyFromCents(
+                            Math.max(
+                              (firstSessionAllocation?.quotedAmountCents || 0) -
+                                (firstSessionAllocation?.depositAmountCents || 0),
+                              0
+                            )
+                          )}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1300,7 +1339,7 @@ const MakeOfferModal = ({
                             tone="strong"
                           />
                           <PreviewTile
-                            label="Deposit to book"
+                            label="Deposit per session"
                             value={formatMoneyFromCents(
                               Math.round(Number(depositAmount || 0) * 100)
                             )}
@@ -1321,12 +1360,8 @@ const MakeOfferModal = ({
                           />
                           {isMultiSessionProject && (
                             <PreviewTile
-                              label="Later installments"
-                              value={
-                                sessionInstallmentTiming === "before_session"
-                                  ? "Due before sessions"
-                                  : "Due after sessions"
-                              }
+                              label="Session balances"
+                              value="Due after each session"
                             />
                           )}
                         </div>
@@ -1483,7 +1518,6 @@ const OfferPreview = ({
   sessionCount,
   sessionEstimate,
   estimatedHoursPerSession,
-  sessionInstallmentTiming,
   dateOptions,
   message,
 }: {
@@ -1500,12 +1534,12 @@ const OfferPreview = ({
   sessionCount: number;
   sessionEstimate: number;
   estimatedHoursPerSession: number | null;
-  sessionInstallmentTiming: SessionInstallmentTiming;
   dateOptions: { date: string; time: string }[];
   message: string;
 }) => {
-  const finalPaymentTermsLabel =
-    artist.finalPaymentTiming === "before"
+  const finalPaymentTermsLabel = !isFlashRequest
+    ? "Each session balance becomes due only after that session is complete."
+    : artist.finalPaymentTiming === "before"
       ? `Remaining balance due ${artist.finalPaymentDeadlineHours === 48 ? 48 : 24} hours before appointment.`
       : "Remaining balance can be settled after the appointment.";
   const todayClientPayment = formatMoneyFromCents(paymentPreview.clientTotalCents);
@@ -1513,7 +1547,9 @@ const OfferPreview = ({
   const laterPaymentLabel =
     remainingArtistBalance <= 0
       ? "No later balance"
-      : "Remaining balance is settled directly with you outside SATX Ink checkout.";
+      : isFlashRequest
+      ? "Remaining balance is settled after the appointment."
+      : "Each session balance is settled after that session by Stripe or at the shop.";
 
   return (
     <div className="p-5 sm:p-6">
@@ -1638,7 +1674,7 @@ const OfferPreview = ({
                 value={isMultiSessionProject ? `${sessionCount}` : "1"}
               />
               <PreviewTile
-                label="Later session estimate"
+                   label="Price per session"
                 value={
                   isMultiSessionProject
                     ? formatMoneyFromCents(Math.round(sessionEstimate * 100))
@@ -1657,9 +1693,7 @@ const OfferPreview = ({
                 label="Installments"
                 value={
                   isMultiSessionProject
-                    ? sessionInstallmentTiming === "before_session"
-                      ? "Before later sessions"
-                      : "After sessions"
+                     ? "After each completed session"
                     : "Single balance"
                 }
               />
@@ -2118,6 +2152,15 @@ const formatOfferPreviewAppointment = (option: {
     minute: "2-digit",
   });
 };
+
+const PlanMetric = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2.5">
+    <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+      {label}
+    </p>
+    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+  </div>
+);
 
 const formatOfferDateRange = (dates: string[]) => {
   const [start, end] = dates;

@@ -184,7 +184,32 @@ service cloud.firestore {
         "clientId",
         "offerId",
         "price",
+        "priceCents",
+        "quoteTotalCents",
         "depositAmount",
+        "paymentModelVersion",
+        "sessionPricingStrategy",
+        "sessionAllocations",
+        "allowedSessionBalanceMethods",
+        "artistPaidCents",
+        "outstandingProjectCents",
+        "totalArtistPaidAmount",
+        "totalArtistPaidCents",
+        "remainingBalanceAmount",
+        "remainingBalanceCents",
+        "pendingSessionPaymentAmount",
+        "pendingSessionPaymentAmountCents",
+        "pendingSessionNumber",
+        "remainingPaymentMethod",
+        "remainingPaymentStatus",
+        "platformFeeCents",
+        "platformFeeCollectedCents",
+        "pendingPlatformFeeCents",
+        "projectStatus",
+        "sessionStatus",
+        "activeSessionNumber",
+        "completedSessionCount",
+        "lastPaidSessionNumber",
         "createdAt",
         "stripeCheckoutSessionId",
         "stripePaymentIntentId",
@@ -194,6 +219,10 @@ service cloud.firestore {
 
     function safeBookingParticipantUpdate() {
       return isParticipant(resource.data) &&
+        (
+          !resource.data.keys().hasAny(["paymentModelVersion"]) ||
+          resource.data.paymentModelVersion != 2
+        ) &&
         participantIdsUnchanged() &&
         !changedKeys().hasAny(bookingProtectedFields());
     }
@@ -505,11 +534,24 @@ service cloud.firestore {
 
     match /bookings/{bookingId} {
       allow read: if isAdmin() || isParticipant(resource.data);
-      allow create: if isAdmin() || (isClient() && validBookingCreate());
+      allow create: if isAdmin() ||
+        (
+          isClient() &&
+          (
+            !request.resource.data.keys().hasAny(["paymentModelVersion"]) ||
+            request.resource.data.paymentModelVersion != 2
+          ) &&
+          validBookingCreate()
+        );
       allow update: if isAdmin() || safeBookingParticipantUpdate();
       allow delete: if isAdmin();
 
       match /amendments/{amendmentId} {
+        allow read: if isAdmin() || isBookingParticipant(bookingId);
+        allow write: if isAdmin();
+      }
+
+      match /payments/{paymentId} {
         allow read: if isAdmin() || isBookingParticipant(bookingId);
         allow write: if isAdmin();
       }
@@ -522,6 +564,10 @@ service cloud.firestore {
       allow create, update: if isAdmin() ||
         (
           isBookingParticipant(bookingId) &&
+          (
+            !bookingData(bookingId).keys().hasAny(["paymentModelVersion"]) ||
+            bookingData(bookingId).paymentModelVersion != 2
+          ) &&
           request.resource.data.bookingId == bookingId &&
           request.resource.data.clientId == bookingData(bookingId).clientId &&
           request.resource.data.artistId == bookingData(bookingId).artistId
@@ -533,6 +579,10 @@ service cloud.firestore {
         allow create, update: if isAdmin() ||
           (
             isBookingParticipant(bookingId) &&
+            (
+              !bookingData(bookingId).keys().hasAny(["paymentModelVersion"]) ||
+              bookingData(bookingId).paymentModelVersion != 2
+            ) &&
             request.resource.data.bookingId == bookingId &&
             request.resource.data.clientId == bookingData(bookingId).clientId &&
             request.resource.data.artistId == bookingData(bookingId).artistId

@@ -20,6 +20,7 @@ import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
 } from "../../utils/paymentFees";
+import { getAllocationForSession } from "../../utils/projectPayments";
 
 type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 
@@ -66,18 +67,24 @@ const PaymentPage = () => {
 
   useEffect(() => {
     if (!booking) return;
+    const usesProtectedSessionPayments = booking.paymentModelVersion === 2;
     const hasPendingPlatformFee =
       booking.remainingPaymentMethod === "external" &&
       Number(booking.pendingPlatformFeeCents || 0) > 0;
     setPaymentMode(
       hasPendingPlatformFee
         ? "platform_fee"
+        : usesProtectedSessionPayments
+        ? booking.sessionStatus === "completed"
+          ? "remaining"
+          : "deposit"
         : booking.status === "deposit_paid" &&
           booking.remainingPaymentMethod !== "external"
         ? "remaining"
         : "deposit"
     );
     if (
+      !usesProtectedSessionPayments &&
       booking.status === "deposit_paid" &&
       booking.remainingPaymentMethod !== "external" &&
       isMultiSessionBooking(booking)
@@ -94,6 +101,10 @@ const PaymentPage = () => {
       Number(booking.pendingPlatformFeeCents || 0) > 0;
     const checkoutPaymentMode: PaymentMode = hasPendingPlatformFee
       ? "platform_fee"
+      : booking.paymentModelVersion === 2
+      ? booking.sessionStatus === "completed"
+        ? "remaining"
+        : "deposit"
       : booking.status === "pending_payment"
       ? "deposit"
       : paymentMode;
@@ -123,6 +134,16 @@ const PaymentPage = () => {
     }
 
     if (
+      booking.paymentModelVersion === 2 &&
+      checkoutPaymentMode !== "platform_fee" &&
+      Number(booking.pendingSessionPaymentAmountCents || 0) <= 0
+    ) {
+      toast.success("There is no session payment due right now.");
+      navigate("/dashboard");
+      return;
+    }
+
+    if (
       booking.status === "deposit_paid" &&
       isMultiSessionBooking(booking) &&
       checkoutPaymentMode === "remaining" &&
@@ -135,15 +156,25 @@ const PaymentPage = () => {
 
     try {
       const sessionMinimum =
+        booking.paymentModelVersion === 2
+          ? Number(booking.pendingSessionPaymentAmount || 0)
+          :
         checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
           ? getSessionInstallmentAmount(booking)
           : 0;
       const sessionAmount =
+        booking.paymentModelVersion === 2
+          ? sessionMinimum
+          :
         checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
           ? Number(sessionPaymentAmount || 0)
           : 0;
 
-      if (sessionMinimum > 0 && sessionAmount < sessionMinimum) {
+      if (
+        booking.paymentModelVersion !== 2 &&
+        sessionMinimum > 0 &&
+        sessionAmount < sessionMinimum
+      ) {
         toast.error(
           `Enter at least ${formatMoneyFromCents(
             Math.round(sessionMinimum * 100)
@@ -152,7 +183,10 @@ const PaymentPage = () => {
         return;
       }
 
-      if (sessionAmount > getRemainingBalance(booking)) {
+      if (
+        booking.paymentModelVersion !== 2 &&
+        sessionAmount > getRemainingBalance(booking)
+      ) {
         toast.error("Payment cannot exceed the remaining project balance.");
         return;
       }
@@ -165,6 +199,9 @@ const PaymentPage = () => {
         bookingId: booking.id,
         paymentMode: checkoutPaymentMode,
         sessionPaymentAmountCents:
+          booking.paymentModelVersion === 2
+            ? undefined
+            :
           checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
             ? Math.round(sessionAmount * 100)
             : undefined,
@@ -224,6 +261,20 @@ const PaymentPage = () => {
     pendingPlatformFeeCents > 0 &&
     paymentMode === "platform_fee";
   const isMultiSession = isMultiSessionBooking(booking);
+  const usesProtectedSessionPayments = booking.paymentModelVersion === 2;
+  const payableSessionNumber = getPayableSessionNumber(booking);
+  const activeAllocation = getAllocationForSession(
+    booking.sessionAllocations,
+    payableSessionNumber
+  );
+  const protectedAmountDue =
+    usesProtectedSessionPayments &&
+    paymentMode !== "platform_fee"
+      ? Math.max(Number(booking.pendingSessionPaymentAmount || 0), 0)
+      : null;
+  const hasProtectedPaymentDue =
+    usesProtectedSessionPayments &&
+    Number(booking.pendingSessionPaymentAmountCents || 0) > 0;
   const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
   const sessionPaymentLabel = isMultiSession
     ? `${getSessionOrdinal(getPayableSessionNumber(booking))} session`
@@ -240,6 +291,8 @@ const PaymentPage = () => {
   const artistAmountDue =
     isPlatformFeeCheckout || externalBalanceDue
       ? 0
+      : protectedAmountDue !== null
+      ? protectedAmountDue
       : paymentMode === "full"
       ? price
       : paymentMode === "remaining"
@@ -289,10 +342,12 @@ const PaymentPage = () => {
         ];
   const shouldShowPaymentChoice = paymentOptions.length > 1;
   const shouldShowPaymentOptionPanel =
+    hasProtectedPaymentDue ||
     shouldShowPaymentChoice ||
     (booking.status === "deposit_paid" &&
       isMultiSession &&
-      !usesExternalRemaining);
+      !usesExternalRemaining &&
+      !usesProtectedSessionPayments);
   const checkoutActionLabel = isPaid
     ? "Return to dashboard"
     : isStartingCheckout
@@ -300,6 +355,8 @@ const PaymentPage = () => {
     : booking.status === "deposit_paid" &&
       usesExternalRemaining &&
       !isPlatformFeeCheckout
+    ? "Return to dashboard"
+    : usesProtectedSessionPayments && !hasProtectedPaymentDue
     ? "Return to dashboard"
     : "Continue to Stripe";
 
@@ -357,7 +414,11 @@ const PaymentPage = () => {
                       : "Session payment"}
                   </p>
                   <h2 className="mt-1 text-lg! font-semibold text-white">
-                    {!shouldShowPaymentChoice
+                    {usesProtectedSessionPayments
+                      ? paymentMode === "remaining"
+                        ? "After-session balance"
+                        : "Session deposit"
+                      : !shouldShowPaymentChoice
                       ? isMultiSession
                         ? `Pay ${sessionPaymentLabel}`
                         : "Payment due"
@@ -372,7 +433,11 @@ const PaymentPage = () => {
                       : "Choose how much to pay today"}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                    {!shouldShowPaymentChoice
+                    {usesProtectedSessionPayments
+                      ? paymentMode === "remaining"
+                        ? "This exact balance became due only after the artist marked the session complete."
+                        : "This checkout collects only the active session deposit. The rest cannot be paid until after tattooing."
+                      : !shouldShowPaymentChoice
                       ? `This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
                       : booking.status === "deposit_paid"
                       ? isPlatformFeeCheckout
@@ -465,12 +530,39 @@ const PaymentPage = () => {
                         </p>
                       )
                     )}
+                    {usesProtectedSessionPayments && activeAllocation && (
+                      <div className="mt-3 grid gap-2 border-t border-white/10 pt-3 sm:grid-cols-3">
+                        <MiniLedgerValue
+                          label="Session"
+                          value={`${payableSessionNumber} of ${
+                            booking.estimatedSessionCount || 1
+                          }`}
+                        />
+                        <MiniLedgerValue
+                          label="Session price"
+                          value={formatMoneyFromCents(
+                            activeAllocation.quotedAmountCents
+                          )}
+                        />
+                        <MiniLedgerValue
+                          label={
+                            paymentMode === "remaining"
+                              ? "Balance due now"
+                              : "Deposit due now"
+                          }
+                          value={formatMoneyFromCents(
+                            Math.round((protectedAmountDue || 0) * 100)
+                          )}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {booking.status === "deposit_paid" &&
                   isMultiSession &&
-                  !usesExternalRemaining && (
+                  !usesExternalRemaining &&
+                  !usesProtectedSessionPayments && (
                     <label className="mt-4 block space-y-2 rounded-lg border border-white/10 bg-black/25 p-4">
                       <span className="text-sm font-semibold text-white">
                         Session payment amount
@@ -727,6 +819,21 @@ const DetailTile = ({
       {label}
     </div>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
+  </div>
+);
+
+const MiniLedgerValue = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
+    <p className="text-[10px] uppercase tracking-[0.12em] text-emerald-50/50">
+      {label}
+    </p>
+    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
   </div>
 );
 

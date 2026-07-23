@@ -205,11 +205,11 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard
           title="How client payments work"
-          body="When a client accepts an offer, Checkout is created on your connected Stripe account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $35, and the client covers that fee plus estimated Stripe processing."
+          body="When a client accepts an offer, Checkout is created on your connected Stripe account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $10, and the client covers that fee plus estimated Stripe processing."
         />
         <InfoCard
           title="Before taking paid requests"
-          body="Finish onboarding first. Client deposits and full payments require card payments to be enabled on your connected Stripe account."
+          body="Finish onboarding first. Session deposits and post-session Stripe balances require card payments to be enabled on your connected Stripe account."
         />
       </div>
     </section>

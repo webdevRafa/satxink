@@ -688,6 +688,30 @@ const ClientDashboardView = () => {
   const handleConfirmExternalPayment = async (
     booking: ClientDashboardBooking
   ) => {
+    if (booking.paymentModelVersion === 2) {
+      try {
+        const confirmExternalPayment = httpsCallable(
+          functions,
+          "attestExternalSessionPayment"
+        );
+        const response = await confirmExternalPayment({
+          bookingId: booking.id,
+          action: "confirm",
+        });
+        const { settled } = response.data as { settled: boolean };
+        toast.success(
+          settled
+            ? "Session balance confirmed by both sides."
+            : "Your confirmation was recorded. Waiting for the artist."
+        );
+        setSelectedSession(null);
+      } catch (error) {
+        console.error("Direct payment confirmation failed:", error);
+        toast.error("Could not confirm the session payment.");
+      }
+      return;
+    }
+
     const artistAlreadyConfirmed =
       booking.remainingPaymentStatus === "artist_confirmed";
     const confirmationSessionNumber = getPayableSessionNumber(booking);
@@ -851,6 +875,26 @@ const ClientDashboardView = () => {
     const reason =
       window.prompt("Briefly describe the issue with this payment.")?.trim() ||
       "Client reported an issue with the direct payment.";
+    if (booking.paymentModelVersion === 2) {
+      try {
+        const disputeExternalPayment = httpsCallable(
+          functions,
+          "attestExternalSessionPayment"
+        );
+        await disputeExternalPayment({
+          bookingId: booking.id,
+          action: "dispute",
+          reason,
+        });
+        toast.success("Issue reported.");
+        setSelectedSession(null);
+      } catch (error) {
+        console.error("Direct payment dispute failed:", error);
+        toast.error("Could not report the issue.");
+      }
+      return;
+    }
+
     const sessionNumber = getPayableSessionNumber(booking);
     const disputeUpdate = {
       bookingId: booking.id,
@@ -2645,19 +2689,51 @@ const ClientSessionRecordDialog = ({
   onResumeProject: () => void;
 }) => {
   const remainingBalance = booking ? getRemainingBalance(booking) : 0;
-  const showExternalConfirmation =
-    booking?.remainingPaymentMethod === "external" &&
+  const protectedBalanceDue =
+    booking?.paymentModelVersion === 2 &&
     booking.status === "deposit_paid" &&
+    booking.sessionStatus === "completed" &&
     ["due", "artist_confirmed", "client_confirmed"].includes(
       booking.remainingPaymentStatus || "due"
+    );
+  const showExternalConfirmation =
+    (protectedBalanceDue ||
+      (booking?.remainingPaymentMethod === "external" &&
+        booking.status === "deposit_paid")) &&
+    ["due", "artist_confirmed", "client_confirmed"].includes(
+      booking?.remainingPaymentStatus || "due"
     );
   const clientAlreadyConfirmed =
     booking?.remainingPaymentStatus === "client_confirmed";
   const showStripeBalance =
-    booking?.paymentType === "internal" &&
-    booking.remainingPaymentMethod !== "external" &&
-    booking.status === "deposit_paid" &&
-    remainingBalance > 0;
+    (protectedBalanceDue ||
+      (booking?.paymentType === "internal" &&
+        booking.remainingPaymentMethod !== "external" &&
+        booking.status === "deposit_paid")) &&
+    remainingBalance > 0 &&
+    !["artist_confirmed", "client_confirmed"].includes(
+      booking?.remainingPaymentStatus || ""
+    );
+
+  const handleStripeBalancePayment = async (activeBooking: ClientDashboardBooking) => {
+    if (activeBooking.paymentModelVersion === 2) {
+      try {
+        const selectMethod = httpsCallable(
+          functions,
+          "selectSessionBalanceMethod"
+        );
+        await selectMethod({
+          bookingId: activeBooking.id,
+          method: "stripe",
+        });
+      } catch (error) {
+        console.error("Could not select Stripe for this session:", error);
+        toast.error("Could not prepare the secure payment.");
+        return;
+      }
+    }
+    onPay(activeBooking.id);
+  };
 
   return (
     <Transition appear show={!!booking} as={Fragment}>
@@ -2820,9 +2896,9 @@ const ClientSessionRecordDialog = ({
                               </p>
                               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                                 Your artist controls session start and
-                                completion. If you pay directly at the shop, you
-                                can confirm that payment here before or after
-                                the artist confirms it.
+                                completion. After a session, choose secure Stripe
+                                checkout or confirm a payment made at the shop.
+                                Both sides must confirm shop payments.
                               </p>
                             </div>
                             <RemainingPaymentBadge
@@ -2861,7 +2937,9 @@ const ClientSessionRecordDialog = ({
                           {showStripeBalance && (
                             <button
                               type="button"
-                              onClick={() => onPay(booking.id)}
+                              onClick={() =>
+                                void handleStripeBalancePayment(booking)
+                              }
                               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                             >
                               <CreditCard size={16} />

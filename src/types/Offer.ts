@@ -5,6 +5,8 @@ import type {
 } from "./PaymentPreferences";
 import type {
   DepositApplication,
+  SessionAllocation,
+  SessionBalanceMethod,
   SessionInstallmentTiming,
 } from "./Booking";
 
@@ -67,5 +69,9 @@ clientAvatar?: string;
     sessionPaymentPlan?: "single_balance" | "per_session";
     sessionScheduling?: "single_session" | "first_session_now_rest_later";
     sessionInstallmentTiming?: SessionInstallmentTiming;
+    paymentModelVersion?: 1 | 2;
+    sessionPricingStrategy?: "equal_split";
+    sessionAllocations?: SessionAllocation[];
+    allowedSessionBalanceMethods?: SessionBalanceMethod[];
   };
   

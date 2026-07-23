@@ -1,28 +1,21 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  addDoc,
   collection,
   doc,
-  getDoc,
   onSnapshot,
   serverTimestamp,
   updateDoc,
   query,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { Eye, ImageIcon, ReceiptText } from "lucide-react";
-import { db } from "../firebase/firebaseConfig";
+import { db, functions } from "../firebase/firebaseConfig";
 import { toast } from "react-hot-toast";
 import ViewOfferModal from "./ViewOfferModal";
 import type { Offer } from "../types/Offer";
-import type { Flash } from "../types/Flash";
 import { applyOfferImageFallbacks } from "../utils/offerImageFallbacks";
-import {
-  getFlashAvailabilityStatus,
-  getFlashRepeatability,
-  isFlashAvailableForClients,
-} from "../utils/flashAvailability";
 
 type FirestoreTimestampLike = {
   seconds?: number;
@@ -55,166 +48,25 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
   ) => {
     try {
       const offerRef = doc(db, "offers", offerId);
-      const offerSnap = await getDoc(offerRef);
-      if (!offerSnap.exists()) {
-        toast.error("Offer not found.");
-        return;
-      }
-
-      const [offerData] = await applyOfferImageFallbacks([
-        { id: offerId, ...offerSnap.data() } as Offer,
-      ]);
-
-      await updateDoc(offerRef, {
-        status: action,
-        respondedAt: serverTimestamp(),
-        ...(action === "declined"
-          ? {
-              declinedAt: serverTimestamp(),
-              declinedReason: declinedReason?.value || null,
-              declinedReasonLabel: declinedReason?.label || null,
-            }
-          : {}),
-      });
 
       if (action === "accepted") {
-        const artistRef = doc(db, "users", offerData.artistId);
-        const artistSnap = await getDoc(artistRef);
-        const artistData = artistSnap.data();
-        const shopRef = doc(db, "shops", artistData?.shopId);
-        const shopSnap = await getDoc(shopRef);
-        const shopData = shopSnap.exists() ? shopSnap.data() : {};
-        const depositAmount = Number(offerData.depositPolicy.amount || 0);
-        const remainingAmount = Math.max(Number(offerData.price || 0) - depositAmount, 0);
-        const isMultiSessionProject = offerData.projectType === "multi_session";
-        const estimatedSessionCount = isMultiSessionProject
-          ? Math.max(Number(offerData.estimatedSessionCount || 2), 2)
-          : 1;
-        const laterSessionCount = isMultiSessionProject
-          ? Math.max(estimatedSessionCount - 1, 1)
-          : 1;
-        const estimatedSessionPrice =
-          isMultiSessionProject && Number(offerData.estimatedSessionPrice || 0) > 0
-            ? Number(offerData.estimatedSessionPrice)
-            : isMultiSessionProject
-            ? Math.ceil(remainingAmount / laterSessionCount)
-            : remainingAmount;
-        const sessionInstallmentTiming =
-          offerData.sessionInstallmentTiming === "before_session"
-            ? "before_session"
-            : "after_session";
-        const estimatedHoursPerSession =
-          isMultiSessionProject &&
-          typeof offerData.estimatedHoursPerSession === "number" &&
-          offerData.estimatedHoursPerSession > 0
-            ? offerData.estimatedHoursPerSession
-            : null;
-        const usesExternalRemaining =
-          offerData.paymentType === "internal" &&
-          depositAmount > 0 &&
-          remainingAmount > 0;
-        let flashRepeatability = offerData.flashRepeatability;
-        let flashAvailabilityStatus = offerData.flashAvailabilityStatus;
-
-        if (offerData.sourceType === "flash" && offerData.flashId) {
-          const flashSnap = await getDoc(doc(db, "flashes", offerData.flashId));
-          if (flashSnap.exists()) {
-            const latestFlash = { id: flashSnap.id, ...flashSnap.data() } as Flash;
-            flashRepeatability = getFlashRepeatability(latestFlash);
-            flashAvailabilityStatus = getFlashAvailabilityStatus(latestFlash);
-
-            if (!isFlashAvailableForClients(latestFlash)) {
-              toast.error(
-                flashRepeatability === "one_of_one"
-                  ? "This one-of-one flash is no longer available."
-                  : "This flash is no longer available."
-              );
-              return;
-            }
-          }
-        }
-
-        const bookingRef = await addDoc(collection(db, "bookings"), {
-          artistId: offerData.artistId,
-          artistName: offerData.displayName,
-          artistAvatar: offerData.artistAvatar ?? null,
-          clientId: offerData.clientId,
-          clientFirstName: offerData.clientFirstName ?? "",
-          clientLastName: offerData.clientLastName ?? "",
-          clientName: offerData.clientName ?? null,
-          clientAvatar: offerData.clientAvatar ?? null,
-          offerId,
-          price: offerData.price,
-          depositAmount,
-          paymentType: "internal",
-          projectType: isMultiSessionProject ? "multi_session" : "single_session",
-          depositApplication: offerData.depositApplication || "project_credit",
-          estimatedSessionCount,
-          estimatedSessionPrice: isMultiSessionProject
-            ? estimatedSessionPrice
-            : null,
-          estimatedHoursPerSession,
-          sessionPaymentPlan: isMultiSessionProject
-            ? "per_session"
-            : "single_balance",
-          sessionScheduling: isMultiSessionProject
-            ? "first_session_now_rest_later"
-            : "single_session",
-          sessionInstallmentTiming,
-          activeSessionNumber: 1,
-          completedSessionCount: 0,
-          pendingSessionPaymentAmount: 0,
-          pendingSessionPaymentAmountCents: 0,
-          pendingSessionNumber: null,
-          lastPaidSessionNumber: 0,
-          finalPaymentTiming: offerData.finalPaymentTiming ?? "after",
-          finalPaymentDeadlineHours:
-            offerData.finalPaymentTiming === "before"
-              ? offerData.finalPaymentDeadlineHours ?? 24
-              : null,
-          remainingPaymentMethod: usesExternalRemaining ? "external" : "stripe",
-          remainingPaymentStatus:
-            usesExternalRemaining ? "due" : "not_due",
-          externalRemainingAmount: usesExternalRemaining ? remainingAmount : 0,
-          externalRemainingAmountCents: usesExternalRemaining
-            ? Math.round(remainingAmount * 100)
-            : 0,
-          sessionStatus: "not_started",
-          shopId: offerData.shopId ?? null,
-          shopName: offerData.shopName ?? shopData.name ?? "Unavailable",
-          shopAddress: offerData.shopAddress ?? shopData.address ?? "Unavailable",
-          shopMapLink: offerData.shopMapLink ?? shopData.mapLink ?? null,
-          selectedDate: selectedDate ?? { date: "TBD", time: "TBD" },
-          sampleImageUrl: offerData.fullUrl ?? null,
-          sourceType: offerData.sourceType || "custom",
-          flashId: offerData.flashId ?? null,
-          flashTitle: offerData.flashTitle ?? null,
-          flashDescription: offerData.flashDescription ?? null,
-          flashPrice: offerData.flashPrice ?? null,
-          flashSheetId: offerData.flashSheetId ?? null,
-          flashRepeatability:
-            offerData.sourceType === "flash"
-              ? flashRepeatability || "repeatable"
-              : null,
-          flashAvailabilityStatus:
-            offerData.sourceType === "flash"
-              ? flashAvailabilityStatus || "available"
-              : null,
-          isFromSheet: offerData.isFromSheet ?? null,
-          status: "pending_payment",
-          createdAt: serverTimestamp(),
-        });
-
-        await updateDoc(offerRef, {
-          bookingId: bookingRef.id,
-        });
+        const acceptOffer = httpsCallable(functions, "acceptProjectOffer");
+        const response = await acceptOffer({ offerId, selectedDate });
+        const { bookingId } = response.data as { bookingId: string };
         setOffers((current) => current.filter((offer) => offer.id !== offerId));
         onOfferResolved?.("accepted");
         toast.success("Booking confirmed.");
-        navigate(`/payment/${bookingRef.id}`);
-        return bookingRef.id;
+        navigate(`/payment/${bookingId}`);
+        return bookingId;
       }
 
+      await updateDoc(offerRef, {
+        status: "declined",
+        respondedAt: serverTimestamp(),
+        declinedAt: serverTimestamp(),
+        declinedReason: declinedReason?.value || null,
+        declinedReasonLabel: declinedReason?.label || null,
+      });
       toast.success("Offer declined.");
       setOffers((current) => current.filter((offer) => offer.id !== offerId));
       onOfferResolved?.("declined");
