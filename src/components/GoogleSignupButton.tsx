@@ -78,6 +78,11 @@ const getProfileValue = (profile: unknown, key: string) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
+const getExistingAccountDestination = (profile: unknown) =>
+  getProfileValue(profile, "role").toLowerCase() === "admin"
+    ? "/admin"
+    : "/dashboard";
+
 const getObjectNamePart = (value: unknown, keys: string[]) => {
   if (!value || typeof value !== "object") return "";
   const record = value as ProfileRecord;
@@ -324,7 +329,7 @@ const useAuthProviderSignup = (role: SignupRole) => {
 
       if (userSnap.exists()) {
         toast.success("Welcome back");
-        navigate("/dashboard");
+        navigate(getExistingAccountDestination(userSnap.data()));
         return;
       }
 
@@ -416,7 +421,11 @@ export const AuthProviderSignInButtons = ({
       const userSnap = await getDoc(userRef);
 
       onComplete?.();
-      navigate(userSnap.exists() ? "/dashboard" : "/signup");
+      navigate(
+        userSnap.exists()
+          ? getExistingAccountDestination(userSnap.data())
+          : "/signup"
+      );
     } catch (error) {
       reportAuthError(error, `${AUTH_PROVIDER_META[providerKey].name} sign-in`);
     } finally {
