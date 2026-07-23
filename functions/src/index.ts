@@ -1354,6 +1354,24 @@ const acceptProjectOffer = onCall(
         firstAllocation.quotedAmountCents - firstAllocation.depositAmountCents,
         0
       );
+      const estimatedHoursInput = offer.estimatedHoursPerSession;
+      const estimatedHoursPerSession =
+        estimatedHoursInput === null ||
+        estimatedHoursInput === undefined ||
+        estimatedHoursInput === ""
+          ? null
+          : Number(estimatedHoursInput);
+      if (
+        estimatedHoursPerSession !== null &&
+        (!Number.isFinite(estimatedHoursPerSession) ||
+          estimatedHoursPerSession < 0.5 ||
+          estimatedHoursPerSession > 16)
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The estimated session length must be between 0.5 and 16 hours."
+        );
+      }
       const bookingData = {
         artistId: offer.artistId,
         artistName: offer.displayName || artist.displayName || "Artist",
@@ -1377,7 +1395,7 @@ const acceptProjectOffer = onCall(
         depositApplication: "project_credit",
         estimatedSessionCount: sessionCount,
         estimatedSessionPrice: centsToDollars(firstAllocation.quotedAmountCents),
-        estimatedHoursPerSession: offer.estimatedHoursPerSession ?? null,
+        estimatedHoursPerSession,
         sessionPaymentPlan: sessionCount > 1 ? "per_session" : "single_balance",
         sessionScheduling:
           sessionCount > 1

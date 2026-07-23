@@ -12,6 +12,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Clock,
   DollarSign,
   Eye,
   ImageIcon,
@@ -1153,6 +1154,18 @@ const OfferDetailsDialog = ({
                           label="Shop"
                           value={offer.shopName || "Unavailable"}
                         />
+                        {typeof offer.estimatedHoursPerSession === "number" &&
+                          offer.estimatedHoursPerSession > 0 && (
+                            <DetailTile
+                              icon={<Clock size={17} />}
+                              label="Estimated session length"
+                              value={`${offer.estimatedHoursPerSession} ${
+                                offer.estimatedHoursPerSession === 1
+                                  ? "hour"
+                                  : "hours"
+                              }`}
+                            />
+                          )}
                         {offer.projectType === "multi_session" && (
                           <>
                             <DetailTile

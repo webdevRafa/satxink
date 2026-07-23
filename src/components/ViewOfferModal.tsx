@@ -272,11 +272,13 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                 />
               </div>
 
-              {isMultiSessionOffer && (
+              {!isFlashOffer && (
                 <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
                     <Layers size={17} />
-                    Multi-session project
+                    {isMultiSessionOffer
+                      ? "Multi-session project"
+                      : "Single-session project"}
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <DetailTile
@@ -292,8 +294,10 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     {estimatedHoursPerSession && (
                       <DetailTile
                         icon={<Clock size={17} />}
-                        label="Hours per session"
-                        value={`${estimatedHoursPerSession} hr`}
+                        label="Estimated session length"
+                        value={`${estimatedHoursPerSession} ${
+                          estimatedHoursPerSession === 1 ? "hour" : "hours"
+                        }`}
                       />
                     )}
                     <DetailTile
@@ -307,9 +311,11 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     />
                   </div>
                   <p className="mt-3 text-sm leading-6 text-emerald-50/75">
-                    Each session has its own deposit. The balance for that
-                    session becomes payable only after the artist marks it
-                    complete. Later sessions are scheduled one at a time.
+                    Only the deposit is collected before each appointment. The
+                    balance for that session becomes payable after the artist
+                    marks it complete.
+                    {isMultiSessionOffer &&
+                      " Later sessions are scheduled one at a time."}
                   </p>
                 </div>
               )}

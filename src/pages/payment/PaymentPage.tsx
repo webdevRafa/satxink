@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import {
   CalendarDays,
   CheckCircle2,
+  Clock,
   CreditCard,
   DollarSign,
   ImageIcon,
@@ -625,6 +626,16 @@ const PaymentPage = () => {
                 label="Final terms"
                 value={getFinalPaymentTermsLabel(booking)}
               />
+              {typeof booking.estimatedHoursPerSession === "number" &&
+                booking.estimatedHoursPerSession > 0 && (
+                  <DetailTile
+                    icon={<Clock size={17} />}
+                    label="Estimated session length"
+                    value={`${booking.estimatedHoursPerSession} ${
+                      booking.estimatedHoursPerSession === 1 ? "hour" : "hours"
+                    }`}
+                  />
+                )}
               {isMultiSession && (
                 <DetailTile
                   icon={<Layers size={17} />}

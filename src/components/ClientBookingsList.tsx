@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { CalendarDays, CreditCard, DollarSign, Eye, ImageIcon, Layers, MapPin, Store, X } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, DollarSign, Eye, ImageIcon, Layers, MapPin, Store, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -673,6 +673,18 @@ const BookingDetailsDialog = ({
                         <DetailTile icon={<DollarSign size={17} />} label="Deposit" value={`$${booking.depositAmount}`} />
                         <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "Direct"} />
                         <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel(booking)} />
+                        {typeof booking.estimatedHoursPerSession === "number" &&
+                          booking.estimatedHoursPerSession > 0 && (
+                            <DetailTile
+                              icon={<Clock size={17} />}
+                              label="Estimated session length"
+                              value={`${booking.estimatedHoursPerSession} ${
+                                booking.estimatedHoursPerSession === 1
+                                  ? "hour"
+                                  : "hours"
+                              }`}
+                            />
+                          )}
                         {isMultiSessionBooking(booking) && (
                           <>
                             <DetailTile

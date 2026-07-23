@@ -193,6 +193,59 @@ const formatMoneyFromCents = (value: unknown) => {
   return formatMoney(cents / 100);
 };
 
+const formatEstimatedSessionLength = (
+  data: admin.firestore.DocumentData
+) => {
+  const hours = getNumber(data, "estimatedHoursPerSession");
+  if (hours === null || hours <= 0) return "";
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+};
+
+const getEstimatedSessionCountLabel = (
+  data: admin.firestore.DocumentData
+) => {
+  if (data.sourceType === "flash") return "";
+  const count = getNumber(data, "estimatedSessionCount");
+  return count !== null && count > 0 ? `${Math.floor(count)}` : "1";
+};
+
+const getSessionPriceLabel = (data: admin.firestore.DocumentData) => {
+  if (data.sourceType === "flash") return "";
+
+  const firstAllocation = Array.isArray(data.sessionAllocations)
+    ? data.sessionAllocations.find(
+        (allocation: unknown) =>
+          allocation &&
+          typeof allocation === "object" &&
+          Number(
+            (allocation as admin.firestore.DocumentData).sessionNumber || 1
+          ) === 1
+      )
+    : null;
+  const quotedAmountCents =
+    firstAllocation &&
+    typeof (firstAllocation as admin.firestore.DocumentData)
+      .quotedAmountCents === "number"
+      ? (firstAllocation as admin.firestore.DocumentData).quotedAmountCents
+      : null;
+
+  if (quotedAmountCents !== null) {
+    return formatMoneyFromCents(quotedAmountCents);
+  }
+
+  const estimatedSessionPrice = getNumber(data, "estimatedSessionPrice");
+  return estimatedSessionPrice === null
+    ? ""
+    : formatMoney(estimatedSessionPrice);
+};
+
+const getProjectTypeLabel = (data: admin.firestore.DocumentData) => {
+  if (data.sourceType === "flash") return "";
+  return data.projectType === "multi_session"
+    ? "Multi-session project"
+    : "Single-session project";
+};
+
 const formatDate = (value: unknown) => {
   if (typeof value !== "string" || !value.trim()) return "";
   const [year, month, day] = value.split("-").map((part) => Number(part));
@@ -756,7 +809,24 @@ const renderOfferEmail = (
           { label: "Client", value: getClientName(offer, client) },
           { label: "Artist", value: artistName },
           { label: "Quote", value: price === null ? "" : formatMoney(price) },
-          { label: "Deposit", value: depositAmount === null ? "" : formatMoney(depositAmount) },
+          { label: "Project", value: getProjectTypeLabel(offer) },
+          {
+            label: "Estimated sessions",
+            value: getEstimatedSessionCountLabel(offer),
+          },
+          {
+            label: "Estimated session length",
+            value: formatEstimatedSessionLength(offer),
+          },
+          { label: "Price per session", value: getSessionPriceLabel(offer) },
+          {
+            label:
+              offer.sourceType === "flash"
+                ? "Deposit"
+                : "Deposit per session",
+            value:
+              depositAmount === null ? "" : formatMoney(depositAmount),
+          },
           { label: "Payment", value: firstString(offer.paymentType) },
           { label: "Final payment", value: firstString(offer.finalPaymentTiming) },
           { label: "Studio", value: firstString(offer.shopName, shop?.name) },
@@ -812,9 +882,24 @@ const renderBookingReadyEmail = (
           { label: "Studio", value: getString(booking, "shopName") },
           { label: "Address", value: getString(booking, "shopAddress") },
           { label: "Quote", value: price === null ? "" : formatMoney(price) },
-          { label: "Deposit due", value: deposit === null ? "" : formatMoney(deposit) },
+          { label: "Project", value: getProjectTypeLabel(booking) },
+          {
+            label: "Estimated sessions",
+            value: getEstimatedSessionCountLabel(booking),
+          },
+          {
+            label: "Estimated session length",
+            value: formatEstimatedSessionLength(booking),
+          },
+          { label: "Price per session", value: getSessionPriceLabel(booking) },
+          {
+            label:
+              booking.sourceType === "flash"
+                ? "Deposit due"
+                : "Session deposit due",
+            value: deposit === null ? "" : formatMoney(deposit),
+          },
           { label: "Remaining balance", value: remaining === null ? "" : formatMoney(remaining) },
-          { label: "Project type", value: getString(booking, "projectType") },
           { label: "Flash", value: getString(booking, "flashTitle") },
         ],
       },
@@ -873,6 +958,10 @@ const renderPaymentEmail = (
           { label: "Amount paid", value: getPaymentAmount(booking) },
           { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
           { label: "Session", value: booking.lastPaidSessionNumber ? `Session ${booking.lastPaidSessionNumber}` : "" },
+          {
+            label: "Estimated session length",
+            value: formatEstimatedSessionLength(booking),
+          },
           { label: "Checkout", value: getString(booking, "lastCompletedCheckoutSessionId") },
           { label: "Appointment", value: formatAppointment(booking.selectedDate) },
         ],
@@ -933,6 +1022,10 @@ const renderSessionCompleteEmail = (
             { label: "Client", value: getClientName(booking, client) },
             { label: "Artist", value: artistName },
             { label: "Session", value: `${sessionNumber} of ${estimatedSessionCount}` },
+            {
+              label: "Estimated session length",
+              value: formatEstimatedSessionLength(booking),
+            },
             { label: "Amount due", value: amountDue },
             { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
             { label: "Status", value: isProjectComplete ? "Project complete" : "Session complete" },
@@ -1100,6 +1193,10 @@ const renderSessionPaymentRequestedEmail = (
           { label: "Client", value: getClientName(booking, client) },
           { label: "Artist", value: artistName },
           { label: "Session", value: `${sessionNumber}` },
+          {
+            label: "Estimated session length",
+            value: formatEstimatedSessionLength(booking),
+          },
           { label: "Amount due", value: amountDue },
           { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
           { label: "Note", value: getString(session, "note") },

@@ -53,6 +53,7 @@ import type {
 import {
   buildEqualSessionAllocations,
   fromCents,
+  getMaximumSessionDepositCents,
   getSessionAllocationError,
 } from "../utils/projectPayments";
 import {
@@ -137,8 +138,8 @@ type Props = {
 };
 
 const CUSTOM_OFFER_STEPS = [
+  { id: "project", label: "Project" },
   { id: "pricing", label: "Pricing" },
-  { id: "sessions", label: "Sessions" },
   { id: "appointment", label: "Appointment" },
   { id: "message", label: "Message" },
   { id: "sample", label: "Sample" },
@@ -234,7 +235,6 @@ const MakeOfferModal = ({
   const parsedEstimatedHoursPerSession = Number(estimatedHoursPerSession);
   const normalizedEstimatedHoursPerSession =
     !isFlashRequest &&
-    isMultiSessionProject &&
     estimatedHoursPerSession.trim() &&
     Number.isFinite(parsedEstimatedHoursPerSession) &&
     parsedEstimatedHoursPerSession > 0
@@ -249,6 +249,12 @@ const MakeOfferModal = ({
   );
   const currentOfferPrice = Number(offerPrice || 0);
   const currentDepositAmount = Number(depositAmount || 0);
+  const maximumSessionDepositCents = !isFlashRequest
+    ? getMaximumSessionDepositCents({
+        totalQuote: currentOfferPrice,
+        sessionCount: projectSessionCount,
+      })
+    : 0;
   const pricingStepInlineError = !isFlashRequest
     ? getSessionAllocationError({
         totalQuote: currentOfferPrice,
@@ -268,9 +274,14 @@ const MakeOfferModal = ({
   const shouldShowDesktopTimingContext =
     !isFlashRequest && customOfferStepIndex >= appointmentStepIndex;
   const shouldShowPricingStepInlineError =
-    pricingStepInlineError &&
-    (pricingStepInlineError !== "Enter a deposit to book before continuing." ||
-      hasTriedPricingContinue);
+    Boolean(pricingStepInlineError) &&
+    (hasTriedPricingContinue ||
+      (currentOfferPrice > 0 && currentDepositAmount > 0));
+  const isCustomPricingValid =
+    !isFlashRequest &&
+    currentOfferPrice > 0 &&
+    currentDepositAmount > 0 &&
+    !pricingStepInlineError;
   const isCustomOfferStepContinueBlocked =
     currentCustomOfferStepId === "appointment" &&
     completedDateOptions.length === 0;
@@ -348,6 +359,24 @@ const MakeOfferModal = ({
 
   const getDraftValidationError = () => {
     const submissionOfferPrice = getSubmissionOfferPrice();
+    const submitAsMultiSession =
+      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
+
+    if (submitAsMultiSession) {
+      if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
+        return "Multi-session projects need 2 to 12 estimated sessions.";
+      }
+    }
+
+    if (
+      selectedRequest.sourceType !== "flash" &&
+      estimatedHoursPerSession.trim() &&
+      (!Number.isFinite(parsedEstimatedHoursPerSession) ||
+        parsedEstimatedHoursPerSession < 0.5 ||
+        parsedEstimatedHoursPerSession > 16)
+    ) {
+      return "Estimated session length must be between 0.5 and 16 hours.";
+    }
 
     if (!submissionOfferPrice || submissionOfferPrice <= 0) {
       return selectedRequest.sourceType === "flash"
@@ -376,24 +405,6 @@ const MakeOfferModal = ({
 
     if (completedDateOptions.some((option) => isPastDateInputValue(option.date))) {
       return "Appointment options must be today or later.";
-    }
-
-    const submitAsMultiSession =
-      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
-
-    if (submitAsMultiSession) {
-      if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
-        return "Multi-session projects need 2 to 12 estimated sessions.";
-      }
-
-      if (
-        estimatedHoursPerSession.trim() &&
-        (!Number.isFinite(parsedEstimatedHoursPerSession) ||
-          parsedEstimatedHoursPerSession <= 0 ||
-          parsedEstimatedHoursPerSession > 16)
-      ) {
-        return "Estimated hours per session must be between 0 and 16.";
-      }
     }
 
     return null;
@@ -578,9 +589,10 @@ const MakeOfferModal = ({
           : 1,
         estimatedSessionPrice:
           selectedRequest.sourceType === "flash" ? null : sessionEstimate,
-        estimatedHoursPerSession: submitAsMultiSession
-          ? normalizedEstimatedHoursPerSession
-          : null,
+        estimatedHoursPerSession:
+          selectedRequest.sourceType === "flash"
+            ? null
+            : normalizedEstimatedHoursPerSession,
         sessionPaymentPlan: submitAsMultiSession
           ? "per_session"
           : "single_balance",
@@ -617,6 +629,26 @@ const MakeOfferModal = ({
   };
 
   const getCustomOfferStepValidationError = (stepId: CustomOfferStepId) => {
+    if (stepId === "project") {
+      if (
+        isMultiSessionProject &&
+        (estimatedSessionCount < 2 || estimatedSessionCount > 12)
+      ) {
+        return "Multi-session projects need 2 to 12 estimated sessions.";
+      }
+
+      if (
+        estimatedHoursPerSession.trim() &&
+        (!Number.isFinite(parsedEstimatedHoursPerSession) ||
+          parsedEstimatedHoursPerSession < 0.5 ||
+          parsedEstimatedHoursPerSession > 16)
+      ) {
+        return "Estimated session length must be between 0.5 and 16 hours.";
+      }
+
+      return null;
+    }
+
     if (stepId === "appointment") {
       if (completedDateOptions.length === 0) {
         return "Add at least one appointment option before continuing.";
@@ -643,11 +675,13 @@ const MakeOfferModal = ({
       return "Enter a deposit to book before continuing.";
     }
 
-    if (currentDepositAmount > currentOfferPrice) {
-      return "Deposit cannot be greater than the offer price.";
-    }
-
-    return null;
+    return (
+      getSessionAllocationError({
+        totalQuote: currentOfferPrice,
+        sessionCount: projectSessionCount,
+        depositAmount: currentDepositAmount,
+      }) || null
+    );
   };
 
   const goToCustomOfferStep = (stepIndex: number) => {
@@ -657,15 +691,22 @@ const MakeOfferModal = ({
     );
 
     if (nextStepIndex > customOfferStepIndex) {
-      const currentStep = CUSTOM_OFFER_STEPS[customOfferStepIndex];
-      if (currentStep.id === "pricing") {
-        setHasTriedPricingContinue(true);
-      }
-      const validationError = getCustomOfferStepValidationError(currentStep.id);
+      for (
+        let stepToValidate = customOfferStepIndex;
+        stepToValidate < nextStepIndex;
+        stepToValidate += 1
+      ) {
+        const step = CUSTOM_OFFER_STEPS[stepToValidate];
+        if (step.id === "pricing") {
+          setHasTriedPricingContinue(true);
+        }
 
-      if (validationError) {
-        toast.error(validationError);
-        return;
+        const validationError = getCustomOfferStepValidationError(step.id);
+        if (validationError) {
+          setCustomOfferStepIndex(stepToValidate);
+          toast.error(validationError);
+          return;
+        }
       }
     }
 
@@ -849,7 +890,8 @@ const MakeOfferModal = ({
                             {CUSTOM_OFFER_STEPS.map((step, index) => {
                               const isActive = index === customOfferStepIndex;
                               const isComplete =
-                                index < furthestCustomOfferStepIndex;
+                                index < furthestCustomOfferStepIndex &&
+                                !getCustomOfferStepValidationError(step.id);
                               const canVisit =
                                 index <= furthestCustomOfferStepIndex + 1;
 
@@ -890,7 +932,157 @@ const MakeOfferModal = ({
                       </div>
                     )}
 
-              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("pricing")}`}>
+              {!isFlashRequest && (
+                <section
+                  className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName(
+                    "project"
+                  )}`}
+                >
+                  <div className="mb-5 flex items-start gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+                      <Layers size={19} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg! font-semibold! text-white">
+                        Project structure
+                      </h3>
+                      <p className="text-sm text-neutral-400">
+                        Start with the number and expected length of sessions so
+                        pricing can be calculated clearly.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsMultiSessionProject(false)}
+                      className={`rounded-lg border p-4! text-left transition ${
+                        !isMultiSessionProject
+                          ? "border-white/40 bg-white/[0.09] text-white shadow-[0_14px_30px_rgba(0,0,0,0.2)]"
+                          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold">
+                        Single session
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                        One appointment with one deposit and one post-session
+                        balance.
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMultiSessionProject(true)}
+                      className={`rounded-lg border p-4! text-left transition ${
+                        isMultiSessionProject
+                          ? "border-emerald-300/40 bg-emerald-300/[0.09] text-white shadow-[0_14px_30px_rgba(0,0,0,0.2)]"
+                          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold">
+                        Multi-session project
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-neutral-400">
+                        Split the quote evenly and protect each appointment with
+                        its own deposit.
+                      </span>
+                    </button>
+                  </div>
+
+                  <div
+                    className={`mt-4 grid gap-4 ${
+                      isMultiSessionProject ? "md:grid-cols-2" : ""
+                    }`}
+                  >
+                    {isMultiSessionProject && (
+                      <label className="space-y-2">
+                        <span className="text-sm font-medium text-neutral-200">
+                          Estimated sessions
+                        </span>
+                        <input
+                          type="number"
+                          min="2"
+                          max="12"
+                          value={estimatedSessionCount}
+                          onChange={(event) =>
+                            setEstimatedSessionCount(
+                              Math.min(
+                                12,
+                                Math.max(2, Number(event.target.value || 2))
+                              )
+                            )
+                          }
+                          className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-white/40 focus:ring-1 focus:ring-white/10"
+                        />
+                        <span className="block text-[11px] leading-4 text-neutral-500">
+                          Choose 2–12 sessions. Later appointments are scheduled
+                          after the project begins.
+                        </span>
+                      </label>
+                    )}
+
+                    <label className="space-y-2">
+                      <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
+                        <span>Estimated hours per session</span>
+                        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                          Optional
+                        </span>
+                      </span>
+                      <div className="relative">
+                        <Clock
+                          size={15}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                        />
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="16"
+                          step="0.5"
+                          value={estimatedHoursPerSession}
+                          onChange={(event) =>
+                            setEstimatedHoursPerSession(event.target.value)
+                          }
+                          placeholder="e.g. 4"
+                          className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/40 focus:ring-1 focus:ring-white/10"
+                        />
+                      </div>
+                      <span className="block text-[11px] leading-4 text-neutral-500">
+                        Shown to the client as a planning estimate, not a
+                        guaranteed appointment duration.
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-xs text-neutral-400">
+                    <span className="font-semibold text-white">
+                      {isMultiSessionProject
+                        ? `${estimatedSessionCount}-session project`
+                        : "Single-session project"}
+                    </span>
+                    {normalizedEstimatedHoursPerSession && (
+                      <>
+                        <span aria-hidden="true" className="text-neutral-600">
+                          •
+                        </span>
+                        <span>
+                          About {normalizedEstimatedHoursPerSession}{" "}
+                          {normalizedEstimatedHoursPerSession === 1
+                            ? "hour"
+                            : "hours"}{" "}
+                          per session
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              <section
+                className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName(
+                  "pricing"
+                )}`}
+              >
                 <div className="mb-5 flex items-start gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
                     <DollarSign size={19} />
@@ -902,7 +1094,9 @@ const MakeOfferModal = ({
                     <p className="text-sm text-neutral-400">
                       {isFlashRequest
                         ? "The offer price is locked to the flash listing. Set the deposit required to reserve the design."
-                        : "Set the offer price and the deposit required to lock in the appointment."}
+                        : projectSessionCount === 1
+                        ? "Set the full quote and the deposit that reserves the appointment."
+                        : `Set the full quote and the deposit that reserves each of the ${projectSessionCount} sessions.`}
                     </p>
                   </div>
                 </div>
@@ -921,7 +1115,7 @@ const MakeOfferModal = ({
                     />
                   ) : (
                     <MoneyInput
-                      label="Offer price"
+                      label="Total project quote"
                       value={offerPrice === 0 ? "" : offerPrice}
                       onChange={(value) =>
                         setOfferPrice(value ? Number(value) : 0)
@@ -929,16 +1123,44 @@ const MakeOfferModal = ({
                       required
                     />
                   )}
-                  <MoneyInput
-                    label={
-                      isFlashRequest ? "Deposit to book" : "Deposit per session"
-                    }
-                    value={depositAmount === 0 ? "" : depositAmount}
-                    onChange={(value) =>
-                      setDepositAmount(value ? Number(value) : 0)
-                    }
-                    required
-                  />
+                  <div>
+                    <MoneyInput
+                      label={
+                        isFlashRequest
+                          ? "Deposit to book"
+                          : projectSessionCount > 1
+                          ? "Deposit per session"
+                          : "Session deposit"
+                      }
+                      value={depositAmount === 0 ? "" : depositAmount}
+                      onChange={(value) =>
+                        setDepositAmount(value ? Number(value) : 0)
+                      }
+                      required
+                    />
+                    {!isFlashRequest &&
+                      currentOfferPrice > 0 &&
+                      maximumSessionDepositCents > 0 && (
+                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] leading-4 text-neutral-500">
+                          <span>
+                            Maximum{" "}
+                            {formatMoneyFromCents(maximumSessionDepositCents)} —
+                            50% of the lowest session allocation.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDepositAmount(
+                                fromCents(maximumSessionDepositCents)
+                              )
+                            }
+                            className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2.5! py-1.5! text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-300 transition hover:border-white/25 hover:text-white"
+                          >
+                            Use maximum
+                          </button>
+                        </div>
+                      )}
+                  </div>
                 </div>
                 {shouldShowPricingStepInlineError && (
                   <p className="mt-3 rounded-md border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100/85">
@@ -946,196 +1168,84 @@ const MakeOfferModal = ({
                   </p>
                 )}
 
-                {hasRemainingArtistBalance && (
-                  <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
+                {isCustomPricingValid ? (
+                  <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                     <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-200/15 bg-emerald-300/[0.08] text-emerald-100">
                         <ReceiptText size={16} />
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-white">
-                          Only the session deposit is collected before tattooing
+                          Protected session-by-session plan
                         </p>
-                        <p className="mt-1 text-sm leading-6 text-neutral-400">
-                          {isFlashRequest ? (
-                            <>
-                              SATX Ink collects the non-refundable deposit today.
-                              The remaining balance is settled after the
-                              appointment.
-                            </>
-                          ) : (
-                            <>
-                              SATX Ink splits the quote evenly across the project.
-                              Each session reserves with a{" "}
-                              <span className="font-semibold text-white">
-                                {formatMoneyFromCents(
-                                  Math.round(Number(depositAmount || 0) * 100)
-                                )}
-                              </span>{" "}
-                              deposit. The{" "}
-                              <span className="font-semibold text-white">
-                                {formatMoneyFromCents(
-                                  Math.round(firstSessionBalance * 100)
-                                )}
-                              </span>{" "}
-                              session balance becomes due only after that session
-                              is completed, by Stripe or at the shop.
-                            </>
-                          )}
+                        <p className="mt-1 text-xs leading-5 text-neutral-400">
+                          Only the deposit is collected before each appointment.
+                          The remaining balance unlocks after that session is
+                          marked complete and can be settled by Stripe or at the
+                          shop.
                         </p>
                       </div>
                     </div>
-                  </div>
-                )}
-              </section>
-
-              {!isFlashRequest && (
-              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sessions")}`}>
-                <div className="mb-5 flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                    <Layers size={19} />
-                  </span>
-                  <div>
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Sessions
-                    </h3>
-                    <p className="text-sm text-neutral-400">
-                      The number of sessions this piece will take.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsMultiSessionProject(false)}
-                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
-                      !isMultiSessionProject
-                        ? "border-white bg-white text-black"
-                        : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-semibold ${
-                        !isMultiSessionProject
-                          ? "text-neutral-950!"
-                          : "text-white"
-                      }`}
-                    >
-                      Single session
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsMultiSessionProject(true)}
-                    className={`flex min-h-24 items-center justify-center rounded-lg border p-4! text-center transition ${
-                      isMultiSessionProject
-                        ? "border-emerald-300/45 bg-emerald-300/10 text-white"
-                        : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-semibold ${
-                        isMultiSessionProject
-                          ? "text-white"
-                          : "text-neutral-200"
-                      }`}
-                    >
-                      Multi-session project
-                    </span>
-                  </button>
-                </div>
-
-                {isMultiSessionProject && (
-                  <div className="mt-4 space-y-4">
-                    <div className="grid gap-4 md:grid-cols-3">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Estimated sessions
-                      </span>
-                      <input
-                        type="number"
-                        min="2"
-                        max="12"
-                        value={estimatedSessionCount}
-                        onChange={(event) =>
-                          setEstimatedSessionCount(
-                            Math.max(2, Number(event.target.value || 2))
-                          )
-                        }
-                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      <PlanMetric
+                        label="Project total"
+                        value={formatMoneyFromCents(
+                          Math.round(currentOfferPrice * 100)
+                        )}
                       />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Hours per session
-                      </span>
-                      <input
-                        type="number"
-                        min="0.5"
-                        max="16"
-                        step="0.5"
-                        value={estimatedHoursPerSession}
-                        onChange={(event) =>
-                          setEstimatedHoursPerSession(event.target.value)
-                        }
-                        placeholder="Optional"
-                        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-[var(--color-primary)]"
+                      <PlanMetric
+                        label="Sessions"
+                        value={String(projectSessionCount)}
                       />
-                    </label>
-                    <div className="space-y-2">
-                      <span className="text-sm font-medium text-neutral-200">
-                        Price per session
-                      </span>
-                      <div className="flex min-h-11 items-center text-sm font-semibold text-white">
-                        {formatMoneyFromCents(Math.round(sessionEstimate * 100))}
-                      </div>
-                      <p className="text-[11px] leading-4 text-neutral-500">
-                        The full quote is split evenly. Any leftover cents are
-                        applied to the earliest sessions.
-                      </p>
+                      <PlanMetric
+                        label="Session price"
+                        value={formatMoneyFromCents(
+                          firstSessionAllocation?.quotedAmountCents || 0
+                        )}
+                      />
+                      <PlanMetric
+                        label="Deposit"
+                        value={formatMoneyFromCents(
+                          Math.round(currentDepositAmount * 100)
+                        )}
+                      />
+                      <PlanMetric
+                        label="After-session balance"
+                        value={formatMoneyFromCents(
+                          Math.round(firstSessionBalance * 100)
+                        )}
+                      />
                     </div>
-                    </div>
-
-                    <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
-                      <p className="text-sm font-semibold text-white">
-                        Protected session-by-session payment plan
+                    {projectSessionCount > 1 && (
+                      <p className="mt-3 text-[11px] leading-4 text-neutral-500">
+                        The quote is split evenly. Any leftover cents are applied
+                        to the earliest sessions.
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-neutral-400">
-                        A client can never prepay an entire custom project or
-                        session. Every session has its own deposit, and its
-                        remaining balance unlocks only after you mark the session
-                        complete.
-                      </p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <PlanMetric
-                          label="Session price"
-                          value={formatMoneyFromCents(
-                            firstSessionAllocation?.quotedAmountCents || 0
-                          )}
-                        />
-                        <PlanMetric
-                          label="Deposit"
-                          value={formatMoneyFromCents(
-                            firstSessionAllocation?.depositAmountCents || 0
-                          )}
-                        />
-                        <PlanMetric
-                          label="After-session balance"
-                          value={formatMoneyFromCents(
-                            Math.max(
-                              (firstSessionAllocation?.quotedAmountCents || 0) -
-                                (firstSessionAllocation?.depositAmountCents || 0),
-                              0
-                            )
-                          )}
-                        />
+                    )}
+                  </div>
+                ) : (
+                  hasRemainingArtistBalance &&
+                  isFlashRequest && (
+                    <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
+                          <ReceiptText size={16} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white">
+                            Only the deposit is collected before tattooing
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-neutral-400">
+                            SATX Ink collects the non-refundable deposit today.
+                            The remaining balance is settled after the
+                            appointment.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )
                 )}
               </section>
-              )}
 
               <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("appointment")}`}>
                 <div className="mb-5 flex items-start gap-3">
@@ -1339,7 +1449,11 @@ const MakeOfferModal = ({
                             tone="strong"
                           />
                           <PreviewTile
-                            label="Deposit per session"
+                            label={
+                              projectSessionCount > 1
+                                ? "Deposit per session"
+                                : "Session deposit"
+                            }
                             value={formatMoneyFromCents(
                               Math.round(Number(depositAmount || 0) * 100)
                             )}
@@ -1356,6 +1470,18 @@ const MakeOfferModal = ({
                               isMultiSessionProject
                                 ? `${estimatedSessionCount} sessions`
                                 : "Single session"
+                            }
+                          />
+                          <PreviewTile
+                            label="Estimated session length"
+                            value={
+                              normalizedEstimatedHoursPerSession
+                                ? `${normalizedEstimatedHoursPerSession} ${
+                                    normalizedEstimatedHoursPerSession === 1
+                                      ? "hour"
+                                      : "hours"
+                                  }`
+                                : "Not provided"
                             }
                           />
                           {isMultiSessionProject && (
@@ -1674,26 +1800,28 @@ const OfferPreview = ({
                 value={isMultiSessionProject ? `${sessionCount}` : "1"}
               />
               <PreviewTile
-                   label="Price per session"
+                label="Price per session"
                 value={
-                  isMultiSessionProject
+                  !isFlashRequest
                     ? formatMoneyFromCents(Math.round(sessionEstimate * 100))
-                    : "Not split"
+                    : formatMoneyFromCents(Math.round(offerPrice * 100))
                 }
               />
               <PreviewTile
-                label="Hours per session"
+                label="Estimated session length"
                 value={
-                  isMultiSessionProject && estimatedHoursPerSession
-                    ? `${estimatedHoursPerSession} hr`
-                    : "Optional"
+                  !isFlashRequest && estimatedHoursPerSession
+                    ? `${estimatedHoursPerSession} ${
+                        estimatedHoursPerSession === 1 ? "hour" : "hours"
+                      }`
+                    : "Not provided"
                 }
               />
               <PreviewTile
                 label="Installments"
                 value={
-                  isMultiSessionProject
-                     ? "After each completed session"
+                  !isFlashRequest
+                    ? "After each completed session"
                     : "Single balance"
                 }
               />

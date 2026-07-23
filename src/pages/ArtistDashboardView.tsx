@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Camera,
   Check,
+  Clock,
   CreditCard,
   DollarSign,
   Eye,
@@ -4562,6 +4563,19 @@ const BookingRecordDialog = ({
                               label="Remaining"
                               value={formatDashboardMoney(remainingBalance)}
                             />
+                            {typeof booking.estimatedHoursPerSession ===
+                              "number" &&
+                              booking.estimatedHoursPerSession > 0 && (
+                                <BookingDetailTile
+                                  icon={<Clock size={17} />}
+                                  label="Estimated session length"
+                                  value={`${booking.estimatedHoursPerSession} ${
+                                    booking.estimatedHoursPerSession === 1
+                                      ? "hour"
+                                      : "hours"
+                                  }`}
+                                />
+                              )}
                             {isMultiSession && (
                               <>
                                 <BookingDetailTile

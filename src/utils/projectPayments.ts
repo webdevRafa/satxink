@@ -40,6 +40,34 @@ export const buildEqualSessionAllocations = ({
   });
 };
 
+export const getMaximumSessionDepositCents = ({
+  totalQuote,
+  sessionCount,
+}: {
+  totalQuote: number;
+  sessionCount: number;
+}) => {
+  if (
+    !Number.isFinite(totalQuote) ||
+    totalQuote <= 0 ||
+    !Number.isInteger(sessionCount) ||
+    sessionCount < 1
+  ) {
+    return 0;
+  }
+
+  const allocations = buildEqualSessionAllocations({
+    totalQuote,
+    sessionCount,
+    depositAmount: 0,
+  });
+  const smallestSessionCents = Math.min(
+    ...allocations.map((allocation) => allocation.quotedAmountCents)
+  );
+
+  return Math.floor(smallestSessionCents * MAX_SESSION_DEPOSIT_RATE);
+};
+
 export const getSessionAllocationError = ({
   totalQuote,
   sessionCount,
@@ -61,17 +89,10 @@ export const getSessionAllocationError = ({
     return "Enter a deposit to reserve each session.";
   }
 
-  const allocations = buildEqualSessionAllocations({
+  const maximumDepositCents = getMaximumSessionDepositCents({
     totalQuote,
     sessionCount,
-    depositAmount,
   });
-  const smallestSessionCents = Math.min(
-    ...allocations.map((allocation) => allocation.quotedAmountCents)
-  );
-  const maximumDepositCents = Math.floor(
-    smallestSessionCents * MAX_SESSION_DEPOSIT_RATE
-  );
 
   if (toCents(depositAmount) > maximumDepositCents) {
     return `The session deposit cannot exceed 50% of the session price (${new Intl.NumberFormat(
