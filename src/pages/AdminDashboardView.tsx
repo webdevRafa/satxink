@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   where,
 } from "firebase/firestore";
 import { auth, db } from "../firebase/firebaseConfig";
@@ -30,6 +31,8 @@ import {
   XCircle,
   Mail,
   Store,
+  Link2,
+  LoaderCircle,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import toast from "react-hot-toast";
@@ -1501,12 +1504,26 @@ const ArtistsTable: React.FC<
 };
 
 const ShopRequestsTable: React.FC<
-  TableProps<GenericRecord> & { adminUser: UserRecord | null }
-> = ({ data, onSelect, status, adminUser }) => {
+  TableProps<GenericRecord> & {
+    adminUser: UserRecord | null;
+    shops: GenericRecord[];
+  }
+> = ({ data, onSelect, status, adminUser, shops }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<ShopRequestStatusFilter>("all");
   const [savingId, setSavingId] = useState("");
+  const [selectedShopIds, setSelectedShopIds] = useState<
+    Record<string, string>
+  >({});
+
+  const sortedShops = useMemo(
+    () =>
+      [...shops].sort((left, right) =>
+        getString(left, "name").localeCompare(getString(right, "name"))
+      ),
+    [shops]
+  );
 
   const filteredRequests = useMemo(
     () =>
@@ -1532,7 +1549,7 @@ const ShopRequestsTable: React.FC<
 
   const updateRequestStatus = async (
     request: GenericRecord,
-    nextStatus: "reviewed" | "resolved"
+    nextStatus: "reviewed"
   ) => {
     setSavingId(request.id);
     try {
@@ -1542,18 +1559,75 @@ const ShopRequestsTable: React.FC<
         reviewedAt: serverTimestamp(),
         reviewedBy: adminUser?.id || null,
         reviewedByEmail: adminUser?.email || null,
-        ...(nextStatus === "resolved"
-          ? { resolvedAt: serverTimestamp() }
-          : {}),
       });
-      toast.success(
-        nextStatus === "resolved"
-          ? "Shop request resolved"
-          : "Shop request marked reviewed"
-      );
+      toast.success("Shop request marked reviewed");
     } catch (error) {
       console.error("Failed to update unlisted shop request", error);
       toast.error("Could not update shop request");
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const linkShopToArtist = async (request: GenericRecord) => {
+    const artistId = getString(request, "artistId");
+    const shopId = selectedShopIds[request.id] || "";
+    const shop = sortedShops.find((candidate) => candidate.id === shopId);
+    const shopName = shop ? getString(shop, "name") : "";
+    const shopMapLink = shop ? getString(shop, "mapLink") : "";
+
+    if (!artistId || !shopId || !shopName) {
+      toast.error("Choose a shop before linking");
+      return;
+    }
+
+    setSavingId(request.id);
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, "users", artistId), {
+        shopId,
+        shopName,
+        studioName: shopName,
+        shopMapLink,
+        shopRequestPending: false,
+        requestedShopName: "",
+        updatedAt: serverTimestamp(),
+      });
+      batch.update(doc(db, "unlistedShopRequests", request.id), {
+        status: "resolved",
+        linkedShopId: shopId,
+        linkedShopName: shopName,
+        linkedAt: serverTimestamp(),
+        linkedBy: adminUser?.id || null,
+        linkedByEmail: adminUser?.email || null,
+        resolvedAt: serverTimestamp(),
+        artistEmailStatus: "pending",
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      toast.success(`${shopName} linked. Artist notification queued.`);
+    } catch (error) {
+      console.error("Failed to link shop to artist", error);
+      toast.error("Could not link this shop. No changes were saved.");
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const retryArtistEmail = async (request: GenericRecord) => {
+    setSavingId(request.id);
+    try {
+      await updateDoc(doc(db, "unlistedShopRequests", request.id), {
+        artistEmailStatus: "pending",
+        artistEmailError: null,
+        artistEmailRetryRequestedAt: serverTimestamp(),
+        artistEmailRetryRequestedBy: adminUser?.id || null,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("Artist email queued again");
+    } catch (error) {
+      console.error("Failed to retry artist shop email", error);
+      toast.error("Could not retry the artist email");
     } finally {
       setSavingId("");
     }
@@ -1567,7 +1641,8 @@ const ShopRequestsTable: React.FC<
             Unlisted shop requests
           </h2>
           <p className="mt-1 text-sm text-neutral-400">
-            Artists who could not find their studio during profile setup.
+            Match each request to an existing shop. Linking updates the artist,
+            resolves the request, and queues their confirmation email.
           </p>
         </div>
         <DataHealth
@@ -1618,12 +1693,13 @@ const ShopRequestsTable: React.FC<
       </ToolPanel>
 
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[940px] divide-y divide-white/10">
+        <div className="min-w-[1240px] divide-y divide-white/10">
           <div
-            className={`${tableHeaderClass} grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(120px,.55fr)_minmax(120px,.55fr)_250px]`}
+            className={`${tableHeaderClass} grid-cols-[minmax(210px,.9fr)_minmax(190px,.8fr)_minmax(330px,1.35fr)_minmax(120px,.5fr)_minmax(120px,.5fr)_200px]`}
           >
             <span>Artist</span>
             <span>Requested shop</span>
+            <span>Link shop</span>
             <span>Status</span>
             <span>Submitted</span>
             <span className="text-right">Actions</span>
@@ -1634,6 +1710,10 @@ const ShopRequestsTable: React.FC<
             const email = getString(request, "artistEmail");
             const requestedShopName = getString(request, "requestedShopName");
             const isSaving = savingId === request.id;
+            const linkedShopId = getString(request, "linkedShopId");
+            const linkedShopName = getString(request, "linkedShopName");
+            const emailStatus = getString(request, "artistEmailStatus");
+            const selectedShopId = selectedShopIds[request.id] || "";
 
             return (
               <div
@@ -1647,7 +1727,7 @@ const ShopRequestsTable: React.FC<
                     onSelect(request);
                   }
                 }}
-                className={`${tableRowClass} grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_minmax(120px,.55fr)_minmax(120px,.55fr)_250px]`}
+                className={`${tableRowClass} grid-cols-[minmax(210px,.9fr)_minmax(190px,.8fr)_minmax(330px,1.35fr)_minmax(120px,.5fr)_minmax(120px,.5fr)_200px]`}
               >
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-white">
@@ -1667,6 +1747,88 @@ const ShopRequestsTable: React.FC<
                     </span>
                   )}
                 </span>
+                <div
+                  className="min-w-0"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {linkedShopId ? (
+                    <div className="flex min-w-0 flex-col items-start gap-1.5">
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-emerald-100">
+                        <CheckCircle2
+                          size={15}
+                          className="shrink-0 text-emerald-300"
+                        />
+                        <span className="truncate">
+                          {linkedShopName || "Shop linked"}
+                        </span>
+                      </span>
+                      <span
+                        className={`w-fit rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          emailStatus === "sent"
+                            ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-200"
+                            : emailStatus === "failed"
+                              ? "border-red-300/20 bg-red-300/10 text-red-200"
+                              : "border-sky-300/20 bg-sky-300/10 text-sky-200"
+                        }`}
+                      >
+                        {emailStatus === "sent"
+                          ? "Email sent"
+                          : emailStatus === "failed"
+                            ? "Email needs attention"
+                            : "Email queued"}
+                      </span>
+                      {emailStatus === "failed" && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => retryArtistEmail(request)}
+                          className="text-[11px] font-semibold text-red-200 underline decoration-red-200/30 underline-offset-2 transition hover:text-white disabled:cursor-wait disabled:opacity-50"
+                        >
+                          Retry email
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={`Shop to link for ${requestedShopName || "this request"}`}
+                        value={selectedShopId}
+                        disabled={isSaving || sortedShops.length === 0}
+                        onChange={(event) =>
+                          setSelectedShopIds((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        className="h-9 min-w-0 flex-1 rounded-md border border-white/10 bg-neutral-950 px-2 text-xs text-neutral-200 outline-none transition focus:border-white/35 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">
+                          {sortedShops.length === 0
+                            ? "No shops available"
+                            : "Choose a shop"}
+                        </option>
+                        {sortedShops.map((shop) => (
+                          <option key={shop.id} value={shop.id}>
+                            {getString(shop, "name") || "Unnamed shop"}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isSaving || !selectedShopId}
+                        onClick={() => linkShopToArtist(request)}
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {isSaving ? (
+                          <LoaderCircle size={14} className="animate-spin" />
+                        ) : (
+                          <Link2 size={14} />
+                        )}
+                        Link
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <span className={inlineCellClass}>
                   <span
                     className={getAdminStatusBadgeClass(
@@ -1704,20 +1866,6 @@ const ShopRequestsTable: React.FC<
                     >
                       <CheckCircle2 size={14} />
                       Review
-                    </button>
-                  )}
-                  {requestStatus !== "resolved" && (
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        updateRequestStatus(request, "resolved");
-                      }}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 hover:bg-emerald-300/15 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      <CheckCircle2 size={14} />
-                      Resolve
                     </button>
                   )}
                 </span>
@@ -3091,6 +3239,7 @@ const AdminDashboardView: React.FC = () => {
   const [bookings, setBookings] = useState<GenericRecord[]>([]);
   const [sessions, setSessions] = useState<GenericRecord[]>([]);
   const [shopRequests, setShopRequests] = useState<GenericRecord[]>([]);
+  const [shops, setShops] = useState<GenericRecord[]>([]);
   const [contactMessages, setContactMessages] = useState<GenericRecord[]>([]);
   const [featuredArtistId, setFeaturedArtistId] = useState("");
   const [collectionStatuses, setCollectionStatuses] = useState(
@@ -3284,6 +3433,13 @@ const AdminDashboardView: React.FC = () => {
       },
       (error) => updateStatus("shopRequests", getCollectionErrorState(error))
     );
+    const unsubShops = onSnapshot(collection(db, "shops"), (snap) => {
+      const results: GenericRecord[] = [];
+      snap.forEach((docSnap) => {
+        results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+      });
+      setShops(results);
+    });
     const contactMessagesQuery = query(
       collection(db, "contactMessages"),
       orderBy("createdAt", "desc")
@@ -3310,6 +3466,7 @@ const AdminDashboardView: React.FC = () => {
       unsubBookings();
       unsubSessions();
       unsubShopRequests();
+      unsubShops();
       unsubContactMessages();
     };
   }, [currentUser]);
@@ -3398,6 +3555,7 @@ const AdminDashboardView: React.FC = () => {
         {activeView === "shopRequests" && (
           <ShopRequestsTable
             data={shopRequests}
+            shops={shops}
             status={collectionStatuses.shopRequests}
             adminUser={currentUser}
             onSelect={(item) => setSelectedItem(item)}

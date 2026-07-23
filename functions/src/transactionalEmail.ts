@@ -627,6 +627,49 @@ const renderArtistWelcomeEmail = (
   });
 };
 
+const renderArtistShopLinkedEmail = (
+  requestId: string,
+  request: admin.firestore.DocumentData,
+  artist: admin.firestore.DocumentData | null,
+  shop: admin.firestore.DocumentData | null
+): EmailTemplate => {
+  const artistName = firstString(
+    artist?.displayName,
+    artist?.name,
+    request.artistName,
+    "there"
+  );
+  const shopName = firstString(
+    shop?.name,
+    request.linkedShopName,
+    "Your studio"
+  );
+
+  return buildEmail(`${shopName} is now linked to your SATX Ink profile`, {
+    preview: `${shopName} is now connected to your artist profile.`,
+    eyebrow: "Shop connected",
+    headline: "Your studio is now connected.",
+    body: `${shopName} has been linked to your SATX Ink artist account. Your dashboard and public profile now use the official shop listing.`,
+    avatarUrl: firstString(artist?.avatarUrl, request.artistAvatarUrl),
+    avatarAlt: artistName,
+    sections: [
+      {
+        title: "Connection details",
+        rows: [
+          { label: "Artist", value: artistName },
+          { label: "Studio", value: shopName },
+          { label: "Status", value: "Connected" },
+        ],
+      },
+    ],
+    cta: {
+      label: "Open artist dashboard",
+      href: getAbsoluteUrl("/dashboard?tab=profile"),
+    },
+    footerNote: `Shop request ID: ${requestId}`,
+  });
+};
+
 const renderRequestEmail = (
   requestId: string,
   request: admin.firestore.DocumentData,
@@ -1125,6 +1168,90 @@ export const sendArtistCompletedWelcomeEmail = onDocumentUpdated(
     const after = event.data?.after.data();
     if (!after || before?.profileComplete === true) return;
     await sendArtistWelcome(event.params.uid, after);
+  }
+);
+
+export const sendArtistShopLinkedEmail = onDocumentUpdated(
+  {
+    document: "unlistedShopRequests/{requestId}",
+    region: EMAIL_REGION,
+    secrets: [RESEND_API_KEY],
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    const linkedShopId = firstString(after?.linkedShopId);
+    const isNewLink =
+      linkedShopId !== firstString(before?.linkedShopId);
+    const isEmailRetry =
+      before?.artistEmailStatus === "failed" &&
+      after?.artistEmailStatus === "pending";
+
+    if (!after || !linkedShopId || (!isNewLink && !isEmailRetry)) {
+      return;
+    }
+
+    const requestId = event.params.requestId;
+    const requestRef = getDb()
+      .collection("unlistedShopRequests")
+      .doc(requestId);
+    const [artist, shop] = await Promise.all([
+      getUser(firstString(after.artistId)),
+      getShop(linkedShopId),
+    ]);
+    const artistEmail = firstString(getUserEmail(artist), after.artistEmail);
+
+    if (!artistEmail) {
+      await requestRef.set(
+        {
+          artistEmailStatus: "failed",
+          artistEmailError: "Artist email address is unavailable.",
+          artistEmailFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      logger.warn("Shop linked email skipped because the artist has no email.", {
+        requestId,
+        artistId: firstString(after.artistId),
+      });
+      return;
+    }
+
+    try {
+      await sendTransactionalEmail({
+        eventKey: `shop-linked-${requestId}-${linkedShopId}`,
+        from: "accounts",
+        to: artistEmail,
+        ...renderArtistShopLinkedEmail(requestId, after, artist, shop),
+      });
+      await requestRef.set(
+        {
+          artistEmailStatus: "sent",
+          artistEmailError: admin.firestore.FieldValue.delete(),
+          artistEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await requestRef.set(
+        {
+          artistEmailStatus: "failed",
+          artistEmailError: message.slice(0, 500),
+          artistEmailFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      logger.error("Failed to send shop linked email.", {
+        requestId,
+        artistId: firstString(after.artistId),
+        error: message,
+      });
+      throw error;
+    }
   }
 );
 

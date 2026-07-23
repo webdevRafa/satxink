@@ -296,6 +296,8 @@ type DashboardArtist = {
   slug?: string;
   calendarToken?: string;
   shopId?: string;
+  shopRequestPending?: boolean;
+  requestedShopName?: string;
   stripeConnect?: Artist["stripeConnect"];
   paymentType?: PaymentType;
   finalPaymentTiming?: FinalPaymentTiming;
@@ -709,6 +711,40 @@ const ArtistDashboardView = () => {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!uid) return undefined;
+
+    return onSnapshot(
+      doc(db, "users", uid),
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const data = snapshot.data();
+        const shopConnectionFields: Partial<DashboardArtist> = {
+          shopId: typeof data.shopId === "string" ? data.shopId : "",
+          shopName: typeof data.shopName === "string" ? data.shopName : "",
+          studioName:
+            typeof data.studioName === "string" ? data.studioName : "",
+          shopMapLink:
+            typeof data.shopMapLink === "string" ? data.shopMapLink : "",
+          shopRequestPending: data.shopRequestPending === true,
+          requestedShopName:
+            typeof data.requestedShopName === "string"
+              ? data.requestedShopName
+              : "",
+        };
+
+        setArtist((current) =>
+          current
+            ? { ...current, ...shopConnectionFields }
+            : ({ ...data, ...shopConnectionFields } as DashboardArtist)
+        );
+      },
+      (error) => {
+        console.error("Failed to watch artist shop connection", error);
+      }
+    );
+  }, [uid]);
 
   const updateProfileForm = (
     updater:
@@ -1709,6 +1745,9 @@ const ArtistDashboardView = () => {
 
       <main className="relative min-w-0 flex-1 p-6">
         {artist && <ArtistDashboardProfileHeader artist={artist} />}
+        {artist?.shopRequestPending && (
+          <ArtistShopConnectionNotice artist={artist} />
+        )}
 
         <div
           ref={dashboardContentStartRef}
@@ -3325,6 +3364,57 @@ const ArtistDashboardProfileHeader = ({
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+};
+
+const ArtistShopConnectionNotice = ({
+  artist,
+}: {
+  artist: DashboardArtist;
+}) => {
+  const requestedShopName =
+    artist.requestedShopName || artist.shopName || artist.studioName;
+
+  return (
+    <section
+      aria-live="polite"
+      aria-label="Shop connection status"
+      className="mt-5 w-full max-w-6xl overflow-hidden rounded-xl border border-amber-200/15 bg-[linear-gradient(135deg,rgba(245,158,11,0.12),rgba(255,255,255,0.025)_62%)] shadow-[0_18px_48px_rgba(0,0,0,0.2)]"
+    >
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex min-w-0 gap-3.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-200/15 bg-amber-200/10 text-amber-100">
+            <Store size={19} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/75">
+              Shop connection
+            </p>
+            <h2 className="mt-1 text-base font-semibold text-white sm:text-lg">
+              We’re reviewing your studio request
+            </h2>
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-neutral-300">
+              {requestedShopName ? (
+                <>
+                  <span className="font-medium text-white">
+                    {requestedShopName}
+                  </span>{" "}
+                  was sent to the SATX Ink team.
+                </>
+              ) : (
+                "Your studio details were sent to the SATX Ink team."
+              )}{" "}
+              You can keep using your dashboard while we add and link the
+              official shop listing. We’ll email you as soon as it’s connected.
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-amber-200/15 bg-black/20 px-3 py-1.5 text-xs font-semibold text-amber-100">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.7)]" />
+          Pending review
+        </span>
       </div>
     </section>
   );
