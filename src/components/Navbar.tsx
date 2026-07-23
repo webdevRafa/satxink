@@ -4,7 +4,7 @@ import { signOutUser, auth } from "../firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { AuthProviderSignInButtons } from "./GoogleSignupButton";
 import {
   ArrowRight,
@@ -50,8 +50,30 @@ const desktopNavItems = [
 type NavbarUserDoc = {
   avatarUrl?: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
   role?: "artist" | "client" | "admin";
+};
+
+const normalizeFirestoreName = (value?: string) =>
+  value?.trim().replace(/\s+/g, " ") || "";
+
+const getFirestoreAccountName = (userDoc: NavbarUserDoc | null) => {
+  if (!userDoc) return "";
+
+  const fullName = [
+    normalizeFirestoreName(userDoc.firstName),
+    normalizeFirestoreName(userDoc.lastName),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    fullName ||
+    normalizeFirestoreName(userDoc.name) ||
+    normalizeFirestoreName(userDoc.displayName)
+  );
 };
 
 const getAvatarInitial = (label?: string | null) => {
@@ -78,13 +100,12 @@ export const Navbar = () => {
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const firestoreAvatarUrl = userDoc?.avatarUrl?.trim() || "";
-  const avatarLabel =
-    userDoc?.name || userDoc?.displayName || user?.displayName || "User avatar";
-  const avatarInitial = getAvatarInitial(
-    userDoc?.name || userDoc?.displayName || user?.displayName || user?.email
-  );
-  const accountDisplayName =
-    userDoc?.name || userDoc?.displayName || user?.displayName || "Signed in";
+  const firestoreAccountName = getFirestoreAccountName(userDoc);
+  const avatarLabel = firestoreAccountName || "User avatar";
+  const avatarInitial = getAvatarInitial(firestoreAccountName || user?.email);
+  const accountDisplayName = firestoreAccountName || "Signed in";
+  const isAccountLoading =
+    isAuthLoading || Boolean(user && isUserDocLoading);
   const accountDestination = userRole === "admin" ? "/admin" : "/dashboard";
   const accountDestinationLabel =
     userRole === "admin" ? "Open admin dashboard" : "Open dashboard";
@@ -135,45 +156,15 @@ export const Navbar = () => {
 
   useEffect(() => {
     let isSubscribed = true;
-    const retryTimers: number[] = [];
+    let unsubscribeUserDoc: (() => void) | null = null;
 
-    const clearRetryTimers = () => {
-      retryTimers.forEach((timerId) => window.clearTimeout(timerId));
-      retryTimers.length = 0;
-    };
-
-    const tryFetchUserData = async (uid: string, retries = 2) => {
-      try {
-        const userRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
-
-        if (userSnap.exists()) {
-          const data = userSnap.data() as NavbarUserDoc;
-          setUserRole(data.role ?? null);
-          setUserDoc(data);
-          setIsUserDocLoading(false);
-        } else if (retries > 0) {
-          const retryTimerId = window.setTimeout(() => {
-            tryFetchUserData(uid, retries - 1);
-          }, 1000);
-          retryTimers.push(retryTimerId);
-        } else {
-          setUserRole(null);
-          setUserDoc(null);
-          setIsUserDocLoading(false);
-        }
-      } catch {
-        if (!isSubscribed || auth.currentUser?.uid !== uid) return;
-        setUserRole(null);
-        setUserDoc(null);
-        setIsUserDocLoading(false);
-      }
+    const clearUserDocSubscription = () => {
+      unsubscribeUserDoc?.();
+      unsubscribeUserDoc = null;
     };
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      clearRetryTimers();
+      clearUserDocSubscription();
       setIsAuthLoading(false);
       setUser(firebaseUser);
       setUserRole(null);
@@ -183,7 +174,29 @@ export const Navbar = () => {
 
       if (firebaseUser) {
         setIsUserDocLoading(true);
-        tryFetchUserData(firebaseUser.uid);
+        const uid = firebaseUser.uid;
+        unsubscribeUserDoc = onSnapshot(
+          doc(db, "users", uid),
+          (userSnapshot) => {
+            if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+
+            if (userSnapshot.exists()) {
+              const data = userSnapshot.data() as NavbarUserDoc;
+              setUserRole(data.role ?? null);
+              setUserDoc(data);
+            } else {
+              setUserRole(null);
+              setUserDoc(null);
+            }
+            setIsUserDocLoading(false);
+          },
+          () => {
+            if (!isSubscribed || auth.currentUser?.uid !== uid) return;
+            setUserRole(null);
+            setUserDoc(null);
+            setIsUserDocLoading(false);
+          }
+        );
       } else {
         setIsUserDocLoading(false);
       }
@@ -191,7 +204,7 @@ export const Navbar = () => {
 
     return () => {
       isSubscribed = false;
-      clearRetryTimers();
+      clearUserDocSubscription();
       unsubscribe();
     };
   }, []);
@@ -315,7 +328,7 @@ export const Navbar = () => {
           </NavLink>
 
           <div className="flex w-[184px] shrink-0 justify-end">
-            {isAuthLoading ? (
+            {isAccountLoading ? (
               <div
                 className={`flex h-10 w-full items-center justify-between rounded-full border px-3 transition duration-300 ${
                   isScrolled
@@ -497,7 +510,7 @@ export const Navbar = () => {
           </div>
 
           <div className="relative flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            {isAuthLoading ? (
+            {isAccountLoading ? (
               <section
                 className="rounded-lg border border-white/10 bg-white/[0.04] p-4"
                 aria-hidden="true"

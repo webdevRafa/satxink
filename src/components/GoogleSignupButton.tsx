@@ -229,6 +229,7 @@ const createClientProfile = (role: SignupRole, result: UserCredential) => {
 const createArtistProfile = (result: UserCredential) => {
   const user = result.user;
   const providerDisplayName = getCredentialDisplayName(result);
+  const providerName = splitFullName(providerDisplayName);
 
   return {
     avatarUrl: user.photoURL || "",
@@ -238,7 +239,10 @@ const createArtistProfile = (result: UserCredential) => {
     displayName: providerDisplayName,
     email: user.email || "",
     featured: false,
+    firstName: providerName.firstName,
     isVerified: false,
+    lastName: providerName.lastName,
+    name: providerName.fullName || providerDisplayName,
     phoneNumber: user.phoneNumber || "",
     paymentType: "internal",
     depositPolicy: {
