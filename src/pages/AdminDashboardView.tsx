@@ -152,6 +152,8 @@ const tableHeaderClass =
 const tableRowClass =
   "grid min-h-[62px] w-full items-center gap-4 px-4 py-3 text-left text-sm hover:bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-white";
 const inlineCellClass = "flex min-h-8 min-w-0 items-center";
+const artistTableGridClass =
+  "grid-cols-[minmax(170px,.9fr)_minmax(130px,.7fr)_minmax(150px,.8fr)_minmax(180px,.9fr)_minmax(105px,.55fr)_minmax(90px,.5fr)_95px]";
 
 const normalizeSearch = (value: unknown) =>
   String(value || "").trim().toLowerCase();
@@ -1752,9 +1754,11 @@ const ArtistsTable: React.FC<
         />
       </ToolPanel>
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[1160px] divide-y divide-white/10">
+        <div className="min-w-[1020px] divide-y divide-white/10">
           {/* Header */}
-          <div className={`${tableHeaderClass} grid-cols-[minmax(230px,1.1fr)_minmax(165px,.75fr)_minmax(180px,.85fr)_minmax(210px,.9fr)_minmax(115px,.5fr)_minmax(105px,.45fr)_105px]`}>
+          <div
+            className={`${tableHeaderClass} ${artistTableGridClass} gap-3! px-3!`}
+          >
             <span>Artist</span>
             <span>Instagram</span>
             <span>Shop</span>
@@ -1783,7 +1787,7 @@ const ArtistsTable: React.FC<
                     onSelect(artist);
                   }
                 }}
-                className={`${tableRowClass} grid-cols-[minmax(230px,1.1fr)_minmax(165px,.75fr)_minmax(180px,.85fr)_minmax(210px,.9fr)_minmax(115px,.5fr)_minmax(105px,.45fr)_105px]`}
+                className={`${tableRowClass} ${artistTableGridClass} gap-3! px-3!`}
               >
                 <PersonCell
                   name={artistName}
