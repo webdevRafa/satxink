@@ -33,6 +33,9 @@ import {
   Store,
   Link2,
   LoaderCircle,
+  ExternalLink,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import toast from "react-hot-toast";
@@ -66,6 +69,7 @@ type AdminView =
   | "contactMessages";
 type StripeFilter = "all" | "connected" | "not_connected";
 type FeaturedFilter = "all" | "featured" | "not_featured";
+type VerificationFilter = "all" | "verified" | "unverified";
 type ArtistAttentionFilter = "all" | "needs_stripe" | "missing_name";
 type RequestStatusFilter = "all" | "waiting" | "responded" | "other";
 type RequestAttentionFilter = "all" | "waiting_24h";
@@ -109,6 +113,7 @@ interface ArtistRecord {
   photoURL?: string;
   location?: string;
   featured?: boolean;
+  isVerified?: boolean | "true" | "false";
   createdAt?: unknown;
   [key: string]: unknown;
 }
@@ -239,6 +244,34 @@ const getUserName = (user: UserRecord | undefined, fallbackId?: string) =>
 
 const getUserAvatar = (user: UserRecord | undefined) =>
   user?.avatarUrl || user?.avatar || user?.photoURL || "";
+
+const isArtistVerified = (artist: ArtistRecord) =>
+  artist.isVerified === true || artist.isVerified === "true";
+
+const getArtistInstagramHandle = (artist: ArtistRecord) => {
+  const socialLinks = artist.socialLinks;
+  const nestedInstagram =
+    socialLinks && typeof socialLinks === "object"
+      ? (socialLinks as { instagram?: unknown }).instagram
+      : "";
+  const rawValue =
+    typeof nestedInstagram === "string"
+      ? nestedInstagram
+      : getString(artist, "instagram");
+
+  return rawValue
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^(www\.)?instagram\.com\//i, "")
+    .replace(/^@/, "")
+    .split(/[/?#]/)[0]
+    .trim();
+};
+
+const getArtistInstagramUrl = (artist: ArtistRecord) => {
+  const handle = getArtistInstagramHandle(artist);
+  return handle ? `https://instagram.com/${handle}` : "";
+};
 
 const getPersonName = (
   record: GenericRecord,
@@ -711,13 +744,15 @@ const PersonCell = ({
   avatar,
   fallbackLabel,
   copyValue,
+  secondary,
 }: {
   name: string;
   avatar?: string;
   fallbackLabel: string;
   copyValue?: string;
+  secondary?: string;
 }) => (
-  <span className="flex min-h-8 min-w-0 items-center gap-2">
+  <span className="flex min-h-9 min-w-0 items-center gap-2.5">
     {avatar ? (
       <img
         src={avatar}
@@ -727,20 +762,27 @@ const PersonCell = ({
     ) : (
       <div className="h-6 w-6 flex-shrink-0 rounded-full bg-white/10" />
     )}
-    <span className="flex min-w-0 items-center gap-1 leading-none">
-      <span className="truncate">{name || fallbackLabel}</span>
-      {copyValue && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            copyToClipboard(copyValue);
-          }}
-          className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
-          aria-label={`Copy ${fallbackLabel} ID`}
-        >
-          <Copy size={14} />
-        </button>
+    <span className="flex min-w-0 flex-col gap-1">
+      <span className="flex min-w-0 items-center gap-1 leading-none">
+        <span className="truncate">{name || fallbackLabel}</span>
+        {copyValue && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyToClipboard(copyValue);
+            }}
+            className="ml-1 flex-shrink-0 text-neutral-400 hover:text-white"
+            aria-label={`Copy ${fallbackLabel} ID`}
+          >
+            <Copy size={14} />
+          </button>
+        )}
+      </span>
+      {secondary && (
+        <span className="truncate text-xs font-normal leading-none text-neutral-500">
+          {secondary}
+        </span>
       )}
     </span>
   </span>
@@ -908,17 +950,26 @@ const ToggleFeaturedButton = ({
       type="button"
       onClick={handleToggle}
       disabled={isSaving}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-md border transition ${
+      className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition ${
         featured
-          ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
-          : "border-white/10 text-neutral-500 hover:border-white/25 hover:text-white"
-      } disabled:opacity-50`}
+          ? "border-amber-300/25 bg-amber-300/10 text-amber-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+          : "border-white/10 bg-white/[0.025] text-neutral-400 hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
+      } disabled:cursor-wait disabled:opacity-50`}
       aria-label={
         featured ? "Clear homepage spotlight" : "Make homepage spotlight"
       }
       title={featured ? "Homepage spotlight" : "Make homepage spotlight"}
     >
-      <Star size={15} fill={featured ? "currentColor" : "none"} />
+      {isSaving ? (
+        <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
+      ) : (
+        <Star
+          size={13}
+          fill={featured ? "currentColor" : "none"}
+          aria-hidden="true"
+        />
+      )}
+      {featured ? "Spotlight" : "Feature"}
     </button>
   );
 };
@@ -1316,23 +1367,198 @@ interface TableProps<T> {
   status?: CollectionStatus;
 }
 
+const ArtistVerificationModal = ({
+  artist,
+  isSaving,
+  onClose,
+  onConfirm,
+}: {
+  artist: ArtistRecord | null;
+  isSaving: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) => {
+  const [isConfirmed, setIsConfirmed] = useState(false);
+
+  useEffect(() => {
+    setIsConfirmed(false);
+  }, [artist?.id]);
+
+  const artistName = artist ? getUserName(artist, artist.id) : "Artist";
+  const instagramHandle = artist ? getArtistInstagramHandle(artist) : "";
+  const instagramUrl = artist ? getArtistInstagramUrl(artist) : "";
+  const shopName = artist
+    ? getString(artist, "shopName") ||
+      getString(artist, "studioName") ||
+      "No shop selected"
+    : "";
+
+  return (
+    <Transition.Root show={Boolean(artist)} as={Fragment}>
+      <Dialog
+        as="div"
+        className="relative z-[160]"
+        onClose={() => {
+          if (!isSaving) onClose();
+        }}
+      >
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-200"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto p-4 sm:p-6">
+          <div className="flex min-h-full items-center justify-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-200"
+              enterFrom="opacity-0 translate-y-3 scale-[0.98]"
+              enterTo="opacity-100 translate-y-0 scale-100"
+              leave="ease-in duration-150"
+              leaveFrom="opacity-100 translate-y-0 scale-100"
+              leaveTo="opacity-0 translate-y-3 scale-[0.98]"
+            >
+              <Dialog.Panel className="w-full max-w-lg overflow-hidden rounded-xl border border-white/10 bg-[#111] shadow-2xl shadow-black/60">
+                <div className="border-b border-white/10 p-5 sm:p-6">
+                  <div className="flex items-start gap-3.5">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-300/15 bg-emerald-300/10 text-emerald-200">
+                      <ShieldCheck size={20} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200/70">
+                        Artist verification
+                      </p>
+                      <Dialog.Title className="mt-1 text-xl font-semibold text-white">
+                        Verify {artistName}?
+                      </Dialog.Title>
+                      <p className="mt-2 text-sm leading-6 text-neutral-400">
+                        Verification confirms this identity and shop affiliation
+                        were reviewed against the artist’s Instagram profile.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 p-5 sm:p-6">
+                  <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.025]">
+                    <div className="grid grid-cols-[110px_1fr] gap-3 border-b border-white/10 px-4 py-3 text-sm">
+                      <span className="text-neutral-500">Artist</span>
+                      <span className="min-w-0 truncate font-medium text-white">
+                        {artistName}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr] gap-3 border-b border-white/10 px-4 py-3 text-sm">
+                      <span className="text-neutral-500">Instagram</span>
+                      {instagramUrl ? (
+                        <a
+                          href={instagramUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-w-0 items-center gap-1.5 font-medium text-sky-200 hover:text-white"
+                        >
+                          <span className="truncate">@{instagramHandle}</span>
+                          <ExternalLink size={13} className="shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-red-200">Not provided</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-[110px_1fr] gap-3 px-4 py-3 text-sm">
+                      <span className="text-neutral-500">Selected shop</span>
+                      <span className="min-w-0 truncate font-medium text-white">
+                        {shopName}
+                      </span>
+                    </div>
+                  </div>
+
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-4 transition hover:border-white/20">
+                    <input
+                      type="checkbox"
+                      checked={isConfirmed}
+                      onChange={(event) => setIsConfirmed(event.target.checked)}
+                      disabled={isSaving}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-400"
+                    />
+                    <span className="text-sm leading-5 text-neutral-300">
+                      I confirmed the Instagram identity and verified that the
+                      represented shop matches the artist’s selected shop.
+                    </span>
+                  </label>
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 border-t border-white/10 bg-black/20 p-4 sm:flex-row sm:justify-end sm:px-6">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isSaving}
+                    className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 px-4! py-0! text-sm! font-semibold text-neutral-300 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={!isConfirmed || isSaving || !instagramUrl}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-emerald-300/20 bg-emerald-300/10 px-4! py-0! text-sm! font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isSaving ? (
+                      <LoaderCircle
+                        size={15}
+                        className="animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ShieldCheck size={15} aria-hidden="true" />
+                    )}
+                    Verify artist
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition.Root>
+  );
+};
+
 const ArtistsTable: React.FC<
   TableProps<ArtistRecord> & {
     featuredArtistId: string;
-    adminUserId?: string;
+    adminUser: UserRecord;
   }
 > = ({
   data,
   onSelect,
   status,
   featuredArtistId,
-  adminUserId,
+  adminUser,
 }) => {
   const [search, setSearch] = useState("");
   const [stripeFilter, setStripeFilter] = useState<StripeFilter>("all");
   const [featuredFilter, setFeaturedFilter] = useState<FeaturedFilter>("all");
+  const [verificationFilter, setVerificationFilter] =
+    useState<VerificationFilter>("all");
   const [attentionFilter, setAttentionFilter] =
     useState<ArtistAttentionFilter>("all");
+  const [verificationTarget, setVerificationTarget] =
+    useState<ArtistRecord | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const legacyFeaturedArtistIds = useMemo(
+    () =>
+      data
+        .filter((candidate) => candidate.featured === true)
+        .map((candidate) => candidate.id),
+    [data]
+  );
 
   const filteredArtists = useMemo(
     () =>
@@ -1349,6 +1575,11 @@ const ArtistsTable: React.FC<
           featuredFilter === "all" ||
           (featuredFilter === "featured" && featured) ||
           (featuredFilter === "not_featured" && !featured);
+        const verified = isArtistVerified(artist);
+        const matchesVerification =
+          verificationFilter === "all" ||
+          (verificationFilter === "verified" && verified) ||
+          (verificationFilter === "unverified" && !verified);
         const matchesAttention =
           attentionFilter === "all" ||
           (attentionFilter === "needs_stripe" && !stripeConnected) ||
@@ -1356,6 +1587,7 @@ const ArtistsTable: React.FC<
         return (
           matchesStripe &&
           matchesFeatured &&
+          matchesVerification &&
           matchesAttention &&
           matchesSearch(search, [
             artist.id,
@@ -1363,25 +1595,89 @@ const ArtistsTable: React.FC<
             artist.name,
             artist.username,
             artist.email,
+            getArtistInstagramHandle(artist),
+            getString(artist, "shopName"),
+            getString(artist, "studioName"),
           ])
         );
       }),
-    [attentionFilter, data, featuredArtistId, featuredFilter, search, stripeFilter]
+    [
+      attentionFilter,
+      data,
+      featuredArtistId,
+      featuredFilter,
+      search,
+      stripeFilter,
+      verificationFilter,
+    ]
   );
 
   const hasActiveTools =
     search ||
     stripeFilter !== "all" ||
     featuredFilter !== "all" ||
+    verificationFilter !== "all" ||
     attentionFilter !== "all";
 
+  const unverifiedCount = data.filter(
+    (artist) => !isArtistVerified(artist)
+  ).length;
+
+  const verifyArtist = async () => {
+    if (!verificationTarget) return;
+
+    setIsVerifying(true);
+    try {
+      await updateDoc(doc(db, "users", verificationTarget.id), {
+        isVerified: true,
+        verifiedAt: serverTimestamp(),
+        verifiedBy: adminUser.id,
+        verifiedByEmail: adminUser.email || null,
+        verificationSource: "admin_instagram_review",
+        updatedAt: serverTimestamp(),
+      });
+      toast.success(
+        `${getUserName(verificationTarget, "Artist")} is now verified`
+      );
+      setVerificationTarget(null);
+    } catch (error) {
+      console.error("Failed to verify artist", error);
+      toast.error("Could not verify this artist");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
-    <section className="space-y-4">
+    <>
+      <ArtistVerificationModal
+        artist={verificationTarget}
+        isSaving={isVerifying}
+        onClose={() => setVerificationTarget(null)}
+        onConfirm={verifyArtist}
+      />
+      <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-2xl font-semibold text-white">Artists</h2>
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Artists</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Review identity, shop affiliation, payment readiness, and homepage
+            visibility from one workspace.
+          </p>
+        </div>
         <DataHealth status={status} total={data.length} visible={filteredArtists.length} />
       </div>
       <div className="flex flex-wrap gap-2">
+        <QuickFilterButton
+          label="Needs verification"
+          count={unverifiedCount}
+          active={verificationFilter === "unverified"}
+          onClick={() =>
+            setVerificationFilter(
+              verificationFilter === "unverified" ? "all" : "unverified"
+            )
+          }
+        />
         <QuickFilterButton
           label="Needs Stripe"
           count={getArtistAttentionCount(data, "needs_stripe")}
@@ -1409,6 +1705,17 @@ const ArtistsTable: React.FC<
             value={search}
             onChange={setSearch}
             placeholder="Display name, email, or ID"
+          />
+        </ToolField>
+        <ToolField label="Verification">
+          <ToolSelect
+            value={verificationFilter}
+            onChange={setVerificationFilter}
+            options={[
+              { label: "All artists", value: "all" },
+              { label: "Verified", value: "verified" },
+              { label: "Needs verification", value: "unverified" },
+            ]}
           />
         </ToolField>
         <ToolField label="Stripe">
@@ -1439,17 +1746,19 @@ const ArtistsTable: React.FC<
             setSearch("");
             setStripeFilter("all");
             setFeaturedFilter("all");
+            setVerificationFilter("all");
             setAttentionFilter("all");
           }}
         />
       </ToolPanel>
       <div className="w-full overflow-x-auto rounded-lg border border-white/10">
-        <div className="min-w-[920px] divide-y divide-white/10">
+        <div className="min-w-[1160px] divide-y divide-white/10">
           {/* Header */}
-          <div className={`${tableHeaderClass} grid-cols-[minmax(220px,1.2fr)_minmax(210px,1fr)_minmax(170px,.8fr)_minmax(120px,.55fr)_minmax(120px,.55fr)_80px]`}>
-            <span>Name</span>
-            <span>Email</span>
+          <div className={`${tableHeaderClass} grid-cols-[minmax(230px,1.1fr)_minmax(165px,.75fr)_minmax(180px,.85fr)_minmax(210px,.9fr)_minmax(115px,.5fr)_minmax(105px,.45fr)_105px]`}>
+            <span>Artist</span>
+            <span>Instagram</span>
             <span>Shop</span>
+            <span>Verification</span>
             <span>Stripe</span>
             <span>Joined</span>
             <span>Featured</span>
@@ -1458,28 +1767,81 @@ const ArtistsTable: React.FC<
           {filteredArtists.map((artist) => {
             const artistName = getUserName(artist, artist.id);
             const stripeConnected = isStripeConnected(artist);
-            const legacyFeaturedArtistIds = data
-              .filter((candidate) => candidate.featured === true)
-              .map((candidate) => candidate.id);
+            const verified = isArtistVerified(artist);
+            const instagramHandle = getArtistInstagramHandle(artist);
+            const instagramUrl = getArtistInstagramUrl(artist);
             return (
-              <button
+              <div
                 key={artist.id}
                 onClick={() => onSelect(artist)}
-                className={`${tableRowClass} grid-cols-[minmax(220px,1.2fr)_minmax(210px,1fr)_minmax(170px,.8fr)_minmax(120px,.55fr)_minmax(120px,.55fr)_80px]`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(artist);
+                  }
+                }}
+                className={`${tableRowClass} grid-cols-[minmax(230px,1.1fr)_minmax(165px,.75fr)_minmax(180px,.85fr)_minmax(210px,.9fr)_minmax(115px,.5fr)_minmax(105px,.45fr)_105px]`}
               >
                 <PersonCell
                   name={artistName}
                   avatar={getUserAvatar(artist)}
                   fallbackLabel="Artist"
                   copyValue={artist.id}
+                  secondary={artist.email || "No email available"}
                 />
-                <span className={inlineCellClass}>{artist.email || "-"}</span>
+                <span className={inlineCellClass}>
+                  {instagramUrl ? (
+                    <a
+                      href={instagramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                      className="inline-flex min-w-0 items-center gap-1.5 text-sky-200 transition hover:text-white"
+                    >
+                      <span className="truncate">@{instagramHandle}</span>
+                      <ExternalLink size={13} className="shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="text-neutral-500">Not provided</span>
+                  )}
+                </span>
                 <span className={`${inlineCellClass} truncate`}>
                   {getString(artist, "shopName") ||
                     getString(artist, "studioName") ||
                     getString(artist, "shopId") ||
                     getString(artist, "location") ||
                     "-"}
+                </span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold ${
+                      verified
+                        ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100"
+                        : "border-amber-300/20 bg-amber-300/10 text-amber-100"
+                    }`}
+                  >
+                    {verified ? (
+                      <ShieldCheck size={13} aria-hidden="true" />
+                    ) : (
+                      <ShieldAlert size={13} aria-hidden="true" />
+                    )}
+                    {verified ? "Verified" : "Unverified"}
+                  </span>
+                  {!verified && instagramUrl && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setVerificationTarget(artist);
+                      }}
+                      className="inline-flex h-7 items-center rounded-full border border-white/10 bg-white/[0.025] px-2.5! py-0! text-[11px]! font-semibold text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
+                    >
+                      Review
+                    </button>
+                  )}
                 </span>
                 <span className={inlineCellClass}>
                   {stripeConnected ? "Connected" : "Not connected"}
@@ -1490,16 +1852,17 @@ const ArtistsTable: React.FC<
                     artist={artist}
                     featuredArtistId={featuredArtistId}
                     legacyFeaturedArtistIds={legacyFeaturedArtistIds}
-                    adminUserId={adminUserId}
+                    adminUserId={adminUser.id}
                   />
                 </span>
-              </button>
+              </div>
             );
           })}
           <EmptyTableState total={data.length} visible={filteredArtists.length} />
         </div>
       </div>
-    </section>
+      </section>
+    </>
   );
 };
 
@@ -3513,7 +3876,7 @@ const AdminDashboardView: React.FC = () => {
           <ArtistsTable
             data={artists}
             featuredArtistId={featuredArtistId}
-            adminUserId={currentUser.id}
+            adminUser={currentUser}
             status={collectionStatuses.artists}
             onSelect={(item) => setSelectedItem(item)}
           />

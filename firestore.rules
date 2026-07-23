@@ -51,6 +51,10 @@ service cloud.firestore {
       return [
         "role",
         "isVerified",
+        "verifiedAt",
+        "verifiedBy",
+        "verifiedByEmail",
+        "verificationSource",
         "featured",
         "stripeConnect",
         "stripeConnectAccountId",
@@ -78,6 +82,10 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny([
           "admin",
           "claims",
+          "verifiedAt",
+          "verifiedBy",
+          "verifiedByEmail",
+          "verificationSource",
           "stripeConnect",
           "stripeConnectAccountId",
           "stripeCustomerId"
