@@ -163,6 +163,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [unlistedShopName, setUnlistedShopName] = useState<string>("");
   const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
   const [shopSearchQuery, setShopSearchQuery] = useState("");
+  const [styleSearchQuery, setStyleSearchQuery] = useState("");
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [profileCreationPhase, setProfileCreationPhase] =
@@ -347,6 +348,14 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
       ? "Shop pending review"
       : selectedShop?.name || "Shop not selected";
   const profileAvatarInitial = profileDisplayName.charAt(0).toUpperCase() || "A";
+  const filteredSpecialties = useMemo(() => {
+    const normalizedQuery = styleSearchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return SPECIALTIES;
+
+    return SPECIALTIES.filter((style) =>
+      style.toLowerCase().includes(normalizedQuery)
+    );
+  }, [styleSearchQuery]);
 
   const getStepStatus = (step: number): StepStatus => {
     if (!stepCompletion[step]) return "required";
@@ -852,7 +861,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             <form
               autoComplete="off"
               onSubmit={handleArtistSubmit}
-              className="min-w-0 space-y-4 text-left sm:space-y-6"
+              className="min-w-0 space-y-4 pt-4 text-left sm:space-y-6 sm:pt-5 md:pt-6"
             >
               <div
                 ref={onboardingStepTopRef}
@@ -1068,26 +1077,73 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     )}
 
                     {currentStep === 1 && (
-                      <div data-aos="fade-in" className="min-w-0 space-y-5">
-                        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-3">
-                          {SPECIALTIES.map((style) => {
-                            const selected = specialties.includes(style);
-                            return (
-                              <button
-                                key={style}
-                                type="button"
-                                onClick={() => toggleSpecialty(style)}
-                                className={`min-h-12 min-w-0 rounded-md border px-2.5! py-2.5! text-left text-sm! leading-5 transition ${
-                                  selected
-                                    ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
-                                    : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
-                                }`}
-                              >
-                                {style}
-                              </button>
-                            );
-                          })}
+                      <div data-aos="fade-in" className="min-w-0 space-y-3">
+                        <div className="relative">
+                          <Search
+                            size={16}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                            aria-hidden="true"
+                          />
+                          <input
+                            type="search"
+                            value={styleSearchQuery}
+                            onChange={(event) =>
+                              setStyleSearchQuery(event.target.value)
+                            }
+                            placeholder="Search tattoo styles"
+                            aria-label="Search tattoo styles"
+                            className="block min-h-10 w-full rounded-md border border-white/10 bg-[#101010] py-2 pl-9 pr-10 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/30 focus:ring-2 focus:ring-white/10"
+                          />
+                          {styleSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setStyleSearchQuery("")}
+                              aria-label="Clear style search"
+                              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 transition hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <X size={15} aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
+
+                        {filteredSpecialties.length > 0 ? (
+                          <div className="grid min-w-0 grid-cols-3 gap-2 sm:grid-cols-4">
+                            {filteredSpecialties.map((style) => {
+                              const selected = specialties.includes(style);
+                              return (
+                                <button
+                                  key={style}
+                                  type="button"
+                                  onClick={() => toggleSpecialty(style)}
+                                  aria-pressed={selected}
+                                  className={`min-h-11 min-w-0 rounded-md border px-1.5! py-2! text-center text-[0.76rem]! font-medium leading-4 transition sm:min-h-12 sm:px-2.5! sm:text-sm! sm:leading-5 ${
+                                    selected
+                                      ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
+                                      : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                                  }`}
+                                >
+                                  {style}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div
+                            className="rounded-md border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
+                            aria-live="polite"
+                          >
+                            <p className="text-sm text-neutral-300">
+                              No styles match “{styleSearchQuery.trim()}”.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setStyleSearchQuery("")}
+                              className="mt-2 text-xs font-medium text-neutral-500 underline decoration-white/20 underline-offset-4 transition hover:text-white"
+                            >
+                              Clear search
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 
