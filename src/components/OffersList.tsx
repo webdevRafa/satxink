@@ -10,6 +10,7 @@ import {
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -70,11 +71,8 @@ const statusFilters: { label: string; value: OfferStatusFilter }[] = [
   { label: "Declined", value: "declined" },
 ];
 
-const MOBILE_FILTERS_DOCK_TOP = 142;
-const MOBILE_FILTERS_REVEAL_DISTANCE = 196;
-const MOBILE_FILTERS_HIDE_DISTANCE = 10;
 const OFFERS_PER_PAGE = 6;
-const MOBILE_PAGINATION_SCROLL_OFFSET = 154;
+const MOBILE_PAGINATION_SCROLL_OFFSET = 96;
 const DESKTOP_PAGINATION_SCROLL_OFFSET = 96;
 
 const OffersList = ({
@@ -103,15 +101,8 @@ const OffersList = ({
     { date: "", time: "" },
     { date: "", time: "" },
   ]);
-  const filtersAnchorRef = useRef<HTMLDivElement | null>(null);
-  const filtersPanelRef = useRef<HTMLDivElement | null>(null);
   const offersPageTopRef = useRef<HTMLDivElement | null>(null);
-  const lastScrollYRef = useRef(0);
-  const mobileFilterHiddenScrollPeakRef = useRef(0);
-  const mobileFilterHideDistanceRef = useRef(0);
-  const suppressMobileFilterRevealUntilRef = useRef(0);
-  const [mobileFiltersDocked, setMobileFiltersDocked] = useState(false);
-  const [mobileFiltersVisible, setMobileFiltersVisible] = useState(false);
+  const [mobileFiltersExpanded, setMobileFiltersExpanded] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -206,78 +197,16 @@ const OffersList = ({
   }, [statusFilter]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-    let frameId = 0;
-
-    const updateFilterPosition = () => {
-      frameId = 0;
-      const currentScrollY = window.scrollY;
-
-      if (!mediaQuery.matches || !filtersAnchorRef.current) {
-        setMobileFiltersDocked(false);
-        setMobileFiltersVisible(false);
-        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
-        mobileFilterHideDistanceRef.current = 0;
-        lastScrollYRef.current = currentScrollY;
-        return;
-      }
-
-      const hasPassedFilters =
-        filtersAnchorRef.current.getBoundingClientRect().top <=
-        MOBILE_FILTERS_DOCK_TOP;
-      const previousScrollY = lastScrollYRef.current;
-      const scrollDelta = currentScrollY - previousScrollY;
-
-      setMobileFiltersDocked(hasPassedFilters);
-
-      if (Date.now() < suppressMobileFilterRevealUntilRef.current) {
-        setMobileFiltersVisible(false);
-        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
-        mobileFilterHideDistanceRef.current = 0;
-      } else if (!hasPassedFilters) {
-        setMobileFiltersVisible(false);
-        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
-        mobileFilterHideDistanceRef.current = 0;
-      } else if (scrollDelta < -1) {
-        mobileFilterHideDistanceRef.current = 0;
-        const upwardTravel =
-          mobileFilterHiddenScrollPeakRef.current - currentScrollY;
-
-        if (upwardTravel >= MOBILE_FILTERS_REVEAL_DISTANCE) {
-          setMobileFiltersVisible(true);
-        }
-      } else if (scrollDelta > 2) {
-        mobileFilterHideDistanceRef.current += scrollDelta;
-        mobileFilterHiddenScrollPeakRef.current = currentScrollY;
-
-        if (
-          mobileFilterHideDistanceRef.current >= MOBILE_FILTERS_HIDE_DISTANCE
-        ) {
-          setMobileFiltersVisible(false);
-        }
-      }
-
-      lastScrollYRef.current = currentScrollY;
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    const expandFiltersForDesktop = () => {
+      if (desktopQuery.matches) setMobileFiltersExpanded(true);
     };
 
-    const queueUpdate = () => {
-      if (frameId) return;
-      frameId = window.requestAnimationFrame(updateFilterPosition);
-    };
+    expandFiltersForDesktop();
+    desktopQuery.addEventListener("change", expandFiltersForDesktop);
 
-    lastScrollYRef.current = window.scrollY;
-    updateFilterPosition();
-
-    window.addEventListener("scroll", queueUpdate, { passive: true });
-    window.addEventListener("resize", queueUpdate);
-    mediaQuery.addEventListener("change", queueUpdate);
-
-    return () => {
-      if (frameId) window.cancelAnimationFrame(frameId);
-      window.removeEventListener("scroll", queueUpdate);
-      window.removeEventListener("resize", queueUpdate);
-      mediaQuery.removeEventListener("change", queueUpdate);
-    };
+    return () =>
+      desktopQuery.removeEventListener("change", expandFiltersForDesktop);
   }, []);
 
   const goToPage = (page: number) => {
@@ -286,13 +215,6 @@ const OffersList = ({
     const scrollTarget = offersPageTopRef.current;
 
     setCurrentPage(nextPage);
-
-    if (isMobile) {
-      suppressMobileFilterRevealUntilRef.current = Date.now() + 900;
-      setMobileFiltersVisible(false);
-      mobileFilterHiddenScrollPeakRef.current = window.scrollY;
-      mobileFilterHideDistanceRef.current = 0;
-    }
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -381,58 +303,84 @@ const OffersList = ({
         </div>
       </div>
 
-      <div
-        ref={filtersAnchorRef}
-        className="h-px md:hidden"
-        aria-hidden="true"
-      />
-      <div
-        ref={filtersPanelRef}
-        className={`rounded-lg border border-white/10 p-3 backdrop-blur will-change-transform motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-[360ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none sm:p-4 md:static md:translate-y-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0 md:will-change-auto ${
-          mobileFiltersDocked
-            ? "sticky top-[8.875rem] z-30 bg-[#111111]/95 shadow-2xl shadow-black/45"
-            : "bg-white/[0.03] md:bg-transparent"
-        } ${
-          mobileFiltersDocked && !mobileFiltersVisible
-            ? "pointer-events-none -translate-y-[calc(100%+9rem)]"
-            : "translate-y-0"
-        }`}
-      >
-        <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between">
+          <button
+            type="button"
+            onClick={() => setMobileFiltersExpanded((expanded) => !expanded)}
+            className="flex w-full items-center gap-3 p-0! text-left md:hidden"
+            aria-expanded={mobileFiltersExpanded}
+            aria-controls="artist-offer-filter-controls"
+          >
             <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
               <ReceiptText size={18} aria-hidden="true" />
             </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-semibold text-white">
+                Offer filters
+              </span>
+            </span>
+            {statusFilter !== "all" && (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-300">
+                Active
+              </span>
+            )}
+            <ChevronDown
+              size={17}
+              className={`shrink-0 text-neutral-400 transition-transform duration-300 ${
+                mobileFiltersExpanded ? "rotate-180" : ""
+              }`}
+              aria-hidden="true"
+            />
+          </button>
+
+          <div className="hidden items-center gap-3 md:flex">
+            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
+              <ReceiptText size={18} aria-hidden="true" />
+            </span>
             <div>
-              <h2 className="mb-0! text-base! sm:text-lg!">Offer filters</h2>
+              <h2 className="mb-0! text-lg!">Offer filters</h2>
               <p className="text-sm text-neutral-400">
                 Filter sent offers by current client response.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
-            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-              {statusFilters.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setStatusFilter(filter.value)}
-                  className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
-                    statusFilter === filter.value
-                      ? "border-white/40 bg-white/5 text-white"
-                      : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
+          <div
+            id="artist-offer-filter-controls"
+            className={`grid min-w-0 motion-safe:transition-[grid-template-rows,opacity,margin] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none md:mt-4 md:grid-rows-[1fr] md:opacity-100 xl:mt-0 xl:flex-1 ${
+              mobileFiltersExpanded
+                ? "mt-3 grid-rows-[1fr] opacity-100"
+                : "mt-0 grid-rows-[0fr] opacity-0"
+            }`}
+            aria-hidden={!mobileFiltersExpanded}
+            inert={mobileFiltersExpanded ? undefined : true}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 xl:justify-end">
+                <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                  {statusFilters.map((filter) => (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      onClick={() => setStatusFilter(filter.value)}
+                      className={`inline-flex h-9 items-center justify-center rounded-md border px-2! text-[11px]! font-semibold transition sm:h-10 sm:px-3! sm:text-xs! ${
+                        statusFilter === filter.value
+                          ? "border-white/40 bg-white/5 text-white"
+                          : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
+                  {loading
+                    ? "Loading offers"
+                    : `Showing ${filteredOffers.length} of ${activeOffers.length}`}
+                </span>
+              </div>
             </div>
-            <span className="whitespace-nowrap text-xs text-neutral-500 sm:ml-1 sm:text-sm">
-              {loading
-                ? "Loading offers"
-                : `Showing ${filteredOffers.length} of ${activeOffers.length}`}
-            </span>
           </div>
         </div>
       </div>
