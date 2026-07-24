@@ -340,6 +340,13 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
   );
   const ActiveStepIcon = stepIcons[currentStep];
+  const profileDisplayName =
+    displayName.trim() || user?.displayName?.trim() || "SATX Ink artist";
+  const profileShopLabel =
+    selectedShop?.id === UNLISTED_SHOP_ID
+      ? "Shop pending review"
+      : selectedShop?.name || "Shop not selected";
+  const profileAvatarInitial = profileDisplayName.charAt(0).toUpperCase() || "A";
 
   const getStepStatus = (step: number): StepStatus => {
     if (!stepCompletion[step]) return "required";
@@ -592,6 +599,37 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               <p className="mx-auto mt-6 max-w-xs text-sm font-medium leading-6 text-neutral-300">
                 One moment while we create your artist profile.
               </p>
+
+              <div className="mx-auto mt-6 grid w-full max-w-sm grid-cols-[3.75rem_minmax(0,1fr)] items-center gap-4 border-t border-white/10 pt-5 text-left">
+                {user?.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt=""
+                    className="h-15 w-15 rounded-full border border-white/15 object-cover shadow-[0_10px_30px_rgba(0,0,0,0.4)]"
+                  />
+                ) : (
+                  <span
+                    className="flex h-15 w-15 items-center justify-center rounded-full border border-white/15 bg-[linear-gradient(135deg,rgba(182,56,45,0.7),rgba(255,255,255,0.12))] text-xl font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.4)]"
+                    aria-hidden="true"
+                  >
+                    {profileAvatarInitial}
+                  </span>
+                )}
+
+                <div className="min-w-0">
+                  <p className="truncate text-base! font-semibold leading-6! text-white!">
+                    {profileDisplayName}
+                  </p>
+                  <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm! leading-5! text-neutral-400!">
+                    <Building2
+                      size={14}
+                      className="shrink-0 text-[var(--color-primary)]"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{profileShopLabel}</span>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>,
           document.body
@@ -1216,7 +1254,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   </div>
                 </div>
 
-                <aside className="h-fit min-w-0 rounded-lg border border-white/10 bg-[#101010]/95 p-4 sm:p-5 xl:sticky xl:top-24">
+                <aside className="hidden h-fit min-w-0 rounded-lg border border-white/10 bg-[#101010]/95 p-5 xl:sticky xl:top-24 xl:block">
                   <div className="flex items-center gap-4">
                     <img
                       src={user.photoURL || "/fallback-avatar.jpg"}
