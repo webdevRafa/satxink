@@ -76,7 +76,9 @@ export default function SignupSelection({
   };
 
   const signupShellClass = selectedRole
-    ? "relative z-10 flex min-h-screen w-full flex-col items-center justify-start px-4 pb-32 pt-[4.5rem] text-center [overflow-anchor:none] md:pt-[4.75rem]"
+    ? `relative z-10 flex min-h-screen w-full flex-col items-center justify-start pb-32 pt-[4.5rem] text-center [overflow-anchor:none] md:pt-[4.75rem] ${
+        selectedRole === "artist" ? "px-0 sm:px-4" : "px-4"
+      }`
     : "relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-24 text-center [overflow-anchor:none]";
 
   return (
@@ -162,7 +164,7 @@ export default function SignupSelection({
         )}
 
         {selectedRole === "artist" && (
-          <div className="relative z-20 w-full max-w-7xl rounded-lg px-4 pb-4 pt-0">
+          <div className="relative z-20 w-full max-w-7xl rounded-lg px-0 pb-4 pt-0 sm:px-4">
             <ArtistSignupPage onBack={handleBack} />
           </div>
         )}
