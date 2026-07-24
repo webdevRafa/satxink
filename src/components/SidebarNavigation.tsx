@@ -1,6 +1,7 @@
 import { Fragment, useState, type FC } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { ChevronDown, LayoutDashboard, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+import MobileNavbarPortal from "./MobileNavbarPortal";
 
 type ViewTab =
   | "profile"
@@ -57,38 +58,34 @@ const SidebarNavigation: FC<SidebarProps> = ({
 
   return (
     <>
-      <div className="sticky top-20 z-40 mx-4 mb-4 md:hidden">
+      <MobileNavbarPortal>
         <button
           type="button"
-          onClick={() => {
-            setShowMobileMenu(true);
-          }}
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#111111]/95 px-3! py-3! text-left shadow-2xl shadow-black/30 backdrop-blur-xl transition hover:border-white/20"
-          aria-label="Open artist dashboard menu"
+          onClick={() => setShowMobileMenu(true)}
+          className="mx-auto flex h-9 w-full max-w-48 min-w-0 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-2.5! py-0! text-sm! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25"
+          aria-label={`Open artist dashboard menu. Current workspace: ${activeLabel}${
+            typeof activeCount === "number" && activeCount > 0
+              ? `, ${activeCount} items`
+              : ""
+          }`}
+          aria-haspopup="dialog"
+          aria-expanded={showMobileMenu}
         >
-          <span className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/[0.05] text-[var(--color-primary)]">
-              <LayoutDashboard size={17} aria-hidden="true" />
+          <span className="min-w-0 truncate">{activeLabel}</span>
+          {typeof activeCount === "number" && activeCount > 0 && (
+            <span className="min-w-5 shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-4 text-white">
+              {activeCount}
             </span>
-            <span className="min-w-0">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                Artist dashboard
-              </span>
-              <span className="block truncate text-sm font-semibold text-white">
-                {activeLabel}
-              </span>
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            {typeof activeCount === "number" && activeCount > 0 && (
-              <span className="min-w-6 rounded-full bg-white/10 px-2 py-0.5 text-center text-xs font-semibold text-white">
-                {activeCount}
-              </span>
-            )}
-            <ChevronDown size={17} className="text-neutral-400" aria-hidden="true" />
-          </span>
+          )}
+          <ChevronDown
+            size={14}
+            className={`shrink-0 text-neutral-400 transition-transform ${
+              showMobileMenu ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          />
         </button>
-      </div>
+      </MobileNavbarPortal>
 
       <aside className="hidden h-fit w-64 shrink-0 self-start rounded-xl bg-[var(--color-bg-base)] p-4 md:sticky md:top-24 md:block">
         <ul className="space-y-2">
