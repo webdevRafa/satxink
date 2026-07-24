@@ -1732,7 +1732,9 @@ const ArtistDashboardView = () => {
   return (
     <div
       className={`flex min-h-[100vh] flex-col bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] py-20 text-white md:flex-row ${
-        activeTab === "profile" ? "md:min-h-[calc(100vh_+_16rem)]" : ""
+        activeTab === "profile"
+          ? "overflow-x-clip md:min-h-[calc(100vh_+_16rem)]"
+          : ""
       }`}
     >
       {avatarCropSrc && (
@@ -1767,7 +1769,11 @@ const ArtistDashboardView = () => {
         onTabChange={handleDashboardTabChange}
       />
 
-      <main className="relative min-w-0 flex-1 p-6">
+      <main
+        className={`relative min-w-0 flex-1 ${
+          activeTab === "profile" ? "px-4 py-6 sm:p-6" : "p-6"
+        }`}
+      >
         {artist && <ArtistDashboardProfileHeader artist={artist} />}
         {artist?.shopRequestPending && (
           <ArtistShopConnectionNotice artist={artist} />
@@ -1780,7 +1786,7 @@ const ArtistDashboardView = () => {
         />
 
         {activeTab === "profile" && (
-          <section className="mt-6 w-full max-w-6xl space-y-6">
+          <section className="mt-6 min-w-0 w-full max-w-6xl space-y-6">
             <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h1 className="mt-2 text-3xl! font-semibold text-white">
@@ -1834,12 +1840,12 @@ const ArtistDashboardView = () => {
               </div>
             </div>
 
-            <div className="grid items-start gap-6 xl:min-h-[calc(100vh_+_8rem)] xl:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="space-y-6">
+            <div className="grid min-w-0 items-start gap-6 xl:min-h-[calc(100vh_+_8rem)] xl:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="min-w-0 space-y-6">
                 <div
                   role="tablist"
                   aria-label="Profile settings sections"
-                  className="flex gap-2 overflow-x-auto border-b border-white/10 pb-3"
+                  className="grid min-w-0 grid-cols-2 gap-2 border-b border-white/10 pb-3 sm:grid-cols-4"
                 >
                   {PROFILE_SETTING_TABS.map((tab) => {
                     const isActive = activeProfileSubTab === tab.value;
@@ -1853,7 +1859,7 @@ const ArtistDashboardView = () => {
                         aria-controls={`profile-panel-${tab.value}`}
                         id={`profile-tab-${tab.value}`}
                         onClick={() => setActiveProfileSubTab(tab.value)}
-                        className={`shrink-0  px-2 py-1.5! text-sm font-semibold transition ${
+                        className={`min-w-0 px-2 py-2! text-sm font-semibold transition ${
                           isActive
                             ? " bg-white/[0.05]   text-white!"
                             : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/25 hover:text-white"
@@ -1870,13 +1876,13 @@ const ArtistDashboardView = () => {
                     id="profile-panel-identity"
                     role="tabpanel"
                     aria-labelledby="profile-tab-identity"
-                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                    className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5"
                   >
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                         <UserRound size={18} aria-hidden="true" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <h2 className="mb-0! text-lg!">Public identity</h2>
                         <p className="text-sm text-neutral-400">
                           This is what clients see across SATX Ink.
@@ -1884,8 +1890,8 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="space-y-2">
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                      <label className="min-w-0 space-y-2">
                         <span className="text-sm font-medium text-neutral-200">
                           Display name
                         </span>
@@ -1926,7 +1932,7 @@ const ArtistDashboardView = () => {
                         </span>
                       </label>
 
-                      <div className="space-y-2">
+                      <div className="min-w-0 space-y-2">
                         <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                           <Mail size={15} aria-hidden="true" />
                           {accountProviderCopy.accountLabel}
@@ -1943,18 +1949,18 @@ const ArtistDashboardView = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="min-w-0 space-y-2">
                         <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                           <ImageIcon size={15} aria-hidden="true" />
                           Profile photo
                         </span>
-                        <div className="flex items-center gap-4 rounded-md border border-white/10 bg-[#101010] p-3">
+                        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-md border border-white/10 bg-[#101010] p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-4">
                           <img
                             src={
                               profileForm.avatarUrl || "/fallback-avatar.jpg"
                             }
                             alt="Current artist avatar"
-                            className="h-16 w-16 rounded-full border border-white/10 object-cover"
+                            className="h-14 w-14 shrink-0 rounded-full border border-white/10 object-cover sm:h-16 sm:w-16"
                           />
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-white">
@@ -1964,7 +1970,7 @@ const ArtistDashboardView = () => {
                               Upload and crop a square image for the platform.
                             </p>
                           </div>
-                          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white">
+                          <label className="col-span-2 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-neutral-200 transition hover:border-white/25 hover:text-white sm:col-span-1 sm:w-auto">
                             {isUploadingAvatar ? (
                               <LoaderCircle
                                 size={15}
@@ -1987,13 +1993,13 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
 
-                    <label className="mt-4 block space-y-2">
+                    <label className="mt-4 block min-w-0 space-y-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                         <Instagram size={15} aria-hidden="true" />
                         Instagram
                       </span>
-                      <span className="flex min-w-0 rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
-                        <span className="shrink-0 border-r border-white/10 px-3 py-2 text-xs text-neutral-500 sm:text-sm">
+                      <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-[var(--color-primary)]">
+                        <span className="max-w-[9.5rem] truncate border-r border-white/10 px-3 py-2 text-xs text-neutral-500 sm:max-w-none sm:text-sm">
                           {INSTAGRAM_PROFILE_BASE}
                         </span>
                         <input
@@ -2029,13 +2035,13 @@ const ArtistDashboardView = () => {
                     id="profile-panel-spotlight"
                     role="tabpanel"
                     aria-labelledby="profile-tab-spotlight"
-                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                    className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5"
                   >
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                         <ImageIcon size={18} aria-hidden="true" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <h2 className="mb-0! text-lg!">Artist spotlight</h2>
                         <p className="text-sm text-neutral-400">
                           Prepare your spotlight story for when SATX Ink
@@ -2044,8 +2050,8 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
 
-                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                      <div className="space-y-4">
+                    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="min-w-0 space-y-4">
                         <label className="block space-y-2">
                           <span className="text-sm font-medium text-neutral-200">
                             Feature story
@@ -2072,7 +2078,7 @@ const ArtistDashboardView = () => {
                         </label>
                       </div>
 
-                      <div className="rounded-lg border border-white/10 bg-[#101010] p-3">
+                      <div className="min-w-0 rounded-lg border border-white/10 bg-[#101010] p-3">
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-neutral-100">
@@ -2211,13 +2217,13 @@ const ArtistDashboardView = () => {
                     id="profile-panel-specialties"
                     role="tabpanel"
                     aria-labelledby="profile-tab-specialties"
-                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                    className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5"
                   >
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                         <Check size={18} aria-hidden="true" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <h2 className="mb-0! text-lg!">Specialties</h2>
                         <p className="text-sm text-neutral-400">
                           Choose the styles clients should associate with your
@@ -2272,13 +2278,13 @@ const ArtistDashboardView = () => {
                     id="profile-panel-availability"
                     role="tabpanel"
                     aria-labelledby="profile-tab-availability"
-                    className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                    className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:p-5"
                   >
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
                         <CalendarDays size={18} aria-hidden="true" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <h2 className="mb-0! text-lg!">Booking availability</h2>
                         <p className="text-sm text-neutral-400">
                           Tell clients which upcoming months you are actively
@@ -2287,7 +2293,7 @@ const ArtistDashboardView = () => {
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-white/10 bg-[#101010] p-4">
+                    <div className="min-w-0 rounded-lg border border-white/10 bg-[#101010] p-3 sm:p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-white">
@@ -2348,9 +2354,9 @@ const ArtistDashboardView = () => {
                 )}
               </div>
 
-              <aside className="h-fit space-y-4 xl:sticky xl:top-24 xl:self-start">
-                <div className="rounded-lg border border-white/10 bg-[#101010] p-5">
-                  <div className="flex items-center gap-4">
+              <aside className="h-fit min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start">
+                <div className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-[#101010] p-4 sm:p-5">
+                  <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <img
                       src={
                         profileForm.avatarUrl.trim() ||
@@ -2358,7 +2364,7 @@ const ArtistDashboardView = () => {
                         "/fallback-avatar.jpg"
                       }
                       alt={profileForm.displayName || "Artist avatar preview"}
-                      className="h-20 w-20 rounded-full border border-white/10 object-cover"
+                      className="h-16 w-16 shrink-0 rounded-full border border-white/10 object-cover sm:h-20 sm:w-20"
                     />
                     <div className="min-w-0">
                       <p className="truncate text-lg font-semibold text-white">
@@ -2390,15 +2396,15 @@ const ArtistDashboardView = () => {
                   </div>
 
                   <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
-                    <div className="flex items-center justify-between gap-4 text-sm">
+                    <div className="flex min-w-0 items-center justify-between gap-4 text-sm">
                       <span className="text-neutral-400">Booking</span>
-                      <span className="max-w-[180px] truncate text-right text-white">
+                      <span className="min-w-0 max-w-[180px] truncate text-right text-white">
                         {bookingAvailabilityPreviewLabel || "Not listed"}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex min-w-0 items-center justify-between gap-4 text-sm">
                       <span className="text-neutral-400">Instagram</span>
-                      <span className="max-w-[180px] truncate text-white">
+                      <span className="min-w-0 max-w-[180px] truncate text-right text-white">
                         {instagramHandle
                           ? getInstagramUrlFromHandle(instagramHandle)
                           : "Not added"}
