@@ -36,7 +36,7 @@ setGlobalOptions({ memory: '1GiB', timeoutSeconds: 120 });
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
 const PLATFORM_FEE_MIN_CENTS = 500;
-const PLATFORM_FEE_MAX_CENTS = 3500;
+const PLATFORM_FEE_MAX_CENTS = 1000;
 const PLATFORM_FEE_RATE = 0.10;
 const STRIPE_PERCENT_FEE = 0.029;
 const STRIPE_FIXED_FEE_CENTS = 30;
@@ -204,11 +204,22 @@ const estimateStripeFeeCents = (clientTotalCents: number) =>
   Math.round(clientTotalCents * STRIPE_PERCENT_FEE) + STRIPE_FIXED_FEE_CENTS;
 
 type CheckoutPaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
+type CheckoutPaymentPurpose =
+  | "session_deposit"
+  | "session_balance"
+  | "platform_fee"
+  | "legacy";
 type FlashRepeatability = "repeatable" | "one_of_one";
 type FlashAvailabilityStatus = "available" | "held" | "sold";
 type FlashPublicationStatus = "draft" | "published";
 type ProjectStatus = "active" | "paused" | "completed";
 type SessionInstallmentTiming = "before_session" | "after_session";
+type SessionBalanceMethod = "stripe" | "external";
+type SessionAllocation = {
+  sessionNumber: number;
+  quotedAmountCents: number;
+  depositAmountCents: number;
+};
 type ProjectAmendmentType =
   | "add_sessions"
   | "schedule_next_session"
@@ -936,6 +947,131 @@ const getPositiveInteger = (value: unknown, fallback = 1) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const PAYMENT_MODEL_VERSION = 2;
+const MAX_PROJECT_SESSION_COUNT = 12;
+const MAX_SESSION_DEPOSIT_RATE = 0.5;
+
+const buildEqualSessionAllocations = ({
+  totalQuoteCents,
+  sessionCount,
+  depositAmountCents,
+}: {
+  totalQuoteCents: number;
+  sessionCount: number;
+  depositAmountCents: number;
+}): SessionAllocation[] => {
+  const normalizedTotal = Math.max(Math.round(totalQuoteCents), 0);
+  const normalizedCount = Math.min(
+    Math.max(Math.floor(sessionCount), 1),
+    MAX_PROJECT_SESSION_COUNT
+  );
+  const baseSessionCents = Math.floor(normalizedTotal / normalizedCount);
+  const remainderCents = normalizedTotal % normalizedCount;
+
+  return Array.from({ length: normalizedCount }, (_, index) => {
+    const quotedAmountCents =
+      baseSessionCents + (index < remainderCents ? 1 : 0);
+    const maximumDepositCents = Math.floor(
+      quotedAmountCents * MAX_SESSION_DEPOSIT_RATE
+    );
+
+    return {
+      sessionNumber: index + 1,
+      quotedAmountCents,
+      depositAmountCents: Math.min(
+        Math.max(Math.round(depositAmountCents), 0),
+        maximumDepositCents
+      ),
+    };
+  });
+};
+
+const validateAndBuildProjectAllocations = (
+  offer: admin.firestore.DocumentData
+) => {
+  const totalQuoteCents = getNonNegativeCents(
+    offer.quoteTotalCents,
+    dollarsToCents(offer.price)
+  );
+  const sessionCount =
+    offer.projectType === "multi_session"
+      ? getPositiveInteger(offer.estimatedSessionCount, 2)
+      : 1;
+  const depositAmountCents = dollarsToCents(offer.depositPolicy?.amount);
+
+  if (totalQuoteCents < MIN_ARTIST_PAYOUT_CENTS) {
+    throw new HttpsError("failed-precondition", "The project quote is invalid.");
+  }
+  if (sessionCount < 1 || sessionCount > MAX_PROJECT_SESSION_COUNT) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Projects must contain between 1 and 12 sessions."
+    );
+  }
+  if (depositAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Each session needs a valid deposit."
+    );
+  }
+
+  const allocations = buildEqualSessionAllocations({
+    totalQuoteCents,
+    sessionCount,
+    depositAmountCents,
+  });
+  const smallestSessionCents = Math.min(
+    ...allocations.map((allocation) => allocation.quotedAmountCents)
+  );
+  if (
+    depositAmountCents >
+    Math.floor(smallestSessionCents * MAX_SESSION_DEPOSIT_RATE)
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "The session deposit cannot exceed 50% of the session price."
+    );
+  }
+
+  return {
+    totalQuoteCents,
+    sessionCount,
+    depositAmountCents,
+    allocations,
+  };
+};
+
+const getProjectSessionAllocation = (
+  booking: admin.firestore.DocumentData,
+  sessionNumber: number
+) => {
+  const storedAllocations = Array.isArray(booking.sessionAllocations)
+    ? booking.sessionAllocations
+    : [];
+  const stored = storedAllocations.find(
+    (allocation: admin.firestore.DocumentData) =>
+      Number(allocation?.sessionNumber) === sessionNumber
+  );
+  if (stored) {
+    return {
+      sessionNumber,
+      quotedAmountCents: getNonNegativeCents(stored.quotedAmountCents, 0),
+      depositAmountCents: getNonNegativeCents(stored.depositAmountCents, 0),
+    };
+  }
+
+  const allocations = buildEqualSessionAllocations({
+    totalQuoteCents: getBookingPriceCents(booking),
+    sessionCount: getEstimatedSessionCount(booking),
+    depositAmountCents: dollarsToCents(booking.depositAmount),
+  });
+  return allocations[Math.max(sessionNumber - 1, 0)] || allocations[0];
+};
+
+const isProtectedSessionPaymentBooking = (
+  booking: admin.firestore.DocumentData
+) => Number(booking.paymentModelVersion || 0) === PAYMENT_MODEL_VERSION;
+
 const getOptionalString = (value: unknown) => {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -1090,6 +1226,292 @@ const createSessionRecordUpdate = (
   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   ...update,
 });
+
+const acceptProjectOffer = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to accept this offer.");
+    }
+
+    const offerId = getOptionalString(req.data?.offerId);
+    const selectedDateInput = req.data?.selectedDate as
+      | { date?: unknown; time?: unknown }
+      | undefined;
+    const selectedDate = {
+      date: getOptionalString(selectedDateInput?.date) || "TBD",
+      time: getOptionalString(selectedDateInput?.time) || "TBD",
+    };
+    if (!offerId) {
+      throw new HttpsError("invalid-argument", "An offer is required.");
+    }
+
+    const offerRef = db.collection("offers").doc(offerId);
+    const bookingRef = db.collection("bookings").doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    await db.runTransaction(async (transaction) => {
+      const offerSnap = await transaction.get(offerRef);
+      if (!offerSnap.exists) {
+        throw new HttpsError("not-found", "Offer not found.");
+      }
+
+      const offer = offerSnap.data() || {};
+      if (offer.clientId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the client who received this offer can accept it."
+        );
+      }
+      if (offer.status !== "pending") {
+        throw new HttpsError(
+          "failed-precondition",
+          "This offer is no longer available."
+        );
+      }
+
+      const offeredDates = Array.isArray(offer.dateOptions)
+        ? offer.dateOptions
+        : [];
+      if (
+        selectedDate.date !== "TBD" &&
+        !offeredDates.some(
+          (option: admin.firestore.DocumentData) =>
+            option?.date === selectedDate.date &&
+            option?.time === selectedDate.time
+        )
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Choose one of the appointment options from the offer."
+        );
+      }
+
+      const artistRef = db.collection("users").doc(String(offer.artistId || ""));
+      const artistSnap = await transaction.get(artistRef);
+      if (!artistSnap.exists) {
+        throw new HttpsError("failed-precondition", "Artist profile not found.");
+      }
+      const artist = artistSnap.data() || {};
+
+      const shopId = getOptionalString(offer.shopId || artist.shopId);
+      const shopRef = shopId ? db.collection("shops").doc(shopId) : null;
+      const shopSnap = shopRef ? await transaction.get(shopRef) : null;
+      const shop = shopSnap?.exists ? shopSnap.data() || {} : {};
+      const flashId = getOptionalString(offer.flashId);
+      const flashRef =
+        offer.sourceType === "flash" && flashId
+          ? db.collection("flashes").doc(flashId)
+          : null;
+      const flashSnap = flashRef ? await transaction.get(flashRef) : null;
+      const flash = flashSnap?.exists ? flashSnap.data() || {} : {};
+      if (offer.sourceType === "flash") {
+        if (!flashSnap?.exists || getFlashPublicationStatus(flash) !== "published") {
+          throw new HttpsError(
+            "failed-precondition",
+            "This flash is no longer available."
+          );
+        }
+        if (
+          getFlashRepeatability(flash) === "one_of_one" &&
+          getFlashAvailabilityStatus(flash) !== "available"
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This one-of-one flash is no longer available."
+          );
+        }
+      }
+
+      const isCustomProject = offer.sourceType !== "flash";
+      const customPlan = isCustomProject
+        ? validateAndBuildProjectAllocations(offer)
+        : null;
+      const totalQuoteCents = customPlan
+        ? customPlan.totalQuoteCents
+        : dollarsToCents(offer.price);
+      const sessionCount = customPlan ? customPlan.sessionCount : 1;
+      const depositAmountCents = customPlan
+        ? customPlan.depositAmountCents
+        : Math.min(dollarsToCents(offer.depositPolicy?.amount), totalQuoteCents);
+      const allocations: SessionAllocation[] = customPlan
+        ? customPlan.allocations
+        : [
+            {
+              sessionNumber: 1,
+              quotedAmountCents: totalQuoteCents,
+              depositAmountCents,
+            },
+          ];
+      const allowedBalanceMethods: SessionBalanceMethod[] = isCustomProject
+        ? ["stripe", "external"]
+        : offer.allowExternalRemainingPayment
+        ? ["stripe", "external"]
+        : ["stripe"];
+      const firstAllocation = allocations[0];
+      const firstSessionBalanceCents = Math.max(
+        firstAllocation.quotedAmountCents - firstAllocation.depositAmountCents,
+        0
+      );
+      const estimatedHoursInput = offer.estimatedHoursPerSession;
+      const estimatedHoursPerSession =
+        estimatedHoursInput === null ||
+        estimatedHoursInput === undefined ||
+        estimatedHoursInput === ""
+          ? null
+          : Number(estimatedHoursInput);
+      if (
+        estimatedHoursPerSession !== null &&
+        (!Number.isFinite(estimatedHoursPerSession) ||
+          estimatedHoursPerSession < 0.5 ||
+          estimatedHoursPerSession > 16)
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The estimated session length must be between 0.5 and 16 hours."
+        );
+      }
+      const bookingData = {
+        artistId: offer.artistId,
+        artistName: offer.displayName || artist.displayName || "Artist",
+        artistAvatar: offer.artistAvatar ?? artist.avatarUrl ?? null,
+        clientId: offer.clientId,
+        clientFirstName: offer.clientFirstName ?? "",
+        clientLastName: offer.clientLastName ?? "",
+        clientName: offer.clientName ?? null,
+        clientAvatar: offer.clientAvatar ?? null,
+        offerId,
+        price: centsToDollars(totalQuoteCents),
+        priceCents: totalQuoteCents,
+        quoteTotalCents: totalQuoteCents,
+        depositAmount: centsToDollars(depositAmountCents),
+        paymentType: "internal",
+        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        sessionPricingStrategy: isCustomProject ? "equal_split" : null,
+        sessionAllocations: allocations,
+        allowedSessionBalanceMethods: allowedBalanceMethods,
+        projectType: sessionCount > 1 ? "multi_session" : "single_session",
+        depositApplication: "project_credit",
+        estimatedSessionCount: sessionCount,
+        estimatedSessionPrice: centsToDollars(firstAllocation.quotedAmountCents),
+        estimatedHoursPerSession,
+        sessionPaymentPlan: sessionCount > 1 ? "per_session" : "single_balance",
+        sessionScheduling:
+          sessionCount > 1
+            ? "first_session_now_rest_later"
+            : "single_session",
+        sessionInstallmentTiming: "after_session",
+        activeSessionNumber: 1,
+        completedSessionCount: 0,
+        pendingSessionPaymentAmount: centsToDollars(depositAmountCents),
+        pendingSessionPaymentAmountCents: depositAmountCents,
+        pendingSessionNumber: 1,
+        lastPaidSessionNumber: 0,
+        finalPaymentTiming: "after",
+        finalPaymentDeadlineHours: null,
+        remainingPaymentMethod: "stripe",
+        remainingPaymentStatus: "due",
+        externalRemainingAmount: centsToDollars(firstSessionBalanceCents),
+        externalRemainingAmountCents: firstSessionBalanceCents,
+        artistPaidCents: 0,
+        totalArtistPaidCents: 0,
+        totalArtistPaidAmount: 0,
+        outstandingProjectCents: totalQuoteCents,
+        remainingBalanceCents: totalQuoteCents,
+        remainingBalanceAmount: centsToDollars(totalQuoteCents),
+        projectStatus: "active",
+        projectRevision: 1,
+        sessionStatus: "not_started",
+        shopId,
+        shopName: offer.shopName || shop.name || "Unavailable",
+        shopAddress: offer.shopAddress || shop.address || "Unavailable",
+        shopMapLink: offer.shopMapLink || shop.mapLink || null,
+        selectedDate,
+        sampleImageUrl: offer.fullUrl ?? null,
+        sourceType: offer.sourceType || "custom",
+        flashId: flashId ?? null,
+        flashTitle: offer.flashTitle ?? flash.title ?? null,
+        flashDescription: offer.flashDescription ?? flash.description ?? null,
+        flashPrice: offer.flashPrice ?? flash.price ?? null,
+        flashSheetId: offer.flashSheetId ?? flash.flashSheetId ?? null,
+        flashRepeatability:
+          offer.sourceType === "flash"
+            ? getFlashRepeatability(flash)
+            : null,
+        flashAvailabilityStatus:
+          offer.sourceType === "flash"
+            ? getFlashAvailabilityStatus(flash)
+            : null,
+        isFromSheet: offer.isFromSheet ?? null,
+        status: "pending_payment",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      transaction.create(bookingRef, bookingData);
+      allocations.forEach((allocation) => {
+        const { sessionRef } = getBookingSessionRefs(
+          bookingRef.id,
+          allocation.sessionNumber
+        );
+        const balanceAmountCents = Math.max(
+          allocation.quotedAmountCents - allocation.depositAmountCents,
+          0
+        );
+        transaction.create(sessionRef, {
+          bookingId: bookingRef.id,
+          artistId: offer.artistId,
+          clientId: offer.clientId,
+          sessionNumber: allocation.sessionNumber,
+          quotedAmountCents: allocation.quotedAmountCents,
+          quotedAmount: centsToDollars(allocation.quotedAmountCents),
+          depositAmountCents: allocation.depositAmountCents,
+          depositAmount: centsToDollars(allocation.depositAmountCents),
+          balanceAmountCents,
+          balanceAmount: centsToDollars(balanceAmountCents),
+          allowedBalanceMethods,
+          selectedBalanceMethod: null,
+          depositStatus:
+            allocation.sessionNumber === 1 ? "due" : "not_due",
+          balanceStatus: "not_due",
+          paymentStatus:
+            allocation.sessionNumber === 1 ? "deposit_due" : "not_due",
+          status: allocation.sessionNumber === 1 ? "scheduled" : "planned",
+          selectedDate:
+            allocation.sessionNumber === 1 ? selectedDate : null,
+          checkoutAttemptNumber: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+      });
+
+      const { summaryRef } = getBookingSessionRefs(bookingRef.id, 1);
+      transaction.create(summaryRef, {
+        bookingId: bookingRef.id,
+        artistId: offer.artistId,
+        clientId: offer.clientId,
+        offerId,
+        activeSessionNumber: 1,
+        estimatedSessionCount: sessionCount,
+        completedSessionCount: 0,
+        remainingAmountCents: totalQuoteCents,
+        remainingAmount: centsToDollars(totalQuoteCents),
+        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      transaction.update(offerRef, {
+        status: "accepted",
+        respondedAt: timestamp,
+        bookingId: bookingRef.id,
+        updatedAt: timestamp,
+      });
+    });
+
+    return { bookingId: bookingRef.id };
+  }
+);
 
 const getCompletedBookingUpdate = (
   booking: admin.firestore.DocumentData,
@@ -1309,69 +1731,295 @@ const finalizeBookingPaymentAndFlash = async (
       repeatability = getFlashRepeatability(flash);
     }
 
-    const update = getCompletedBookingUpdate(
-      booking,
-      session,
-      connectedAccountId
-    );
-    resultStatus = update.status;
     paidOfferId = typeof booking.offerId === "string" ? booking.offerId : null;
-
-    transaction.update(bookingRef, {
-      ...update,
-      ...(booking.sourceType === "flash" && repeatability
-        ? {
-            flashRepeatability: repeatability,
-            flashAvailabilityStatus:
-              repeatability === "one_of_one" ? "sold" : "available",
-          }
-        : {}),
-    });
-
-    const paymentMode = (session.metadata?.paymentMode || "") as CheckoutPaymentMode;
-    if (paymentMode === "remaining" && isMultiSessionBooking(booking)) {
-      const paidSessionNumber = Math.max(
-        Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
-        1
-      );
-      const paidAmountCents = parseMetadataCents(
-        session.metadata || {},
-        "artistAmountCents"
+    if (isProtectedSessionPaymentBooking(booking)) {
+      const metadata = session.metadata || {};
+      const paymentPurpose = metadata.paymentPurpose as CheckoutPaymentPurpose;
+      const paidSessionNumber = getPositiveInteger(
+        metadata.sessionNumber,
+        getActiveSessionNumber(booking)
       );
       const { summaryRef, sessionRef } = getBookingSessionRefs(
         bookingRef.id,
         paidSessionNumber
       );
-      const paymentUpdate = {
-        paymentStatus: "confirmed",
-        paidAmount: centsToDollars(paidAmountCents),
-        paidAmountCents,
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
-        checkoutSessionId: session.id,
-        remainingAmount: update.remainingBalanceAmount,
-        remainingAmountCents: update.remainingBalanceCents,
-      };
+      const paymentRef = bookingRef.collection("payments").doc(session.id);
+      const [sessionSnap, paymentSnap] = await Promise.all([
+        transaction.get(sessionRef),
+        transaction.get(paymentRef),
+      ]);
 
-      transaction.set(
-        summaryRef,
-        createSessionSummaryUpdate(
-          bookingRef.id,
-          { ...booking, ...update },
-          paidSessionNumber,
-          paymentUpdate
-        ),
-        { merge: true }
+      if (paymentSnap.exists) {
+        resultStatus = String(booking.status || "deposit_paid");
+      } else {
+        if (!sessionSnap.exists) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The session ledger is missing."
+          );
+        }
+        const sessionLedger = sessionSnap.data() || {};
+        const expectedAmountCents =
+          paymentPurpose === "session_deposit"
+            ? getNonNegativeCents(sessionLedger.depositAmountCents, 0)
+            : paymentPurpose === "session_balance"
+            ? getNonNegativeCents(sessionLedger.balanceAmountCents, 0)
+            : 0;
+        const artistAmountCents = parseMetadataCents(
+          metadata,
+          "artistAmountCents"
+        );
+        if (
+          expectedAmountCents < MIN_ARTIST_PAYOUT_CENTS ||
+          artistAmountCents !== expectedAmountCents
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Stripe payment does not match the session ledger."
+          );
+        }
+
+        const timestamp = admin.firestore.FieldValue.serverTimestamp();
+        const priceCents = getBookingPriceCents(booking);
+        const nextPaidCents = Math.min(
+          getTotalArtistPaidCents(booking) + artistAmountCents,
+          priceCents
+        );
+        const remainingBalanceCents = Math.max(
+          priceCents - nextPaidCents,
+          0
+        );
+        const platformFeeCents = parseMetadataCents(
+          metadata,
+          "platformFeeCents"
+        );
+        const platformFeeCollectedCents =
+          getPlatformFeeCollectedCents(booking, false) + platformFeeCents;
+        const clientTotalCents = parseMetadataCents(
+          metadata,
+          "clientTotalCents",
+          session.amount_total || 0
+        );
+        const stripeFeeCents = parseMetadataCents(
+          metadata,
+          "estimatedStripeFeeCents"
+        );
+        const isBalancePayment = paymentPurpose === "session_balance";
+        const isFinalSession =
+          paidSessionNumber >= getEstimatedSessionCount(booking);
+        const projectComplete =
+          isBalancePayment && isFinalSession && remainingBalanceCents === 0;
+        const nextActiveSessionNumber =
+          isBalancePayment && !isFinalSession
+            ? paidSessionNumber + 1
+            : paidSessionNumber;
+        const nextStatus = projectComplete ? "paid" : "deposit_paid";
+        resultStatus = nextStatus;
+
+        const bookingUpdate = {
+          status: nextStatus,
+          paymentMode:
+            paymentPurpose === "session_deposit" ? "deposit" : "remaining",
+          checkoutPaymentMode:
+            paymentPurpose === "session_deposit" ? "deposit" : "remaining",
+          checkoutPaymentPurpose: paymentPurpose,
+          stripeCheckoutSessionId: session.id,
+          lastCompletedCheckoutSessionId: session.id,
+          stripePaymentIntentId: session.payment_intent,
+          stripeConnectedAccountId:
+            connectedAccountId ??
+            getOptionalString(metadata.stripeConnectedAccountId) ??
+            booking.stripeConnectedAccountId ??
+            null,
+          clientPaymentAmountCents: clientTotalCents,
+          clientPaymentAmount: centsToDollars(clientTotalCents),
+          estimatedStripeFeeCents: stripeFeeCents,
+          estimatedStripeFeeAmount: centsToDollars(stripeFeeCents),
+          platformFeeCents,
+          platformFeeAmount: centsToDollars(platformFeeCents),
+          platformFeeCollectedCents,
+          platformFeeCollectedAmount: centsToDollars(
+            platformFeeCollectedCents
+          ),
+          pendingPlatformFeeCents: Math.max(
+            getPendingPlatformFeeCents(booking) - platformFeeCents,
+            0
+          ),
+          artistPaidCents: nextPaidCents,
+          totalArtistPaidCents: nextPaidCents,
+          totalArtistPaidAmount: centsToDollars(nextPaidCents),
+          outstandingProjectCents: remainingBalanceCents,
+          remainingBalanceCents,
+          remainingBalanceAmount: centsToDollars(remainingBalanceCents),
+          pendingSessionPaymentAmount: 0,
+          pendingSessionPaymentAmountCents: 0,
+          pendingSessionNumber: null,
+          remainingPaymentStatus: isBalancePayment
+            ? projectComplete
+              ? "confirmed"
+              : "not_due"
+            : "not_due",
+          remainingPaymentMethod: "stripe",
+          activeSessionNumber: nextActiveSessionNumber,
+          sessionStatus: isBalancePayment
+            ? projectComplete
+              ? "completed"
+              : "awaiting_next_session"
+            : booking.sessionStatus || "not_started",
+          projectStatus: projectComplete ? "completed" : "active",
+          ...(paymentPurpose === "session_deposit"
+            ? {
+                depositPaidAt: timestamp,
+                depositPaidAmountCents:
+                  getNonNegativeCents(booking.depositPaidAmountCents, 0) +
+                  artistAmountCents,
+                depositPaidAmount:
+                  centsToDollars(
+                    getNonNegativeCents(
+                      booking.depositPaidAmountCents,
+                      0
+                    ) + artistAmountCents
+                  ),
+              }
+            : {
+                remainingPaidAt: timestamp,
+                remainingPaidAmountCents:
+                  getNonNegativeCents(booking.remainingPaidAmountCents, 0) +
+                  artistAmountCents,
+                remainingPaidAmount:
+                  centsToDollars(
+                    getNonNegativeCents(
+                      booking.remainingPaidAmountCents,
+                      0
+                    ) + artistAmountCents
+                  ),
+                lastPaidSessionNumber: paidSessionNumber,
+              }),
+          ...(projectComplete ? { paidAt: timestamp } : {}),
+          updatedAt: timestamp,
+        };
+
+        transaction.update(bookingRef, bookingUpdate);
+        transaction.set(
+          sessionRef,
+          {
+            ...(paymentPurpose === "session_deposit"
+              ? {
+                  depositStatus: "paid",
+                  depositPaidAt: timestamp,
+                  depositCheckoutSessionId: session.id,
+                  paymentStatus: "deposit_paid",
+                }
+              : {
+                  balanceStatus: "confirmed",
+                  balancePaidAt: timestamp,
+                  balanceCheckoutSessionId: session.id,
+                  paidBalanceAmountCents: artistAmountCents,
+                  paidBalanceAmount: centsToDollars(artistAmountCents),
+                  paymentStatus: "confirmed",
+                }),
+            checkoutStatus: "complete",
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          summaryRef,
+          {
+            activeSessionNumber: nextActiveSessionNumber,
+            completedSessionCount: getCompletedSessionCount(booking),
+            remainingAmountCents: remainingBalanceCents,
+            remainingAmount: centsToDollars(remainingBalanceCents),
+            paymentStatus:
+              paymentPurpose === "session_deposit"
+                ? "deposit_paid"
+                : "confirmed",
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.create(paymentRef, {
+          bookingId: bookingRef.id,
+          sessionNumber: paidSessionNumber,
+          purpose: paymentPurpose,
+          method: "stripe",
+          artistAmountCents,
+          platformFeeCents,
+          stripeFeeCents,
+          clientTotalCents,
+          checkoutSessionId: session.id,
+          paymentIntentId: session.payment_intent,
+          status: "confirmed",
+          createdAt: timestamp,
+        });
+      }
+    } else {
+      const update = getCompletedBookingUpdate(
+        booking,
+        session,
+        connectedAccountId
       );
-      transaction.set(
-        sessionRef,
-        createSessionRecordUpdate(
+      resultStatus = update.status;
+
+      transaction.update(bookingRef, {
+        ...update,
+        ...(booking.sourceType === "flash" && repeatability
+          ? {
+              flashRepeatability: repeatability,
+              flashAvailabilityStatus:
+                repeatability === "one_of_one" ? "sold" : "available",
+            }
+          : {}),
+      });
+
+      const paymentMode = (session.metadata?.paymentMode ||
+        "") as CheckoutPaymentMode;
+      if (paymentMode === "remaining" && isMultiSessionBooking(booking)) {
+        const paidSessionNumber = Math.max(
+          Number(
+            booking.pendingSessionNumber || booking.activeSessionNumber || 1
+          ),
+          1
+        );
+        const paidAmountCents = parseMetadataCents(
+          session.metadata || {},
+          "artistAmountCents"
+        );
+        const { summaryRef, sessionRef } = getBookingSessionRefs(
           bookingRef.id,
-          booking,
-          paidSessionNumber,
-          paymentUpdate
-        ),
-        { merge: true }
-      );
+          paidSessionNumber
+        );
+        const paymentUpdate = {
+          paymentStatus: "confirmed",
+          paidAmount: centsToDollars(paidAmountCents),
+          paidAmountCents,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          checkoutSessionId: session.id,
+          remainingAmount: update.remainingBalanceAmount,
+          remainingAmountCents: update.remainingBalanceCents,
+        };
+
+        transaction.set(
+          summaryRef,
+          createSessionSummaryUpdate(
+            bookingRef.id,
+            { ...booking, ...update },
+            paidSessionNumber,
+            paymentUpdate
+          ),
+          { merge: true }
+        );
+        transaction.set(
+          sessionRef,
+          createSessionRecordUpdate(
+            bookingRef.id,
+            booking,
+            paidSessionNumber,
+            paymentUpdate
+          ),
+          { merge: true }
+        );
+      }
     }
 
     if (
@@ -1984,6 +2632,66 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       paymentMode = "deposit";
     }
 
+    const protectedSessionPayment = isProtectedSessionPaymentBooking(booking);
+    let paymentPurpose: CheckoutPaymentPurpose = "legacy";
+    const payableSessionNumber = Math.max(
+      getPositiveInteger(
+        booking.pendingSessionNumber,
+        booking.activeSessionNumber || 1
+      ),
+      1
+    );
+    let protectedSessionRef:
+      | admin.firestore.DocumentReference
+      | null = null;
+    let protectedSession: admin.firestore.DocumentData = {};
+    let checkoutAttemptNumber = 1;
+
+    if (protectedSessionPayment && paymentMode === "full") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Custom tattoo projects cannot be prepaid in full."
+      );
+    }
+
+    if (protectedSessionPayment && paymentMode !== "platform_fee") {
+      const refs = getBookingSessionRefs(bookingId, payableSessionNumber);
+      protectedSessionRef = refs.sessionRef;
+      const protectedSessionSnap = await protectedSessionRef.get();
+      if (!protectedSessionSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The active session payment plan is missing."
+        );
+      }
+      protectedSession = protectedSessionSnap.data() || {};
+      checkoutAttemptNumber = getPositiveInteger(
+        protectedSession.checkoutAttemptNumber,
+        1
+      );
+
+      if (protectedSession.depositStatus === "due") {
+        paymentMode = "deposit";
+        paymentPurpose = "session_deposit";
+      } else if (protectedSession.balanceStatus === "due") {
+        if (protectedSession.selectedBalanceMethod === "external") {
+          throw new HttpsError(
+            "failed-precondition",
+            "This session balance is marked for payment at the shop."
+          );
+        }
+        paymentMode = "remaining";
+        paymentPurpose = "session_balance";
+      } else {
+        throw new HttpsError(
+          "failed-precondition",
+          "There is no Stripe payment due for this session."
+        );
+      }
+    } else if (paymentMode === "platform_fee") {
+      paymentPurpose = "platform_fee";
+    }
+
     const isPlatformFeeOnlyPayment = paymentMode === "platform_fee";
 
     if (
@@ -2001,15 +2709,24 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         (booking.status === "deposit_paid" ? depositCents : 0)
     );
 
-    if (booking.status === "pending_payment" && paymentMode === "full") {
+    if (
+      !protectedSessionPayment &&
+      booking.status === "pending_payment" &&
+      paymentMode === "full"
+    ) {
       paymentMode = "deposit";
     }
 
-    if (booking.status === "deposit_paid" && !isPlatformFeeOnlyPayment) {
+    if (
+      !protectedSessionPayment &&
+      booking.status === "deposit_paid" &&
+      !isPlatformFeeOnlyPayment
+    ) {
       paymentMode = "remaining";
     }
 
     if (
+      !protectedSessionPayment &&
       paymentMode === "remaining" &&
       booking.remainingPaymentMethod === "external"
     ) {
@@ -2019,7 +2736,11 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
-    if (paymentMode === "remaining" && booking.status !== "deposit_paid") {
+    if (
+      !protectedSessionPayment &&
+      paymentMode === "remaining" &&
+      booking.status !== "deposit_paid"
+    ) {
       throw new HttpsError(
         "failed-precondition",
         "The remaining balance is not ready to be paid yet."
@@ -2045,6 +2766,9 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     }
 
     const requestedSessionPaymentCents =
+      protectedSessionPayment && paymentPurpose === "session_balance"
+        ? getNonNegativeCents(protectedSession.balanceAmountCents, 0)
+        :
       paymentMode === "remaining" &&
       (booking.projectType === "multi_session" ||
         Number(booking.estimatedSessionCount || 1) > 1)
@@ -2087,9 +2811,17 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
+    const protectedArtistAmountCents =
+      paymentPurpose === "session_deposit"
+        ? getNonNegativeCents(protectedSession.depositAmountCents, 0)
+        : paymentPurpose === "session_balance"
+        ? getNonNegativeCents(protectedSession.balanceAmountCents, 0)
+        : null;
     const artistAmountCents =
       paymentMode === "platform_fee"
         ? 0
+        : protectedArtistAmountCents !== null
+        ? protectedArtistAmountCents
         : paymentMode === "full"
         ? priceCents
         : paymentMode === "remaining"
@@ -2112,10 +2844,15 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
-    const platformFeeCents =
-      isPlatformFeeOnlyPayment || paymentMode === "remaining"
+    const platformFeeCents = protectedSessionPayment
+      ? isPlatformFeeOnlyPayment
         ? pendingPlatformFeeCents
-        : calculatePlatformFeeCents(priceCents || artistAmountCents);
+        : paymentPurpose === "session_deposit" && payableSessionNumber === 1
+        ? calculatePlatformFeeCents(priceCents || artistAmountCents)
+        : pendingPlatformFeeCents
+      : isPlatformFeeOnlyPayment || paymentMode === "remaining"
+      ? pendingPlatformFeeCents
+      : calculatePlatformFeeCents(priceCents || artistAmountCents);
 
     const {
       clientTotalCents,
@@ -2203,6 +2940,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         estimatedStripeFeeCents: String(stripeFeeCents),
         clientTotalCents: String(clientTotalCents),
         paymentMode,
+        paymentPurpose,
+        sessionNumber: String(payableSessionNumber),
+        paymentModelVersion: String(booking.paymentModelVersion || 1),
+        checkoutAttemptNumber: String(checkoutAttemptNumber),
         priceCents: String(priceCents),
         depositCents: String(depositCents),
         flashId: reservedFlashId ?? '',
@@ -2246,6 +2987,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         estimatedStripeFeeCents: String(stripeFeeCents),
         clientTotalCents: String(clientTotalCents),
         paymentMode,
+        paymentPurpose,
+        sessionNumber: String(payableSessionNumber),
+        paymentModelVersion: String(booking.paymentModelVersion || 1),
+        checkoutAttemptNumber: String(checkoutAttemptNumber),
         priceCents: String(priceCents),
         depositCents: String(depositCents),
         flashId: reservedFlashId ?? '',
@@ -2257,10 +3002,22 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       cancel_url: data.cancelUrl || `${DEFAULT_APP_URL}/payment/${bookingId}`,
     };
 
+    const idempotencyKey = [
+      "booking",
+      bookingId,
+      "session",
+      payableSessionNumber,
+      paymentPurpose,
+      "attempt",
+      checkoutAttemptNumber,
+    ].join(":");
     const session = isPlatformFeeOnlyPayment
-      ? await stripe.checkout.sessions.create(sessionParams)
+      ? await stripe.checkout.sessions.create(sessionParams, {
+          idempotencyKey,
+        })
       : await stripe.checkout.sessions.create(sessionParams, {
           stripeAccount: connectedAccountId,
+          idempotencyKey,
         });
     createdCheckoutSessionId = session.id;
 
@@ -2271,6 +3028,19 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         sessionId: session.id,
         holdUntil: flashHoldUntil,
       });
+    }
+
+    if (protectedSessionRef) {
+      await protectedSessionRef.set(
+        {
+          checkoutSessionId: session.id,
+          checkoutStatus: "open",
+          checkoutAttemptNumber,
+          checkoutCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
 
     await bookingRef.set(
@@ -2294,6 +3064,8 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
               artistPayoutCents: artistAmountCents,
             }),
         checkoutPaymentMode: paymentMode,
+        checkoutPaymentPurpose: paymentPurpose,
+        checkoutSessionNumber: payableSessionNumber,
         ...(reservedOneOfOneFlash
           ? {
               flashRepeatability: "one_of_one",
@@ -2435,10 +3207,14 @@ const proposeProjectAmendment = onCall(
           dollarsToCents(data.addedArtistAmount || 0)
         );
 
-        if (additionalSessionCount <= 0 || additionalSessionCount > 24) {
+        if (
+          additionalSessionCount <= 0 ||
+          currentEstimatedSessionCount + additionalSessionCount >
+            MAX_PROJECT_SESSION_COUNT
+        ) {
           throw new HttpsError(
             "invalid-argument",
-            "Added sessions must be between 1 and 24."
+            "A project can contain no more than 12 sessions."
           );
         }
 
@@ -2452,6 +3228,31 @@ const proposeProjectAmendment = onCall(
         const proposedPriceCents = currentPriceCents + addedArtistAmountCents;
         const proposedEstimatedSessionCount =
           currentEstimatedSessionCount + additionalSessionCount;
+        const proposedSessionAllocations =
+          isProtectedSessionPaymentBooking(booking)
+            ? buildEqualSessionAllocations({
+                totalQuoteCents: addedArtistAmountCents,
+                sessionCount: additionalSessionCount,
+                depositAmountCents: dollarsToCents(booking.depositAmount),
+              }).map((allocation) => ({
+                ...allocation,
+                sessionNumber:
+                  currentEstimatedSessionCount + allocation.sessionNumber,
+              }))
+            : [];
+        if (
+          isProtectedSessionPaymentBooking(booking) &&
+          proposedSessionAllocations.some(
+            (allocation) =>
+              allocation.depositAmountCents !==
+              dollarsToCents(booking.depositAmount)
+          )
+        ) {
+          throw new HttpsError(
+            "invalid-argument",
+            "The added amount is too low for the project's session deposit."
+          );
+        }
         const proposedRemainingBalanceCents = Math.max(
           proposedPriceCents - getTotalArtistPaidCents(booking),
           0
@@ -2473,6 +3274,7 @@ const proposeProjectAmendment = onCall(
           proposedPriceCents,
           proposedPrice: centsToDollars(proposedPriceCents),
           proposedEstimatedSessionCount,
+          proposedSessionAllocations,
           proposedRemainingBalanceCents,
           proposedRemainingBalanceAmount: centsToDollars(
             proposedRemainingBalanceCents
@@ -2654,6 +3456,41 @@ const respondToProjectAmendment = onCall(
         );
         const pendingPlatformFeeCents =
           getPendingPlatformFeeCents(booking) + platformFeeDeltaCents;
+        const addedSessionAllocations: SessionAllocation[] =
+          isProtectedSessionPaymentBooking(booking)
+            ? (
+                Array.isArray(amendment.proposedSessionAllocations)
+                  ? amendment.proposedSessionAllocations
+                  : buildEqualSessionAllocations({
+                      totalQuoteCents: addedArtistAmountCents,
+                      sessionCount: additionalSessionCount,
+                      depositAmountCents: dollarsToCents(
+                        booking.depositAmount
+                      ),
+                    }).map((allocation) => ({
+                      ...allocation,
+                      sessionNumber:
+                        currentEstimatedSessionCount +
+                        allocation.sessionNumber,
+                    }))
+              ).map((allocation: admin.firestore.DocumentData) => ({
+                sessionNumber: getPositiveInteger(
+                  allocation.sessionNumber,
+                  currentEstimatedSessionCount + 1
+                ),
+                quotedAmountCents: getNonNegativeCents(
+                  allocation.quotedAmountCents,
+                  0
+                ),
+                depositAmountCents: getNonNegativeCents(
+                  allocation.depositAmountCents,
+                  0
+                ),
+              }))
+            : [];
+        const currentAllocations = Array.isArray(booking.sessionAllocations)
+          ? booking.sessionAllocations
+          : [];
 
         Object.assign(bookingUpdate, {
           projectStatus: "active",
@@ -2668,7 +3505,17 @@ const respondToProjectAmendment = onCall(
             currentEstimatedSessionCount,
           price: centsToDollars(nextPriceCents),
           priceCents: nextPriceCents,
+          quoteTotalCents: nextPriceCents,
           estimatedSessionCount: nextEstimatedSessionCount,
+          ...(isProtectedSessionPaymentBooking(booking)
+            ? {
+                sessionAllocations: [
+                  ...currentAllocations,
+                  ...addedSessionAllocations,
+                ],
+                outstandingProjectCents: nextRemainingBalanceCents,
+              }
+            : {}),
           remainingBalanceCents: nextRemainingBalanceCents,
           remainingBalanceAmount: centsToDollars(nextRemainingBalanceCents),
           platformFeeCollectedCents,
@@ -2685,6 +3532,44 @@ const respondToProjectAmendment = onCall(
           acceptedRemainingBalanceCents: nextRemainingBalanceCents,
           acceptedPlatformFeeDeltaCents: platformFeeDeltaCents,
         });
+        if (isProtectedSessionPaymentBooking(booking)) {
+          addedSessionAllocations.forEach((allocation) => {
+            const { sessionRef } = getBookingSessionRefs(
+              bookingId,
+              allocation.sessionNumber
+            );
+            const balanceAmountCents = Math.max(
+              allocation.quotedAmountCents -
+                allocation.depositAmountCents,
+              0
+            );
+            transaction.create(sessionRef, {
+              bookingId,
+              artistId: booking.artistId,
+              clientId: booking.clientId,
+              sessionNumber: allocation.sessionNumber,
+              quotedAmountCents: allocation.quotedAmountCents,
+              quotedAmount: centsToDollars(
+                allocation.quotedAmountCents
+              ),
+              depositAmountCents: allocation.depositAmountCents,
+              depositAmount: centsToDollars(
+                allocation.depositAmountCents
+              ),
+              balanceAmountCents,
+              balanceAmount: centsToDollars(balanceAmountCents),
+              allowedBalanceMethods: ["stripe", "external"],
+              selectedBalanceMethod: null,
+              depositStatus: "not_due",
+              balanceStatus: "not_due",
+              paymentStatus: "not_due",
+              status: "planned",
+              checkoutAttemptNumber: 1,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          });
+        }
       } else if (type === "schedule_next_session") {
         const selectedDate = amendment.proposedSelectedDate || {};
         const date = getOptionalString(selectedDate.date);
@@ -2700,12 +3585,31 @@ const respondToProjectAmendment = onCall(
             "This scheduling amendment is missing a date or time."
           );
         }
+        const protectedPaymentModel =
+          isProtectedSessionPaymentBooking(booking);
+        const sessionAllocation = protectedPaymentModel
+          ? getProjectSessionAllocation(booking, sessionNumber)
+          : null;
+        const sessionDepositCents =
+          sessionAllocation?.depositAmountCents || 0;
 
         Object.assign(bookingUpdate, {
           selectedDate: { date, time },
           nextSessionScheduledBy: uid,
           nextSessionScheduledAt: timestamp,
-          sessionStatus: booking.sessionStatus || "not_started",
+          sessionStatus: protectedPaymentModel
+            ? "not_started"
+            : booking.sessionStatus || "not_started",
+          ...(protectedPaymentModel
+            ? {
+                pendingSessionPaymentAmount:
+                  centsToDollars(sessionDepositCents),
+                pendingSessionPaymentAmountCents: sessionDepositCents,
+                pendingSessionNumber: sessionNumber,
+                remainingPaymentMethod: "stripe",
+                remainingPaymentStatus: "due",
+              }
+            : {}),
         });
 
         const { summaryRef, sessionRef } = getBookingSessionRefs(
@@ -2731,6 +3635,13 @@ const respondToProjectAmendment = onCall(
             scheduledTime: time,
             scheduledBy: uid,
             scheduledAt: timestamp,
+            ...(protectedPaymentModel
+              ? {
+                  selectedDate: { date, time },
+                  depositStatus: "due",
+                  paymentStatus: "deposit_due",
+                }
+              : {}),
           }),
           { merge: true }
         );
@@ -2796,7 +3707,7 @@ const scheduleProjectSession = onCall(
       }
 
       const booking = bookingSnap.data() || {};
-      getParticipantRole(booking, uid);
+      const participantRole = getParticipantRole(booking, uid);
 
       if (getProjectStatus(booking) === "completed") {
         throw new HttpsError(
@@ -2813,6 +3724,44 @@ const scheduleProjectSession = onCall(
         bookingId,
         scheduledSessionNumber
       );
+      const protectedPaymentModel = isProtectedSessionPaymentBooking(booking);
+      const sessionSnap = protectedPaymentModel
+        ? await transaction.get(sessionRef)
+        : null;
+      const sessionLedger = sessionSnap?.data() || {};
+      if (protectedPaymentModel) {
+        if (participantRole !== "artist") {
+          throw new HttpsError(
+            "permission-denied",
+            "Only the artist can schedule the next project session."
+          );
+        }
+        if (scheduledSessionNumber !== getActiveSessionNumber(booking)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Only the active project session can be scheduled."
+          );
+        }
+        if (!sessionSnap?.exists) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The session ledger is missing."
+          );
+        }
+        if (
+          !["planned", "awaiting_schedule"].includes(
+            String(sessionLedger.status || "")
+          )
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This session is not ready to schedule."
+          );
+        }
+      }
+      const sessionDepositCents = protectedPaymentModel
+        ? getNonNegativeCents(sessionLedger.depositAmountCents, 0)
+        : 0;
       const sessionUpdate = {
         status: "scheduled",
         sessionNumber: scheduledSessionNumber,
@@ -2821,6 +3770,13 @@ const scheduleProjectSession = onCall(
         scheduledBy: uid,
         scheduledAt: timestamp,
         note: getOptionalString(data.note),
+        ...(protectedPaymentModel
+          ? {
+              selectedDate: { date, time },
+              depositStatus: "due",
+              paymentStatus: "deposit_due",
+            }
+          : {}),
       };
 
       transaction.update(bookingRef, {
@@ -2828,7 +3784,19 @@ const scheduleProjectSession = onCall(
         selectedDate: { date, time },
         nextSessionScheduledBy: uid,
         nextSessionScheduledAt: timestamp,
-        sessionStatus: booking.sessionStatus || "not_started",
+        sessionStatus: protectedPaymentModel
+          ? "not_started"
+          : booking.sessionStatus || "not_started",
+        ...(protectedPaymentModel
+          ? {
+              pendingSessionPaymentAmount:
+                centsToDollars(sessionDepositCents),
+              pendingSessionPaymentAmountCents: sessionDepositCents,
+              pendingSessionNumber: scheduledSessionNumber,
+              remainingPaymentMethod: "stripe",
+              remainingPaymentStatus: "due",
+            }
+          : {}),
         updatedAt: timestamp,
       });
       transaction.set(
@@ -2969,6 +3937,13 @@ const prepareProjectSessionPayment = onCall(
         throw new HttpsError(
           "permission-denied",
           "Only the artist can request a session payment."
+        );
+      }
+
+      if (isProtectedSessionPaymentBooking(booking)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Protected projects calculate each deposit and balance from the session ledger."
         );
       }
 
@@ -3219,6 +4194,26 @@ const startProjectSession = onCall(
         bookingId,
         startedSessionNumber
       );
+      if (isProtectedSessionPaymentBooking(booking)) {
+        const sessionSnap = await transaction.get(sessionRef);
+        const sessionLedger = sessionSnap.data() || {};
+        if (!sessionSnap.exists || sessionLedger.depositStatus !== "paid") {
+          throw new HttpsError(
+            "failed-precondition",
+            "The session deposit must be paid before tattooing begins."
+          );
+        }
+        if (
+          !["scheduled", "not_started"].includes(
+            String(sessionLedger.status || "")
+          )
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This session is not ready to start."
+          );
+        }
+      }
       const sessionUpdate = {
         status: "in_progress",
         sessionNumber: startedSessionNumber,
@@ -3313,10 +4308,41 @@ const completeProjectSession = onCall(
         completedSessionNumber
       );
       const remainingBalanceCents = getRemainingBalanceCents(booking);
-      amountDueCents =
-        sessionInstallmentTiming === "after_session" && remainingBalanceCents > 0
-          ? getSessionInstallmentCents(booking)
-          : 0;
+      const protectedPaymentModel = isProtectedSessionPaymentBooking(booking);
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        completedSessionNumber
+      );
+      const protectedSessionSnap = protectedPaymentModel
+        ? await transaction.get(sessionRef)
+        : null;
+      const protectedSession = protectedSessionSnap?.data() || {};
+      if (protectedPaymentModel) {
+        if (!protectedSessionSnap?.exists) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The session ledger is missing."
+          );
+        }
+        if (protectedSession.depositStatus !== "paid") {
+          throw new HttpsError(
+            "failed-precondition",
+            "The session deposit has not been paid."
+          );
+        }
+        if (protectedSession.status !== "in_progress") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Start the session before marking it complete."
+          );
+        }
+      }
+      amountDueCents = protectedPaymentModel
+        ? getNonNegativeCents(protectedSession.balanceAmountCents, 0)
+        : sessionInstallmentTiming === "after_session" &&
+          remainingBalanceCents > 0
+        ? getSessionInstallmentCents(booking)
+        : 0;
       const projectIsComplete = completedSessionCount >= sessionCount;
       const hasAnotherSession =
         isMultiSessionBooking(booking) && completedSessionNumber < sessionCount;
@@ -3330,12 +4356,20 @@ const completeProjectSession = onCall(
         : hasAnotherSession && amountDueCents <= 0
         ? Math.min(completedSessionNumber + 1, sessionCount)
         : completedSessionNumber;
-      const photoUrls = Array.isArray(data.photoUrls)
+      const submittedPhotoUrls = Array.isArray(data.photoUrls)
         ? data.photoUrls.filter((url): url is string => typeof url === "string")
         : [];
-      const { summaryRef, sessionRef } = getBookingSessionRefs(
-        bookingId,
-        completedSessionNumber
+      const existingSessionPhotoUrls = Array.isArray(protectedSession.photoUrls)
+        ? protectedSession.photoUrls.filter(
+            (url): url is string => typeof url === "string"
+          )
+        : [];
+      const photoUrls = Array.from(
+        new Set(
+          submittedPhotoUrls.length > 0
+            ? [...existingSessionPhotoUrls, ...submittedPhotoUrls]
+            : existingSessionPhotoUrls
+        )
       );
       const sessionUpdate = {
         status: "completed",
@@ -3347,12 +4381,22 @@ const completeProjectSession = onCall(
         amountDueCents,
         amountDue: centsToDollars(amountDueCents),
         paymentStatus: amountDueCents > 0 ? "due" : "confirmed",
+        ...(protectedPaymentModel
+          ? {
+              balanceStatus:
+                amountDueCents > 0 ? "due" : "confirmed",
+              selectedBalanceMethod: null,
+            }
+          : {}),
         pendingPlatformFeeCents: getPendingPlatformFeeCents(booking),
       };
 
       transaction.update(bookingRef, {
         sessionStatus: nextSessionStatus,
-        projectStatus: projectIsComplete ? "completed" : "active",
+        projectStatus:
+          projectIsComplete && amountDueCents <= 0
+            ? "completed"
+            : "active",
         sessionCompletedAt: timestamp,
         completedSessionCount,
         pendingSessionPaymentAmount: centsToDollars(amountDueCents),
@@ -3367,6 +4411,13 @@ const completeProjectSession = onCall(
             : remainingBalanceCents > 0
             ? "not_due"
             : "confirmed",
+        ...(protectedPaymentModel
+          ? {
+              remainingPaymentMethod: "stripe",
+              externalRemainingAmount: centsToDollars(amountDueCents),
+              externalRemainingAmountCents: amountDueCents,
+            }
+          : {}),
         activeSessionNumber: nextActiveSessionNumber,
         sessionPhotoUrls: photoUrls.length > 0 ? photoUrls : booking.sessionPhotoUrls ?? [],
         updatedAt: timestamp,
@@ -3399,7 +4450,445 @@ const completeProjectSession = onCall(
     };
   }
 );
- 
+
+const addProjectSessionPhoto = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to save a session photo."
+      );
+    }
+
+    const bookingId = getOptionalString(req.data?.bookingId);
+    const photoUrl = getOptionalString(req.data?.photoUrl);
+    if (!bookingId || !photoUrl) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A booking and photo URL are required."
+      );
+    }
+
+    let parsedPhotoUrl: URL;
+    try {
+      parsedPhotoUrl = new URL(photoUrl);
+    } catch {
+      throw new HttpsError("invalid-argument", "The photo URL is invalid.");
+    }
+    if (
+      parsedPhotoUrl.protocol !== "https:" ||
+      !["firebasestorage.googleapis.com", "storage.googleapis.com"].includes(
+        parsedPhotoUrl.hostname
+      ) ||
+      photoUrl.length > 2048
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "The photo must come from SATX Ink storage."
+      );
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    let sessionNumber = 1;
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      if (getParticipantRole(booking, uid) !== "artist") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the artist can add session photos."
+        );
+      }
+
+      sessionNumber = getActiveSessionNumber(booking);
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        sessionNumber
+      );
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const photoUpdate = {
+        bookingId,
+        artistId: booking.artistId,
+        clientId: booking.clientId,
+        sessionNumber,
+        photoUrls: admin.firestore.FieldValue.arrayUnion(photoUrl),
+        updatedAt: timestamp,
+      };
+
+      transaction.update(bookingRef, {
+        sessionPhotoUrls: admin.firestore.FieldValue.arrayUnion(photoUrl),
+        updatedAt: timestamp,
+      });
+      transaction.set(summaryRef, photoUpdate, { merge: true });
+      transaction.set(sessionRef, photoUpdate, { merge: true });
+    });
+
+    return { sessionNumber, photoUrl };
+  }
+);
+
+const selectSessionBalanceMethod = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to choose a payment method."
+      );
+    }
+    const bookingId = getOptionalString(req.data?.bookingId);
+    const method = req.data?.method as SessionBalanceMethod | undefined;
+    if (!bookingId || !["stripe", "external"].includes(String(method))) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Choose Stripe or payment at the shop."
+      );
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+      const booking = bookingSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+      if (role !== "client") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the client can choose how to settle the session balance."
+        );
+      }
+      if (!isProtectedSessionPaymentBooking(booking)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This booking uses the legacy payment flow."
+        );
+      }
+
+      const sessionNumber = getPositiveInteger(
+        booking.pendingSessionNumber,
+        getActiveSessionNumber(booking)
+      );
+      const { sessionRef } = getBookingSessionRefs(bookingId, sessionNumber);
+      const sessionSnap = await transaction.get(sessionRef);
+      const sessionLedger = sessionSnap.data() || {};
+      if (
+        !sessionSnap.exists ||
+        sessionLedger.balanceStatus !== "due"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The session balance is not due yet."
+        );
+      }
+      const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
+        ? sessionLedger.allowedBalanceMethods
+        : ["stripe", "external"];
+      if (!allowedMethods.includes(method)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "That payment method is not available for this session."
+        );
+      }
+      if (
+        sessionLedger.externalArtistConfirmedAt ||
+        sessionLedger.externalClientConfirmedAt
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The payment method cannot change after a confirmation."
+        );
+      }
+
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      transaction.update(bookingRef, {
+        remainingPaymentMethod: method,
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        sessionRef,
+        {
+          selectedBalanceMethod: method,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    });
+
+    return { method };
+  }
+);
+
+const attestExternalSessionPayment = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to confirm this payment."
+      );
+    }
+    const bookingId = getOptionalString(req.data?.bookingId);
+    const action = req.data?.action === "dispute" ? "dispute" : "confirm";
+    const reason = getOptionalString(req.data?.reason);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A booking is required.");
+    }
+    if (action === "dispute" && !reason) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Add a short reason for the payment dispute."
+      );
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    let settled = false;
+    let resultingStatus = "due";
+
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Booking not found.");
+      }
+      const booking = bookingSnap.data() || {};
+      const role = getParticipantRole(booking, uid);
+      if (!isProtectedSessionPaymentBooking(booking)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This booking uses the legacy payment flow."
+        );
+      }
+      const sessionNumber = getPositiveInteger(
+        booking.pendingSessionNumber,
+        getActiveSessionNumber(booking)
+      );
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingId,
+        sessionNumber
+      );
+      const paymentRef = bookingRef
+        .collection("payments")
+        .doc(`external-session-${sessionNumber}`);
+      const [sessionSnap, paymentSnap] = await Promise.all([
+        transaction.get(sessionRef),
+        transaction.get(paymentRef),
+      ]);
+      const sessionLedger = sessionSnap.data() || {};
+      if (
+        !sessionSnap.exists ||
+        !["due", "artist_confirmed", "client_confirmed", "disputed"].includes(
+          String(sessionLedger.balanceStatus || "")
+        )
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The session balance is not available for confirmation."
+        );
+      }
+      if (
+        action === "confirm" &&
+        sessionLedger.balanceStatus === "disputed"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This payment is disputed and must be reviewed before confirmation."
+        );
+      }
+      if (paymentSnap.exists) {
+        settled = true;
+        resultingStatus = "confirmed";
+        return;
+      }
+
+      const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
+        ? sessionLedger.allowedBalanceMethods
+        : ["stripe", "external"];
+      if (!allowedMethods.includes("external")) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Payment at the shop is not enabled for this session."
+        );
+      }
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      if (action === "dispute") {
+        resultingStatus = "disputed";
+        transaction.update(bookingRef, {
+          remainingPaymentMethod: "external",
+          remainingPaymentStatus: "disputed",
+          externalRemainingDisputeReason: reason,
+          externalRemainingDisputedAt: timestamp,
+          updatedAt: timestamp,
+        });
+        transaction.set(
+          sessionRef,
+          {
+            selectedBalanceMethod: "external",
+            balanceStatus: "disputed",
+            disputeReason: reason,
+            disputedAt: timestamp,
+            disputedBy: uid,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      const artistAlreadyConfirmed = Boolean(
+        sessionLedger.externalArtistConfirmedAt
+      );
+      const clientAlreadyConfirmed = Boolean(
+        sessionLedger.externalClientConfirmedAt
+      );
+      const artistConfirmed = role === "artist" || artistAlreadyConfirmed;
+      const clientConfirmed = role === "client" || clientAlreadyConfirmed;
+      const confirmationStatus = artistConfirmed && clientConfirmed
+        ? "confirmed"
+        : artistConfirmed
+        ? "artist_confirmed"
+        : "client_confirmed";
+      resultingStatus = confirmationStatus;
+
+      if (!artistConfirmed || !clientConfirmed) {
+        transaction.update(bookingRef, {
+          remainingPaymentMethod: "external",
+          remainingPaymentStatus: confirmationStatus,
+          ...(role === "artist"
+            ? { externalRemainingArtistConfirmedAt: timestamp }
+            : { externalRemainingClientConfirmedAt: timestamp }),
+          updatedAt: timestamp,
+        });
+        transaction.set(
+          sessionRef,
+          {
+            selectedBalanceMethod: "external",
+            balanceStatus: confirmationStatus,
+            ...(role === "artist"
+              ? { externalArtistConfirmedAt: timestamp }
+              : { externalClientConfirmedAt: timestamp }),
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        return;
+      }
+
+      const balanceAmountCents = getNonNegativeCents(
+        sessionLedger.balanceAmountCents,
+        0
+      );
+      if (balanceAmountCents <= 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The session ledger has no balance to settle."
+        );
+      }
+      const priceCents = getBookingPriceCents(booking);
+      const nextPaidCents = Math.min(
+        getTotalArtistPaidCents(booking) + balanceAmountCents,
+        priceCents
+      );
+      const remainingBalanceCents = Math.max(priceCents - nextPaidCents, 0);
+      const isFinalSession =
+        sessionNumber >= getEstimatedSessionCount(booking);
+      const projectComplete = isFinalSession && remainingBalanceCents === 0;
+      const nextSessionNumber = projectComplete
+        ? sessionNumber
+        : sessionNumber + 1;
+      settled = true;
+
+      transaction.update(bookingRef, {
+        status: projectComplete ? "paid" : "deposit_paid",
+        artistPaidCents: nextPaidCents,
+        totalArtistPaidCents: nextPaidCents,
+        totalArtistPaidAmount: centsToDollars(nextPaidCents),
+        outstandingProjectCents: remainingBalanceCents,
+        remainingBalanceCents,
+        remainingBalanceAmount: centsToDollars(remainingBalanceCents),
+        remainingPaidAmountCents:
+          getNonNegativeCents(booking.remainingPaidAmountCents, 0) +
+          balanceAmountCents,
+        remainingPaidAmount:
+          centsToDollars(
+            getNonNegativeCents(booking.remainingPaidAmountCents, 0) +
+              balanceAmountCents
+          ),
+        remainingPaidAt: timestamp,
+        remainingPaymentMethod: "external",
+        remainingPaymentStatus: projectComplete ? "confirmed" : "not_due",
+        externalRemainingArtistConfirmedAt: timestamp,
+        externalRemainingClientConfirmedAt: timestamp,
+        pendingSessionPaymentAmount: 0,
+        pendingSessionPaymentAmountCents: 0,
+        pendingSessionNumber: null,
+        lastPaidSessionNumber: sessionNumber,
+        activeSessionNumber: nextSessionNumber,
+        sessionStatus: projectComplete
+          ? "completed"
+          : "awaiting_next_session",
+        projectStatus: projectComplete ? "completed" : "active",
+        ...(projectComplete ? { paidAt: timestamp } : {}),
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        sessionRef,
+        {
+          selectedBalanceMethod: "external",
+          balanceStatus: "confirmed",
+          paymentStatus: "confirmed",
+          externalArtistConfirmedAt:
+            sessionLedger.externalArtistConfirmedAt || timestamp,
+          externalClientConfirmedAt:
+            sessionLedger.externalClientConfirmedAt || timestamp,
+          paidBalanceAmountCents: balanceAmountCents,
+          paidBalanceAmount: centsToDollars(balanceAmountCents),
+          balancePaidAt: timestamp,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.set(
+        summaryRef,
+        {
+          activeSessionNumber: nextSessionNumber,
+          remainingAmountCents: remainingBalanceCents,
+          remainingAmount: centsToDollars(remainingBalanceCents),
+          paymentStatus: "confirmed",
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.create(paymentRef, {
+        bookingId,
+        sessionNumber,
+        purpose: "session_balance",
+        method: "external",
+        artistAmountCents: balanceAmountCents,
+        platformFeeCents: 0,
+        stripeFeeCents: 0,
+        clientTotalCents: balanceAmountCents,
+        status: "confirmed",
+        artistConfirmedAt:
+          sessionLedger.externalArtistConfirmedAt || timestamp,
+        clientConfirmedAt:
+          sessionLedger.externalClientConfirmedAt || timestamp,
+        createdAt: timestamp,
+      });
+    });
+
+    return { settled, status: resultingStatus };
+  }
+);
+
 const syncBookingPaymentStatus = onCall(
   { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
   async (req) => {
@@ -3527,17 +5016,22 @@ const stripeWebhook = onRequest(
 
     // Check for duplicates (idempotency)
     const existing = await eventDoc.get();
-    if (existing.exists) {
+    if (existing.exists && existing.data()?.status === "processed") {
       console.log(`Skipping duplicate event: ${event.id}`);
       res.status(200).send('Event already processed.');
       return;
     }
 
-    // Mark this event as processed
+    // Record the attempt, but only mark it processed after fulfillment succeeds.
     await eventDoc.set({
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt:
+        existing.data()?.createdAt ||
+        admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       type: event.type,
-    });
+      status: "processing",
+      attempts: admin.firestore.FieldValue.increment(1),
+    }, { merge: true });
 
     // Handle specific event types
     if (event.type === 'checkout.session.completed') {
@@ -3567,9 +5061,15 @@ const stripeWebhook = onRequest(
         );
 
         console.log(`Booking ${bookingId} updated to ${result.status}.`);
+        await eventDoc.set({
+          status: "processed",
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
         res.status(200).send("Booking updated.");
       } catch (err) {
         console.error("Error updating booking:", err);
+        await eventDoc.delete().catch(() => undefined);
         res.status(500).send("Failed to update booking.");
       }
     } else if (event.type === 'checkout.session.expired') {
@@ -3600,15 +5100,43 @@ const stripeWebhook = onRequest(
             { merge: true }
           );
         }
+        const expiredSessionNumber = getPositiveInteger(
+          session.metadata?.sessionNumber,
+          1
+        );
+        const expiredSessionRef = getBookingSessionRefs(
+          bookingId,
+          expiredSessionNumber
+        ).sessionRef;
+        await expiredSessionRef.set(
+          {
+            checkoutStatus: "expired",
+            checkoutAttemptNumber: admin.firestore.FieldValue.increment(1),
+            checkoutExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await eventDoc.set({
+          status: "processed",
+          processedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
 
         console.log(`Checkout session ${session.id} expired. Flash hold released: ${released}.`);
         res.status(200).send("Checkout expiration handled.");
       } catch (err) {
         console.error("Error handling checkout expiration:", err);
+        await eventDoc.delete().catch(() => undefined);
         res.status(500).send("Failed to handle checkout expiration.");
       }
     } else {
       console.log(`Unhandled event type: ${event.type}`);
+      await eventDoc.set({
+        status: "processed",
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
       res.status(200).json({ received: true });
     }
   }
@@ -4582,6 +6110,7 @@ module.exports = {
   createStripeConnectOnboardingLink,
   getStripeConnectStatus,
   createStripeDashboardLoginLink,
+  acceptProjectOffer,
   createCheckoutSession,
   proposeProjectAmendment,
   respondToProjectAmendment,
@@ -4590,6 +6119,9 @@ module.exports = {
   setProjectPaused,
   startProjectSession,
   completeProjectSession,
+  addProjectSessionPhoto,
+  selectSessionBalanceMethod,
+  attestExternalSessionPayment,
   syncBookingPaymentStatus,
   stripeWebhook,
   processArtistMedia,

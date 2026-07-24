@@ -6,6 +6,7 @@ import type {
 } from "./PaymentPreferences";
 
 export type RemainingPaymentMethod = "stripe" | "external";
+export type SessionBalanceMethod = RemainingPaymentMethod;
 export type DepositApplication = "project_credit";
 export type SessionInstallmentTiming = "before_session" | "after_session";
 export type RemainingPaymentStatus =
@@ -21,6 +22,12 @@ export type BookingSessionStatus =
     | "completed"
     | "awaiting_next_session";
 export type ProjectStatus = "active" | "paused" | "completed";
+
+export type SessionAllocation = {
+    sessionNumber: number;
+    quotedAmountCents: number;
+    depositAmountCents: number;
+};
 
 export type Booking = {
     id: string;
@@ -39,6 +46,13 @@ export type Booking = {
     price: number;
     priceCents?: number;
     depositAmount: number;
+    paymentModelVersion?: 1 | 2;
+    sessionPricingStrategy?: "equal_split";
+    sessionAllocations?: SessionAllocation[];
+    allowedSessionBalanceMethods?: SessionBalanceMethod[];
+    quoteTotalCents?: number;
+    artistPaidCents?: number;
+    outstandingProjectCents?: number;
     originalPrice?: number;
     originalPriceCents?: number;
     originalEstimatedSessionCount?: number;
@@ -60,6 +74,8 @@ export type Booking = {
     artistPayoutCents?: number;
     paymentMode?: "deposit" | "full" | "remaining" | "platform_fee";
     checkoutPaymentMode?: "deposit" | "full" | "remaining" | "platform_fee";
+    checkoutPaymentPurpose?: "session_deposit" | "session_balance" | "platform_fee" | "legacy";
+    checkoutSessionNumber?: number;
     depositPaidAmount?: number;
     depositPaidAmountCents?: number;
     remainingPaidAmount?: number;

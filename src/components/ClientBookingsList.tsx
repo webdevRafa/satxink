@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { CalendarDays, CreditCard, DollarSign, Eye, ImageIcon, Layers, MapPin, Store, X } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, DollarSign, Eye, ImageIcon, Layers, MapPin, Store, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -114,6 +114,30 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   ).length;
 
   const handleConfirmExternalPayment = async (booking: Booking) => {
+    if (booking.paymentModelVersion === 2) {
+      try {
+        const confirmExternalPayment = httpsCallable(
+          functions,
+          "attestExternalSessionPayment"
+        );
+        const response = await confirmExternalPayment({
+          bookingId: booking.id,
+          action: "confirm",
+        });
+        const { settled } = response.data as { settled: boolean };
+        toast.success(
+          settled
+            ? "Session balance confirmed by both sides."
+            : "Your confirmation was recorded. Waiting for the artist."
+        );
+        setSelectedBooking(null);
+      } catch (error) {
+        console.error("Direct payment confirmation failed:", error);
+        toast.error("Could not confirm the session payment.");
+      }
+      return;
+    }
+
     const artistAlreadyConfirmed =
       booking.remainingPaymentStatus === "artist_confirmed";
 
@@ -214,6 +238,25 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
     const reason =
       window.prompt("Briefly describe the issue with this payment.")?.trim() ||
       "Client reported an issue with the direct payment.";
+    if (booking.paymentModelVersion === 2) {
+      try {
+        const disputeExternalPayment = httpsCallable(
+          functions,
+          "attestExternalSessionPayment"
+        );
+        await disputeExternalPayment({
+          bookingId: booking.id,
+          action: "dispute",
+          reason,
+        });
+        toast.success("Issue reported.");
+        setSelectedBooking(null);
+      } catch (error) {
+        console.error("Direct payment dispute failed:", error);
+        toast.error("Could not report the issue.");
+      }
+      return;
+    }
 
     try {
       await setDoc(
@@ -545,14 +588,41 @@ const BookingDetailsDialog = ({
   onPauseProject: () => void;
   onResumeProject: () => void;
 }) => {
-  const showExternalPaymentConfirmation =
-    booking?.remainingPaymentMethod === "external" &&
+  const protectedBalanceDue =
+    booking?.paymentModelVersion === 2 &&
     booking.status === "deposit_paid" &&
+    booking.sessionStatus === "completed" &&
     ["due", "artist_confirmed", "client_confirmed"].includes(
       booking.remainingPaymentStatus || "due"
     );
+  const showExternalPaymentConfirmation =
+    (protectedBalanceDue ||
+      (booking?.remainingPaymentMethod === "external" &&
+        booking.status === "deposit_paid")) &&
+    ["due", "artist_confirmed", "client_confirmed"].includes(
+      booking?.remainingPaymentStatus || "due"
+    );
   const clientAlreadyConfirmed =
     booking?.remainingPaymentStatus === "client_confirmed";
+  const handleStripeBalancePayment = async (activeBooking: Booking) => {
+    if (activeBooking.paymentModelVersion === 2) {
+      try {
+        const selectMethod = httpsCallable(
+          functions,
+          "selectSessionBalanceMethod"
+        );
+        await selectMethod({
+          bookingId: activeBooking.id,
+          method: "stripe",
+        });
+      } catch (error) {
+        console.error("Could not select Stripe for this session:", error);
+        toast.error("Could not prepare the secure payment.");
+        return;
+      }
+    }
+    onPay(activeBooking.id);
+  };
 
   return (
   <Transition appear show={!!booking} as={Fragment}>
@@ -603,6 +673,18 @@ const BookingDetailsDialog = ({
                         <DetailTile icon={<DollarSign size={17} />} label="Deposit" value={`$${booking.depositAmount}`} />
                         <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "Direct"} />
                         <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel(booking)} />
+                        {typeof booking.estimatedHoursPerSession === "number" &&
+                          booking.estimatedHoursPerSession > 0 && (
+                            <DetailTile
+                              icon={<Clock size={17} />}
+                              label="Estimated session length"
+                              value={`${booking.estimatedHoursPerSession} ${
+                                booking.estimatedHoursPerSession === 1
+                                  ? "hour"
+                                  : "hours"
+                              }`}
+                            />
+                          )}
                         {isMultiSessionBooking(booking) && (
                           <>
                             <DetailTile
@@ -635,7 +717,8 @@ const BookingDetailsDialog = ({
                         onResumeProject={onResumeProject}
                         onPayPlatformFee={() => onPay(booking.id)}
                       />
-                      {booking.remainingPaymentMethod === "external" &&
+                      {(booking.remainingPaymentMethod === "external" ||
+                        protectedBalanceDue) &&
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <p className="text-sm font-semibold text-white">
@@ -646,8 +729,9 @@ const BookingDetailsDialog = ({
                               <span className="font-semibold text-white">
                                 ${getRemainingBalance(booking)}
                               </span>{" "}
-                              is paid directly to the artist outside SATX Ink
-                              checkout. Status:{" "}
+                              can be paid securely through Stripe or directly at
+                              the shop. Shop payments require confirmation from
+                              both you and the artist. Status:{" "}
                               <span className="font-semibold capitalize text-white">
                                 {(booking.remainingPaymentStatus || "due").replace("_", " ")}
                               </span>
@@ -666,9 +750,8 @@ const BookingDetailsDialog = ({
                                   </p>
                                   {isMultiSessionBooking(booking) && (
                                     <p className="mt-1 text-xs leading-5 text-emerald-50/70">
-                                      Confirming this amount will recalculate the
-                                      remaining project balance across the
-                                      sessions left.
+                                      This exact balance belongs only to the
+                                      completed session.
                                     </p>
                                   )}
                                   {clientAlreadyConfirmed && (
@@ -709,12 +792,15 @@ const BookingDetailsDialog = ({
                       {booking.paymentType === "internal" &&
                         (booking.status === "pending_payment" ||
                           (booking.status === "deposit_paid" &&
-                            ((booking.remainingPaymentMethod !== "external" &&
+                            (((booking.remainingPaymentMethod !== "external" ||
+                              protectedBalanceDue) &&
                               getRemainingBalance(booking) > 0) ||
                               Number(booking.pendingPlatformFeeCents || 0) > 0))) && (
                           <button
                             type="button"
-                            onClick={() => onPay(booking.id)}
+                            onClick={() =>
+                              void handleStripeBalancePayment(booking)
+                            }
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                           >
                             <CreditCard size={16} />

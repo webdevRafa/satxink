@@ -42,21 +42,34 @@ export default function TermsOfService() {
           booking. This deposit is{" "}
           <strong>non-refundable under all circumstances</strong>.
         </p>
+        <p>
+          For custom tattoos, each session is booked separately. A session
+          deposit cannot exceed 50% of that session&apos;s artist quote, and
+          SATX INK does not offer prepayment of an entire custom project or an
+          entire custom-tattoo session.
+        </p>
       </div>
 
       <div className="mb-10">
-        <h2>Final Payments & Cancellations</h2>
+        <h2>Session Balances & Cancellations</h2>
         <p>
-          If the artist requires payment in full before the session, the
-          remaining balance will be collected via Stripe checkout. If you cancel
-          your appointment <strong>within 24 hours</strong> of the scheduled
-          time, the final payment may <strong>not be refunded</strong>. This is
-          to compensate the artist for lost time and preparation.
+          The unpaid balance for a custom-tattoo session becomes due only after
+          the artist marks that session complete. The client may then pay the
+          session balance through Stripe when available, or pay at the shop.
+          Shop payments are recorded as settled only after both the client and
+          artist confirm the same session payment.
         </p>
         <p>
-          If the artist allows payment after the session, payment must be made
-          promptly as agreed upon. Failure to pay may result in a ban from the
-          platform.
+          Multi-session projects are divided into session allocations. Each new
+          session requires its own deposit before it begins, and the balance for
+          one session must be settled before the next session is scheduled.
+          Failure to pay a completed session balance may pause the project or
+          result in account restrictions.
+        </p>
+        <p>
+          If you cancel your appointment <strong>within 24 hours</strong> of the
+          scheduled time, the session deposit remains non-refundable to
+          compensate the artist for reserved time and preparation.
         </p>
       </div>
 
@@ -98,7 +111,7 @@ export default function TermsOfService() {
         </p>
 
         <p className="mt-20 text-center text-gray-400 text-xs">
-          Last updated: July 16, 2025
+          Last updated: July 23, 2026
         </p>
       </div>
     </div>
