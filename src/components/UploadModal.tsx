@@ -4,6 +4,9 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   collection,
   addDoc,
+  deleteField,
+  doc,
+  getDoc,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -13,6 +16,7 @@ import {
   DollarSign,
   Image as ImageIcon,
   Layers,
+  LoaderCircle,
   Tag,
   Upload,
   X,
@@ -41,6 +45,7 @@ type Props = {
 };
 
 type SheetRelationshipMode = "standalone" | "existing";
+type UploadPhase = "idle" | "uploading" | "processing" | "finalizing";
 
 const parsePositivePrice = (value: string) => {
   const parsed = Number(value);
@@ -93,6 +98,7 @@ const UploadModal: React.FC<Props> = ({
     useState<SheetRelationshipMode>("standalone");
   const [selectedSheetId, setSelectedSheetId] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
 
   const isFlashUpload = collectionType === "flashes";
   const isGalleryUpload = collectionType === "gallery";
@@ -153,6 +159,7 @@ const UploadModal: React.FC<Props> = ({
     setSheetRelationshipMode("standalone");
     setSelectedSheetId("");
     setIsUploading(false);
+    setUploadPhase("idle");
     onClose();
   };
 
@@ -183,8 +190,10 @@ const UploadModal: React.FC<Props> = ({
     }
 
     setIsUploading(true);
+    setUploadPhase("uploading");
 
     let didUploadGalleryFiles = false;
+    let uploadedDocId = "";
 
     try {
       const timestamp = Date.now();
@@ -220,9 +229,11 @@ const UploadModal: React.FC<Props> = ({
         ...(isGalleryUpload
           ? {
               originalFileName: baseName,
+              originalProcessingStatus: "processing",
               thumbPath,
               previewPath,
               fullPath,
+              processingStartedAt: serverTimestamp(),
             }
           : {}),
         timestamp,
@@ -234,6 +245,7 @@ const UploadModal: React.FC<Props> = ({
         status: "processing",
         createdAt: serverTimestamp(),
       });
+      uploadedDocId = docRef.id;
 
       const uploadTasks = [
         uploadBytes(ref(storage, uploadPath), croppedFile),
@@ -251,6 +263,7 @@ const UploadModal: React.FC<Props> = ({
 
       await Promise.all(uploadTasks);
       didUploadGalleryFiles = isGalleryUpload;
+      setUploadPhase("processing");
 
       if (isGalleryUpload) {
         const [thumbUrl, webp90Url, fullUrl] = await Promise.all([
@@ -264,6 +277,7 @@ const UploadModal: React.FC<Props> = ({
           750
         ).catch(() => null);
 
+        setUploadPhase("finalizing");
         await updateDoc(docRef, {
           thumbUrl,
           webp90Url,
@@ -279,6 +293,8 @@ const UploadModal: React.FC<Props> = ({
               }
             : {}),
           status: "ready",
+          processingError: deleteField(),
+          processingFailedAt: deleteField(),
           updatedAt: serverTimestamp(),
         });
 
@@ -291,7 +307,15 @@ const UploadModal: React.FC<Props> = ({
       console.error("Upload failed:", err);
 
       if (isGalleryUpload && didUploadGalleryFiles) {
-        toast.error("Gallery image is still processing. Refresh in a moment.");
+        const latestDoc = uploadedDocId
+          ? await getDoc(doc(db, collectionType, uploadedDocId)).catch(() => null)
+          : null;
+        const processingFailed = latestDoc?.data()?.status === "failed";
+        toast.error(
+          processingFailed
+            ? "Gallery image could not be processed. Remove the item and try again."
+            : "Gallery image is still processing. Refresh in a moment."
+        );
         onUploadComplete();
         resetAndClose();
         return;
@@ -303,6 +327,7 @@ const UploadModal: React.FC<Props> = ({
           : "Upload failed. Please try again."
       );
       setIsUploading(false);
+      setUploadPhase("idle");
     }
   };
 
@@ -321,7 +346,8 @@ const UploadModal: React.FC<Props> = ({
         <button
           type="button"
           onClick={resetAndClose}
-          className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          disabled={isUploading}
+          className="absolute right-4 top-4 z-10 rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
           aria-label="Close upload modal"
         >
           <X size={18} />
@@ -579,7 +605,8 @@ const UploadModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={resetAndClose}
-              className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              disabled={isUploading}
+              className="modal-action-button rounded-lg! border border-white/10 bg-white/5 px-3! py-2! text-xs! font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               Cancel
             </button>
@@ -587,12 +614,22 @@ const UploadModal: React.FC<Props> = ({
               type="button"
               onClick={handleFinalUpload}
               disabled={!canPublish || isUploading}
-              className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
+              aria-busy={isUploading}
+              className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-neutral-950! transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:text-neutral-900! disabled:opacity-45"
             >
+              {isUploading && (
+                <LoaderCircle
+                  size={14}
+                  className="animate-spin text-neutral-700"
+                  aria-hidden="true"
+                />
+              )}
               {isUploading
-                ? isGalleryUpload
-                  ? "Processing..."
-                  : "Uploading..."
+                ? uploadPhase === "uploading"
+                  ? "Uploading..."
+                  : uploadPhase === "finalizing"
+                    ? "Finishing..."
+                    : "Optimizing..."
                 : "Publish"}
             </button>
           </div>

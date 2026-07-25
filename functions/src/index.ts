@@ -5145,7 +5145,7 @@ const stripeWebhook = onRequest(
 
 
 const processArtistMedia = onObjectFinalized(
-  { timeoutSeconds: 300, memory: "2GiB" },
+  { timeoutSeconds: 300, memory: "2GiB", concurrency: 2 },
   async (event) => {
     const filePath = event.data.name;
     if (!filePath) return;
@@ -5176,13 +5176,15 @@ const processArtistMedia = onObjectFinalized(
     const baseName = path.basename(fileName, path.extname(fileName));
     const bucketDir = path.dirname(filePath);
     const uuid = uuidv4();
-
-    const tempOriginal = path.join(os.tmpdir(), fileName);
-    const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
-    const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
-    const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`);
+    const tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `satx-artist-media-${mediaType}-`)
+    );
+    const tempOriginal = path.join(tempDir, fileName);
+    const tempThumb = path.join(tempDir, `${baseName}_thumb.webp`);
+    const tempWebp90 = path.join(tempDir, `${baseName}_webp90.webp`);
+    const tempFull = path.join(tempDir, `${baseName}_full.jpg`);
     const tempOriginalPreview = path.join(
-      os.tmpdir(),
+      tempDir,
       `${baseName}_original_webp90.webp`
     );
 
@@ -5242,6 +5244,8 @@ const processArtistMedia = onObjectFinalized(
           originalWebp90Url,
           originalPreviewPath,
           originalFileName: baseName,
+          originalProcessingStatus: "ready",
+          originalProcessingError: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -5315,7 +5319,7 @@ const processArtistMedia = onObjectFinalized(
         const docData = snapshot.docs[0].data();
 
         // Skip processing if already done (retry safety)
-        if (docData.thumbUrl || docData.webp90Url || docData.fullUrl) {
+        if (docData.thumbUrl && docData.webp90Url && docData.fullUrl) {
           console.log(`Skipping ${baseName} — already processed.`);
           await bucket.file(filePath).delete().catch(() => {
             console.log(`Could not delete duplicate raw file: ${filePath}`);
@@ -5340,6 +5344,8 @@ const processArtistMedia = onObjectFinalized(
               }
             : {}),
           status: "ready",
+          processingError: admin.firestore.FieldValue.delete(),
+          processingFailedAt: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -5358,15 +5364,86 @@ const processArtistMedia = onObjectFinalized(
       );
     } catch (err) {
       console.error(`Error processing ${filePath}:`, err);
+
+      if (mediaType === "gallery" || mediaType === "galleryOriginals") {
+        try {
+          let snapshot = await db
+            .collection("gallery")
+            .where("fileName", "==", baseName)
+            .limit(1)
+            .get();
+          if (snapshot.empty) {
+            snapshot = await db
+              .collection("gallery")
+              .where("originalFileName", "==", baseName)
+              .limit(1)
+              .get();
+          }
+
+          if (!snapshot.empty) {
+            const docRef = snapshot.docs[0].ref;
+            const docData = snapshot.docs[0].data();
+
+            if (mediaType === "galleryOriginals") {
+              if (!docData.originalWebp90Url) {
+                await docRef.set(
+                  {
+                    originalProcessingStatus: "failed",
+                    originalProcessingError: "original_preview_failed",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+                  { merge: true }
+                );
+              }
+            } else if (
+              !(docData.thumbUrl && docData.webp90Url && docData.fullUrl)
+            ) {
+              await docRef.set(
+                {
+                  status: "failed",
+                  processingError: "image_processing_failed",
+                  processingFailedAt:
+                    admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
+          }
+        } catch (statusError) {
+          console.error(
+            `Could not record processing failure for ${filePath}:`,
+            statusError
+          );
+        }
+
+        const failedAssetPaths =
+          mediaType === "gallery"
+            ? [
+                filePath,
+                `${bucketDir}/${baseName}_thumb.webp`,
+                `${bucketDir}/${baseName}_webp90.webp`,
+                `${bucketDir}/${baseName}_full.jpg`,
+              ]
+            : [filePath, `${bucketDir}/${baseName}_webp90.webp`];
+
+        await Promise.allSettled(
+          failedAssetPaths.map((failedPath) =>
+            bucket.file(failedPath).delete({ ignoreNotFound: true })
+          )
+        );
+      }
     } finally {
-      // Clean up temp files
-      await Promise.allSettled([
-        fs.unlink(tempOriginal),
-        fs.unlink(tempThumb),
-        fs.unlink(tempWebp90),
-        fs.unlink(tempFull),
-        fs.unlink(tempOriginalPreview),
-      ]);
+      // Each invocation owns its directory so concurrent image jobs cannot
+      // overwrite or delete one another's Sharp inputs and derivatives.
+      await fs
+        .rm(tempDir, { recursive: true, force: true })
+        .catch((cleanupError) => {
+          console.warn(
+            `Could not clean temp directory ${tempDir}:`,
+            cleanupError
+          );
+        });
     }
   }
 );
