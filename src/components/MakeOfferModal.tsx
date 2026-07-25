@@ -880,7 +880,7 @@ const MakeOfferModal = ({
 
                   <div className="w-full min-w-0 space-y-5 overflow-x-hidden p-5 sm:p-6">
                     {!isFlashRequest && (
-                      <div className="sticky top-0 z-40 -mx-5 -mt-5 bg-[#111111]/98 px-5 pb-3 pt-4 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-5 lg:-mt-5 lg:px-5 lg:pt-5">
+                      <div className="sticky top-0 z-40 -mx-5 -mt-5 mb-2 bg-[#111111]/98 px-5 pb-3 pt-4 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-5 lg:-mt-5 lg:mb-0 lg:px-5 lg:pt-5">
                         <div className="rounded-lg border border-white/10 bg-[#111111]/95 p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:p-3">
                           <nav
                             aria-label="Offer steps"
@@ -1038,7 +1038,11 @@ const MakeOfferModal = ({
 
                     <label className="space-y-2">
                       <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
-                        <span>Estimated hours per session</span>
+                        <span>
+                          {isMultiSessionProject
+                            ? "Estimated hours per session"
+                            : "Estimated hours"}
+                        </span>
                         <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
                           Optional
                         </span>
@@ -1062,8 +1066,8 @@ const MakeOfferModal = ({
                         />
                       </div>
                       <span className="block text-[11px] leading-4 text-neutral-500">
-                        Shown to the client as a planning estimate, not a
-                        guaranteed appointment duration.
+                        Shown to the client as an estimate, not a guaranteed
+                        appointment duration.
                       </span>
                     </label>
                   </div>
@@ -1083,8 +1087,8 @@ const MakeOfferModal = ({
                           About {normalizedEstimatedHoursPerSession}{" "}
                           {normalizedEstimatedHoursPerSession === 1
                             ? "hour"
-                            : "hours"}{" "}
-                          per session
+                            : "hours"}
+                          {isMultiSessionProject ? " per session" : ""}
                         </span>
                       </>
                     )}
@@ -1158,8 +1162,8 @@ const MakeOfferModal = ({
                         <div className="mt-2 flex items-center justify-between gap-3 text-[11px] leading-4 text-neutral-500">
                           <span>
                             Maximum{" "}
-                            {formatMoneyFromCents(maximumSessionDepositCents)} —
-                            50% of the lowest session allocation.
+                            {formatMoneyFromCents(maximumSessionDepositCents)}{" "}
+                            (up to 50% of the session total)
                           </span>
                           <button
                             type="button"
@@ -1183,7 +1187,7 @@ const MakeOfferModal = ({
                 )}
 
                 {isCustomPricingValid ? (
-                  <div className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
+                  <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-200/15 bg-emerald-300/[0.08] text-emerald-100">
                         <ReceiptText size={16} />
