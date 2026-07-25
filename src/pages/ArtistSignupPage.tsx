@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -9,7 +10,7 @@ import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Listbox } from "@headlessui/react";
+import { Dialog } from "@headlessui/react";
 import slugify from "slugify";
 import { toast } from "react-hot-toast";
 import {
@@ -25,8 +26,10 @@ import {
   LoaderCircle,
   MapPin,
   Save,
+  Search,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 
 import { AuthProviderSignupButtons } from "../components/GoogleSignupButton";
@@ -158,6 +161,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [unlistedShopName, setUnlistedShopName] = useState<string>("");
+  const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
+  const [shopSearchQuery, setShopSearchQuery] = useState("");
+  const [styleSearchQuery, setStyleSearchQuery] = useState("");
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [profileCreationPhase, setProfileCreationPhase] =
@@ -170,6 +176,27 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invitedShopId = searchParams.get("shopId") || "";
+  const filteredShops = useMemo(() => {
+    const normalizedQuery = shopSearchQuery.trim().toLocaleLowerCase();
+    if (!normalizedQuery) return shops;
+
+    return shops.filter((shop) =>
+      shop.name.toLocaleLowerCase().includes(normalizedQuery)
+    );
+  }, [shopSearchQuery, shops]);
+
+  const closeShopPicker = useCallback(() => {
+    setIsShopPickerOpen(false);
+    setShopSearchQuery("");
+  }, []);
+
+  const handleShopSelection = useCallback(
+    (shop: Shop) => {
+      setSelectedShop(shop);
+      closeShopPicker();
+    },
+    [closeShopPicker]
+  );
 
   useEffect(() => {
     setSubmitting(false);
@@ -314,6 +341,21 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     (stepCompletion.filter(Boolean).length / stepCompletion.length) * 100
   );
   const ActiveStepIcon = stepIcons[currentStep];
+  const profileDisplayName =
+    displayName.trim() || user?.displayName?.trim() || "SATX Ink artist";
+  const profileShopLabel =
+    selectedShop?.id === UNLISTED_SHOP_ID
+      ? "Shop pending review"
+      : selectedShop?.name || "Shop not selected";
+  const profileAvatarInitial = profileDisplayName.charAt(0).toUpperCase() || "A";
+  const filteredSpecialties = useMemo(() => {
+    const normalizedQuery = styleSearchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return SPECIALTIES;
+
+    return SPECIALTIES.filter((style) =>
+      style.toLowerCase().includes(normalizedQuery)
+    );
+  }, [styleSearchQuery]);
 
   const getStepStatus = (step: number): StepStatus => {
     if (!stepCompletion[step]) return "required";
@@ -406,7 +448,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     }
 
     const paymentType = "internal";
-    const finalPaymentTiming = "before";
+    const finalPaymentTiming = "after";
     setSubmitting(true);
     setProfileCreationPhase("dim");
 
@@ -459,7 +501,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             nonRefundable: true,
           },
           finalPaymentTiming,
-          finalPaymentDeadlineHours: 24,
+          finalPaymentDeadlineHours: null,
           likedBy: [],
           updatedAt: serverTimestamp(),
           profileComplete: true,
@@ -566,16 +608,185 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
               <p className="mx-auto mt-6 max-w-xs text-sm font-medium leading-6 text-neutral-300">
                 One moment while we create your artist profile.
               </p>
+
+              <div className="mx-auto mt-6 grid w-full max-w-sm grid-cols-[3.75rem_minmax(0,1fr)] items-center gap-4 border-t border-white/10 pt-5 text-left">
+                {user?.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt=""
+                    className="h-15 w-15 rounded-full border border-white/15 object-cover shadow-[0_10px_30px_rgba(0,0,0,0.4)]"
+                  />
+                ) : (
+                  <span
+                    className="flex h-15 w-15 items-center justify-center rounded-full border border-white/15 bg-[linear-gradient(135deg,rgba(182,56,45,0.7),rgba(255,255,255,0.12))] text-xl font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.4)]"
+                    aria-hidden="true"
+                  >
+                    {profileAvatarInitial}
+                  </span>
+                )}
+
+                <div className="min-w-0">
+                  <p className="truncate text-base! font-semibold leading-6! text-white!">
+                    {profileDisplayName}
+                  </p>
+                  <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm! leading-5! text-neutral-400!">
+                    <Building2
+                      size={14}
+                      className="shrink-0 text-[var(--color-primary)]"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{profileShopLabel}</span>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>,
           document.body
         )}
 
+      <Dialog
+        open={isShopPickerOpen}
+        onClose={closeShopPicker}
+        className="relative z-[170]"
+      >
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+          aria-hidden="true"
+        />
+        <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
+          <Dialog.Panel
+            id="artist-shop-picker"
+            className="flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0b0b0b] text-left text-white shadow-[0_-24px_70px_rgba(0,0,0,0.7)] sm:max-h-[min(42rem,calc(100dvh-2rem))] sm:max-w-lg sm:rounded-xl sm:shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
+              <div className="min-w-0">
+                <Dialog.Title className="text-lg font-semibold text-white">
+                  Select your shop
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm! leading-5! text-neutral-400!">
+                  Choose the studio clients should see on your profile.
+                </Dialog.Description>
+              </div>
+              <button
+                type="button"
+                onClick={closeShopPicker}
+                aria-label="Close shop picker"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] p-0! text-neutral-300 transition hover:border-white/25 hover:text-white"
+              >
+                <X size={19} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="border-b border-white/10 px-3 py-3 sm:px-4">
+              <label className="relative block">
+                <span className="sr-only">Search tattoo shops</span>
+                <Search
+                  size={17}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={shopSearchQuery}
+                  onChange={(event) => setShopSearchQuery(event.target.value)}
+                  placeholder="Search shops"
+                  className="h-11 w-full rounded-md border border-white/10 bg-[#111111] pl-10 pr-3 text-sm text-white outline-none placeholder:text-neutral-600 focus:border-white/30 focus:ring-2 focus:ring-white/10"
+                />
+              </label>
+            </div>
+
+            <div
+              role="listbox"
+              aria-label="Available tattoo shops"
+              className="shop-picker-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4 sm:pb-4"
+            >
+              {!shopSearchQuery.trim() && (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selectedShop?.id === UNLISTED_SHOP_ID}
+                  onClick={() => handleShopSelection(unlistedShopOption)}
+                  className={`mb-2 w-full rounded-lg border p-3! text-left text-sm! transition ${
+                    selectedShop?.id === UNLISTED_SHOP_ID
+                      ? "border-amber-300/45 bg-amber-300/15 text-amber-50"
+                      : "border-amber-300/20 bg-amber-300/[0.07] text-amber-100 hover:border-amber-300/35 hover:bg-amber-300/10"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-2 font-semibold">
+                      <CircleHelp
+                        size={17}
+                        className="shrink-0 text-amber-300"
+                        aria-hidden="true"
+                      />
+                      <span>My shop isn&apos;t listed</span>
+                    </span>
+                    {selectedShop?.id === UNLISTED_SHOP_ID && (
+                      <Check
+                        size={17}
+                        className="shrink-0 text-amber-200"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
+                  <span className="mt-1 block pl-6 text-xs leading-5 text-amber-100/65">
+                    Send the shop to the SATX Ink team for review.
+                  </span>
+                </button>
+              )}
+
+              {filteredShops.map((shop) => {
+                const isSelected = selectedShop?.id === shop.id;
+
+                return (
+                  <button
+                    key={shop.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => handleShopSelection(shop)}
+                    className={`mb-1.5 flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border p-3! text-left text-sm! transition ${
+                      isSelected
+                        ? "border-emerald-300/30 bg-emerald-300/10 text-white"
+                        : "border-transparent text-neutral-200 hover:border-white/10 hover:bg-white/[0.06] hover:text-white"
+                    }`}
+                  >
+                    <span className="min-w-0 font-medium">{shop.name}</span>
+                    {isSelected && (
+                      <Check
+                        size={17}
+                        className="shrink-0 text-emerald-300"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+
+              {filteredShops.length === 0 && (
+                <div className="px-3 py-10 text-center">
+                  <p className="text-sm! text-neutral-400!">
+                    No shops match “{shopSearchQuery.trim()}”.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShopSearchQuery("")}
+                    className="mt-3 rounded-md border border-white/10 px-3! py-2! text-sm! text-white transition hover:border-white/25"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              )}
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+
       <div
         data-aos="fade-up"
         data-aos-delay="0"
         data-aos-duration="450"
-        className="w-full px-4 pb-24 pt-0 text-white"
+        className="w-full px-3 pb-24 pt-0 text-white sm:px-4"
       >
         <div className="mx-auto w-full max-w-6xl">
           {!user && (
@@ -650,11 +861,11 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             <form
               autoComplete="off"
               onSubmit={handleArtistSubmit}
-              className="space-y-4 text-left sm:space-y-6"
+              className="min-w-0 space-y-4 pt-4 text-left sm:space-y-6 sm:pt-5 md:pt-6"
             >
               <div
                 ref={onboardingStepTopRef}
-                className="scroll-mt-20 flex flex-col gap-3 border-b border-white/10 pb-4 sm:scroll-mt-24 sm:gap-4 sm:pb-5 lg:flex-row lg:items-end lg:justify-between"
+                className="scroll-mt-20 flex min-w-0 flex-col gap-3 border-b border-white/10 pb-4 sm:scroll-mt-24 sm:gap-4 sm:pb-5 lg:flex-row lg:items-end lg:justify-between"
               >
                 <div className="min-w-0">
                   <p className="text-[0.65rem] uppercase tracking-[0.16em] text-[var(--color-primary)] sm:text-xs sm:tracking-[0.18em]">
@@ -697,9 +908,9 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                 </div>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="space-y-5">
-                  <div className="grid grid-cols-3 gap-2">
+              <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="min-w-0 space-y-5">
+                  <div className="grid min-w-0 grid-cols-3 gap-2">
                     {stepHeadings.map((heading, index) => {
                       const StepIcon = stepIcons[index];
                       const isActive = currentStep === index;
@@ -712,7 +923,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           type="button"
                           onClick={() => handleStepCardClick(index)}
                           aria-label={`${heading}: ${statusLabel}`}
-                          className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-center transition sm:grid sm:min-h-16 sm:grid-cols-[2rem_minmax(0,1fr)] sm:items-center sm:gap-3 sm:px-3 sm:py-2.5 sm:text-left ${
+                          className={`flex min-h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 rounded-lg border px-1.5! py-2! text-center text-sm! transition sm:grid sm:min-h-16 sm:grid-cols-[2rem_minmax(0,1fr)] sm:items-center sm:gap-3 sm:px-3! sm:py-2.5! sm:text-left ${
                             isActive
                               ? "border-white/35 bg-white/[0.07] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
                               : stepStatus === "complete"
@@ -756,7 +967,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     })}
                   </div>
 
-                  <section className="rounded-lg border border-white/10 bg-[#121212]/90 p-4 shadow-2xl shadow-black/20 backdrop-blur sm:p-5">
+                  <section className="min-w-0 rounded-lg border border-white/10 bg-[#121212]/90 p-3 shadow-2xl shadow-black/20 backdrop-blur sm:p-5">
                     <div className="mb-4 flex items-start gap-3 sm:mb-5 sm:items-center">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-9 sm:w-9">
                         <ActiveStepIcon size={18} aria-hidden="true" />
@@ -765,7 +976,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         <h2 className="mb-0! text-lg!">
                           {stepHeadings[currentStep]}
                         </h2>
-                        <p className="text-[0.9rem] leading-6 text-neutral-400 sm:text-sm">
+                        <p className="text-[0.9rem]! leading-6! text-neutral-400! sm:text-sm!">
                           {stepDescriptions[currentStep]}
                         </p>
                       </div>
@@ -773,111 +984,47 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
                     {currentStep === 0 && (
                       <div data-aos="fade-in" className="space-y-4">
-                        <Listbox
-                          value={selectedShop}
-                          onChange={(shop) => setSelectedShop(shop)}
-                        >
-                          {({ open }) => (
-                            <div className="space-y-3">
-                              <Listbox.Label className="sr-only">
-                                Select your tattoo shop
-                              </Listbox.Label>
-                              <Listbox.Button
-                                className={`relative w-full cursor-pointer rounded-md border bg-[#101010] px-3 py-3 pr-10 text-left outline-none transition hover:border-white/25 focus:border-[var(--color-primary)] ${
-                                  selectedShop?.id === UNLISTED_SHOP_ID
-                                    ? "border-amber-300/30 text-amber-100"
-                                    : "border-white/10 text-white"
+                        <div className="space-y-3">
+                          <span id="artist-shop-picker-label" className="sr-only">
+                            Select your tattoo shop
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsShopPickerOpen(true)}
+                            aria-haspopup="dialog"
+                            aria-expanded={isShopPickerOpen}
+                            aria-controls="artist-shop-picker"
+                            aria-labelledby="artist-shop-picker-label"
+                            className={`relative w-full cursor-pointer rounded-md border bg-[#101010] px-3! py-3! pr-10! text-left text-sm! outline-none transition hover:border-white/25 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-white/10 ${
+                              selectedShop?.id === UNLISTED_SHOP_ID
+                                ? "border-amber-300/30 text-amber-100"
+                                : "border-white/10 text-white"
+                            }`}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              {selectedShop?.id === UNLISTED_SHOP_ID && (
+                                <CircleHelp
+                                  size={16}
+                                  className="shrink-0 text-amber-300"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <span className="block truncate">
+                                {selectedShop
+                                  ? selectedShop.name
+                                  : "Select your shop"}
+                              </span>
+                            </span>
+                            <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                              <ChevronDown
+                                className={`h-4 w-4 text-gray-400 transition-transform ${
+                                  isShopPickerOpen ? "rotate-180" : ""
                                 }`}
-                              >
-                                <span className="flex min-w-0 items-center gap-2">
-                                  {selectedShop?.id === UNLISTED_SHOP_ID && (
-                                    <CircleHelp
-                                      size={16}
-                                      className="shrink-0 text-amber-300"
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                  <span className="block truncate">
-                                  {selectedShop
-                                    ? selectedShop.name
-                                    : "Select your shop"}
-                                  </span>
-                                </span>
-                                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                                  <ChevronDown
-                                    className={`h-4 w-4 text-gray-400 transition-transform ${
-                                      open ? "rotate-180" : ""
-                                    }`}
-                                  />
-                                </span>
-                              </Listbox.Button>
-                              <Listbox.Options className="shop-picker-scrollbar max-h-72 w-full overflow-y-auto rounded-md border border-white/10 bg-[#050505] p-2 text-white shadow-2xl shadow-black ring-1 ring-black">
-                                <div className="mb-2 border-b border-white/10 px-2 pb-2">
-                                  <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
-                                    Available shops
-                                  </p>
-                                </div>
-                                <Listbox.Option
-                                  value={unlistedShopOption}
-                                  className={({ active, selected }) =>
-                                    `relative mb-2 cursor-pointer select-none rounded-md border px-4 py-3 text-sm transition ${
-                                      active || selected
-                                        ? "border-amber-300/35 bg-amber-300/15 text-amber-50"
-                                        : "border-amber-300/20 bg-amber-300/[0.07] text-amber-100"
-                                    }`
-                                  }
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="flex min-w-0 items-center gap-2 font-semibold">
-                                      <CircleHelp
-                                        size={16}
-                                        className="shrink-0 text-amber-300"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="truncate">
-                                        My shop isn't listed
-                                      </span>
-                                    </span>
-                                    {selectedShop?.id === UNLISTED_SHOP_ID && (
-                                      <Check
-                                        size={16}
-                                        className="shrink-0 text-amber-200"
-                                        aria-hidden="true"
-                                      />
-                                    )}
-                                  </div>
-                                  <p className="mt-1 pl-6 text-xs leading-5 text-amber-100/65">
-                                    Send the shop to the SATX Ink team for review.
-                                  </p>
-                                </Listbox.Option>
-                                {shops.map((shop) => (
-                                  <Listbox.Option
-                                    key={shop.id}
-                                    value={shop}
-                                    className={({ active, selected }) =>
-                                      `relative cursor-pointer select-none rounded-md px-4 py-3 text-sm transition ${
-                                        active || selected
-                                          ? "bg-white/10 text-white"
-                                          : "text-neutral-300"
-                                      }`
-                                    }
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <p className="font-medium">{shop.name}</p>
-                                      {selectedShop?.id === shop.id && (
-                                        <Check
-                                          size={16}
-                                          className="mt-1 text-emerald-300"
-                                          aria-hidden="true"
-                                        />
-                                      )}
-                                    </div>
-                                  </Listbox.Option>
-                                ))}
-                              </Listbox.Options>
-                            </div>
-                          )}
-                        </Listbox>
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </button>
+                        </div>
 
                         {selectedShop?.id === UNLISTED_SHOP_ID ? (
                           <div className="space-y-4 rounded-md border border-amber-300/20 bg-amber-300/[0.07] p-4">
@@ -930,32 +1077,79 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                     )}
 
                     {currentStep === 1 && (
-                      <div data-aos="fade-in" className="space-y-5">
-                        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                          {SPECIALTIES.map((style) => {
-                            const selected = specialties.includes(style);
-                            return (
-                              <button
-                                key={style}
-                                type="button"
-                                onClick={() => toggleSpecialty(style)}
-                                className={`min-h-12 rounded-md border px-3 py-2.5 text-left text-sm leading-5 transition ${
-                                  selected
-                                    ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
-                                    : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
-                                }`}
-                              >
-                                {style}
-                              </button>
-                            );
-                          })}
+                      <div data-aos="fade-in" className="min-w-0 space-y-3">
+                        <div className="relative">
+                          <Search
+                            size={16}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+                            aria-hidden="true"
+                          />
+                          <input
+                            type="search"
+                            value={styleSearchQuery}
+                            onChange={(event) =>
+                              setStyleSearchQuery(event.target.value)
+                            }
+                            placeholder="Search tattoo styles"
+                            aria-label="Search tattoo styles"
+                            className="block min-h-10 w-full rounded-md border border-white/10 bg-[#101010] py-2 pl-9 pr-10 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/30 focus:ring-2 focus:ring-white/10"
+                          />
+                          {styleSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setStyleSearchQuery("")}
+                              aria-label="Clear style search"
+                              className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 transition hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <X size={15} aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
+
+                        {filteredSpecialties.length > 0 ? (
+                          <div className="grid min-w-0 grid-cols-3 gap-2 sm:grid-cols-4">
+                            {filteredSpecialties.map((style) => {
+                              const selected = specialties.includes(style);
+                              return (
+                                <button
+                                  key={style}
+                                  type="button"
+                                  onClick={() => toggleSpecialty(style)}
+                                  aria-pressed={selected}
+                                  className={`min-h-11 min-w-0 rounded-md border px-1.5! py-2! text-center text-[0.76rem]! font-medium leading-4 transition sm:min-h-12 sm:px-2.5! sm:text-sm! sm:leading-5 ${
+                                    selected
+                                      ? "border-white/25 bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] hover:border-white/35 hover:bg-white/[0.13]"
+                                      : "border-white/10 bg-[#101010] text-neutral-300 hover:border-white/25"
+                                  }`}
+                                >
+                                  {style}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div
+                            className="rounded-md border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center"
+                            aria-live="polite"
+                          >
+                            <p className="text-sm text-neutral-300">
+                              No styles match “{styleSearchQuery.trim()}”.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setStyleSearchQuery("")}
+                              className="mt-2 text-xs font-medium text-neutral-500 underline decoration-white/20 underline-offset-4 transition hover:text-white"
+                            >
+                              Clear search
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {currentStep === 2 && (
-                      <div data-aos="fade-in" className="space-y-4">
-                        <label className="space-y-2">
+                      <div data-aos="fade-in" className="min-w-0 space-y-4">
+                        <label className="min-w-0 space-y-2">
                           <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
                             <span>Display name</span>
                             <span className="text-xs font-normal text-neutral-500">
@@ -969,7 +1163,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             placeholder="Ink by Alex"
-                            className={`w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
+                            className={`block w-full max-w-full rounded-md border bg-[#101010] px-3 py-2 text-white outline-none transition ${
                               isNameTaken
                                 ? "border-red-400 focus:border-red-400"
                                 : displayName && !isCheckingName
@@ -1000,7 +1194,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                           </span>
                         </label>
 
-                        <label className="space-y-2">
+                        <label className="min-w-0 space-y-2">
                           <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
                             <span>Bio</span>
                             <span className="text-xs font-normal text-neutral-500">
@@ -1014,7 +1208,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                             rows={6}
                             maxLength={700}
                             placeholder="Tell clients about your style, process, and booking vibe."
-                            className="w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-white/35 focus:ring-2 focus:ring-white/10"
+                            className="block w-full max-w-full resize-none rounded-md border border-white/10 bg-[#101010] px-3 py-2 text-white outline-none transition focus:border-white/35 focus:ring-2 focus:ring-white/10"
                           />
                           <span className="block text-right text-xs text-neutral-500">
                             {bio.length}/700
@@ -1022,7 +1216,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                         </label>
 
                         <div>
-                          <label className="block space-y-2">
+                          <label className="block min-w-0 space-y-2">
                             <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
                               <span className="flex items-center gap-2">
                                 <Instagram size={15} aria-hidden="true" />
@@ -1032,8 +1226,8 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                                 Required
                               </span>
                             </span>
-                            <span className="flex min-h-11 overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-white/35 focus-within:ring-2 focus-within:ring-white/10">
-                              <span className="flex shrink-0 items-center border-r border-white/10 bg-white/[0.03] px-3 text-sm text-neutral-500">
+                            <span className="flex min-h-11 min-w-0 overflow-hidden rounded-md border border-white/10 bg-[#101010] transition focus-within:border-white/35 focus-within:ring-2 focus-within:ring-white/10">
+                              <span className="flex shrink-0 items-center border-r border-white/10 bg-white/[0.03] px-2.5 text-sm text-neutral-500 sm:px-3">
                                 {INSTAGRAM_PROFILE_LABEL}
                               </span>
                               <input
@@ -1116,7 +1310,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   </div>
                 </div>
 
-                <aside className="h-fit rounded-lg border border-white/10 bg-[#101010]/95 p-5 xl:sticky xl:top-24">
+                <aside className="hidden h-fit min-w-0 rounded-lg border border-white/10 bg-[#101010]/95 p-5 xl:sticky xl:top-24 xl:block">
                   <div className="flex items-center gap-4">
                     <img
                       src={user.photoURL || "/fallback-avatar.jpg"}

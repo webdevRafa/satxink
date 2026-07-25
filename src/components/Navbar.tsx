@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   ShieldCheck,
 } from "lucide-react";
+import { MOBILE_NAVBAR_PORTAL_ID } from "./MobileNavbarPortal";
 
 const mobileNavItems = [
   {
@@ -288,9 +289,14 @@ export const Navbar = () => {
     >
       <div className="max-w-[1600px] mx-auto flex items-center justify-between">
         {/* Logo */}
-        <Link to="/">
+        <Link to="/" className="shrink-0">
           <img className="w-20" src={logo} alt="SATX Ink Logo" />
         </Link>
+
+        <div
+          id={MOBILE_NAVBAR_PORTAL_ID}
+          className="mx-2 min-w-0 flex-1 md:hidden"
+        />
 
         {/* Desktop Nav */}
         <div className="hidden items-center gap-3 text-sm md:flex">

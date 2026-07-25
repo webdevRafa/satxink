@@ -35,6 +35,36 @@ const emptyStatus: StripeConnectStatus = {
   disabledReason: "account_missing",
 };
 
+const getStripeStatusMessage = (disabledReason?: string | null) => {
+  if (!disabledReason || disabledReason === "account_missing") return "";
+
+  switch (disabledReason) {
+    case "requirements.past_due":
+      return "Stripe needs additional information before your account can accept payments or receive payouts. Finish setup to resolve it.";
+    case "requirements.pending_verification":
+      return "Stripe is reviewing the information you submitted. No action is needed unless Stripe requests more details.";
+    case "requirements.eventually_due":
+      return "Stripe will need additional account information soon. You can provide it now to prevent payment interruptions.";
+    case "under_review":
+      return "Stripe is reviewing your account. Payments will become available after the review is complete.";
+    case "listed":
+      return "Stripe needs you to review information associated with this account before payments can continue.";
+    case "platform_paused":
+      return "Payments are temporarily paused. Contact SATX Ink support for help restoring your account.";
+    case "rejected.fraud":
+    case "rejected.terms_of_service":
+    case "rejected.listed":
+    case "rejected.other":
+      return "Stripe could not approve this account. Open Stripe setup for next steps or contact Stripe support.";
+    default:
+      if (disabledReason.startsWith("requirements.")) {
+        return "Stripe needs more information before payments and payouts can be fully enabled. Continue setup to review the request.";
+      }
+
+      return "Stripe needs attention before payments and payouts can be fully enabled. Continue setup for the next step.";
+  }
+};
+
 const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
   const [status, setStatus] = useState<StripeConnectStatus>({
     ...emptyStatus,
@@ -47,9 +77,13 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
   const statusLabel = useMemo(() => {
     if (isConnected) return "Ready for client deposits";
     if (status.accountId && status.detailsSubmitted) return "Under review";
-    if (status.accountId) return "Onboarding needs attention";
+    if (status.accountId) return "Setup needs attention";
     return "Not connected";
   }, [isConnected, status.accountId, status.detailsSubmitted]);
+  const statusMessage = useMemo(
+    () => getStripeStatusMessage(status.disabledReason),
+    [status.disabledReason]
+  );
 
   const refreshStatus = async ({ quiet = false } = {}) => {
     try {
@@ -113,22 +147,20 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
   }, [artist?.stripeConnect]);
 
   return (
-    <section className="w-full max-w-5xl space-y-6">
-      <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent p-6 shadow-2xl">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+    <section className="w-full max-w-5xl space-y-4">
+      <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent p-4 shadow-2xl sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
               <CreditCard size={15} />
               Payments
             </div>
-            <h2 className="mt-4 text-3xl! font-semibold text-white">
+            <h2 className="mt-4 text-2xl! font-semibold text-white sm:text-3xl!">
               Stripe Connect payouts
             </h2>
             <p className="mt-3 text-sm leading-6 text-white/55">
-              Connect Stripe so clients can pay deposits through SATX Ink while
-              funds route to your connected account. Clients cover the SATX Ink
-              platform fee and estimated Stripe processing so your quoted
-              deposit is protected.
+              Connect Stripe so client deposits and post-session balances can
+              be sent to your account. Finish setup before sending paid offers.
             </p>
           </div>
 
@@ -147,9 +179,9 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
               )}
               {statusLabel}
             </div>
-            {status.disabledReason && status.disabledReason !== "account_missing" && (
-              <p className="mt-1 text-xs opacity-75">
-                Stripe reason: {status.disabledReason}
+            {statusMessage && (
+              <p className="mt-2 max-w-sm text-xs leading-5 opacity-80">
+                {statusMessage}
               </p>
             )}
           </div>
@@ -172,9 +204,9 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
             type="button"
             onClick={startOnboarding}
             disabled={isRedirecting}
-            className="inline-flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4! py-2.5! text-sm! font-semibold text-white transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/[0.07] px-4! py-2.5! text-sm! font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {status.accountId ? "Continue Stripe setup" : "Connect Stripe"}
+            {status.accountId ? "Finish Stripe setup" : "Connect Stripe"}
             <ArrowUpRight size={16} />
           </button>
 
@@ -231,7 +263,7 @@ const StatusTile = ({ label, active }: { label: string; active: boolean }) => (
 );
 
 const InfoCard = ({ title, body }: { title: string; body: string }) => (
-  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
     <h3 className="text-base font-semibold text-white">{title}</h3>
     <p className="mt-2 text-sm leading-6 text-white/50">{body}</p>
   </div>
