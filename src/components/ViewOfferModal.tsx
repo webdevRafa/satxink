@@ -40,14 +40,8 @@ const DECLINE_REASON_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const getFinalPaymentTermsLabel = (offer: Offer) => {
-  if (offer.finalPaymentTiming !== "before") {
-    return "Remaining balance is settled after the appointment.";
-  }
-
-  const deadlineHours = offer.finalPaymentDeadlineHours === 48 ? 48 : 24;
-  return `Remaining balance is due ${deadlineHours} hours before the appointment.`;
-};
+const getFinalPaymentTermsLabel = () =>
+  "Remaining balance is settled after the appointment.";
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(
@@ -508,7 +502,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   />
                   <CheckoutSummaryRow
                     label="Final payment terms"
-                    value={getFinalPaymentTermsLabel(offer)}
+                    value={getFinalPaymentTermsLabel()}
                   />
                 </div>
 

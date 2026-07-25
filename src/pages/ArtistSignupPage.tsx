@@ -448,7 +448,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     }
 
     const paymentType = "internal";
-    const finalPaymentTiming = "before";
+    const finalPaymentTiming = "after";
     setSubmitting(true);
     setProfileCreationPhase("dim");
 
@@ -501,7 +501,7 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
             nonRefundable: true,
           },
           finalPaymentTiming,
-          finalPaymentDeadlineHours: 24,
+          finalPaymentDeadlineHours: null,
           likedBy: [],
           updatedAt: serverTimestamp(),
           profileComplete: true,

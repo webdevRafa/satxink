@@ -566,11 +566,8 @@ const MakeOfferModal = ({
           depositRequired: true,
           nonRefundable: true,
         },
-        finalPaymentTiming: artist.finalPaymentTiming || "after",
-        finalPaymentDeadlineHours:
-          artist.finalPaymentTiming === "before"
-            ? artist.finalPaymentDeadlineHours || 24
-            : null,
+        finalPaymentTiming: "after",
+        finalPaymentDeadlineHours: null,
         allowExternalRemainingPayment: hasRemainingArtistBalance,
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         depositApplication: "project_credit",
@@ -800,7 +797,6 @@ const MakeOfferModal = ({
           <div className="min-h-0 flex-1 overflow-y-auto request-modal-scrollbar">
             {isPreviewingOffer ? (
               <OfferPreview
-                artist={artist}
                 request={selectedRequest}
                 requestImageUrl={requestImageUrl}
                 sampleImageUrl={
@@ -1631,7 +1627,6 @@ const MakeOfferModal = ({
 };
 
 const OfferPreview = ({
-  artist,
   request,
   requestImageUrl,
   sampleImageUrl,
@@ -1647,7 +1642,6 @@ const OfferPreview = ({
   dateOptions,
   message,
 }: {
-  artist: OfferArtist;
   request: BookingRequest;
   requestImageUrl: string;
   sampleImageUrl: string;
@@ -1665,9 +1659,7 @@ const OfferPreview = ({
 }) => {
   const finalPaymentTermsLabel = !isFlashRequest
     ? "Each session balance becomes due only after that session is complete."
-    : artist.finalPaymentTiming === "before"
-      ? `Remaining balance due ${artist.finalPaymentDeadlineHours === 48 ? 48 : 24} hours before appointment.`
-      : "Remaining balance can be settled after the appointment.";
+    : "Remaining balance can be settled after the appointment.";
   const todayClientPayment = formatMoneyFromCents(paymentPreview.clientTotalCents);
   const artistReceivesToday = formatMoneyFromCents(paymentPreview.artistAmountCents);
   const laterPaymentLabel =

@@ -134,14 +134,6 @@ type ArtistDashboardTab =
   | "gallery"
   | "payments";
 
-const FINAL_PAYMENT_DEADLINE_OPTIONS: Array<{
-  hours: FinalPaymentDeadlineHours;
-  label: string;
-}> = [
-  { hours: 24, label: "24 hours before" },
-  { hours: 48, label: "48 hours before" },
-];
-
 type HomepageFeatureFormState = {
   story: string;
   quote: string;
@@ -272,11 +264,6 @@ type ArtistProfileFormState = {
     website: string;
   };
   homepageFeature: HomepageFeatureFormState;
-};
-
-type ArtistPaymentPreferencesFormState = {
-  finalPaymentTiming: FinalPaymentTiming;
-  finalPaymentDeadlineHours: FinalPaymentDeadlineHours;
 };
 
 type DashboardArtist = {
@@ -529,19 +516,6 @@ const createProfileFormState = (
   };
 };
 
-const getFinalPaymentDeadlineHours = (
-  value: unknown
-): FinalPaymentDeadlineHours => (value === 48 ? 48 : 24);
-
-const createPaymentPreferencesFormState = (
-  artist: DashboardArtist | null
-): ArtistPaymentPreferencesFormState => ({
-  finalPaymentTiming: artist?.finalPaymentTiming || "after",
-  finalPaymentDeadlineHours: getFinalPaymentDeadlineHours(
-    artist?.finalPaymentDeadlineHours
-  ),
-});
-
 type ProfileActionButtonsProps = {
   className: string;
   isDirty: boolean;
@@ -644,18 +618,10 @@ const ArtistDashboardView = () => {
   const [profileForm, setProfileForm] = useState<ArtistProfileFormState>(
     createProfileFormState(null)
   );
-  const [paymentPreferencesForm, setPaymentPreferencesForm] =
-    useState<ArtistPaymentPreferencesFormState>(
-      createPaymentPreferencesFormState(null)
-    );
   const [activeProfileSubTab, setActiveProfileSubTab] =
     useState<ArtistProfileSubTab>("identity");
   const [isProfileDirty, setIsProfileDirty] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isPaymentPreferencesDirty, setIsPaymentPreferencesDirty] =
-    useState(false);
-  const [isSavingPaymentPreferences, setIsSavingPaymentPreferences] =
-    useState(false);
   const [currentSlug, setCurrentSlug] = useState("");
   const [displayNameStatus, setDisplayNameStatus] =
     useState<DisplayNameStatus>("idle");
@@ -713,7 +679,7 @@ const ArtistDashboardView = () => {
       ([entry]) => setIsProfileActionRowVisible(entry.isIntersecting),
       {
         threshold: 0.15,
-        rootMargin: "-72px 0px 0px",
+        rootMargin: "-84px 0px 0px",
       }
     );
 
@@ -765,9 +731,6 @@ const ArtistDashboardView = () => {
           setAccountEmail(user.email || artistData.email || "");
           setArtist(artistData);
           setProfileForm(createProfileFormState(artistData));
-          setPaymentPreferencesForm(
-            createPaymentPreferencesFormState(artistData)
-          );
           setCurrentSlug(
             artistData.slug ||
               slugify(artistData.displayName || artistData.name || "", {
@@ -777,7 +740,6 @@ const ArtistDashboardView = () => {
           );
           setDisplayNameStatus("idle");
           setIsProfileDirty(false);
-          setIsPaymentPreferencesDirty(false);
         }
       } else {
         setUid(null);
@@ -834,21 +796,6 @@ const ArtistDashboardView = () => {
         : { ...current, ...updater }
     );
     setIsProfileDirty(true);
-  };
-
-  const updatePaymentPreferencesForm = (
-    updater:
-      | Partial<ArtistPaymentPreferencesFormState>
-      | ((
-          current: ArtistPaymentPreferencesFormState
-        ) => ArtistPaymentPreferencesFormState)
-  ) => {
-    setPaymentPreferencesForm((current) =>
-      typeof updater === "function"
-        ? updater(current)
-        : { ...current, ...updater }
-    );
-    setIsPaymentPreferencesDirty(true);
   };
 
   const checkDisplayNameAvailability = useCallback(
@@ -1191,11 +1138,6 @@ const ArtistDashboardView = () => {
     }
   }, [artist, profileForm.displayName, uid]);
 
-  const resetPaymentPreferencesForm = () => {
-    setPaymentPreferencesForm(createPaymentPreferencesFormState(artist));
-    setIsPaymentPreferencesDirty(false);
-  };
-
   const handleSaveProfile = async () => {
     if (!uid) return;
 
@@ -1294,43 +1236,6 @@ const ArtistDashboardView = () => {
       toast.error("Profile update failed.");
     } finally {
       setIsSavingProfile(false);
-    }
-  };
-
-  const handleSavePaymentPreferences = async () => {
-    if (!uid) return;
-
-    setIsSavingPaymentPreferences(true);
-
-    const paymentPreferencesUpdate = {
-      paymentType: "internal" as PaymentType,
-      externalPaymentMethods: [],
-      externalPaymentDetails: null,
-      depositPolicy: {
-        amount: 0,
-        depositRequired: true,
-        nonRefundable: true,
-      },
-      finalPaymentTiming: paymentPreferencesForm.finalPaymentTiming,
-      finalPaymentDeadlineHours:
-        paymentPreferencesForm.finalPaymentTiming === "before"
-          ? paymentPreferencesForm.finalPaymentDeadlineHours
-          : null,
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      await updateDoc(doc(db, "users", uid), paymentPreferencesUpdate);
-      const nextArtist = { ...(artist || {}), ...paymentPreferencesUpdate };
-      setArtist(nextArtist);
-      setPaymentPreferencesForm(createPaymentPreferencesFormState(nextArtist));
-      setIsPaymentPreferencesDirty(false);
-      toast.success("Payment preferences updated.");
-    } catch (error) {
-      console.error("Artist payment preference update failed:", error);
-      toast.error("Payment preferences update failed.");
-    } finally {
-      setIsSavingPaymentPreferences(false);
     }
   };
 
@@ -1589,8 +1494,6 @@ const ArtistDashboardView = () => {
     isUploadingHomepageFeatureImage ||
     displayNameStatus === "checking" ||
     displayNameStatus === "taken";
-  const isPaymentPreferencesSaveDisabled =
-    !isPaymentPreferencesDirty || isSavingPaymentPreferences;
   const visibleBookings = useMemo(() => {
     const statusFilteredBookings = bookings.filter((booking) => {
       if (activeTab === "bookings" && bookingStatusFilter !== "all") {
@@ -1928,7 +1831,7 @@ const ArtistDashboardView = () => {
         leaveTo="-translate-y-full opacity-0"
       >
         <div
-          className="fixed inset-x-0 top-16 z-[80] px-4 md:hidden"
+          className="fixed inset-x-0 top-[4.75rem] z-[80] px-4 md:hidden"
           aria-label="Unsaved profile changes"
         >
           <div className="mx-auto max-w-xl rounded-b-xl border border-t-0 border-white/10 bg-[#111111]/95 p-2 shadow-[0_18px_36px_rgba(0,0,0,0.42)] backdrop-blur-xl">
@@ -3024,15 +2927,8 @@ const ArtistDashboardView = () => {
         {activeTab === "payments" && (
           <div className="mt-6 w-full max-w-5xl space-y-6">
             <PaymentPreferencesPanel
-              form={paymentPreferencesForm}
-              isDirty={isPaymentPreferencesDirty}
-              isSaving={isSavingPaymentPreferences}
-              isSaveDisabled={isPaymentPreferencesSaveDisabled}
-              onChange={updatePaymentPreferencesForm}
-              onReset={resetPaymentPreferencesForm}
-              onSave={handleSavePaymentPreferences}
+              stripeConnectPanel={<StripeConnectPanel artist={artist} />}
             />
-            <StripeConnectPanel artist={artist} />
           </div>
         )}
         {activeTab === "calendar" && uid && (
@@ -3321,80 +3217,30 @@ const ArtistBookingRow = ({
   );
 };
 
-type PaymentPreferencesPanelProps = {
-  form: ArtistPaymentPreferencesFormState;
-  isDirty: boolean;
-  isSaving: boolean;
-  isSaveDisabled: boolean;
-  onChange: (
-    updater:
-      | Partial<ArtistPaymentPreferencesFormState>
-      | ((
-          current: ArtistPaymentPreferencesFormState
-        ) => ArtistPaymentPreferencesFormState)
-  ) => void;
-  onReset: () => void;
-  onSave: () => void;
-};
-
 const PaymentPreferencesPanel = ({
-  form,
-  isDirty,
-  isSaving,
-  isSaveDisabled,
-  onChange,
-  onReset,
-  onSave,
-}: PaymentPreferencesPanelProps) => (
+  stripeConnectPanel,
+}: {
+  stripeConnectPanel: ReactNode;
+}) => (
   <section className="rounded-xl border border-white/10 bg-[#101010]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-5">
-    <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="border-b border-white/10 pb-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
           <CreditCard size={18} aria-hidden="true" />
         </span>
-        <div>
+        <div className="min-w-0">
           <h2 className="mb-0! text-xl! font-semibold text-white">
-            Payment preferences
+            Payments
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-            Stripe collects every SATX Ink deposit. Remaining balances can be
-            handled through Stripe or settled directly with the artist per
-            offer.
+            Payments are provided by Stripe and sent to your Stripe Connect
+            account. Complete the setup below before sending paid offers.
           </p>
         </div>
       </div>
-
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={onReset}
-          disabled={!isDirty || isSaving}
-          className="inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.02] px-3! py-2! text-xs! font-semibold text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <RefreshCcw size={14} aria-hidden="true" />
-          Reset
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={isSaveDisabled}
-          className={`inline-flex min-h-0! items-center justify-center gap-2 rounded-lg! px-4! py-2! text-xs! font-semibold transition disabled:cursor-not-allowed ${
-            isDirty
-              ? "bg-white text-[#0b0b0b]! shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] hover:bg-white/90"
-              : "border border-white/10 bg-white/[0.03] text-neutral-500 disabled:opacity-50"
-          }`}
-        >
-          <Save
-            size={14}
-            className={isDirty ? "text-[#0b0b0b]!" : ""}
-            aria-hidden="true"
-          />
-          {isSaving ? "Saving..." : "Save preferences"}
-        </button>
-      </div>
     </div>
 
-    <div className="mt-4 space-y-3">
+    <div className="mt-4">
       <div className="flex flex-col gap-3 rounded-lg border border-emerald-300/15 bg-emerald-300/[0.045] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-300">
@@ -3406,7 +3252,7 @@ const PaymentPreferencesPanel = ({
             </div>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-emerald-50/70">
               Deposits are always required, non-refundable, and collected
-              through SATX Ink checkout before a booking is confirmed.
+              before a booking is confirmed.
             </p>
           </div>
         </div>
@@ -3416,59 +3262,33 @@ const PaymentPreferencesPanel = ({
       </div>
     </div>
 
-    <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3.5 sm:p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h3 className="mb-0! text-sm! font-semibold text-white">
-            Final payment terms
-          </h3>
-          <p className="mt-1 text-sm leading-6 text-neutral-500">
-            Set the default timing clients see before accepting an offer.
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(["before", "after"] as FinalPaymentTiming[]).map((timing) => (
-            <button
-              key={timing}
-              type="button"
-              onClick={() => onChange({ finalPaymentTiming: timing })}
-              className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
-                form.finalPaymentTiming === timing
-                  ? "border-white/30 bg-white text-black"
-                  : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
-              }`}
-            >
-              {timing === "before" ? "Before appointment" : "After appointment"}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="mt-4">{stripeConnectPanel}</div>
 
-      {form.finalPaymentTiming === "before" && (
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-            Deadline
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {FINAL_PAYMENT_DEADLINE_OPTIONS.map((option) => (
-              <button
-                key={option.hours}
-                type="button"
-                onClick={() =>
-                  onChange({ finalPaymentDeadlineHours: option.hours })
-                }
-                className={`min-h-0! rounded-lg! border px-4! py-2.5! text-sm! font-semibold transition ${
-                  form.finalPaymentDeadlineHours === option.hours
-                    ? "border-white/30 bg-white text-black"
-                    : "border-white/10 bg-black/25 text-neutral-400 hover:border-white/25 hover:text-white"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+    <div className="mt-4 rounded-lg border border-sky-300/15 bg-sky-300/[0.035] p-3.5 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-300/10 text-sky-200">
+            <Clock size={16} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="mb-0! text-sm! font-semibold text-white">
+              Remaining balance timing
+            </h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
+              Remaining session balances are requested after the appointment.
+              This avoids back-to-back card payments when a client books on
+              short notice.
+            </p>
+            <p className="mt-2 text-xs leading-5 text-sky-100/65">
+              Complete the session first, then request Stripe payment or
+              confirm an in-shop payment from your Sessions workspace.
+            </p>
           </div>
         </div>
-      )}
+        <span className="ml-11 w-fit shrink-0 rounded-full border border-sky-200/20 bg-sky-200/10 px-2.5 py-1 text-[11px] font-semibold text-sky-100 sm:ml-0">
+          After appointment
+        </span>
+      </div>
     </div>
   </section>
 );
