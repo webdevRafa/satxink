@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CreditCard,
   ExternalLink,
+  LoaderCircle,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
@@ -26,6 +27,8 @@ type CallableStatusResponse = {
 type CallableUrlResponse = {
   url: string;
 };
+
+type RedirectTarget = "onboarding" | "dashboard" | null;
 
 const emptyStatus: StripeConnectStatus = {
   chargesEnabled: false,
@@ -71,9 +74,11 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
     ...artist?.stripeConnect,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [redirectTarget, setRedirectTarget] =
+    useState<RedirectTarget>(null);
 
   const isConnected = status.onboardingComplete;
+  const isRedirecting = redirectTarget !== null;
   const statusLabel = useMemo(() => {
     if (isConnected) return "Ready for client deposits";
     if (status.accountId && status.detailsSubmitted) return "Under review";
@@ -105,7 +110,7 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
 
   const startOnboarding = async () => {
     try {
-      setIsRedirecting(true);
+      setRedirectTarget("onboarding");
       const createLink = httpsCallable<
         { returnUrl: string; origin: string },
         CallableUrlResponse
@@ -118,13 +123,13 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
     } catch (err) {
       console.error("Failed to create Stripe onboarding link:", err);
       toast.error("Could not open Stripe onboarding.");
-      setIsRedirecting(false);
+      setRedirectTarget(null);
     }
   };
 
   const openStripeDashboard = async () => {
     try {
-      setIsRedirecting(true);
+      setRedirectTarget("dashboard");
       const createLoginLink = httpsCallable<void, CallableUrlResponse>(
         functions,
         "createStripeDashboardLoginLink"
@@ -134,7 +139,7 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
     } catch (err) {
       console.error("Failed to create Stripe dashboard link:", err);
       toast.error("Could not open the Stripe dashboard.");
-      setIsRedirecting(false);
+      setRedirectTarget(null);
     }
   };
 
@@ -204,10 +209,20 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
             type="button"
             onClick={startOnboarding}
             disabled={isRedirecting}
-            className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/[0.07] px-4! py-2.5! text-sm! font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-busy={redirectTarget === "onboarding"}
+            className="inline-flex min-w-[164px] items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.07] px-4! py-2.5! text-sm! font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.11] disabled:cursor-wait disabled:opacity-65"
           >
-            {status.accountId ? "Finish Stripe setup" : "Connect Stripe"}
-            <ArrowUpRight size={16} />
+            {redirectTarget === "onboarding" ? (
+              <>
+                <LoaderCircle size={16} className="animate-spin" />
+                Opening setup...
+              </>
+            ) : (
+              <>
+                {status.accountId ? "Finish Stripe setup" : "Connect Stripe"}
+                <ArrowUpRight size={16} />
+              </>
+            )}
           </button>
 
           {status.accountId && (
@@ -215,10 +230,20 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
               type="button"
               onClick={openStripeDashboard}
               disabled={isRedirecting}
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4! py-2.5! text-sm! font-semibold text-white/75 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              aria-busy={redirectTarget === "dashboard"}
+              className="inline-flex min-w-[162px] items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4! py-2.5! text-sm! font-semibold text-white/75 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white disabled:cursor-wait disabled:opacity-65"
             >
-              Stripe dashboard
-              <ExternalLink size={16} />
+              {redirectTarget === "dashboard" ? (
+                <>
+                  <LoaderCircle size={16} className="animate-spin" />
+                  Opening dashboard...
+                </>
+              ) : (
+                <>
+                  Stripe dashboard
+                  <ExternalLink size={16} />
+                </>
+              )}
             </button>
           )}
 
@@ -232,6 +257,13 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
             Refresh status
           </button>
         </div>
+        <p className="sr-only" role="status" aria-live="polite">
+          {redirectTarget === "onboarding"
+            ? "Preparing Stripe setup. You will be redirected shortly."
+            : redirectTarget === "dashboard"
+              ? "Preparing your Stripe dashboard. You will be redirected shortly."
+              : ""}
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
