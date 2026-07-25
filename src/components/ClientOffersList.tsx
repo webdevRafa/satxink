@@ -128,7 +128,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           title="Offers"
           description="Review artist offers, choose an appointment time, and accept when you are ready to book."
         />
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Total" value={offers.length} />
           <MetricCard label="Pending" value={pendingCount} />
           <MetricCard label="Next step" value={offers.length ? "Review" : "-"} />
@@ -358,9 +358,9 @@ const DashboardHeader = ({ eyebrow, title, description }: { eyebrow: string; tit
 );
 
 const MetricCard = ({ label, value }: { label: string; value: string | number }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">{label}</p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">{label}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">{value}</p>
   </div>
 );
 

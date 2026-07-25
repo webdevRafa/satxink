@@ -1,4 +1,11 @@
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
@@ -49,6 +56,10 @@ type BookingRequest = {
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
   thumbUrl?: string;
+  referenceImages?: Array<{
+    fullUrl?: string;
+    thumbUrl?: string;
+  }>;
   budget?: string | number;
   status?: string;
   offerPreparationStatus?: string;
@@ -76,6 +87,19 @@ const REQUEST_STATUS_FILTERS = [
   { value: "closed", label: "Closed" },
 ] as const;
 type RequestStatusFilter = (typeof REQUEST_STATUS_FILTERS)[number]["value"];
+type RequestStatusCategory = Exclude<RequestStatusFilter, "all">;
+
+const CLOSED_REQUEST_STATUSES = new Set([
+  "accepted",
+  "cancelled",
+  "canceled",
+  "closed",
+  "declined",
+  "expired",
+  "offered",
+  "rejected",
+  "withdrawn",
+]);
 
 const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
@@ -134,15 +158,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
     () =>
       sortedRequests.filter((request) => {
         if (statusFilter === "all") return true;
-        if (statusFilter === "preparing")
-          return isArtistPreparingOffer(request);
-        if (statusFilter === "waiting") {
-          return (
-            String(request.status || "pending") === "pending" &&
-            !isArtistPreparingOffer(request)
-          );
-        }
-        return String(request.status || "pending") !== "pending";
+        return getRequestStatusCategory(request) === statusFilter;
       }),
     [sortedRequests, statusFilter]
   );
@@ -154,17 +170,19 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
   const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
   const pageEndIndex = Math.min(
     pageStartIndex + REQUESTS_PER_PAGE,
-    sortedRequests.length
+    filteredRequests.length
   );
   const visibleRequests = useMemo(
     () => filteredRequests.slice(pageStartIndex, pageEndIndex),
     [filteredRequests, pageEndIndex, pageStartIndex]
   );
-  const preparingCount = requests.filter(isArtistPreparingOffer).length;
-  const closedCount = requests.filter(
-    (request) => String(request.status || "pending") !== "pending"
-  ).length;
-  const waitingCount = requests.length - preparingCount - closedCount;
+  const requestStatusCounts = requests.reduce<Record<RequestStatusCategory, number>>(
+    (counts, request) => {
+      counts[getRequestStatusCategory(request)] += 1;
+      return counts;
+    },
+    { waiting: 0, preparing: 0, closed: 0 }
+  );
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
@@ -190,10 +208,10 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
           title="My requests"
           description="Review the tattoo ideas you have sent and track whether an artist has responded."
         />
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
           <MetricCard label="Total" value={requests.length} />
-          <MetricCard label="Waiting" value={waitingCount} />
-          <MetricCard label="Preparing" value={preparingCount} />
+          <MetricCard label="Waiting" value={requestStatusCounts.waiting} />
+          <MetricCard label="Preparing" value={requestStatusCounts.preparing} />
         </div>
       </div>
 
@@ -203,6 +221,7 @@ const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
             key={filter.value}
             type="button"
             onClick={() => setStatusFilter(filter.value)}
+            aria-pressed={statusFilter === filter.value}
             className={`rounded-md px-4! py-2! text-xs! font-semibold transition ${
               statusFilter === filter.value
                 ? "bg-white text-black"
@@ -270,39 +289,54 @@ const RequestTable = ({
     "minmax(110px,.52fr) minmax(155px,.72fr) minmax(240px,1.06fr) 88px minmax(215px,.82fr) minmax(165px,.62fr) minmax(110px,.48fr)";
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-      <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-        <div className="min-w-[1160px]">
-          <div
-            className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
-            style={{ gridTemplateColumns: columns }}
-          >
-            <span>Created</span>
-            <span>Artist</span>
-            <span>Availability</span>
-            <span>Reference</span>
-            <span>Idea</span>
-            <span>Status</span>
-            <span className="text-right">Actions</span>
-          </div>
-          <div className="divide-y divide-white/10">
-            {requests.map((request) => (
-              <RequestRow
-                key={request.id}
-                request={request}
-                artist={
-                  request.artistId
-                    ? requestArtists[request.artistId]
-                    : undefined
-                }
-                columns={columns}
-                onOpen={() => onOpen(request)}
-              />
-            ))}
+    <>
+      <div className="space-y-3 md:hidden">
+        {requests.map((request) => (
+          <RequestMobileCard
+            key={request.id}
+            request={request}
+            artist={
+              request.artistId ? requestArtists[request.artistId] : undefined
+            }
+            onOpen={() => onOpen(request)}
+          />
+        ))}
+      </div>
+
+      <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
+        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
+          <div className="min-w-[1160px]">
+            <div
+              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
+              style={{ gridTemplateColumns: columns }}
+            >
+              <span>Created</span>
+              <span>Artist</span>
+              <span>Availability</span>
+              <span>Reference</span>
+              <span>Idea</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <div className="divide-y divide-white/10">
+              {requests.map((request) => (
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  artist={
+                    request.artistId
+                      ? requestArtists[request.artistId]
+                      : undefined
+                  }
+                  columns={columns}
+                  onOpen={() => onOpen(request)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -400,8 +434,8 @@ const RequestRow = ({
   columns: string;
   onOpen: () => void;
 }) => {
-  const previewUrl = request.thumbUrl || request.fullUrl || "";
   const requestArtist = getRequestArtist(request, artist);
+  const imageSources = getRequestImageSources(request);
 
   return (
     <div
@@ -458,9 +492,9 @@ const RequestRow = ({
         className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
         aria-label="View request reference"
       >
-        {previewUrl ? (
+        {imageSources.length ? (
           <RequestPreviewImage
-            src={previewUrl}
+            sources={imageSources}
             alt="Tattoo request reference"
           />
         ) : (
@@ -504,6 +538,138 @@ const RequestRow = ({
     </div>
   );
 };
+
+const RequestMobileCard = ({
+  request,
+  artist,
+  onOpen,
+}: {
+  request: BookingRequest;
+  artist?: RequestArtist;
+  onOpen: () => void;
+}) => {
+  const requestArtist = getRequestArtist(request, artist);
+  const imageSources = getRequestImageSources(request);
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-[0_14px_38px_rgba(0,0,0,0.22)]">
+      <div className="flex items-start justify-between gap-3 border-b border-white/8 px-3.5 py-3">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-w-0 items-center gap-3 p-0! text-left"
+        >
+          <img
+            src={requestArtist.avatarUrl}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
+          />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-white">
+              {requestArtist.name}
+            </span>
+            <span className="mt-0.5 block text-xs text-neutral-500">
+              Sent {formatShortDate(request.createdAt)}
+            </span>
+          </span>
+        </button>
+        <div className="min-w-0 shrink-0">
+          <RequestStatusCell request={request} compact />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="grid w-full grid-cols-[88px_minmax(0,1fr)] gap-3 p-3.5! text-left"
+        aria-label={`View request to ${requestArtist.name}`}
+      >
+        <span className="relative h-[88px] w-[88px] overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
+          {imageSources.length ? (
+            <RequestPreviewImage
+              sources={imageSources}
+              alt="Tattoo request reference"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-neutral-500">
+              <ImageIcon size={20} />
+            </span>
+          )}
+        </span>
+
+        <span className="min-w-0">
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+            Tattoo idea
+          </span>
+          <span className="mt-1 block truncate text-base font-semibold text-white">
+            {request.bodyPlacement || "Placement open"}
+          </span>
+          <span className="mt-2 grid grid-cols-2 gap-2">
+            <MobileRequestFact
+              label="Size"
+              value={request.size || "Flexible"}
+            />
+            <MobileRequestFact
+              label="Budget"
+              value={formatBudget(request.budget)}
+            />
+          </span>
+        </span>
+      </button>
+
+      <div className="grid gap-2 border-t border-white/8 px-3.5 py-3 text-xs text-neutral-300">
+        <span className="flex min-w-0 items-center gap-2">
+          <CalendarDays
+            size={14}
+            className="shrink-0 text-neutral-500"
+            aria-hidden="true"
+          />
+          <span className="truncate">
+            {formatCompactDateRange(request.preferredDateRange || [])}
+          </span>
+        </span>
+        <span className="flex min-w-0 items-center gap-2">
+          <Clock
+            size={14}
+            className="shrink-0 text-neutral-500"
+            aria-hidden="true"
+          />
+          <span className="truncate">
+            {formatAvailableTimeWindow(request)}
+          </span>
+        </span>
+      </div>
+
+      <div className="border-t border-white/8 p-2.5">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex min-h-10! w-full items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.04] px-3! py-2! text-sm! font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
+        >
+          <Eye size={15} aria-hidden="true" />
+          View request details
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const MobileRequestFact = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) => (
+  <span className="min-w-0">
+    <span className="block text-[9px] uppercase tracking-[0.12em] text-neutral-600">
+      {label}
+    </span>
+    <span className="mt-0.5 block truncate text-xs font-medium text-neutral-200">
+      {value}
+    </span>
+  </span>
+);
 
 const RequestDetailsDialog = ({
   request,
@@ -559,9 +725,9 @@ const RequestDetailsDialog = ({
                   </div>
                   <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
                     <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                      {request.fullUrl || request.thumbUrl ? (
+                      {getRequestImageSources(request, true).length ? (
                         <RequestModalImage
-                          src={request.fullUrl || request.thumbUrl}
+                          sources={getRequestImageSources(request, true)}
                           alt="Tattoo request reference"
                         />
                       ) : (
@@ -651,57 +817,153 @@ const RequestDetailsDialog = ({
   </Transition>
 );
 
-const RequestPreviewImage = ({ src, alt }: { src: string; alt: string }) => {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    setLoaded(false);
-  }, [src]);
+const RequestPreviewImage = ({
+  sources,
+  alt,
+}: {
+  sources: string[];
+  alt: string;
+}) => {
+  const { currentSrc, failed, handleError, handleLoad, imageKey, loaded } =
+    useReliableRequestImage(sources);
 
   return (
     <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-white/[0.035]">
-      {!loaded && (
+      {!loaded && !failed && (
         <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
       )}
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={() => setLoaded(true)}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-      />
+      {failed ? (
+        <span className="flex h-full w-full items-center justify-center text-neutral-500">
+          <ImageIcon size={18} aria-hidden="true" />
+        </span>
+      ) : (
+        currentSrc && (
+          <img
+            key={imageKey}
+            src={currentSrc}
+            alt={alt}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onLoad={handleLoad}
+            onError={handleError}
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+              loaded ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        )
+      )}
     </span>
   );
 };
 
-const RequestModalImage = ({ src, alt }: { src?: string; alt: string }) => {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    setLoaded(false);
-  }, [src]);
+const RequestModalImage = ({
+  sources,
+  alt,
+}: {
+  sources: string[];
+  alt: string;
+}) => {
+  const { currentSrc, failed, handleError, handleLoad, imageKey, loaded } =
+    useReliableRequestImage(sources);
 
   return (
     <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
-      {!loaded && (
+      {!loaded && !failed && (
         <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
       )}
-      <img
-        src={src}
-        alt={alt}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={() => setLoaded(true)}
-        className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
-          loaded ? "opacity-100" : "opacity-0"
-        }`}
-      />
+      {failed ? (
+        <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-neutral-500 sm:min-h-[420px]">
+          <ImageIcon size={30} aria-hidden="true" />
+          <span className="text-sm">Reference image unavailable</span>
+        </div>
+      ) : (
+        currentSrc && (
+          <img
+            key={imageKey}
+            src={currentSrc}
+            alt={alt}
+            loading="eager"
+            decoding="async"
+            onLoad={handleLoad}
+            onError={handleError}
+            className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
+              loaded ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        )
+      )}
     </div>
   );
+};
+
+const useReliableRequestImage = (sources: string[]) => {
+  const candidates = Array.from(
+    new Set(sources.map((source) => source.trim()).filter(Boolean))
+  );
+  const sourcesKey = candidates.join("\n");
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [retryToken, setRetryToken] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(candidates.length === 0);
+  const retryTimerRef = useRef<number | null>(null);
+  const retryScheduledRef = useRef(false);
+
+  useEffect(() => {
+    if (retryTimerRef.current !== null) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    retryScheduledRef.current = false;
+    setSourceIndex(0);
+    setRetryCount(0);
+    setRetryToken(0);
+    setLoaded(false);
+    setFailed(candidates.length === 0);
+
+    return () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, [candidates.length, sourcesKey]);
+
+  const activeSource = candidates[sourceIndex] || "";
+  const currentSrc = activeSource;
+  const imageKey = `${activeSource}:${retryToken}`;
+
+  const handleLoad = () => {
+    retryScheduledRef.current = false;
+    setLoaded(true);
+    setFailed(false);
+  };
+
+  const handleError = () => {
+    setLoaded(false);
+
+    if (sourceIndex < candidates.length - 1) {
+      setSourceIndex((index) => index + 1);
+      return;
+    }
+
+    if (retryCount >= 2) {
+      setFailed(true);
+      return;
+    }
+
+    if (retryScheduledRef.current) return;
+    retryScheduledRef.current = true;
+    retryTimerRef.current = window.setTimeout(() => {
+      retryScheduledRef.current = false;
+      retryTimerRef.current = null;
+      setRetryCount((count) => count + 1);
+      setRetryToken(Date.now());
+      setSourceIndex(0);
+    }, 600 * (retryCount + 1));
+  };
+
+  return { currentSrc, failed, handleError, handleLoad, imageKey, loaded };
 };
 
 const DashboardHeader = ({
@@ -729,31 +991,38 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
-const RequestStatusCell = ({ request }: { request: BookingRequest }) => {
-  const isPreparing = isArtistPreparingOffer(request);
-  const label = isPreparing
-    ? "Artist is preparing an offer"
-    : "Waiting for artist";
+const RequestStatusCell = ({
+  request,
+  compact = false,
+}: {
+  request: BookingRequest;
+  compact?: boolean;
+}) => {
+  const presentation = getRequestStatusPresentation(request);
   const eta =
-    isPreparing && request.offerPreparationEta
+    presentation.category === "preparing" && request.offerPreparationEta
       ? `ETA: ${request.offerPreparationEta}`
       : "";
 
   return (
     <div className="flex min-w-0 flex-col items-start gap-1.5">
       <StatusBadge
-        status={isPreparing ? "preparing" : request.status || "pending"}
-        label={label}
+        status={presentation.status}
+        label={compact ? presentation.compactLabel : presentation.label}
       />
-      {eta && <span className="truncate text-xs text-neutral-500">{eta}</span>}
+      {!compact && eta && (
+        <span className="truncate text-xs text-neutral-500">{eta}</span>
+      )}
     </div>
   );
 };
@@ -762,8 +1031,14 @@ const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
   const className =
     status === "offered" || status === "preparing"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-      : status === "declined"
+      : status === "declined" || status === "rejected"
       ? "border-red-300/25 bg-red-300/10 text-red-100"
+      : status === "cancelled" ||
+        status === "canceled" ||
+        status === "expired" ||
+        status === "withdrawn" ||
+        status === "closed"
+      ? "border-white/10 bg-white/[0.045] text-neutral-300"
       : "border-amber-300/20 bg-amber-300/10 text-amber-100";
   const display =
     label ||
@@ -930,6 +1205,95 @@ const getFormattedAvailableDays = (days: string[]): string => {
 
 const isArtistPreparingOffer = (request: BookingRequest) =>
   request.offerPreparationStatus === "preparing";
+
+const getNormalizedRequestStatus = (request: BookingRequest) =>
+  String(request.status || "pending").trim().toLowerCase();
+
+const getRequestStatusCategory = (
+  request: BookingRequest
+): RequestStatusCategory => {
+  const status = getNormalizedRequestStatus(request);
+
+  if (CLOSED_REQUEST_STATUSES.has(status)) return "closed";
+  if (isArtistPreparingOffer(request)) return "preparing";
+  return "waiting";
+};
+
+const getRequestStatusPresentation = (request: BookingRequest) => {
+  const status = getNormalizedRequestStatus(request);
+  const category = getRequestStatusCategory(request);
+
+  if (category === "preparing") {
+    return {
+      category,
+      status: "preparing",
+      label: "Artist is preparing an offer",
+      compactLabel: "Preparing",
+    };
+  }
+
+  if (category === "waiting") {
+    return {
+      category,
+      status: "pending",
+      label: "Waiting for artist",
+      compactLabel: "Waiting",
+    };
+  }
+
+  if (status === "offered" || status === "accepted") {
+    return {
+      category,
+      status: "offered",
+      label: "Offer received",
+      compactLabel: "Offer received",
+    };
+  }
+
+  if (status === "declined" || status === "rejected") {
+    return {
+      category,
+      status,
+      label: "Declined by artist",
+      compactLabel: "Declined",
+    };
+  }
+
+  const closedLabels: Record<string, string> = {
+    canceled: "Cancelled",
+    cancelled: "Cancelled",
+    closed: "Closed",
+    expired: "Expired",
+    withdrawn: "Withdrawn",
+  };
+  const label = closedLabels[status] || "Closed";
+
+  return { category, status, label, compactLabel: label };
+};
+
+const getRequestImageSources = (
+  request: BookingRequest,
+  preferFullSize = false
+) => {
+  const referenceSources = (request.referenceImages || []).flatMap(
+    (reference) =>
+      preferFullSize
+        ? [reference.fullUrl, reference.thumbUrl]
+        : [reference.thumbUrl, reference.fullUrl]
+  );
+  const primarySources = preferFullSize
+    ? [request.fullUrl, request.thumbUrl]
+    : [request.thumbUrl, request.fullUrl];
+
+  return Array.from(
+    new Set(
+      [...primarySources, ...referenceSources].filter(
+        (source): source is string =>
+          typeof source === "string" && source.trim().length > 0
+      )
+    )
+  );
+};
 
 const formatDateRange = (dates: string[]) => {
   const [start, end] = dates;
