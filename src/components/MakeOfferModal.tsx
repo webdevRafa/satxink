@@ -141,8 +141,7 @@ const CUSTOM_OFFER_STEPS = [
   { id: "project", label: "Project" },
   { id: "pricing", label: "Pricing" },
   { id: "appointment", label: "Appointment" },
-  { id: "message", label: "Message" },
-  { id: "sample", label: "Sample" },
+  { id: "extras", label: "Extras" },
   { id: "preview", label: "Preview" },
 ] as const;
 
@@ -182,9 +181,6 @@ const MakeOfferModal = ({
     useState(false);
   const dateInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const offerModalBodyRef = useRef<HTMLDivElement | null>(null);
-  const customOfferStepRefs = useRef<
-    Map<CustomOfferStepId, HTMLButtonElement>
-  >(new Map());
   const todayDateInput = getTodayDateInputValue();
 
   const isFlashRequest = selectedRequest?.sourceType === "flash";
@@ -309,12 +305,6 @@ const MakeOfferModal = ({
         : "smooth";
 
       offerModalBodyRef.current?.scrollTo({ top: 0, behavior });
-      const activeStep = CUSTOM_OFFER_STEPS[customOfferStepIndex];
-      customOfferStepRefs.current.get(activeStep.id)?.scrollIntoView({
-        behavior,
-        block: "nearest",
-        inline: "center",
-      });
     });
 
     return () => window.cancelAnimationFrame(scrollFrame);
@@ -779,7 +769,7 @@ const MakeOfferModal = ({
     "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
 
   const offerModalPanelClassName =
-    "relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]";
+    "relative flex min-w-0 max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]";
 
   return (
     <div className={offerModalShellClassName}>
@@ -807,11 +797,11 @@ const MakeOfferModal = ({
 
         <form
           onSubmit={handleOfferSubmit}
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
           <div
             ref={offerModalBodyRef}
-            className="min-h-0 flex-1 overflow-y-auto request-modal-scrollbar"
+            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto request-modal-scrollbar"
           >
             {isPreviewingOffer ? (
               <OfferPreview
@@ -837,7 +827,7 @@ const MakeOfferModal = ({
               />
             ) : (
               <>
-                <div className="grid gap-0 lg:grid-cols-[0.78fr_1.22fr]">
+                <div className="grid w-full min-w-0 gap-0 lg:grid-cols-[0.78fr_1.22fr]">
                   <aside
                     className={`border-b border-white/10 bg-black/25 p-5 lg:sticky lg:top-0 lg:block lg:self-start lg:border-b-0 lg:border-r lg:p-6 ${
                       isFlashRequest ? "" : "hidden"
@@ -888,15 +878,15 @@ const MakeOfferModal = ({
                     )}
                   </aside>
 
-                  <div className="space-y-5 p-5 sm:p-6">
+                  <div className="w-full min-w-0 space-y-5 overflow-x-hidden p-5 sm:p-6">
                     {!isFlashRequest && (
                       <div className="sticky top-0 z-40 -mx-5 -mt-5 bg-[#111111]/98 px-5 pb-3 pt-4 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-5 lg:-mt-5 lg:px-5 lg:pt-5">
                         <div className="rounded-lg border border-white/10 bg-[#111111]/95 p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:p-3">
                           <nav
                             aria-label="Offer steps"
-                            className="request-modal-scrollbar -mx-1 snap-x snap-proximity overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0"
+                            className="min-w-0"
                           >
-                            <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6 lg:gap-1.5">
+                            <div className="grid min-w-0 grid-cols-5 gap-1 lg:gap-1.5">
                               {CUSTOM_OFFER_STEPS.map((step, index) => {
                                 const isActive =
                                   index === customOfferStepIndex;
@@ -909,23 +899,11 @@ const MakeOfferModal = ({
                                 return (
                                   <button
                                     key={step.id}
-                                    ref={(node) => {
-                                      if (node) {
-                                        customOfferStepRefs.current.set(
-                                          step.id,
-                                          node
-                                        );
-                                      } else {
-                                        customOfferStepRefs.current.delete(
-                                          step.id
-                                        );
-                                      }
-                                    }}
                                     type="button"
                                     disabled={!canVisit}
                                     onClick={() => goToCustomOfferStep(index)}
                                     aria-current={isActive ? "step" : undefined}
-                                    className={`group flex min-w-[4.75rem] snap-center flex-col items-center justify-center gap-1 rounded-md border px-2! py-2! text-center transition lg:min-w-0 lg:px-1.5! lg:py-2.5! ${
+                                    className={`group flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-1! py-2! text-center transition lg:px-1.5! lg:py-2.5! ${
                                       isActive
                                         ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
                                         : isComplete
@@ -944,7 +922,7 @@ const MakeOfferModal = ({
                                     >
                                       {index + 1}
                                     </span>
-                                    <span className="max-w-full truncate whitespace-nowrap text-[11px] font-semibold lg:text-[10px] lg:uppercase lg:tracking-[0.08em]">
+                                    <span className="max-w-full truncate whitespace-nowrap text-[10px] font-semibold sm:text-[11px] lg:text-[10px] lg:uppercase lg:tracking-[0.08em]">
                                       {step.label}
                                     </span>
                                   </button>
@@ -970,7 +948,7 @@ const MakeOfferModal = ({
 
               {!isFlashRequest && (
                 <section
-                  className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName(
+                  className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName(
                     "project"
                   )}`}
                 >
@@ -1115,7 +1093,7 @@ const MakeOfferModal = ({
               )}
 
               <section
-                className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName(
+                className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName(
                   "pricing"
                 )}`}
               >
@@ -1283,12 +1261,12 @@ const MakeOfferModal = ({
                 )}
               </section>
 
-              <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("appointment")}`}>
-                <div className="mb-5 flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
+              <section className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName("appointment")}`}>
+                <div className="mb-5 flex min-w-0 items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
                     <CalendarDays size={19} />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-lg! font-semibold! text-white">
                       {isMultiSessionProject
                         ? "First-session appointment options"
@@ -1310,7 +1288,7 @@ const MakeOfferModal = ({
                   {dateOptions.map((option, index) => (
                     <div
                       key={index}
-                      className="grid gap-3 rounded-md border border-white/10 bg-black/25 p-3 md:grid-cols-[auto_1fr_1fr]"
+                      className="grid min-w-0 gap-3 rounded-md border border-white/10 bg-black/25 p-3 md:grid-cols-[auto_1fr_1fr]"
                     >
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-sm font-semibold text-neutral-300">
                         {index + 1}
@@ -1348,6 +1326,7 @@ const MakeOfferModal = ({
                       </div>
                       <QuarterHourTimeSelect
                         value={option.time}
+                        className="min-w-0"
                         onChange={(value) =>
                           setDateOptions((prev) => {
                             const updated = [...prev];
@@ -1366,102 +1345,124 @@ const MakeOfferModal = ({
                 </div>
               </section>
 
-              <>
-                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("message")}`}>
-                  <div className="mb-4 flex items-start gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                      <MessageSquareText size={19} />
-                    </span>
-                    <div>
-                      <h3 className="text-lg! font-semibold! text-white">
-                        Message
-                      </h3>
-                      <p className="text-sm text-neutral-400">
-                        Add context, prep notes, or expectations.
-                      </p>
-                    </div>
+              <section
+                className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${
+                  isFlashRequest
+                    ? ""
+                    : getCustomOfferStepClassName("extras")
+                }`}
+              >
+                <div className="mb-5 flex min-w-0 items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
+                    <MessageSquareText size={19} />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-lg! font-semibold! text-white">
+                      {isFlashRequest ? "Message" : "Message & sample"}
+                    </h3>
+                    <p className="text-sm leading-5 text-neutral-400">
+                      {isFlashRequest
+                        ? "Add context, prep notes, or expectations."
+                        : "Personalize the offer with an optional note and visual reference."}
+                    </p>
                   </div>
+                </div>
+
+                <label className="block min-w-0">
+                  <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
+                    <span>Message</span>
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                      Optional
+                    </span>
+                  </span>
                   <textarea
                     placeholder={
                       isFlashRequest
-                        ? "Optional note about placement, sizing, prep, or reservation expectations..."
-                        : "Optional message to the client..."
+                        ? "Add a note about placement, sizing, prep, or reservation expectations..."
+                        : "Add a note, preparation details, or expectations..."
                     }
                     value={offerMessage}
                     onChange={(event) => setOfferMessage(event.target.value)}
-                    className="min-h-40 w-full rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
+                    className="mt-2 min-h-32 w-full max-w-full resize-y rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
                   />
-                </div>
+                </label>
 
                 {!isFlashRequest && (
-                <div className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferStepClassName("sample")}`}>
-                  <div className="mb-4 flex items-start gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                      <Upload size={19} />
-                    </span>
-                    <div>
-                      <h3 className="text-lg! font-semibold! text-white">
-                        Sample image
-                      </h3>
-                      <p className="text-sm text-neutral-400">
-                        Optional visual reference for the offer.
-                      </p>
-                    </div>
-                  </div>
-
-                  <label
-                    className={`group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04] ${
-                      previewUrl || retainedOfferSampleUrl
-                        ? "min-h-[18rem]"
-                        : "min-h-40"
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0] || null;
-                        if (previewUrl) URL.revokeObjectURL(previewUrl);
-                        setOfferImage(file);
-                        setPreviewUrl(file ? URL.createObjectURL(file) : null);
-                      }}
-                      className="sr-only"
-                    />
-                    {previewUrl || retainedOfferSampleUrl ? (
-                      <img
-                        src={previewUrl || retainedOfferSampleUrl}
-                        alt={
-                          previewUrl
-                            ? "Offer sample preview"
-                            : "Retained offer sample"
-                        }
-                        className="absolute inset-0 h-full w-full object-contain opacity-90"
-                      />
-                    ) : (
-                      <>
-                        <Upload size={22} className="mb-2 text-white" />
-                        <span className="text-sm font-semibold text-white">
-                          Upload sample
-                        </span>
-                        <span className="mt-1 text-xs text-neutral-500">
-                          JPG, PNG, or WebP
-                        </span>
-                      </>
-                    )}
-                    {(previewUrl || retainedOfferSampleUrl) && (
-                      <span className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                        {previewUrl
-                          ? "Click to replace image"
-                          : "Keeping previous sample. Click to replace."}
+                  <div className="mt-5 min-w-0 border-t border-white/10 pt-5">
+                    <div className="mb-4 flex min-w-0 items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
+                        <Upload size={18} />
                       </span>
-                    )}
-                  </label>
-                </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base! font-semibold! text-white">
+                            Sample image
+                          </h4>
+                          <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                            Optional
+                          </span>
+                        </div>
+                        <p className="text-sm leading-5 text-neutral-400">
+                          Add a visual reference for the offer.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label
+                      className={`group relative flex w-full max-w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04] ${
+                        previewUrl || retainedOfferSampleUrl
+                          ? "min-h-64 sm:min-h-[18rem]"
+                          : "min-h-40"
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          if (previewUrl) URL.revokeObjectURL(previewUrl);
+                          setOfferImage(file);
+                          setPreviewUrl(
+                            file ? URL.createObjectURL(file) : null
+                          );
+                        }}
+                        className="sr-only"
+                      />
+                      {previewUrl || retainedOfferSampleUrl ? (
+                        <img
+                          src={previewUrl || retainedOfferSampleUrl}
+                          alt={
+                            previewUrl
+                              ? "Offer sample preview"
+                              : "Retained offer sample"
+                          }
+                          className="absolute inset-0 h-full w-full object-contain opacity-90"
+                        />
+                      ) : (
+                        <>
+                          <Upload size={22} className="mb-2 text-white" />
+                          <span className="text-sm font-semibold text-white">
+                            Upload sample
+                          </span>
+                          <span className="mt-1 text-xs text-neutral-500">
+                            JPG, PNG, or WebP
+                          </span>
+                        </>
+                      )}
+                      {(previewUrl || retainedOfferSampleUrl) && (
+                        <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
+                          {previewUrl
+                            ? "Click to replace image"
+                            : "Keeping previous sample. Click to replace."}
+                        </span>
+                      )}
+                    </label>
+                  </div>
                 )}
-              </>
+              </section>
 
                     {!isFlashRequest && (
-                      <section className={`rounded-lg border border-white/10 bg-white/[0.035] p-5 ${getCustomOfferPreviewStepClassName()}`}>
+                      <section className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferPreviewStepClassName()}`}>
                         <div className="mb-5 flex items-start gap-3">
                           <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
                             <ReceiptText size={19} />
@@ -2251,7 +2252,7 @@ const PreviewTile = ({
   tone?: "default" | "strong";
 }) => (
   <div
-    className={`rounded-md border p-3 ${
+    className={`min-w-0 rounded-md border p-3 ${
       tone === "strong"
         ? "border-emerald-300/25 bg-emerald-300/10"
         : "border-white/10 bg-black/25"
@@ -2260,7 +2261,7 @@ const PreviewTile = ({
     <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
       {label}
     </p>
-    <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    <p className="mt-1 break-words text-lg font-semibold text-white">{value}</p>
   </div>
 );
 
