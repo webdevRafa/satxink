@@ -1,8 +1,10 @@
 import { type ChangeEvent, memo, useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   DollarSign,
   ImageIcon,
   ImagePlus,
@@ -74,6 +76,7 @@ const availableDayOptions = [
 
 type AvailableTime = { from: string; to: string };
 type RequestStep = "idea" | "details" | "reference" | "schedule" | "review";
+type MobileScheduleStage = "dates" | "days" | "time" | "summary";
 type ReferencePreview = {
   file: File;
   url: string;
@@ -121,6 +124,9 @@ const RequestTattooModal: React.FC<Props> = ({
     getMonthStart(new Date())
   );
   const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [mobileScheduleStage, setMobileScheduleStage] =
+    useState<MobileScheduleStage>("dates");
+  const [hasConfirmedMobileDays, setHasConfirmedMobileDays] = useState(false);
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
   const [referencePreviews, setReferencePreviews] = useState<
     ReferencePreview[]
@@ -174,6 +180,15 @@ const RequestTattooModal: React.FC<Props> = ({
       hasMinimumTimeWindow(availableTime.from, availableTime.to)
   );
   const isScheduleComplete = hasValidDateWindow && hasValidTimeWindow;
+  const getMobileScheduleEntryStage = (): MobileScheduleStage => {
+    if (!hasValidDateWindow) return "dates";
+    if (!hasValidTimeWindow) {
+      return availableDays.length > 0 || hasConfirmedMobileDays
+        ? "time"
+        : "days";
+    }
+    return "summary";
+  };
   const maxReachableStepIndex = !isIdeaComplete
     ? 0
     : !areDetailsComplete
@@ -287,6 +302,8 @@ const RequestTattooModal: React.FC<Props> = ({
     setAvailableTime({ from: "", to: "" });
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setAvailableDays([]);
+    setMobileScheduleStage("dates");
+    setHasConfirmedMobileDays(false);
     setReferenceImages([]);
     setReferencePreviews([]);
     setBudget("");
@@ -305,6 +322,9 @@ const RequestTattooModal: React.FC<Props> = ({
     );
 
     if (nextIndex <= maxReachableStepIndex) {
+      if (nextStep === "schedule") {
+        setMobileScheduleStage(getMobileScheduleEntryStage());
+      }
       setActiveStep(nextStep);
       return;
     }
@@ -340,6 +360,26 @@ const RequestTattooModal: React.FC<Props> = ({
     setAvailableDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
+  };
+
+  const enterScheduleStep = () => {
+    setMobileScheduleStage(getMobileScheduleEntryStage());
+    setActiveStep("schedule");
+  };
+
+  const handleAvailableTimeFromChange = (value: string) => {
+    setAvailableTime((previous) => ({
+      ...previous,
+      from: value,
+      to: hasMinimumTimeWindow(value, previous.to) ? previous.to : "",
+    }));
+  };
+
+  const handleAvailableTimeToChange = (value: string) => {
+    setAvailableTime((previous) => ({
+      ...previous,
+      to: value,
+    }));
   };
 
   const continueFromIdea = (nextDescription = description) => {
@@ -816,10 +856,10 @@ const RequestTattooModal: React.FC<Props> = ({
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.78fr)_minmax(0,1.22fr)]">
                   <label
-                    className={`group relative flex min-h-64 flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed p-5 text-center transition ${
+                    className={`group relative flex flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed p-4 text-center transition sm:min-h-64 sm:p-5 ${
                       remainingReferenceSlots > 0
-                        ? "cursor-pointer border-white/20 bg-black/35 hover:border-white/40 hover:bg-white/[0.04]"
-                        : "cursor-not-allowed border-white/10 bg-black/20 opacity-70"
+                        ? "min-h-44 cursor-pointer border-white/20 bg-black/35 hover:border-white/40 hover:bg-white/[0.04]"
+                        : "min-h-28 cursor-not-allowed border-white/10 bg-black/20 opacity-70"
                     }`}
                   >
                     <input
@@ -830,7 +870,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       onChange={handleReferenceImagesChange}
                       className="sr-only"
                     />
-                    <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,0.3)] transition group-hover:scale-105">
+                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_14px_40px_rgba(0,0,0,0.3)] transition group-hover:scale-105 sm:mb-4 sm:h-14 sm:w-14">
                       <ImagePlus size={22} />
                     </span>
                     <span className="text-sm! font-semibold text-white">
@@ -859,11 +899,11 @@ const RequestTattooModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-3">
+                    <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
                       {referencePreviews.map((preview, index) => (
                         <div
                           key={`${preview.file.name}-${preview.file.lastModified}-${index}`}
-                          className="group relative aspect-[4/5] overflow-hidden rounded-lg border border-white/10 bg-[#0d0d0d]"
+                          className="group relative aspect-[3/4] min-w-0 overflow-hidden rounded-lg border border-white/10 bg-[#0d0d0d] sm:aspect-[4/5]"
                         >
                           <img
                             src={preview.url}
@@ -873,7 +913,17 @@ const RequestTattooModal: React.FC<Props> = ({
                             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
-                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                          <div className="absolute left-1.5 top-1.5 flex sm:hidden">
+                            <span className="flex h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 px-1.5! text-[10px]! font-bold text-white sm:backdrop-blur">
+                              {index + 1}
+                            </span>
+                          </div>
+                          {index === 0 && (
+                            <span className="absolute bottom-1.5 left-1.5 rounded-full border border-[#19d69b]/35 bg-[#092b22]/90 px-2! py-1! text-[9px]! font-bold uppercase tracking-[0.08em] text-white sm:hidden">
+                              Primary
+                            </span>
+                          )}
+                          <div className="absolute left-3 top-3 hidden flex-wrap gap-2 sm:flex">
                             {index === 0 && (
                               <span className="rounded-full border border-[#19d69b]/35 bg-[#19d69b]/15 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white">
                                 Primary
@@ -886,12 +936,12 @@ const RequestTattooModal: React.FC<Props> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveReferenceImage(index)}
-                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/60 p-0! text-white transition hover:bg-white/15 sm:backdrop-blur"
+                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-md border border-white/15 bg-black/70 p-0! text-white transition hover:bg-white/15 sm:right-3 sm:top-3 sm:h-8 sm:w-8 sm:backdrop-blur"
                             aria-label={`Remove reference ${index + 1}`}
                           >
                             <Trash2 size={15} />
                           </button>
-                          <div className="absolute inset-x-0 bottom-0 p-3">
+                          <div className="absolute inset-x-0 bottom-0 hidden p-3 sm:block">
                             <p className="truncate text-xs! font-semibold text-white">
                               {preview.file.name}
                             </p>
@@ -900,7 +950,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       ))}
 
                       {isPreparingReferencePreviews && (
-                        <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] px-4 text-center">
+                        <div className="flex aspect-[3/4] flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] px-2 text-center sm:aspect-[4/5] sm:px-4">
                           <ImageIcon size={22} className="mb-3 text-white/35" />
                           <p className="text-xs! font-semibold text-white">
                             Optimizing preview
@@ -909,7 +959,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       )}
 
                       {!hasReferenceImages && (
-                        <div className="col-span-2 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center xl:col-span-3">
+                        <div className="col-span-3 flex min-h-40 flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-5 text-center sm:col-span-2 xl:col-span-3">
                           <ImageIcon size={24} className="mb-3 text-white/35" />
                           <p className="text-sm! font-semibold text-white/75">
                             No references added yet
@@ -934,7 +984,7 @@ const RequestTattooModal: React.FC<Props> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveStep("schedule")}
+                    onClick={enterScheduleStep}
                     className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
                   >
                     {hasReferenceImages ? "Continue" : "Skip for now"}
@@ -945,7 +995,29 @@ const RequestTattooModal: React.FC<Props> = ({
             )}
 
             {activeStep === "schedule" && (
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+              <>
+                <MobileScheduleFlow
+                  stage={mobileScheduleStage}
+                  month={visibleCalendarMonth}
+                  preferredDateRange={preferredDateRange}
+                  todayDateInput={todayDateInput}
+                  availableDays={availableDays}
+                  availableTime={availableTime}
+                  earliestEndTime={earliestEndTime}
+                  hasValidDateWindow={hasValidDateWindow}
+                  hasValidTimeWindow={hasValidTimeWindow}
+                  onStageChange={setMobileScheduleStage}
+                  onMonthChange={setVisibleCalendarMonth}
+                  onSelectDate={handleSelectCalendarDate}
+                  onToggleDay={toggleAvailableDay}
+                  onConfirmDays={() => setHasConfirmedMobileDays(true)}
+                  onFromChange={handleAvailableTimeFromChange}
+                  onToChange={handleAvailableTimeToChange}
+                  onBack={() => setActiveStep("reference")}
+                  onReview={continueFromSchedule}
+                />
+
+                <div className="hidden grid-cols-1 gap-5 sm:grid lg:grid-cols-[0.95fr_1.05fr]">
                 <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                   <div className="mb-5 flex items-start gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
@@ -987,15 +1059,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       </span>
                       <QuarterHourTimeSelect
                         value={availableTime.from}
-                        onChange={(value) => {
-                          setAvailableTime((prev) => ({
-                            ...prev,
-                            from: value,
-                            to: hasMinimumTimeWindow(value, prev.to)
-                              ? prev.to
-                              : "",
-                          }));
-                        }}
+                        onChange={handleAvailableTimeFromChange}
                         placeholder="Select time"
                         buttonClassName="focus:border-[#19d69b]"
                       />
@@ -1006,12 +1070,7 @@ const RequestTattooModal: React.FC<Props> = ({
                       </span>
                       <QuarterHourTimeSelect
                         value={availableTime.to}
-                        onChange={(value) => {
-                          setAvailableTime((prev) => ({
-                            ...prev,
-                            to: value,
-                          }));
-                        }}
+                        onChange={handleAvailableTimeToChange}
                         placeholder="Select time"
                         buttonClassName="focus:border-[#19d69b]"
                         minTime={earliestEndTime}
@@ -1052,7 +1111,8 @@ const RequestTattooModal: React.FC<Props> = ({
                     </button>
                   </div>
                 </div>
-              </div>
+                </div>
+              </>
             )}
 
             {activeStep === "review" && (
@@ -1068,7 +1128,10 @@ const RequestTattooModal: React.FC<Props> = ({
                 availableTime={availableTime}
                 availableDays={availableDays}
                 isSubmitting={isSubmitting}
-                onBack={() => setActiveStep("schedule")}
+                onBack={() => {
+                  setMobileScheduleStage("summary");
+                  setActiveStep("schedule");
+                }}
               />
             )}
           </div>
@@ -1077,6 +1140,384 @@ const RequestTattooModal: React.FC<Props> = ({
     </section>
   );
 };
+
+const mobileScheduleStages: Array<{
+  id: Exclude<MobileScheduleStage, "summary">;
+  label: string;
+}> = [
+  { id: "dates", label: "Dates" },
+  { id: "days", label: "Days" },
+  { id: "time", label: "Time" },
+];
+
+const MobileScheduleFlow = ({
+  stage,
+  month,
+  preferredDateRange,
+  todayDateInput,
+  availableDays,
+  availableTime,
+  earliestEndTime,
+  hasValidDateWindow,
+  hasValidTimeWindow,
+  onStageChange,
+  onMonthChange,
+  onSelectDate,
+  onToggleDay,
+  onConfirmDays,
+  onFromChange,
+  onToChange,
+  onBack,
+  onReview,
+}: {
+  stage: MobileScheduleStage;
+  month: Date;
+  preferredDateRange: string[];
+  todayDateInput: string;
+  availableDays: string[];
+  availableTime: AvailableTime;
+  earliestEndTime?: string;
+  hasValidDateWindow: boolean;
+  hasValidTimeWindow: boolean;
+  onStageChange: (stage: MobileScheduleStage) => void;
+  onMonthChange: (month: Date) => void;
+  onSelectDate: (date: Date) => void;
+  onToggleDay: (day: string) => void;
+  onConfirmDays: () => void;
+  onFromChange: (time: string) => void;
+  onToChange: (time: string) => void;
+  onBack: () => void;
+  onReview: () => void;
+}) => {
+  const activeStageIndex =
+    stage === "summary"
+      ? mobileScheduleStages.length
+      : mobileScheduleStages.findIndex((item) => item.id === stage);
+  const hasStartedDateWindow = Boolean(preferredDateRange[0]);
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] sm:hidden">
+      <div className="border-b border-white/10 px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${
+              stage === "summary"
+                ? "bg-[#19d69b]/15 text-[#5ee6ba]"
+                : "bg-[#f04438]/10 text-[#f04438]"
+            }`}
+          >
+            {stage === "summary" ? (
+              <Check size={19} aria-hidden="true" />
+            ) : (
+              <CalendarDays size={19} aria-hidden="true" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px]! font-semibold uppercase tracking-[0.16em] text-white/40">
+              {stage === "summary"
+                ? "Schedule complete"
+                : `Schedule · ${activeStageIndex + 1} of 3`}
+            </p>
+            <h3 className="mt-1 text-lg! font-semibold! text-white">
+              {stage === "summary"
+                ? "Confirm your availability"
+                : "Build your preferred schedule"}
+            </h3>
+          </div>
+        </div>
+
+        <ol
+          className="mt-4 grid grid-cols-3 gap-1.5"
+          aria-label="Schedule progress"
+        >
+          {mobileScheduleStages.map((item, index) => {
+            const isActive = stage === item.id;
+            const isComplete = stage === "summary" || index < activeStageIndex;
+
+            return (
+              <li
+                key={item.id}
+                aria-current={isActive ? "step" : undefined}
+                className={`flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-2 ${
+                  isActive
+                    ? "border-white/25 bg-white/[0.08] text-white"
+                    : isComplete
+                    ? "border-[#19d69b]/20 bg-[#19d69b]/10 text-white/85"
+                    : "border-white/8 bg-black/20 text-white/35"
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]! font-bold ${
+                    isComplete
+                      ? "bg-[#19d69b]/20 text-[#7aebc7]"
+                      : isActive
+                      ? "bg-white text-black"
+                      : "bg-white/[0.06] text-white/40"
+                  }`}
+                >
+                  {isComplete ? (
+                    <Check size={11} aria-hidden="true" />
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <span className="truncate text-[10px]! font-semibold">
+                  {item.label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <div key={stage} className="satx-mobile-schedule-panel p-4">
+        {stage === "dates" && (
+          <>
+            <div>
+              <h4 className="text-base! font-semibold! text-white">
+                Choose your date window
+              </h4>
+              <p className="mt-1 text-sm! leading-5 text-white/55">
+                Tap the first and last date that could work for you.
+              </p>
+            </div>
+
+            {hasStartedDateWindow && (
+              <div className="mt-4 rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
+                <p className="text-[10px]! uppercase tracking-[0.16em] text-[#5ee6ba]">
+                  {hasValidDateWindow ? "Selected window" : "Start date selected"}
+                </p>
+                <p className="mt-1 text-sm! font-semibold text-white">
+                  {hasValidDateWindow
+                    ? getDateRangeLabel(preferredDateRange)
+                    : "Now choose the last day"}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <CalendarRangePicker
+                month={month}
+                selectedRange={preferredDateRange}
+                todayDateInput={todayDateInput}
+                onMonthChange={onMonthChange}
+                onSelectDate={onSelectDate}
+              />
+            </div>
+
+            <MobileScheduleActions
+              backLabel="Back"
+              nextLabel={
+                hasStartedDateWindow && !hasValidDateWindow
+                  ? "Choose end date"
+                  : "Confirm dates"
+              }
+              nextDisabled={!hasValidDateWindow}
+              onBack={onBack}
+              onNext={() => onStageChange("days")}
+            />
+          </>
+        )}
+
+        {stage === "days" && (
+          <>
+            <div>
+              <h4 className="text-base! font-semibold! text-white">
+                What days usually work?
+              </h4>
+              <p className="mt-1 text-sm! leading-5 text-white/55">
+                Select any typical days. If your schedule changes, continue as
+                flexible.
+              </p>
+            </div>
+
+            <AvailableDaysSelector
+              availableDays={availableDays}
+              onToggleDay={onToggleDay}
+            />
+
+            {availableDays.length === 0 && (
+              <p className="mt-3 rounded-md border border-white/8 bg-black/20 px-3 py-2 text-xs! leading-5 text-white/45">
+                No days selected means the artist will see that you are
+                flexible.
+              </p>
+            )}
+
+            <MobileScheduleActions
+              backLabel="Dates"
+              nextLabel={
+                availableDays.length > 0 ? "Continue" : "My days are flexible"
+              }
+              onBack={() => onStageChange("dates")}
+              onNext={() => {
+                onConfirmDays();
+                onStageChange("time");
+              }}
+            />
+          </>
+        )}
+
+        {stage === "time" && (
+          <>
+            <div>
+              <h4 className="text-base! font-semibold! text-white">
+                Set your ideal time window
+              </h4>
+              <p className="mt-1 text-sm! leading-5 text-white/55">
+                Choose the earliest start and latest end time you usually
+                prefer.
+              </p>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                  <Clock3 size={15} aria-hidden="true" />
+                  From
+                </span>
+                <QuarterHourTimeSelect
+                  value={availableTime.from}
+                  onChange={onFromChange}
+                  placeholder="Select start time"
+                  buttonClassName="focus:border-[#19d69b]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
+                  <Clock3 size={15} aria-hidden="true" />
+                  To
+                </span>
+                <QuarterHourTimeSelect
+                  value={availableTime.to}
+                  onChange={onToChange}
+                  placeholder="Select end time"
+                  buttonClassName="focus:border-[#19d69b]"
+                  minTime={earliestEndTime}
+                />
+              </label>
+            </div>
+
+            <p className="mt-3 text-xs! leading-5 text-white/40">
+              Please allow at least one hour. Exact appointment times are
+              confirmed with the artist later.
+            </p>
+
+            <MobileScheduleActions
+              backLabel="Days"
+              nextLabel="Confirm time"
+              nextDisabled={!hasValidTimeWindow}
+              onBack={() => onStageChange("days")}
+              onNext={() => onStageChange("summary")}
+            />
+          </>
+        )}
+
+        {stage === "summary" && (
+          <>
+            <div>
+              <h4 className="text-base! font-semibold! text-white">
+                Your schedule at a glance
+              </h4>
+              <p className="mt-1 text-sm! leading-5 text-white/55">
+                Everything is ready. Edit anything before reviewing the full
+                request.
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <MobileScheduleSummaryRow
+                label="Date window"
+                value={getDateRangeLabel(preferredDateRange)}
+                onEdit={() => onStageChange("dates")}
+              />
+              <MobileScheduleSummaryRow
+                label="Usual days"
+                value={
+                  availableDays.length > 0
+                    ? availableDays.join(", ")
+                    : "Flexible"
+                }
+                onEdit={() => onStageChange("days")}
+              />
+              <MobileScheduleSummaryRow
+                label="Time window"
+                value={getTimeRangeLabel(availableTime)}
+                onEdit={() => onStageChange("time")}
+              />
+            </div>
+
+            <MobileScheduleActions
+              backLabel="Back"
+              nextLabel="Review request"
+              onBack={onBack}
+              onNext={onReview}
+            />
+          </>
+        )}
+      </div>
+    </section>
+  );
+};
+
+const MobileScheduleActions = ({
+  backLabel,
+  nextLabel,
+  nextDisabled = false,
+  onBack,
+  onNext,
+}: {
+  backLabel: string;
+  nextLabel: string;
+  nextDisabled?: boolean;
+  onBack: () => void;
+  onNext: () => void;
+}) => (
+  <div className="mt-6 flex items-center justify-between gap-3">
+    <button
+      type="button"
+      onClick={onBack}
+      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.03] px-3.5! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
+    >
+      <ChevronLeft size={14} aria-hidden="true" />
+      {backLabel}
+    </button>
+    <button
+      type="button"
+      disabled={nextDisabled}
+      onClick={onNext}
+      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! bg-white px-3.5! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+    >
+      {nextLabel}
+      <ChevronRight size={14} aria-hidden="true" />
+    </button>
+  </div>
+);
+
+const MobileScheduleSummaryRow = ({
+  label,
+  value,
+  onEdit,
+}: {
+  label: string;
+  value: string;
+  onEdit: () => void;
+}) => (
+  <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
+    <div className="min-w-0">
+      <p className="text-[10px]! uppercase tracking-[0.14em] text-white/40">
+        {label}
+      </p>
+      <p className="mt-1 text-sm! font-semibold leading-5 text-white">{value}</p>
+    </div>
+    <button
+      type="button"
+      onClick={onEdit}
+      className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2.5! py-2! text-xs! font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
+    >
+      Edit
+    </button>
+  </div>
+);
 
 const IdeaStepPanel = memo(
   ({
