@@ -24,14 +24,7 @@ interface Props {
   clientId: string;
 }
 
-const getFinalPaymentTermsLabel = (booking: Booking) => {
-  if (booking.finalPaymentTiming !== "before") {
-    return "After appointment";
-  }
-
-  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
-  return `${deadlineHours} hours before`;
-};
+const getFinalPaymentTermsLabel = () => "At shop after session";
 
 const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
   const navigate = useNavigate();
@@ -127,8 +120,8 @@ const ClientBookingsList: React.FC<Props> = ({ clientId }) => {
         const { settled } = response.data as { settled: boolean };
         toast.success(
           settled
-            ? "Session balance confirmed by both sides."
-            : "Your confirmation was recorded. Waiting for the artist."
+            ? "Shop payment confirmed."
+            : "Your note was recorded. The artist will mark the shop payment complete."
         );
         setSelectedBooking(null);
       } catch (error) {
@@ -604,25 +597,6 @@ const BookingDetailsDialog = ({
     );
   const clientAlreadyConfirmed =
     booking?.remainingPaymentStatus === "client_confirmed";
-  const handleStripeBalancePayment = async (activeBooking: Booking) => {
-    if (activeBooking.paymentModelVersion === 2) {
-      try {
-        const selectMethod = httpsCallable(
-          functions,
-          "selectSessionBalanceMethod"
-        );
-        await selectMethod({
-          bookingId: activeBooking.id,
-          method: "stripe",
-        });
-      } catch (error) {
-        console.error("Could not select Stripe for this session:", error);
-        toast.error("Could not prepare the secure payment.");
-        return;
-      }
-    }
-    onPay(activeBooking.id);
-  };
 
   return (
   <Transition appear show={!!booking} as={Fragment}>
@@ -671,8 +645,8 @@ const BookingDetailsDialog = ({
                         <DetailTile icon={<CalendarDays size={17} />} label="Appointment" value={formatAppointment(booking.selectedDate)} />
                         <DetailTile icon={<DollarSign size={17} />} label="Price" value={`$${booking.price}`} />
                         <DetailTile icon={<DollarSign size={17} />} label="Deposit" value={`$${booking.depositAmount}`} />
-                        <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe" : "Direct"} />
-                        <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel(booking)} />
+                        <DetailTile icon={<Store size={17} />} label="Payment" value={booking.paymentType === "internal" ? "Stripe deposit" : "Direct"} />
+                        <DetailTile icon={<CreditCard size={17} />} label="Final terms" value={getFinalPaymentTermsLabel()} />
                         {typeof booking.estimatedHoursPerSession === "number" &&
                           booking.estimatedHoursPerSession > 0 && (
                             <DetailTile
@@ -722,16 +696,16 @@ const BookingDetailsDialog = ({
                         booking.status === "deposit_paid" && (
                           <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                             <p className="text-sm font-semibold text-white">
-                              Direct balance
+                              Shop balance
                             </p>
                             <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                               The remaining{" "}
                               <span className="font-semibold text-white">
                                 ${getRemainingBalance(booking)}
                               </span>{" "}
-                              can be paid securely through Stripe or directly at
-                              the shop. Shop payments require confirmation from
-                              both you and the artist. Status:{" "}
+                              is settled with the artist at the shop after the
+                              session. The artist records it once received.
+                              Status:{" "}
                               <span className="font-semibold capitalize text-white">
                                 {(booking.remainingPaymentStatus || "due").replace("_", " ")}
                               </span>
@@ -742,8 +716,8 @@ const BookingDetailsDialog = ({
                                   <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/55">
                                     {booking.remainingPaymentStatus ===
                                     "artist_confirmed"
-                                      ? "Artist reported paid"
-                                      : "Direct payment confirmation"}
+                                      ? "Artist recorded payment"
+                                      : "Shop payment"}
                                   </p>
                                   <p className="mt-1 text-lg font-semibold text-white">
                                     ${getSessionInstallmentAmount(booking)}
@@ -792,26 +766,17 @@ const BookingDetailsDialog = ({
                       {booking.paymentType === "internal" &&
                         (booking.status === "pending_payment" ||
                           (booking.status === "deposit_paid" &&
-                            (((booking.remainingPaymentMethod !== "external" ||
-                              protectedBalanceDue) &&
-                              getRemainingBalance(booking) > 0) ||
-                              Number(booking.pendingPlatformFeeCents || 0) > 0))) && (
+                            Number(booking.pendingPlatformFeeCents || 0) > 0)) && (
                           <button
                             type="button"
                             onClick={() =>
-                              void handleStripeBalancePayment(booking)
+                              onPay(booking.id)
                             }
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
                           >
                             <CreditCard size={16} />
                             {Number(booking.pendingPlatformFeeCents || 0) > 0
                               ? "Pay platform fee"
-                              : booking.status === "deposit_paid"
-                              ? isMultiSessionBooking(booking)
-                                ? `Pay ${getSessionOrdinal(
-                                    getPayableSessionNumber(booking)
-                                  )} session balance`
-                                : "Pay remaining balance"
                               : "Continue to payment"}
                           </button>
                         )}
@@ -908,27 +873,6 @@ const getRemainingBalance = (booking: Booking) => {
 const isMultiSessionBooking = (booking: Booking) =>
   booking.projectType === "multi_session" ||
   Number(booking.estimatedSessionCount || 1) > 1;
-
-const getPayableSessionNumber = (booking: Booking) =>
-  Math.max(
-    Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
-    1
-  );
-
-const getSessionOrdinal = (sessionNumber: number) => {
-  const remainder = sessionNumber % 100;
-  if (remainder >= 11 && remainder <= 13) return `${sessionNumber}th`;
-  switch (sessionNumber % 10) {
-    case 1:
-      return `${sessionNumber}st`;
-    case 2:
-      return `${sessionNumber}nd`;
-    case 3:
-      return `${sessionNumber}rd`;
-    default:
-      return `${sessionNumber}th`;
-  }
-};
 
 const getSessionInstallmentAmount = (booking: Booking) => {
   const remaining = getRemainingBalance(booking);

@@ -1344,11 +1344,7 @@ const acceptProjectOffer = onCall(
               depositAmountCents,
             },
           ];
-      const allowedBalanceMethods: SessionBalanceMethod[] = isCustomProject
-        ? ["stripe", "external"]
-        : offer.allowExternalRemainingPayment
-        ? ["stripe", "external"]
-        : ["stripe"];
+      const allowedBalanceMethods: SessionBalanceMethod[] = ["external"];
       const firstAllocation = allocations[0];
       const firstSessionBalanceCents = Math.max(
         firstAllocation.quotedAmountCents - firstAllocation.depositAmountCents,
@@ -1387,7 +1383,7 @@ const acceptProjectOffer = onCall(
         quoteTotalCents: totalQuoteCents,
         depositAmount: centsToDollars(depositAmountCents),
         paymentType: "internal",
-        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        paymentModelVersion: PAYMENT_MODEL_VERSION,
         sessionPricingStrategy: isCustomProject ? "equal_split" : null,
         sessionAllocations: allocations,
         allowedSessionBalanceMethods: allowedBalanceMethods,
@@ -1471,7 +1467,8 @@ const acceptProjectOffer = onCall(
           balanceAmountCents,
           balanceAmount: centsToDollars(balanceAmountCents),
           allowedBalanceMethods,
-          selectedBalanceMethod: null,
+          selectedBalanceMethod:
+            balanceAmountCents > 0 ? "external" : null,
           depositStatus:
             allocation.sessionNumber === 1 ? "due" : "not_due",
           balanceStatus: "not_due",
@@ -1497,7 +1494,7 @@ const acceptProjectOffer = onCall(
         completedSessionCount: 0,
         remainingAmountCents: totalQuoteCents,
         remainingAmount: centsToDollars(totalQuoteCents),
-        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        paymentModelVersion: PAYMENT_MODEL_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
@@ -2725,6 +2722,13 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       paymentMode = "remaining";
     }
 
+    if (String(paymentMode) === "remaining") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Remaining session balances are settled with the artist at the shop."
+      );
+    }
+
     if (
       !protectedSessionPayment &&
       paymentMode === "remaining" &&
@@ -3558,8 +3562,9 @@ const respondToProjectAmendment = onCall(
               ),
               balanceAmountCents,
               balanceAmount: centsToDollars(balanceAmountCents),
-              allowedBalanceMethods: ["stripe", "external"],
-              selectedBalanceMethod: null,
+              allowedBalanceMethods: ["external"],
+              selectedBalanceMethod:
+                balanceAmountCents > 0 ? "external" : null,
               depositStatus: "not_due",
               balanceStatus: "not_due",
               paymentStatus: "not_due",
@@ -4385,7 +4390,8 @@ const completeProjectSession = onCall(
           ? {
               balanceStatus:
                 amountDueCents > 0 ? "due" : "confirmed",
-              selectedBalanceMethod: null,
+              selectedBalanceMethod:
+                amountDueCents > 0 ? "external" : null,
             }
           : {}),
         pendingPlatformFeeCents: getPendingPlatformFeeCents(booking),
@@ -4411,13 +4417,9 @@ const completeProjectSession = onCall(
             : remainingBalanceCents > 0
             ? "not_due"
             : "confirmed",
-        ...(protectedPaymentModel
-          ? {
-              remainingPaymentMethod: "stripe",
-              externalRemainingAmount: centsToDollars(amountDueCents),
-              externalRemainingAmountCents: amountDueCents,
-            }
-          : {}),
+        remainingPaymentMethod: "external",
+        externalRemainingAmount: centsToDollars(amountDueCents),
+        externalRemainingAmountCents: amountDueCents,
         activeSessionNumber: nextActiveSessionNumber,
         sessionPhotoUrls: photoUrls.length > 0 ? photoUrls : booking.sessionPhotoUrls ?? [],
         updatedAt: timestamp,
@@ -4545,10 +4547,10 @@ const selectSessionBalanceMethod = onCall(
     }
     const bookingId = getOptionalString(req.data?.bookingId);
     const method = req.data?.method as SessionBalanceMethod | undefined;
-    if (!bookingId || !["stripe", "external"].includes(String(method))) {
+    if (!bookingId || method !== "external") {
       throw new HttpsError(
         "invalid-argument",
-        "Choose Stripe or payment at the shop."
+        "Session balances are settled at the shop."
       );
     }
 
@@ -4591,7 +4593,7 @@ const selectSessionBalanceMethod = onCall(
       }
       const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
         ? sessionLedger.allowedBalanceMethods
-        : ["stripe", "external"];
+        : ["external"];
       if (!allowedMethods.includes(method)) {
         throw new HttpsError(
           "failed-precondition",
@@ -4661,6 +4663,12 @@ const attestExternalSessionPayment = onCall(
       }
       const booking = bookingSnap.data() || {};
       const role = getParticipantRole(booking, uid);
+      if (!role) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only this booking's artist or client can update its payment."
+        );
+      }
       if (!isProtectedSessionPaymentBooking(booking)) {
         throw new HttpsError(
           "failed-precondition",
@@ -4711,7 +4719,7 @@ const attestExternalSessionPayment = onCall(
 
       const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
         ? sessionLedger.allowedBalanceMethods
-        : ["stripe", "external"];
+        : ["external"];
       if (!allowedMethods.includes("external")) {
         throw new HttpsError(
           "failed-precondition",
@@ -4749,38 +4757,30 @@ const attestExternalSessionPayment = onCall(
       const clientAlreadyConfirmed = Boolean(
         sessionLedger.externalClientConfirmedAt
       );
-      const artistConfirmed = role === "artist" || artistAlreadyConfirmed;
-      const clientConfirmed = role === "client" || clientAlreadyConfirmed;
-      const confirmationStatus = artistConfirmed && clientConfirmed
-        ? "confirmed"
-        : artistConfirmed
-        ? "artist_confirmed"
-        : "client_confirmed";
-      resultingStatus = confirmationStatus;
-
-      if (!artistConfirmed || !clientConfirmed) {
+      if (
+        role === "client" &&
+        !artistAlreadyConfirmed
+      ) {
+        resultingStatus = "client_confirmed";
         transaction.update(bookingRef, {
           remainingPaymentMethod: "external",
-          remainingPaymentStatus: confirmationStatus,
-          ...(role === "artist"
-            ? { externalRemainingArtistConfirmedAt: timestamp }
-            : { externalRemainingClientConfirmedAt: timestamp }),
+          remainingPaymentStatus: "client_confirmed",
+          externalRemainingClientConfirmedAt: timestamp,
           updatedAt: timestamp,
         });
         transaction.set(
           sessionRef,
           {
             selectedBalanceMethod: "external",
-            balanceStatus: confirmationStatus,
-            ...(role === "artist"
-              ? { externalArtistConfirmedAt: timestamp }
-              : { externalClientConfirmedAt: timestamp }),
+            balanceStatus: "client_confirmed",
+            externalClientConfirmedAt: timestamp,
             updatedAt: timestamp,
           },
           { merge: true }
         );
         return;
       }
+      resultingStatus = "confirmed";
 
       const balanceAmountCents = getNonNegativeCents(
         sessionLedger.balanceAmountCents,
@@ -4826,7 +4826,6 @@ const attestExternalSessionPayment = onCall(
         remainingPaymentMethod: "external",
         remainingPaymentStatus: projectComplete ? "confirmed" : "not_due",
         externalRemainingArtistConfirmedAt: timestamp,
-        externalRemainingClientConfirmedAt: timestamp,
         pendingSessionPaymentAmount: 0,
         pendingSessionPaymentAmountCents: 0,
         pendingSessionNumber: null,
@@ -4847,8 +4846,6 @@ const attestExternalSessionPayment = onCall(
           paymentStatus: "confirmed",
           externalArtistConfirmedAt:
             sessionLedger.externalArtistConfirmedAt || timestamp,
-          externalClientConfirmedAt:
-            sessionLedger.externalClientConfirmedAt || timestamp,
           paidBalanceAmountCents: balanceAmountCents,
           paidBalanceAmount: centsToDollars(balanceAmountCents),
           balancePaidAt: timestamp,
@@ -4879,8 +4876,9 @@ const attestExternalSessionPayment = onCall(
         status: "confirmed",
         artistConfirmedAt:
           sessionLedger.externalArtistConfirmedAt || timestamp,
-        clientConfirmedAt:
-          sessionLedger.externalClientConfirmedAt || timestamp,
+        clientConfirmedAt: clientAlreadyConfirmed
+          ? sessionLedger.externalClientConfirmedAt
+          : null,
         createdAt: timestamp,
       });
     });

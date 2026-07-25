@@ -701,8 +701,8 @@ const ClientDashboardView = () => {
         const { settled } = response.data as { settled: boolean };
         toast.success(
           settled
-            ? "Session balance confirmed by both sides."
-            : "Your confirmation was recorded. Waiting for the artist."
+            ? "Shop payment confirmed."
+            : "Your note was recorded. The artist will mark the shop payment complete."
         );
         setSelectedSession(null);
       } catch (error) {
@@ -1075,8 +1075,7 @@ const ClientDashboardView = () => {
     const payableBooking = bookings.find(
       (booking) =>
         booking.status === "deposit_paid" &&
-        getClientPayableAmount(booking) > 0 &&
-        booking.remainingPaymentMethod !== "external"
+        Number(booking.pendingPlatformFeeCents || 0) > 0
     );
     const directPaymentBooking = bookings.find((booking) =>
       needsClientDirectPaymentAction(booking)
@@ -1102,12 +1101,12 @@ const ClientDashboardView = () => {
     if (payableBooking) {
       actions.push({
         id: `balance-${payableBooking.id}`,
-        label: isClientMultiSessionBooking(payableBooking)
-          ? "Session payment requested"
-          : "Remaining balance due",
+        label: "Platform fee due",
         description: `${formatMoney(
-          getClientPayableAmount(payableBooking)
-        )} is ready to pay for ${payableBooking.artistName || "your artist"}.`,
+          Number(payableBooking.pendingPlatformFeeCents || 0) / 100
+        )} is ready to pay for ${
+          payableBooking.artistName || "your artist"
+        }.`,
         tone: "amber",
         cta: "Pay now",
         onClick: () => navigate(`/payment/${payableBooking.id}`),
@@ -1117,8 +1116,8 @@ const ClientDashboardView = () => {
     if (directPaymentBooking) {
       actions.push({
         id: `direct-${directPaymentBooking.id}`,
-        label: "Direct payment confirmation",
-        description: `Confirm or review the direct payment status for ${
+        label: "Shop payment",
+        description: `Review the shop payment status for ${
           directPaymentBooking.artistName || "your artist"
         }.`,
         tone: "sky",
@@ -2716,35 +2715,6 @@ const ClientSessionRecordDialog = ({
     );
   const clientAlreadyConfirmed =
     booking?.remainingPaymentStatus === "client_confirmed";
-  const showStripeBalance =
-    (protectedBalanceDue ||
-      (booking?.paymentType === "internal" &&
-        booking.remainingPaymentMethod !== "external" &&
-        booking.status === "deposit_paid")) &&
-    remainingBalance > 0 &&
-    !["artist_confirmed", "client_confirmed"].includes(
-      booking?.remainingPaymentStatus || ""
-    );
-
-  const handleStripeBalancePayment = async (activeBooking: ClientDashboardBooking) => {
-    if (activeBooking.paymentModelVersion === 2) {
-      try {
-        const selectMethod = httpsCallable(
-          functions,
-          "selectSessionBalanceMethod"
-        );
-        await selectMethod({
-          bookingId: activeBooking.id,
-          method: "stripe",
-        });
-      } catch (error) {
-        console.error("Could not select Stripe for this session:", error);
-        toast.error("Could not prepare the secure payment.");
-        return;
-      }
-    }
-    onPay(activeBooking.id);
-  };
 
   return (
     <Transition appear show={!!booking} as={Fragment}>
@@ -2907,9 +2877,9 @@ const ClientSessionRecordDialog = ({
                               </p>
                               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                                 Your artist controls session start and
-                                completion. After a session, choose secure Stripe
-                                checkout or confirm a payment made at the shop.
-                                Both sides must confirm shop payments.
+                                completion. The remaining balance is settled at
+                                the shop after the session. Your artist records
+                                the payment once it is received.
                               </p>
                             </div>
                             <RemainingPaymentBadge
@@ -2945,22 +2915,6 @@ const ClientSessionRecordDialog = ({
                             </div>
                           )}
 
-                          {showStripeBalance && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleStripeBalancePayment(booking)
-                              }
-                              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85"
-                            >
-                              <CreditCard size={16} />
-                              {isClientMultiSessionBooking(booking)
-                                ? `Pay ${getSessionOrdinal(
-                                    getPayableSessionNumber(booking)
-                                  )} session balance`
-                                : "Pay remaining balance"}
-                            </button>
-                          )}
                         </div>
 
                         {booking.sessionPhotoUrls &&
@@ -3168,10 +3122,10 @@ const getRemainingPaymentLabel = (
   if (status === "not_due") return "Not due yet";
   if (status === "due") return "Payment due";
   if (status === "artist_confirmed") {
-    return viewer === "client" ? "Confirm direct pay" : "Awaiting client";
+    return viewer === "client" ? "Shop payment recorded" : "Recorded";
   }
   if (status === "client_confirmed") {
-    return viewer === "client" ? "Awaiting artist" : "Confirm direct pay";
+    return viewer === "client" ? "Awaiting artist" : "Mark shop payment paid";
   }
   if (status === "confirmed") return "Balance paid";
   if (status === "disputed") return "Disputed";
@@ -3323,7 +3277,7 @@ const getClientPaymentStatusLabel = (booking: Partial<Booking>) => {
   }
   if (booking.remainingPaymentStatus === "not_due") return "Not due yet";
   if (booking.remainingPaymentStatus === "artist_confirmed") {
-    return "Confirm direct payment";
+    return "Shop payment recorded";
   }
   if (booking.remainingPaymentStatus === "client_confirmed") {
     return "Awaiting artist confirmation";
@@ -3333,8 +3287,8 @@ const getClientPaymentStatusLabel = (booking: Partial<Booking>) => {
     return "Session payment requested";
   }
   return booking.remainingPaymentMethod === "external"
-    ? "Direct payment due"
-    : "Balance due";
+    ? "Shop payment due"
+    : "Shop balance due";
 };
 
 const isClientSessionLedgerBooking = (booking: Partial<Booking>) =>
@@ -3393,21 +3347,6 @@ const getPayableSessionNumber = (booking: Partial<Booking>) =>
     Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
     1
   );
-
-const getSessionOrdinal = (sessionNumber: number) => {
-  const remainder = sessionNumber % 100;
-  if (remainder >= 11 && remainder <= 13) return `${sessionNumber}th`;
-  switch (sessionNumber % 10) {
-    case 1:
-      return `${sessionNumber}st`;
-    case 2:
-      return `${sessionNumber}nd`;
-    case 3:
-      return `${sessionNumber}rd`;
-    default:
-      return `${sessionNumber}th`;
-  }
-};
 
 const getClientViewDescription = (view: ClientView, clientName: string) => {
   if (view === "overview") {

@@ -576,16 +576,14 @@ const MakeOfferModal = ({
         allowExternalRemainingPayment: hasRemainingArtistBalance,
         projectType: submitAsMultiSession ? "multi_session" : "single_session",
         depositApplication: "project_credit",
-        paymentModelVersion:
-          selectedRequest.sourceType === "flash" ? 1 : 2,
+        paymentModelVersion: 2,
         sessionPricingStrategy:
           selectedRequest.sourceType === "flash" ? null : "equal_split",
         sessionAllocations:
           selectedRequest.sourceType === "flash" ? null : sessionAllocations,
-        allowedSessionBalanceMethods:
-          selectedRequest.sourceType === "flash"
-            ? null
-            : ["stripe", "external"],
+        allowedSessionBalanceMethods: hasRemainingArtistBalance
+          ? ["external"]
+          : [],
         estimatedSessionCount: submitAsMultiSession
           ? estimatedSessionCount
           : 1,
@@ -766,7 +764,7 @@ const MakeOfferModal = ({
   };
 
   const offerModalShellClassName =
-    "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:z-50 sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
+    "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
 
   const offerModalPanelClassName =
     "relative flex min-w-0 max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]";
@@ -1119,7 +1117,7 @@ const MakeOfferModal = ({
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 min-[350px]:grid-cols-2">
                   {isFlashRequest ? (
                     <LockedPriceTile
                       label="Listed flash price"
@@ -1155,28 +1153,31 @@ const MakeOfferModal = ({
                         setDepositAmount(value ? Number(value) : 0)
                       }
                       required
+                      actionLabel={
+                        !isFlashRequest &&
+                        currentOfferPrice > 0 &&
+                        maximumSessionDepositCents > 0
+                          ? "Use max"
+                          : undefined
+                      }
+                      onAction={() =>
+                        setDepositAmount(
+                          fromCents(maximumSessionDepositCents)
+                        )
+                      }
                     />
                     {!isFlashRequest &&
                       currentOfferPrice > 0 &&
                       maximumSessionDepositCents > 0 && (
-                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] leading-4 text-neutral-500">
-                          <span>
-                            Maximum{" "}
-                            {formatMoneyFromCents(maximumSessionDepositCents)}{" "}
-                            (up to 50% of the session total)
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDepositAmount(
-                                fromCents(maximumSessionDepositCents)
-                              )
-                            }
-                            className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2.5! py-1.5! text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-300 transition hover:border-white/25 hover:text-white"
-                          >
-                            Use maximum
-                          </button>
-                        </div>
+                        <p className="mt-2 text-[11px] leading-4 text-neutral-500">
+                          Maximum{" "}
+                          {formatMoneyFromCents(maximumSessionDepositCents)}{" "}
+                          (up to 50% of{" "}
+                          {projectSessionCount > 1
+                            ? "each session's total"
+                            : "the session total"}
+                          )
+                        </p>
                       )}
                   </div>
                 </div>
@@ -1197,10 +1198,15 @@ const MakeOfferModal = ({
                           Protected session-by-session plan
                         </p>
                         <p className="mt-1 text-xs leading-5 text-neutral-400">
-                          Only the deposit is collected before each appointment.
-                          The remaining balance unlocks after that session is
-                          marked complete and can be settled by Stripe or at the
-                          shop.
+                          Client pays up to half of{" "}
+                          {projectSessionCount > 1
+                            ? "each session amount"
+                            : "the session amount"}{" "}
+                          to secure the booking.
+                        </p>
+                        <p className="mt-2 border-t border-white/10 pt-2 text-xs leading-5 text-neutral-400">
+                          The remaining balance is settled at the shop after the
+                          session is complete.
                         </p>
                       </div>
                     </div>
@@ -1228,7 +1234,7 @@ const MakeOfferModal = ({
                         )}
                       />
                       <PlanMetric
-                        label="After-session balance"
+                        label="Shop balance"
                         value={formatMoneyFromCents(
                           Math.round(firstSessionBalance * 100)
                         )}
@@ -1255,8 +1261,8 @@ const MakeOfferModal = ({
                           </p>
                           <p className="mt-1 text-sm leading-6 text-neutral-400">
                             SATX Ink collects the non-refundable deposit today.
-                            The remaining balance is settled after the
-                            appointment.
+                            The remaining balance is settled at the shop after
+                            the appointment.
                           </p>
                         </div>
                       </div>
@@ -1500,7 +1506,7 @@ const MakeOfferModal = ({
                             )}
                           />
                           <PreviewTile
-                            label="Remaining balance"
+                            label="Shop balance"
                             value={formatMoneyFromCents(
                               Math.round(remainingArtistBalance * 100)
                             )}
@@ -1701,16 +1707,16 @@ const OfferPreview = ({
   message: string;
 }) => {
   const finalPaymentTermsLabel = !isFlashRequest
-    ? "Each session balance becomes due only after that session is complete."
-    : "Remaining balance can be settled after the appointment.";
+    ? "Each session balance is settled at the shop after that session is complete."
+    : "Remaining balance is settled at the shop after the appointment.";
   const todayClientPayment = formatMoneyFromCents(paymentPreview.clientTotalCents);
   const artistReceivesToday = formatMoneyFromCents(paymentPreview.artistAmountCents);
   const laterPaymentLabel =
     remainingArtistBalance <= 0
       ? "No later balance"
       : isFlashRequest
-      ? "Remaining balance is settled after the appointment."
-      : "Each session balance is settled after that session by Stripe or at the shop.";
+      ? "Remaining balance is settled at the shop after the appointment."
+      : "Each session balance is settled at the shop after that session is complete.";
 
   return (
     <div className="p-5 sm:p-6">
@@ -1777,7 +1783,7 @@ const OfferPreview = ({
             <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-black/25">
               <div className="border-b border-white/10 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                  Artist payout and later balance
+                  Artist payout and shop balance
                 </p>
               </div>
               <div className="divide-y divide-white/10">
@@ -1791,7 +1797,7 @@ const OfferPreview = ({
                   emphasis
                 />
                 <ReceiptLine
-                  label="Remaining artist balance"
+                  label="Remaining shop balance"
                   value={formatMoneyFromCents(
                     Math.round(remainingArtistBalance * 100)
                   )}
@@ -2027,30 +2033,52 @@ const MoneyInput = ({
   value,
   onChange,
   required,
+  actionLabel,
+  onAction,
 }: {
   label: string;
   value: string | number;
   onChange: (value: string) => void;
   required?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }) => (
-  <label className="space-y-2">
+  <div className="space-y-2">
     <span className="text-sm font-medium text-neutral-200">{label}</span>
-    <div className="relative">
-      <DollarSign
-        size={16}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-      />
-      <input
-        type="number"
-        min="0"
-        required={required}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-        placeholder="0"
-      />
+    <div
+      className={
+        actionLabel
+          ? "grid grid-cols-[minmax(0,1fr)_auto] gap-2"
+          : undefined
+      }
+    >
+      <label className="relative min-w-0">
+        <span className="sr-only">{label}</span>
+        <DollarSign
+          size={16}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+        />
+        <input
+          type="number"
+          min="0"
+          required={required}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-11 w-full min-w-0 rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
+          placeholder="0"
+        />
+      </label>
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="h-11 shrink-0 rounded-md border border-white/15 bg-white/[0.055] px-3! text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-200 transition hover:border-white/30 hover:bg-white/[0.09] hover:text-white"
+        >
+          {actionLabel}
+        </button>
+      )}
     </div>
-  </label>
+  </div>
 );
 
 const ClientRequestImageCard = ({
