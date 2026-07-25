@@ -391,12 +391,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div className="mt-6 w-full max-w-7xl space-y-8">
-      <section className="space-y-6">
+    <div className="mt-6 w-full max-w-7xl space-y-5 sm:space-y-6">
+      <section className="space-y-4">
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-3xl! font-semibold text-white">
-              Gallery Library
+              Gallery
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-neutral-400">
               Keep finished work polished, tagged, and ready for clients to
@@ -409,31 +409,15 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
-          <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
-                <ImageIcon size={18} aria-hidden="true" />
-              </span>
-              <div>
-                <h2 className="mb-0! text-base! sm:text-lg!">
-                  Gallery actions
-                </h2>
-                <p className="text-sm text-neutral-400">
-                  Add finished work and keep portfolio pieces ready for clients.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsUploadOpen(true)}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-zinc-200 sm:w-auto sm:px-4!"
-            >
-              <Upload size={16} />
-              Add work
-            </button>
-          </div>
+        <div className="flex justify-stretch sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setIsUploadOpen(true)}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white px-4! text-xs! font-semibold text-black transition hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:w-auto sm:min-w-[140px]"
+          >
+            <Upload size={16} aria-hidden="true" />
+            Add work
+          </button>
         </div>
       </section>
 
@@ -447,28 +431,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         />
       )}
 
-      <section>
-        <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
-              Portfolio pieces
-            </p>
-            <h2 className="mt-2 text-2xl! font-bold text-white">
-              Gallery work
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Open any piece to preview it, or manage details from the card.
-            </p>
-          </div>
-          {items.length > 0 && (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
-              {items.length} total
-            </span>
-          )}
-        </div>
-
+      <section aria-label="Gallery pieces">
         {items.length === 0 ? (
-          <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
+          <div className="rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
               <ImageIcon size={22} />
             </span>
@@ -489,7 +454,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
             </button>
           </div>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {items.map((item, index) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
