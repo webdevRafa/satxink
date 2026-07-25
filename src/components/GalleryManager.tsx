@@ -964,9 +964,13 @@ const EditGalleryItemModal = ({
   const isFailed = item.status === "failed" || isGalleryItemStalled(item);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-6 backdrop-blur-xl request-modal-scrollbar sm:py-8">
-      <div className="flex min-h-full items-center justify-center">
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-[min(760px,88vh)] md:grid-cols-[0.9fr_1.15fr]">
+    <div className="fixed inset-x-0 bottom-0 top-[4.75rem] z-[80] flex items-start justify-center overflow-hidden overscroll-contain bg-black/80 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-xl md:inset-0 md:items-center md:px-4 md:py-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-editor-title"
+        className="request-modal-scrollbar relative grid max-h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[88vh] md:min-h-[min(760px,88vh)] md:grid-cols-[0.9fr_1.15fr] md:overflow-hidden"
+      >
         <button
           type="button"
           onClick={onClose}
@@ -1002,8 +1006,11 @@ const EditGalleryItemModal = ({
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-5 request-modal-scrollbar md:max-h-[88vh] md:p-6">
-          <h2 className="text-2xl! font-bold text-white">
+        <div className="p-5 md:max-h-[88vh] md:overflow-y-auto md:p-6 request-modal-scrollbar">
+          <h2
+            id="gallery-editor-title"
+            className="text-2xl! font-bold text-white"
+          >
             {isFailed ? "Upload needs attention" : "Edit gallery work"}
           </h2>
 
@@ -1074,7 +1081,6 @@ const EditGalleryItemModal = ({
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
