@@ -57,8 +57,11 @@ type BookingRequest = {
   fullUrl?: string;
   thumbUrl?: string;
   referenceImages?: Array<{
+    fileName?: string;
     fullUrl?: string;
     thumbUrl?: string;
+    fullPath?: string;
+    thumbPath?: string;
   }>;
   budget?: string | number;
   status?: string;
@@ -90,13 +93,11 @@ type RequestStatusFilter = (typeof REQUEST_STATUS_FILTERS)[number]["value"];
 type RequestStatusCategory = Exclude<RequestStatusFilter, "all">;
 
 const CLOSED_REQUEST_STATUSES = new Set([
-  "accepted",
   "cancelled",
   "canceled",
   "closed",
   "declined",
   "expired",
-  "offered",
   "rejected",
   "withdrawn",
 ]);
@@ -847,9 +848,7 @@ const RequestPreviewImage = ({
             decoding="async"
             onLoad={handleLoad}
             onError={handleError}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-              loaded ? "opacity-100" : "opacity-0"
-            }`}
+            className="absolute inset-0 h-full w-full object-cover"
           />
         )
       )}
@@ -887,9 +886,7 @@ const RequestModalImage = ({
             decoding="async"
             onLoad={handleLoad}
             onError={handleError}
-            className={`relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain transition-opacity duration-300 sm:max-h-[calc(100dvh-5.75rem-10rem)] ${
-              loaded ? "opacity-100" : "opacity-0"
-            }`}
+            className="relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain sm:max-h-[calc(100dvh-5.75rem-10rem)]"
           />
         )
       )}
@@ -1009,19 +1006,17 @@ const RequestStatusCell = ({
   compact?: boolean;
 }) => {
   const presentation = getRequestStatusPresentation(request);
-  const eta =
-    presentation.category === "preparing" && request.offerPreparationEta
-      ? `ETA: ${request.offerPreparationEta}`
-      : "";
 
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1.5">
+    <div className="flex min-w-0 flex-col items-start gap-1">
       <StatusBadge
         status={presentation.status}
         label={compact ? presentation.compactLabel : presentation.label}
       />
-      {!compact && eta && (
-        <span className="truncate text-xs text-neutral-500">{eta}</span>
+      {!compact && presentation.category === "preparing" && (
+        <span className="truncate text-xs text-neutral-500">
+          Artist is preparing your offer
+        </span>
       )}
     </div>
   );
@@ -1029,10 +1024,10 @@ const RequestStatusCell = ({
 
 const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
   const className =
-    status === "offered" || status === "preparing"
+    status === "preparing"
       ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-      : status === "declined" || status === "rejected"
-      ? "border-red-300/25 bg-red-300/10 text-red-100"
+    : status === "declined" || status === "rejected"
+      ? "border-white/10 bg-white/[0.045] text-neutral-300"
       : status === "cancelled" ||
         status === "canceled" ||
         status === "expired" ||
@@ -1224,11 +1219,12 @@ const getRequestStatusPresentation = (request: BookingRequest) => {
   const category = getRequestStatusCategory(request);
 
   if (category === "preparing") {
+    const eta = request.offerPreparationEta?.trim();
     return {
       category,
       status: "preparing",
-      label: "Artist is preparing an offer",
-      compactLabel: "Preparing",
+      label: eta ? `Offer ETA: ${eta}` : "Artist is preparing your offer",
+      compactLabel: eta ? `ETA: ${eta}` : "Preparing",
     };
   }
 
@@ -1241,21 +1237,12 @@ const getRequestStatusPresentation = (request: BookingRequest) => {
     };
   }
 
-  if (status === "offered" || status === "accepted") {
-    return {
-      category,
-      status: "offered",
-      label: "Offer received",
-      compactLabel: "Offer received",
-    };
-  }
-
   if (status === "declined" || status === "rejected") {
     return {
       category,
       status,
-      label: "Declined by artist",
-      compactLabel: "Declined",
+      label: "Artist passed on this request",
+      compactLabel: "Artist passed",
     };
   }
 
@@ -1275,24 +1262,32 @@ const getRequestImageSources = (
   request: BookingRequest,
   preferFullSize = false
 ) => {
-  const referenceSources = (request.referenceImages || []).flatMap(
-    (reference) =>
+  const referenceSources = [...(request.referenceImages || [])]
+    .sort((a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b))
+    .flatMap((reference) =>
       preferFullSize
         ? [reference.fullUrl, reference.thumbUrl]
         : [reference.thumbUrl, reference.fullUrl]
-  );
+    );
   const primarySources = preferFullSize
     ? [request.fullUrl, request.thumbUrl]
     : [request.thumbUrl, request.fullUrl];
 
   return Array.from(
     new Set(
-      [...primarySources, ...referenceSources].filter(
+      [...referenceSources, ...primarySources].filter(
         (source): source is string =>
           typeof source === "string" && source.trim().length > 0
       )
     )
   );
+};
+
+const getRequestReferenceOrder = (
+  reference: NonNullable<BookingRequest["referenceImages"]>[number]
+) => {
+  const order = Number(reference.fileName?.split("-")[0]);
+  return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
 };
 
 const formatDateRange = (dates: string[]) => {
