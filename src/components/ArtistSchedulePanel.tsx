@@ -29,6 +29,8 @@ type ScheduleEvent = {
 const HOUR_HEIGHT = 72;
 const DEFAULT_DURATION_MINUTES = 120;
 const DAY_COUNT = 7;
+const SCHEDULE_START_HOUR = 8;
+const SCHEDULE_END_HOUR = 24;
 
 const startOfDay = (date: Date) => {
   const next = new Date(date);
@@ -49,11 +51,23 @@ const addDays = (date: Date, amount: number) => {
   return next;
 };
 
+const addMonths = (date: Date, amount: number) => {
+  const next = new Date(date.getFullYear(), date.getMonth() + amount, 1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
 const toDateKey = (date: Date) =>
   [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+
+const toMonthKey = (date: Date) =>
+  [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
   ].join("-");
 
 const parseBookingStart = (booking: Booking) => {
@@ -150,9 +164,11 @@ const formatTime = (date: Date) =>
   });
 
 const formatHour = (hour: number) =>
-  new Date(2026, 0, 1, hour).toLocaleTimeString("en-US", {
-    hour: "numeric",
-  });
+  hour === SCHEDULE_END_HOUR
+    ? "12 AM"
+    : new Date(2026, 0, 1, hour).toLocaleTimeString("en-US", {
+        hour: "numeric",
+      });
 
 const formatWeekRange = (weekStart: Date) => {
   const weekEnd = addDays(weekStart, DAY_COUNT - 1);
@@ -308,24 +324,32 @@ const ArtistSchedulePanel = ({
     () => weekEvents.filter((event) => event.dateKey === selectedDateKey),
     [selectedDateKey, weekEvents]
   );
-  const { startHour, endHour } = useMemo(() => {
-    if (!weekEvents.length) return { startHour: 8, endHour: 20 };
-
-    const earliestHour = Math.min(
-      ...weekEvents.map((event) => event.start.getHours())
+  const startHour = SCHEDULE_START_HOUR;
+  const endHour = SCHEDULE_END_HOUR;
+  const visibleMonthDate = useMemo(() => {
+    const [year, month, day] = selectedDateKey.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  }, [selectedDateKey]);
+  const visibleMonthKey = toMonthKey(visibleMonthDate);
+  const monthOptions = useMemo(() => {
+    const optionStart = addMonths(today, -12);
+    const options = Array.from({ length: 37 }, (_, index) =>
+      addMonths(optionStart, index)
     );
-    const latestHour = Math.max(
-      ...weekEvents.map(
-        (event) =>
-          event.end.getHours() + (event.end.getMinutes() > 0 ? 1 : 0)
-      )
-    );
 
-    return {
-      startHour: Math.max(0, Math.min(8, earliestHour - 1)),
-      endHour: Math.min(24, Math.max(20, latestHour + 1)),
-    };
-  }, [weekEvents]);
+    if (!options.some((date) => toMonthKey(date) === visibleMonthKey)) {
+      options.push(
+        new Date(
+          visibleMonthDate.getFullYear(),
+          visibleMonthDate.getMonth(),
+          1
+        )
+      );
+      options.sort((a, b) => a.getTime() - b.getTime());
+    }
+
+    return options;
+  }, [today, visibleMonthDate, visibleMonthKey]);
 
   const hourLabels = useMemo(
     () =>
@@ -343,8 +367,6 @@ const ArtistSchedulePanel = ({
   const nextEvent = scheduledEvents.find(
     (event) => event.end.getTime() >= Date.now()
   );
-  const timezoneLabel =
-    Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ");
 
   useEffect(() => {
     if (
@@ -399,65 +421,105 @@ const ArtistSchedulePanel = ({
     setSelectedDateKey(todayKey);
   };
 
+  const jumpToMonth = (monthKey: string) => {
+    const [year, month] = monthKey.split("-").map(Number);
+    const targetDate = new Date(year, month - 1, 1);
+    setWeekStart(startOfWeek(targetDate));
+    setSelectedDateKey(toDateKey(targetDate));
+  };
+
   return (
     <section className="mt-6 flex w-full min-w-0 max-w-[1400px] flex-col gap-4">
-      <div className="order-1 rounded-xl border border-white/10 bg-[#101010]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-5">
-        <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-300">
-              <CalendarDays size={20} aria-hidden="true" />
+      <div className="order-1 rounded-xl border border-white/10 bg-[#101010]/95 p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-300">
+              <CalendarDays size={18} aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-300">
-                Artist workspace
-              </p>
-              <h1 className="mt-1 text-2xl! font-semibold text-white sm:text-3xl!">
+              <h1 className="text-xl! font-semibold text-white sm:text-2xl!">
                 Schedule
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
-                See appointments and active project sessions across the week.
-                Select any block to open the full booking record.
+              <p className="mt-0.5 text-xs leading-5 text-neutral-400 sm:text-sm">
+                Weekly appointments and project sessions.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 lg:justify-end">
-            <button
-              type="button"
-              onClick={() => moveWeek(-1)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] p-0! text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
-              aria-label="Previous week"
-            >
-              <ChevronLeft size={18} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={goToToday}
-              className="min-h-10! rounded-lg! border border-white/10 bg-white/[0.035] px-4! py-2! text-sm! font-semibold text-white transition hover:border-white/25 hover:bg-white/[0.07]"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => moveWeek(1)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] p-0! text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
-              aria-label="Next week"
-            >
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:flex lg:items-end lg:justify-end">
+            <label className="min-w-0">
+              <span className="mb-1 block text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Jump to month
+              </span>
+              <select
+                value={visibleMonthKey}
+                onChange={(event) => jumpToMonth(event.target.value)}
+                className="h-9 w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.035] px-3 text-sm font-semibold text-neutral-200 outline-none transition hover:border-white/25 focus:border-white/30 focus:ring-2 focus:ring-white/10 sm:min-w-40"
+                aria-label="Jump to month"
+              >
+                {monthOptions.map((month) => (
+                  <option
+                    key={toMonthKey(month)}
+                    value={toMonthKey(month)}
+                    className="bg-neutral-950 text-white"
+                  >
+                    {month.toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div>
+              <span className="mb-1 block text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Week navigation
+              </span>
+              <div
+                className="grid grid-cols-[36px_minmax(0,1fr)_36px] gap-1.5 sm:grid-cols-[36px_auto_36px]"
+                aria-label="Week navigation"
+              >
+                <button
+                  type="button"
+                  onClick={() => moveWeek(-1)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] p-0! text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
+                  aria-label="Previous week"
+                  title="Previous week"
+                >
+                  <ChevronLeft size={17} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={goToToday}
+                  className="min-h-9! rounded-lg! border border-white/10 bg-white/[0.035] px-4! py-1.5! text-sm! font-semibold text-white transition hover:border-white/25 hover:bg-white/[0.07]"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveWeek(1)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.035] p-0! text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
+                  aria-label="Next week"
+                  title="Next week"
+                >
+                  <ChevronRight size={17} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-lg font-semibold text-white">
+        <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-baseline gap-2">
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Week of
+            </span>
+            <p className="text-sm font-semibold text-white sm:text-base">
               {formatWeekRange(weekStart)}
             </p>
-            <p className="mt-1 text-xs text-neutral-500">
-              {timezoneLabel} · Times shown in your local timezone
-            </p>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-neutral-400 sm:mt-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-neutral-400 sm:justify-end">
             <ScheduleLegend color="bg-sky-300" label="Confirmed" />
             <ScheduleLegend color="bg-amber-300" label="Deposit pending" />
             <ScheduleLegend color="bg-violet-300" label="Paid" />
