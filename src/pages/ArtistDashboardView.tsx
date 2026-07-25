@@ -69,6 +69,7 @@ import OffersList from "../components/OffersList";
 import FlashManager from "../components/FlashManager";
 import GalleryManager from "../components/GalleryManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
+import ArtistSchedulePanel from "../components/ArtistSchedulePanel";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
 import AddSessionsAmendmentDialog from "../components/AddSessionsAmendmentDialog";
 import ProjectControlsPanel from "../components/ProjectControlsPanel";
@@ -124,6 +125,7 @@ type ArtistDashboardTab =
   | "offers"
   | "bookings"
   | "sessions"
+  | "schedule"
   | "projects"
   | "pending"
   | "confirmed"
@@ -443,6 +445,7 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "offers",
     "bookings",
     "sessions",
+    "schedule",
     "projects",
     "pending",
     "confirmed",
@@ -463,6 +466,7 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "offers",
     "bookings",
     "sessions",
+    "schedule",
     "projects",
     "pending",
     "confirmed",
@@ -586,6 +590,7 @@ const ArtistDashboardView = () => {
     offers: 0,
     bookings: 0,
     sessions: 0,
+    schedule: 0,
     projects: 0,
     pending: 0,
     confirmed: 0,
@@ -1388,13 +1393,31 @@ const ArtistDashboardView = () => {
       ),
       onSnapshot(
         query(collection(db, "bookings"), where("artistId", "==", uid)),
-        (snap) =>
+        (snap) => {
+          const bookingDocs = snap.docs.map(
+            (bookingDoc) => bookingDoc.data() as Partial<Booking>
+          );
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+
           updateCount(
             "sessions",
-            snap.docs.filter((bookingDoc) =>
-              isSessionWorkspaceBooking(bookingDoc.data())
+            bookingDocs.filter((booking) =>
+              isSessionWorkspaceBooking(booking)
             ).length
-          ),
+          );
+          updateCount(
+            "schedule",
+            bookingDocs.filter((booking) => {
+              const startTime = getBookingStartTime(booking);
+              return (
+                booking.status !== "cancelled" &&
+                startTime !== Number.MAX_SAFE_INTEGER &&
+                startTime >= todayStart.getTime()
+              );
+            }).length
+          );
+        },
         (error) => console.error("Artist session count listener failed:", error)
       ),
       onSnapshot(
@@ -1417,7 +1440,10 @@ const ArtistDashboardView = () => {
 
   // Fetch bookings based on the current workspace.
   useEffect(() => {
-    if (!uid || !["bookings", "sessions", "projects"].includes(activeTab))
+    if (
+      !uid ||
+      !["bookings", "sessions", "schedule", "projects"].includes(activeTab)
+    )
       return;
 
     setBookings([]);
@@ -1441,6 +1467,8 @@ const ArtistDashboardView = () => {
             ? rawBookings.filter((booking) =>
                 isSessionWorkspaceBooking(booking)
               )
+            : activeTab === "schedule"
+            ? rawBookings.filter((booking) => booking.status !== "cancelled")
             : activeTab === "projects"
             ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
             : rawBookings.filter(
@@ -2914,6 +2942,20 @@ const ArtistDashboardView = () => {
               </>
             )}
           </section>
+        )}
+
+        {activeTab === "schedule" && (
+          <ArtistSchedulePanel
+            bookings={bookings}
+            onOpenRecord={(booking) =>
+              setSelectedBookingRecord(booking as DashboardBooking)
+            }
+            onOpenSessions={() => {
+              setActiveTab("sessions");
+              setBookingStatusFilter("all");
+              setSessionReadinessFilter("needs_schedule");
+            }}
+          />
         )}
 
         {activeTab === "flashes" && uid && (
