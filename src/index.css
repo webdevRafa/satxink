@@ -160,6 +160,17 @@ a.bg-white svg {
   }
 }
 
+@keyframes satx-mobile-schedule-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .satx-profile-work-shell {
   transform-origin: top center;
 }
@@ -284,6 +295,11 @@ a.bg-white svg {
   contain: layout paint;
 }
 
+.satx-mobile-schedule-panel {
+  animation: satx-mobile-schedule-enter 220ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
 @keyframes satx-upload-shimmer {
   0% {
     background-position: 220% 0;
@@ -325,7 +341,8 @@ a.bg-white svg {
   .satx-profile-work-carousel-grid--fading
     .satx-profile-work-card-face,
   .satx-request-flow-shell,
-  .satx-request-step-panel {
+  .satx-request-step-panel,
+  .satx-mobile-schedule-panel {
     animation: none;
     filter: none;
     opacity: 1;

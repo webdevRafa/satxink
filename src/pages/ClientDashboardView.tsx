@@ -2150,7 +2150,7 @@ const ClientProjectsSection = ({
             next-session planning from one record.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[640px]">
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[520px]">
           <MetricCard label="Active projects" value={projects.length} />
           <MetricCard label="Open balance" value={formatMoney(openBalance)} />
           <MetricCard label="Next due" value={formatMoney(nextDue)} />
@@ -2456,40 +2456,51 @@ const ClientSessionsSection = ({
   onPay: (bookingId: string) => void;
   onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
   onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
-}) => (
-  <section className="mt-6 w-full max-w-7xl space-y-6">
-    <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
-      <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-          Client ledger
-        </p>
-        <h1 className="mt-2 text-3xl! font-semibold text-white">Sessions</h1>
-        <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-          Track upcoming, in-progress, completed, and payment-pending sessions
-          without exposing artist-only controls.
-        </p>
+}) => {
+  const completedCount = sessions.filter(
+    (booking) => booking.sessionStatus === "completed"
+  ).length;
+  const activeCount = sessions.length - completedCount;
+
+  return (
+    <section className="mt-6 w-full max-w-7xl space-y-6">
+      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
+            Client ledger
+          </p>
+          <h1 className="mt-2 text-3xl! font-semibold text-white">Sessions</h1>
+          <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+            Track upcoming, in-progress, completed, and payment-pending sessions
+            without exposing artist-only controls.
+          </p>
+        </div>
+
+        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
+          <MetricCard label="Total" value={sessions.length} />
+          <MetricCard label="Active" value={activeCount} />
+          <MetricCard label="Completed" value={completedCount} />
+        </div>
       </div>
 
-      <MetricCard label="Showing" value={sessions.length} />
-    </div>
-
-    {sessions.length === 0 ? (
-      <EmptyState
-        icon={<CalendarDays size={22} />}
-        title="No session records yet"
-        description="Confirmed appointments, project sessions, and completed session records will appear here."
-      />
-    ) : (
-      <ClientSessionsTable
-        sessions={sessions}
-        onOpenRecord={onOpenRecord}
-        onPay={onPay}
-        onConfirmExternalPayment={onConfirmExternalPayment}
-        onDisputeExternalPayment={onDisputeExternalPayment}
-      />
-    )}
-  </section>
-);
+      {sessions.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays size={22} />}
+          title="No session records yet"
+          description="Confirmed appointments, project sessions, and completed session records will appear here."
+        />
+      ) : (
+        <ClientSessionsTable
+          sessions={sessions}
+          onOpenRecord={onOpenRecord}
+          onPay={onPay}
+          onConfirmExternalPayment={onConfirmExternalPayment}
+          onDisputeExternalPayment={onDisputeExternalPayment}
+        />
+      )}
+    </section>
+  );
+};
 
 const ClientSessionsTable = ({
   sessions,
@@ -3010,11 +3021,13 @@ const MetricCard = ({
   label: string;
   value: string | number;
 }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:min-w-[220px]">
-    <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
+  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
+    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
       {label}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
+      {value}
+    </p>
   </div>
 );
 
