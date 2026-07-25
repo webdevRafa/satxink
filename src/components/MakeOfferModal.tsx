@@ -1117,7 +1117,7 @@ const MakeOfferModal = ({
                   </div>
                 </div>
 
-                <div className="grid gap-4 min-[350px]:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   {isFlashRequest ? (
                     <LockedPriceTile
                       label="Listed flash price"
