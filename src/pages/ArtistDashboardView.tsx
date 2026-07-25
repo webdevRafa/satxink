@@ -33,6 +33,7 @@ import {
   RefreshCcw,
   Save,
   Search,
+  Share2,
   ShieldCheck,
   Store,
   UserRound,
@@ -541,6 +542,55 @@ const createPaymentPreferencesFormState = (
   ),
 });
 
+type ProfileActionButtonsProps = {
+  className: string;
+  isDirty: boolean;
+  isSaving: boolean;
+  isSaveDisabled: boolean;
+  isSaveActive: boolean;
+  onReset: () => void;
+  onSave: () => void;
+};
+
+const ProfileActionButtons = ({
+  className,
+  isDirty,
+  isSaving,
+  isSaveDisabled,
+  isSaveActive,
+  onReset,
+  onSave,
+}: ProfileActionButtonsProps) => (
+  <div className={className}>
+    <button
+      type="button"
+      onClick={onReset}
+      disabled={!isDirty || isSaving}
+      className="inline-flex min-h-0! min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-white/10 bg-white/[0.025] px-2! py-2.5! text-sm! font-medium text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.055] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <RefreshCcw size={15} aria-hidden="true" />
+      Reset
+    </button>
+    <button
+      type="button"
+      onClick={onSave}
+      disabled={isSaveDisabled}
+      className={`inline-flex min-h-0! min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2! py-2.5! text-sm! font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        isSaveActive
+          ? "border-red-300/35 bg-red-500/10 text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_24px_rgba(185,28,28,0.12)] hover:border-red-200/50 hover:bg-red-500/15"
+          : "border-white/10 bg-white/[0.025] text-neutral-500"
+      }`}
+    >
+      <Save
+        size={15}
+        className={isSaveActive ? "text-red-100" : "text-neutral-500"}
+        aria-hidden="true"
+      />
+      {isSaving ? "Saving..." : "Save changes"}
+    </button>
+  </div>
+);
+
 const ArtistDashboardView = () => {
   const [searchParams] = useSearchParams();
   const [artist, setArtist] = useState<DashboardArtist | null>(null);
@@ -572,6 +622,9 @@ const ArtistDashboardView = () => {
     getInitialDashboardTab(searchParams.get("tab"))
   );
   const dashboardContentStartRef = useRef<HTMLDivElement | null>(null);
+  const profileActionRowRef = useRef<HTMLDivElement | null>(null);
+  const [isProfileActionRowVisible, setIsProfileActionRowVisible] =
+    useState(true);
 
   const [selectedBooking, setSelectedBooking] =
     useState<DashboardBookingRequest | null>(null);
@@ -644,6 +697,29 @@ const ArtistDashboardView = () => {
       }
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab !== "profile") {
+      setIsProfileActionRowVisible(true);
+      return undefined;
+    }
+
+    const actionRow = profileActionRowRef.current;
+    if (!actionRow || typeof IntersectionObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsProfileActionRowVisible(entry.isIntersecting),
+      {
+        threshold: 0.15,
+        rootMargin: "-72px 0px 0px",
+      }
+    );
+
+    observer.observe(actionRow);
+    return () => observer.disconnect();
+  }, [activeTab]);
 
   const handleDashboardTabChange = (tab: ArtistDashboardTab) => {
     if (isBookingRouteFilter(tab)) {
@@ -1046,6 +1122,74 @@ const ArtistDashboardView = () => {
     setDisplayNameStatus("idle");
     setIsProfileDirty(false);
   };
+
+  const handleShareProfile = useCallback(async () => {
+    if (!uid) {
+      toast.error("Your public profile is still loading.");
+      return;
+    }
+
+    const profileUrl = `${window.location.origin}/artists/${uid}`;
+    const artistName =
+      artist?.displayName ||
+      artist?.name ||
+      profileForm.displayName.trim() ||
+      "this artist";
+    const shareData = {
+      title: `${artistName} on SATX Ink`,
+      text: `View ${artistName}'s artist profile on SATX Ink.`,
+      url: profileUrl,
+    };
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    try {
+      let didCopy = false;
+
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(profileUrl);
+          didCopy = true;
+        } catch {
+          didCopy = false;
+        }
+      }
+
+      if (!didCopy) {
+        const copyTarget = document.createElement("textarea");
+        copyTarget.value = profileUrl;
+        copyTarget.setAttribute("readonly", "");
+        copyTarget.style.position = "fixed";
+        copyTarget.style.opacity = "0";
+        document.body.appendChild(copyTarget);
+
+        try {
+          copyTarget.select();
+          didCopy = document.execCommand("copy");
+        } finally {
+          copyTarget.remove();
+        }
+
+        if (!didCopy) {
+          throw new Error("Copy command was unavailable.");
+        }
+      }
+
+      toast.success("Profile link copied.");
+    } catch (error) {
+      console.error("Artist profile sharing failed:", error);
+      toast.error("Could not share your profile.");
+    }
+  }, [artist, profileForm.displayName, uid]);
 
   const resetPaymentPreferencesForm = () => {
     setPaymentPreferencesForm(createPaymentPreferencesFormState(artist));
@@ -1769,6 +1913,38 @@ const ArtistDashboardView = () => {
         onTabChange={handleDashboardTabChange}
       />
 
+      <Transition
+        show={
+          activeTab === "profile" &&
+          isProfileDirty &&
+          !isProfileActionRowVisible
+        }
+        as={Fragment}
+        enter="transition duration-300 ease-out motion-reduce:transition-none"
+        enterFrom="-translate-y-full opacity-0"
+        enterTo="translate-y-0 opacity-100"
+        leave="transition duration-200 ease-in motion-reduce:transition-none"
+        leaveFrom="translate-y-0 opacity-100"
+        leaveTo="-translate-y-full opacity-0"
+      >
+        <div
+          className="fixed inset-x-0 top-16 z-[80] px-4 md:hidden"
+          aria-label="Unsaved profile changes"
+        >
+          <div className="mx-auto max-w-xl rounded-b-xl border border-t-0 border-white/10 bg-[#111111]/95 p-2 shadow-[0_18px_36px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+            <ProfileActionButtons
+              className="grid grid-cols-2 gap-2"
+              isDirty={isProfileDirty}
+              isSaving={isSavingProfile}
+              isSaveDisabled={isSaveDisabled}
+              isSaveActive={profileSaveButtonIsActive}
+              onReset={resetProfileForm}
+              onSave={handleSaveProfile}
+            />
+          </div>
+        </div>
+      </Transition>
+
       <main
         className={`relative min-w-0 flex-1 ${
           activeTab === "profile" ? "px-4 py-6 sm:p-6" : "p-6"
@@ -1788,14 +1964,27 @@ const ArtistDashboardView = () => {
         {activeTab === "profile" && (
           <section className="mt-6 min-w-0 w-full max-w-6xl space-y-6">
             <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h1 className="mt-2 text-3xl! font-semibold text-white">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <h1 className="mt-2 min-w-0 text-[1.625rem]! font-semibold text-white sm:text-3xl!">
                   Profile settings
                 </h1>
+                <button
+                  type="button"
+                  onClick={handleShareProfile}
+                  disabled={!uid}
+                  className="inline-flex h-10! min-h-0! w-10! min-w-0! shrink-0 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] p-0! text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto! sm:rounded-md sm:px-3!"
+                  aria-label="Share your profile"
+                  title="Share your profile"
+                >
+                  <Share2 size={17} aria-hidden="true" />
+                  <span className="hidden text-sm font-medium sm:inline">
+                    Share your profile
+                  </span>
+                </button>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:hidden">
-                <div className="min-w-44">
+              <div className="grid gap-3 sm:grid-cols-[minmax(11rem,1fr)_minmax(18rem,auto)] sm:items-end xl:hidden">
+                <div className="min-w-0">
                   <div className="flex items-center justify-between text-xs text-neutral-400">
                     <span>Profile strength</span>
                     <span>{profileCompletion}%</span>
@@ -1807,36 +1996,17 @@ const ArtistDashboardView = () => {
                     />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={resetProfileForm}
-                  disabled={!isProfileDirty || isSavingProfile}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <RefreshCcw size={16} aria-hidden="true" />
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveProfile}
-                  disabled={isSaveDisabled}
-                  className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    profileSaveButtonIsActive
-                      ? "border border-white/70 bg-gradient-to-b from-white via-white to-neutral-200 text-[#111] shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:from-white hover:to-neutral-100"
-                      : "border border-white/10 bg-white/[0.04] text-neutral-500"
-                  }`}
-                >
-                  <Save
-                    size={16}
-                    className={
-                      profileSaveButtonIsActive
-                        ? "text-[#111]"
-                        : "text-neutral-500"
-                    }
-                    aria-hidden="true"
+                <div ref={profileActionRowRef}>
+                  <ProfileActionButtons
+                    className="grid grid-cols-2 gap-2"
+                    isDirty={isProfileDirty}
+                    isSaving={isSavingProfile}
+                    isSaveDisabled={isSaveDisabled}
+                    isSaveActive={profileSaveButtonIsActive}
+                    onReset={resetProfileForm}
+                    onSave={handleSaveProfile}
                   />
-                  {isSavingProfile ? "Saving..." : "Save changes"}
-                </button>
+                </div>
               </div>
             </div>
 
@@ -2425,38 +2595,15 @@ const ArtistDashboardView = () => {
                     />
                   </div>
 
-                  <div className="mt-4 grid gap-2">
-                    <button
-                      type="button"
-                      onClick={resetProfileForm}
-                      disabled={!isProfileDirty || isSavingProfile}
-                      className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 px-4 py-2 text-sm text-neutral-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <RefreshCcw size={16} aria-hidden="true" />
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveProfile}
-                      disabled={isSaveDisabled}
-                      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                        profileSaveButtonIsActive
-                          ? "border border-white/70 bg-gradient-to-b from-white via-white to-neutral-200 text-[#111] shadow-[0_12px_28px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:from-white hover:to-neutral-100"
-                          : "border border-white/10 bg-white/[0.04] text-neutral-500"
-                      }`}
-                    >
-                      <Save
-                        size={16}
-                        className={
-                          profileSaveButtonIsActive
-                            ? "text-[#111]"
-                            : "text-neutral-500"
-                        }
-                        aria-hidden="true"
-                      />
-                      {isSavingProfile ? "Saving..." : "Save changes"}
-                    </button>
-                  </div>
+                  <ProfileActionButtons
+                    className="mt-4 grid gap-2"
+                    isDirty={isProfileDirty}
+                    isSaving={isSavingProfile}
+                    isSaveDisabled={isSaveDisabled}
+                    isSaveActive={profileSaveButtonIsActive}
+                    onReset={resetProfileForm}
+                    onSave={handleSaveProfile}
+                  />
                 </div>
               </aside>
             </div>
