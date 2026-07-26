@@ -332,7 +332,14 @@ const UploadModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto overscroll-contain bg-black/85 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-xl sm:px-4 sm:py-6">
+    <div
+      aria-hidden={cropSrc ? "true" : undefined}
+      className={`request-modal-scrollbar fixed inset-0 z-[120] h-dvh min-h-dvh overflow-y-auto overscroll-contain px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-4 sm:py-6 ${
+        cropSrc
+          ? "invisible pointer-events-none bg-black"
+          : "bg-black/85 backdrop-blur-xl"
+      }`}
+    >
       <div className="mx-auto flex min-h-full w-full items-start justify-center md:items-center">
         <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[calc(100dvh-4rem)] md:grid-cols-[0.95fr_1.05fr]">
           {showPublishingBorder && (

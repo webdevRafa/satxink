@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Cropper from "react-easy-crop";
 import type { Area } from "react-easy-crop";
 import { Check, Minus, Plus, X } from "lucide-react";
@@ -76,6 +77,28 @@ const ImageCropperModal: React.FC<Props> = ({
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const isSquareCrop = Math.abs(aspect - 1) < 0.01;
+
+  useEffect(() => {
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    const previousOverscrollBehavior = body.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  }, []);
+
+  const handleCropComplete = useCallback(
+    (_croppedArea: Area, pixels: Area) => {
+      setCroppedAreaPixels(pixels);
+    },
+    []
+  );
 
   const handleSave = async () => {
     if (!croppedAreaPixels) return;
@@ -87,13 +110,20 @@ const ImageCropperModal: React.FC<Props> = ({
     onSave(croppedFile);
   };
 
-  return (
-    <div className="fixed inset-0 z-[160] h-dvh min-h-dvh overflow-y-auto overscroll-contain bg-black/85 px-3 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-md sm:px-4 sm:py-8">
-      <div className="mx-auto flex min-h-full w-full items-start justify-center sm:items-center">
-        <div className="w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-[#121212] text-white shadow-2xl">
-          <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
+  const modal = (
+    <div className="fixed inset-0 z-[160] overflow-hidden overscroll-none bg-black/95 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:bg-black/85 md:px-4 md:py-8 md:backdrop-blur-md">
+      <div className="mx-auto flex h-full w-full items-center justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="image-cropper-title"
+          className="request-modal-scrollbar flex max-h-[calc(100svh-1.5rem-env(safe-area-inset-bottom))] w-full max-w-3xl flex-col overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-[#121212] text-white shadow-2xl md:max-h-[calc(100dvh-4rem)]"
+        >
+          <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 py-4">
             <div>
-              <h2 className="mb-1! text-xl!">{title}</h2>
+              <h2 id="image-cropper-title" className="mb-1! text-xl!">
+                {title}
+              </h2>
               <p className="text-sm text-neutral-400">
                 {description}
               </p>
@@ -108,21 +138,29 @@ const ImageCropperModal: React.FC<Props> = ({
             </button>
           </div>
 
-          <div className="relative h-[min(56dvh,34rem)] min-h-[280px] bg-black sm:min-h-[360px]">
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={aspect}
-              cropShape={cropShape || (aspect === 1 ? "round" : "rect")}
-              showGrid={false}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
-            />
+          <div className="shrink-0 bg-black">
+            <div
+              className={`relative mx-auto w-full ${
+                isSquareCrop ? "max-w-[34rem]" : "max-w-[45rem]"
+              }`}
+              style={{ aspectRatio: String(aspect) }}
+            >
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={aspect}
+                cropShape={cropShape || (isSquareCrop ? "round" : "rect")}
+                objectFit="contain"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={handleCropComplete}
+              />
+            </div>
           </div>
 
-          <div className="space-y-4 px-5 py-4">
+          <div className="shrink-0 space-y-4 px-5 py-4">
             <div className="flex items-center gap-3">
               <Minus size={16} className="text-neutral-500" aria-hidden="true" />
               <input
@@ -160,6 +198,8 @@ const ImageCropperModal: React.FC<Props> = ({
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 };
 
 export default ImageCropperModal;
