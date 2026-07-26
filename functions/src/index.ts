@@ -1344,11 +1344,7 @@ const acceptProjectOffer = onCall(
               depositAmountCents,
             },
           ];
-      const allowedBalanceMethods: SessionBalanceMethod[] = isCustomProject
-        ? ["stripe", "external"]
-        : offer.allowExternalRemainingPayment
-        ? ["stripe", "external"]
-        : ["stripe"];
+      const allowedBalanceMethods: SessionBalanceMethod[] = ["external"];
       const firstAllocation = allocations[0];
       const firstSessionBalanceCents = Math.max(
         firstAllocation.quotedAmountCents - firstAllocation.depositAmountCents,
@@ -1387,7 +1383,7 @@ const acceptProjectOffer = onCall(
         quoteTotalCents: totalQuoteCents,
         depositAmount: centsToDollars(depositAmountCents),
         paymentType: "internal",
-        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        paymentModelVersion: PAYMENT_MODEL_VERSION,
         sessionPricingStrategy: isCustomProject ? "equal_split" : null,
         sessionAllocations: allocations,
         allowedSessionBalanceMethods: allowedBalanceMethods,
@@ -1471,7 +1467,8 @@ const acceptProjectOffer = onCall(
           balanceAmountCents,
           balanceAmount: centsToDollars(balanceAmountCents),
           allowedBalanceMethods,
-          selectedBalanceMethod: null,
+          selectedBalanceMethod:
+            balanceAmountCents > 0 ? "external" : null,
           depositStatus:
             allocation.sessionNumber === 1 ? "due" : "not_due",
           balanceStatus: "not_due",
@@ -1497,7 +1494,7 @@ const acceptProjectOffer = onCall(
         completedSessionCount: 0,
         remainingAmountCents: totalQuoteCents,
         remainingAmount: centsToDollars(totalQuoteCents),
-        paymentModelVersion: isCustomProject ? PAYMENT_MODEL_VERSION : 1,
+        paymentModelVersion: PAYMENT_MODEL_VERSION,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
@@ -2725,6 +2722,13 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       paymentMode = "remaining";
     }
 
+    if (String(paymentMode) === "remaining") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Remaining session balances are settled with the artist at the shop."
+      );
+    }
+
     if (
       !protectedSessionPayment &&
       paymentMode === "remaining" &&
@@ -3558,8 +3562,9 @@ const respondToProjectAmendment = onCall(
               ),
               balanceAmountCents,
               balanceAmount: centsToDollars(balanceAmountCents),
-              allowedBalanceMethods: ["stripe", "external"],
-              selectedBalanceMethod: null,
+              allowedBalanceMethods: ["external"],
+              selectedBalanceMethod:
+                balanceAmountCents > 0 ? "external" : null,
               depositStatus: "not_due",
               balanceStatus: "not_due",
               paymentStatus: "not_due",
@@ -4385,7 +4390,8 @@ const completeProjectSession = onCall(
           ? {
               balanceStatus:
                 amountDueCents > 0 ? "due" : "confirmed",
-              selectedBalanceMethod: null,
+              selectedBalanceMethod:
+                amountDueCents > 0 ? "external" : null,
             }
           : {}),
         pendingPlatformFeeCents: getPendingPlatformFeeCents(booking),
@@ -4411,13 +4417,9 @@ const completeProjectSession = onCall(
             : remainingBalanceCents > 0
             ? "not_due"
             : "confirmed",
-        ...(protectedPaymentModel
-          ? {
-              remainingPaymentMethod: "stripe",
-              externalRemainingAmount: centsToDollars(amountDueCents),
-              externalRemainingAmountCents: amountDueCents,
-            }
-          : {}),
+        remainingPaymentMethod: "external",
+        externalRemainingAmount: centsToDollars(amountDueCents),
+        externalRemainingAmountCents: amountDueCents,
         activeSessionNumber: nextActiveSessionNumber,
         sessionPhotoUrls: photoUrls.length > 0 ? photoUrls : booking.sessionPhotoUrls ?? [],
         updatedAt: timestamp,
@@ -4545,10 +4547,10 @@ const selectSessionBalanceMethod = onCall(
     }
     const bookingId = getOptionalString(req.data?.bookingId);
     const method = req.data?.method as SessionBalanceMethod | undefined;
-    if (!bookingId || !["stripe", "external"].includes(String(method))) {
+    if (!bookingId || method !== "external") {
       throw new HttpsError(
         "invalid-argument",
-        "Choose Stripe or payment at the shop."
+        "Session balances are settled at the shop."
       );
     }
 
@@ -4591,7 +4593,7 @@ const selectSessionBalanceMethod = onCall(
       }
       const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
         ? sessionLedger.allowedBalanceMethods
-        : ["stripe", "external"];
+        : ["external"];
       if (!allowedMethods.includes(method)) {
         throw new HttpsError(
           "failed-precondition",
@@ -4661,6 +4663,12 @@ const attestExternalSessionPayment = onCall(
       }
       const booking = bookingSnap.data() || {};
       const role = getParticipantRole(booking, uid);
+      if (!role) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only this booking's artist or client can update its payment."
+        );
+      }
       if (!isProtectedSessionPaymentBooking(booking)) {
         throw new HttpsError(
           "failed-precondition",
@@ -4711,7 +4719,7 @@ const attestExternalSessionPayment = onCall(
 
       const allowedMethods = Array.isArray(sessionLedger.allowedBalanceMethods)
         ? sessionLedger.allowedBalanceMethods
-        : ["stripe", "external"];
+        : ["external"];
       if (!allowedMethods.includes("external")) {
         throw new HttpsError(
           "failed-precondition",
@@ -4749,38 +4757,30 @@ const attestExternalSessionPayment = onCall(
       const clientAlreadyConfirmed = Boolean(
         sessionLedger.externalClientConfirmedAt
       );
-      const artistConfirmed = role === "artist" || artistAlreadyConfirmed;
-      const clientConfirmed = role === "client" || clientAlreadyConfirmed;
-      const confirmationStatus = artistConfirmed && clientConfirmed
-        ? "confirmed"
-        : artistConfirmed
-        ? "artist_confirmed"
-        : "client_confirmed";
-      resultingStatus = confirmationStatus;
-
-      if (!artistConfirmed || !clientConfirmed) {
+      if (
+        role === "client" &&
+        !artistAlreadyConfirmed
+      ) {
+        resultingStatus = "client_confirmed";
         transaction.update(bookingRef, {
           remainingPaymentMethod: "external",
-          remainingPaymentStatus: confirmationStatus,
-          ...(role === "artist"
-            ? { externalRemainingArtistConfirmedAt: timestamp }
-            : { externalRemainingClientConfirmedAt: timestamp }),
+          remainingPaymentStatus: "client_confirmed",
+          externalRemainingClientConfirmedAt: timestamp,
           updatedAt: timestamp,
         });
         transaction.set(
           sessionRef,
           {
             selectedBalanceMethod: "external",
-            balanceStatus: confirmationStatus,
-            ...(role === "artist"
-              ? { externalArtistConfirmedAt: timestamp }
-              : { externalClientConfirmedAt: timestamp }),
+            balanceStatus: "client_confirmed",
+            externalClientConfirmedAt: timestamp,
             updatedAt: timestamp,
           },
           { merge: true }
         );
         return;
       }
+      resultingStatus = "confirmed";
 
       const balanceAmountCents = getNonNegativeCents(
         sessionLedger.balanceAmountCents,
@@ -4826,7 +4826,6 @@ const attestExternalSessionPayment = onCall(
         remainingPaymentMethod: "external",
         remainingPaymentStatus: projectComplete ? "confirmed" : "not_due",
         externalRemainingArtistConfirmedAt: timestamp,
-        externalRemainingClientConfirmedAt: timestamp,
         pendingSessionPaymentAmount: 0,
         pendingSessionPaymentAmountCents: 0,
         pendingSessionNumber: null,
@@ -4847,8 +4846,6 @@ const attestExternalSessionPayment = onCall(
           paymentStatus: "confirmed",
           externalArtistConfirmedAt:
             sessionLedger.externalArtistConfirmedAt || timestamp,
-          externalClientConfirmedAt:
-            sessionLedger.externalClientConfirmedAt || timestamp,
           paidBalanceAmountCents: balanceAmountCents,
           paidBalanceAmount: centsToDollars(balanceAmountCents),
           balancePaidAt: timestamp,
@@ -4879,8 +4876,9 @@ const attestExternalSessionPayment = onCall(
         status: "confirmed",
         artistConfirmedAt:
           sessionLedger.externalArtistConfirmedAt || timestamp,
-        clientConfirmedAt:
-          sessionLedger.externalClientConfirmedAt || timestamp,
+        clientConfirmedAt: clientAlreadyConfirmed
+          ? sessionLedger.externalClientConfirmedAt
+          : null,
         createdAt: timestamp,
       });
     });
@@ -5145,7 +5143,7 @@ const stripeWebhook = onRequest(
 
 
 const processArtistMedia = onObjectFinalized(
-  { timeoutSeconds: 300, memory: "2GiB" },
+  { timeoutSeconds: 300, memory: "2GiB", concurrency: 2 },
   async (event) => {
     const filePath = event.data.name;
     if (!filePath) return;
@@ -5176,13 +5174,15 @@ const processArtistMedia = onObjectFinalized(
     const baseName = path.basename(fileName, path.extname(fileName));
     const bucketDir = path.dirname(filePath);
     const uuid = uuidv4();
-
-    const tempOriginal = path.join(os.tmpdir(), fileName);
-    const tempThumb = path.join(os.tmpdir(), `${baseName}_thumb.webp`);
-    const tempWebp90 = path.join(os.tmpdir(), `${baseName}_webp90.webp`);
-    const tempFull = path.join(os.tmpdir(), `${baseName}_full.jpg`);
+    const tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), `satx-artist-media-${mediaType}-`)
+    );
+    const tempOriginal = path.join(tempDir, fileName);
+    const tempThumb = path.join(tempDir, `${baseName}_thumb.webp`);
+    const tempWebp90 = path.join(tempDir, `${baseName}_webp90.webp`);
+    const tempFull = path.join(tempDir, `${baseName}_full.jpg`);
     const tempOriginalPreview = path.join(
-      os.tmpdir(),
+      tempDir,
       `${baseName}_original_webp90.webp`
     );
 
@@ -5242,6 +5242,8 @@ const processArtistMedia = onObjectFinalized(
           originalWebp90Url,
           originalPreviewPath,
           originalFileName: baseName,
+          originalProcessingStatus: "ready",
+          originalProcessingError: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -5315,7 +5317,7 @@ const processArtistMedia = onObjectFinalized(
         const docData = snapshot.docs[0].data();
 
         // Skip processing if already done (retry safety)
-        if (docData.thumbUrl || docData.webp90Url || docData.fullUrl) {
+        if (docData.thumbUrl && docData.webp90Url && docData.fullUrl) {
           console.log(`Skipping ${baseName} — already processed.`);
           await bucket.file(filePath).delete().catch(() => {
             console.log(`Could not delete duplicate raw file: ${filePath}`);
@@ -5340,6 +5342,8 @@ const processArtistMedia = onObjectFinalized(
               }
             : {}),
           status: "ready",
+          processingError: admin.firestore.FieldValue.delete(),
+          processingFailedAt: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -5358,15 +5362,86 @@ const processArtistMedia = onObjectFinalized(
       );
     } catch (err) {
       console.error(`Error processing ${filePath}:`, err);
+
+      if (mediaType === "gallery" || mediaType === "galleryOriginals") {
+        try {
+          let snapshot = await db
+            .collection("gallery")
+            .where("fileName", "==", baseName)
+            .limit(1)
+            .get();
+          if (snapshot.empty) {
+            snapshot = await db
+              .collection("gallery")
+              .where("originalFileName", "==", baseName)
+              .limit(1)
+              .get();
+          }
+
+          if (!snapshot.empty) {
+            const docRef = snapshot.docs[0].ref;
+            const docData = snapshot.docs[0].data();
+
+            if (mediaType === "galleryOriginals") {
+              if (!docData.originalWebp90Url) {
+                await docRef.set(
+                  {
+                    originalProcessingStatus: "failed",
+                    originalProcessingError: "original_preview_failed",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+                  { merge: true }
+                );
+              }
+            } else if (
+              !(docData.thumbUrl && docData.webp90Url && docData.fullUrl)
+            ) {
+              await docRef.set(
+                {
+                  status: "failed",
+                  processingError: "image_processing_failed",
+                  processingFailedAt:
+                    admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
+          }
+        } catch (statusError) {
+          console.error(
+            `Could not record processing failure for ${filePath}:`,
+            statusError
+          );
+        }
+
+        const failedAssetPaths =
+          mediaType === "gallery"
+            ? [
+                filePath,
+                `${bucketDir}/${baseName}_thumb.webp`,
+                `${bucketDir}/${baseName}_webp90.webp`,
+                `${bucketDir}/${baseName}_full.jpg`,
+              ]
+            : [filePath, `${bucketDir}/${baseName}_webp90.webp`];
+
+        await Promise.allSettled(
+          failedAssetPaths.map((failedPath) =>
+            bucket.file(failedPath).delete({ ignoreNotFound: true })
+          )
+        );
+      }
     } finally {
-      // Clean up temp files
-      await Promise.allSettled([
-        fs.unlink(tempOriginal),
-        fs.unlink(tempThumb),
-        fs.unlink(tempWebp90),
-        fs.unlink(tempFull),
-        fs.unlink(tempOriginalPreview),
-      ]);
+      // Each invocation owns its directory so concurrent image jobs cannot
+      // overwrite or delete one another's Sharp inputs and derivatives.
+      await fs
+        .rm(tempDir, { recursive: true, force: true })
+        .catch((cleanupError) => {
+          console.warn(
+            `Could not clean temp directory ${tempDir}:`,
+            cleanupError
+          );
+        });
     }
   }
 );

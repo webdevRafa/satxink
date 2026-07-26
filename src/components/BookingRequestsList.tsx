@@ -1423,7 +1423,7 @@ const RequestReferenceGallery = ({ request }: { request: BookingRequest }) => {
 
   if (!selectedUrl) {
     return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
+      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:h-[46dvh] sm:max-h-[30rem] sm:min-h-[18rem]">
         <ImageIcon size={34} />
         <span>No reference image uploaded</span>
       </div>
@@ -1431,8 +1431,8 @@ const RequestReferenceGallery = ({ request }: { request: BookingRequest }) => {
   }
 
   return (
-    <div className="flex h-full min-h-[360px] flex-col bg-black sm:min-h-[420px]">
-      <div className="relative flex min-h-[330px] flex-1 items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
+    <div className="flex h-full min-h-[360px] flex-col bg-black sm:h-auto sm:min-h-0">
+      <div className="relative flex min-h-[330px] flex-1 items-center justify-center overflow-hidden bg-black sm:h-[46dvh] sm:max-h-[30rem] sm:min-h-[18rem] sm:flex-none">
         <div
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_44%)]"
           aria-hidden="true"
@@ -1440,7 +1440,7 @@ const RequestReferenceGallery = ({ request }: { request: BookingRequest }) => {
         <LoadAwareZoomImage
           src={selectedUrl}
           alt={`Tattoo request reference ${selectedIndex + 1}`}
-          className="relative h-full max-h-[64vh] min-h-[330px] w-full object-contain sm:min-h-[420px]"
+          className="relative h-full min-h-[330px] w-full object-contain sm:min-h-0"
           loadingLabel="Loading reference"
           errorLabel="Reference image unavailable"
         />
@@ -1553,7 +1553,7 @@ const RequestDetailsDialog = ({
           ref={scrollContainerRef}
           className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar"
         >
-          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
+          <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-4 sm:pb-4 sm:pt-[5.75rem]">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -1563,10 +1563,10 @@ const RequestDetailsDialog = ({
               leaveFrom="scale-100 opacity-100"
               leaveTo="scale-95 opacity-0"
             >
-              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+              <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
                 {request && (
                   <>
-                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:shrink-0 sm:px-6">
                       <div>
                         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
                           Request details
@@ -1586,7 +1586,7 @@ const RequestDetailsDialog = ({
                       </button>
                     </div>
 
-                    <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
+                    <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:flex-1 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[1fr_0.95fr]">
                       <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
                         <RequestReferenceGallery request={request} />
                       </div>
@@ -1769,7 +1769,7 @@ const FlashRequestDetailsDialog = ({
               <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl sm:flex sm:max-h-[calc(100dvh-5.75rem-1rem)] sm:flex-col lg:max-h-[calc(100dvh-5.75rem-1.25rem)]">
                 {request && (
                   <>
-                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+                    <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:shrink-0 sm:px-6">
                       <div>
                         <p className="text-xs uppercase tracking-[0.18em] text-white/45">
                           Flash request
@@ -1789,7 +1789,7 @@ const FlashRequestDetailsDialog = ({
                       </button>
                     </div>
 
-                    <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="grid gap-0 request-modal-scrollbar sm:min-h-0 sm:flex-1 sm:overflow-y-auto sm:overscroll-contain lg:grid-cols-[0.95fr_1.05fr]">
                       <div className="flex items-start justify-center border-b border-white/10 bg-black/35 p-5 lg:border-b-0 lg:border-r lg:p-6">
                         <FlashRequestPreviewCard request={request} />
                       </div>
@@ -1936,7 +1936,7 @@ const FlashRequestPreviewCard = ({ request }: { request: BookingRequest }) => {
           <LoadAwareZoomImage
             src={previewUrl}
             alt={request.flashTitle || "Requested flash design"}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             loadingLabel="Loading flash"
             errorLabel="Flash image unavailable"
           />

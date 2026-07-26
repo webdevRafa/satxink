@@ -509,7 +509,10 @@ export const ArtistsPage = () => {
         );
         const previewItem = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
-          .filter((item) => item.status !== "processing")
+          .filter(
+            (item) =>
+              item.status !== "processing" && item.status !== "failed"
+          )
           .sort((a, b) => getGalleryItemTime(b) - getGalleryItemTime(a))
           .find((item) => getGalleryPreviewUrl(item));
         const previewUrl = previewItem ? getGalleryPreviewUrl(previewItem) : "";

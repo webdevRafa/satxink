@@ -41,7 +41,7 @@ const DECLINE_REASON_OPTIONS = [
 ];
 
 const getFinalPaymentTermsLabel = () =>
-  "Remaining balance is settled after the appointment.";
+  "Remaining balance is settled at the shop after the appointment.";
 
 const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
   const [selectedDateOption, setSelectedDateOption] = useState<number | null>(
@@ -463,8 +463,8 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                     </p>
                     <p className="mt-1 text-sm leading-6 text-neutral-400">
                       Next, you will pay only the non-refundable deposit for
-                      session 1 through Stripe. The session balance cannot be
-                      paid until after the appointment is complete.
+                      session 1 through Stripe. The remaining balance is
+                      settled at the shop after the appointment.
                     </p>
                   </div>
                 </div>
@@ -491,7 +491,7 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   <CheckoutSummaryRow
                     label={
                       usesProtectedSessionPayments
-                        ? "Session 1 after-session balance"
+                        ? "Session 1 shop balance"
                         : "Remaining artist balance"
                     }
                     value={`$${
@@ -510,9 +510,8 @@ const ViewOfferModal = ({ offer, onClose, isOpen, onRespond }: Props) => {
                   <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-3 text-sm leading-6 text-amber-50/85">
                     SATX Ink's platform fee is calculated from the full artist
                     quote, capped at $10, and collected with today's deposit.
-                    After each completed session, choose Stripe or payment at
-                    the shop. Shop payments require confirmation from both
-                    sides.
+                    After each completed session, the remaining balance is
+                    settled directly with the artist at the shop.
                   </div>
                 )}
 

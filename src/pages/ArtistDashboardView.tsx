@@ -1675,16 +1675,11 @@ const ArtistDashboardView = () => {
           functions,
           "attestExternalSessionPayment"
         );
-        const response = await confirmExternalPayment({
+        await confirmExternalPayment({
           bookingId: booking.id,
           action: "confirm",
         });
-        const { settled } = response.data as { settled: boolean };
-        toast.success(
-          settled
-            ? "Session balance confirmed by both sides."
-            : "Your confirmation was recorded. Waiting for the client."
-        );
+        toast.success("Shop payment marked complete.");
       } catch (error) {
         console.error("Session balance confirmation failed:", error);
         toast.error("Could not confirm this session payment.");
@@ -1693,28 +1688,17 @@ const ArtistDashboardView = () => {
     }
 
     const amountPaid = getDashboardSessionInstallmentAmount(booking);
-    const completion =
-      booking.remainingPaymentStatus === "client_confirmed"
-        ? buildExternalPaymentCompletionUpdates(booking, amountPaid)
-        : null;
+    const completion = buildExternalPaymentCompletionUpdates(
+      booking,
+      amountPaid
+    );
 
     await updateSessionRecord(
       booking,
-      completion?.sessionUpdate || {
-        remainingPaymentStatus: "artist_confirmed",
-        artistConfirmedAt: serverTimestamp(),
-        sessionNumber: getActiveSessionNumber(booking),
-        pendingPaymentAmount: amountPaid,
-        pendingPaymentAmountCents: Math.round(amountPaid * 100),
-      },
-      completion?.bookingUpdate || {
-        remainingPaymentStatus: "artist_confirmed",
-        pendingSessionPaymentAmount: amountPaid,
-        pendingSessionPaymentAmountCents: Math.round(amountPaid * 100),
-        pendingSessionNumber: getActiveSessionNumber(booking),
-        externalRemainingArtistConfirmedAt: serverTimestamp(),
-      }
+      completion.sessionUpdate,
+      completion.bookingUpdate
     );
+    toast.success("Shop payment marked complete.");
   };
 
   const handleOpenAddedSessionsModal = (booking: DashboardBooking) => {
@@ -3233,7 +3217,7 @@ const ArtistBookingRow = ({
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
           >
             <DollarSign size={14} />
-            Confirm paid
+            Mark paid
           </button>
         )}
         {canOpenInProjects && (
@@ -3275,8 +3259,9 @@ const PaymentPreferencesPanel = ({
             Payments
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-            Payments are provided by Stripe and sent to your Stripe Connect
-            account. Complete the setup below before sending paid offers.
+            Stripe securely collects required session deposits and sends them
+            to your Stripe Connect account. Remaining balances are settled
+            directly at the shop.
           </p>
         </div>
       </div>
@@ -3314,21 +3299,21 @@ const PaymentPreferencesPanel = ({
           </span>
           <div className="min-w-0">
             <h3 className="mb-0! text-sm! font-semibold text-white">
-              Remaining balance timing
+              After-session shop balance
             </h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
-              Remaining session balances are requested after the appointment.
-              This avoids back-to-back card payments when a client books on
-              short notice.
+              Remaining session balances are settled directly at the shop
+              after the appointment. This avoids a second card-processing fee
+              for the client.
             </p>
             <p className="mt-2 text-xs leading-5 text-sky-100/65">
-              Complete the session first, then request Stripe payment or
-              confirm an in-shop payment from your Sessions workspace.
+              Complete the session, collect the balance at the shop, then mark
+              it paid from your Sessions workspace.
             </p>
           </div>
         </div>
         <span className="ml-11 w-fit shrink-0 rounded-full border border-sky-200/20 bg-sky-200/10 px-2.5 py-1 text-[11px] font-semibold text-sky-100 sm:ml-0">
-          After appointment
+          At the shop
         </span>
       </div>
     </div>
@@ -4043,7 +4028,7 @@ const ProjectsTable = ({
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
                         >
                           <DollarSign size={14} />
-                          Confirm paid
+                          Mark paid
                         </button>
                       ) : projectQuickAction ? (
                         <button
@@ -4619,27 +4604,25 @@ const BookingRecordDialog = ({
                               label="Payment"
                               value={
                                 booking.paymentType === "internal"
-                                  ? "Stripe"
+                                  ? "Stripe deposit"
                                   : "Direct"
                               }
                             />
                             <BookingDetailTile
                               icon={<CreditCard size={17} />}
                               label="Final terms"
-                              value={getDashboardFinalPaymentTermsLabel(
-                                booking
-                              )}
+                              value={getDashboardFinalPaymentTermsLabel()}
                             />
                           </div>
 
                           {booking.remainingPaymentMethod === "external" && (
                             <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                               <p className="text-sm font-semibold text-white">
-                                Direct remaining balance
+                                Shop balance
                               </p>
                               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                                Settle this balance directly with the client
-                                outside SATX Ink checkout.
+                                Collect this balance at the shop after the
+                                session, then mark it paid from Sessions.
                               </p>
                             </div>
                           )}
@@ -5086,7 +5069,7 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
       primary,
       secondary:
         booking.remainingPaymentMethod === "external"
-          ? "Direct payment pending"
+          ? "Shop payment pending"
           : "Payment pending",
       tone: "amber" as const,
     };
@@ -5101,7 +5084,7 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
       if (paymentStatus === "artist_confirmed") {
         return {
           primary,
-          secondary: "Awaiting client confirm",
+          secondary: "Shop payment recorded",
           tone: "amber" as const,
         };
       }
@@ -5109,21 +5092,21 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
       if (paymentStatus === "client_confirmed") {
         return {
           primary,
-          secondary: "Confirm direct payment",
+          secondary: "Mark shop payment paid",
           tone: "amber" as const,
         };
       }
 
       return {
         primary,
-        secondary: "Awaiting direct payment",
+        secondary: "Shop payment pending",
         tone: "amber" as const,
       };
     }
 
     return {
       primary,
-      secondary: "Awaiting Stripe payment",
+      secondary: "Shop payment pending",
       tone: "amber" as const,
     };
   }
@@ -5292,9 +5275,9 @@ const getSessionReadinessDisplay = (booking: Partial<Booking>) => {
         : needsSessionPaymentRequest(booking)
         ? "Payment needed"
         : paymentStatus === "artist_confirmed"
-        ? "Client confirm needed"
+        ? "Shop payment recorded"
         : paymentStatus === "client_confirmed"
-        ? "Confirm direct payment"
+        ? "Mark shop payment paid"
         : pendingPayment > 0
         ? "Payment pending"
         : "Balance follow-up";
@@ -5342,23 +5325,16 @@ const hasProjectPaymentFollowUp = (booking: Partial<Booking>) =>
       booking.remainingPaymentStatus || ""
     ));
 
-const getDashboardFinalPaymentTermsLabel = (booking: Partial<Booking>) => {
-  if (booking.finalPaymentTiming !== "before") return "After appointment";
-
-  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
-  return `${deadlineHours} hours before`;
-};
+const getDashboardFinalPaymentTermsLabel = () => "At shop after session";
 
 const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
   const paymentStatus = booking.remainingPaymentStatus || "not_due";
 
   return (
-    (booking.remainingPaymentMethod === "external" ||
-      booking.paymentModelVersion === 2) &&
     getDashboardRemainingBalance(booking) > 0 &&
     (booking.sessionStatus === "completed" ||
       Number(booking.pendingSessionPaymentAmount || 0) > 0) &&
-    !["artist_confirmed", "confirmed"].includes(paymentStatus)
+    paymentStatus !== "confirmed"
   );
 };
 

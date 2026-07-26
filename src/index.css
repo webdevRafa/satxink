@@ -160,7 +160,7 @@ a.bg-white svg {
   }
 }
 
-@keyframes satx-mobile-schedule-enter {
+@keyframes satx-guided-schedule-enter {
   from {
     opacity: 0;
     transform: translate3d(0, 8px, 0);
@@ -295,8 +295,8 @@ a.bg-white svg {
   contain: layout paint;
 }
 
-.satx-mobile-schedule-panel {
-  animation: satx-mobile-schedule-enter 220ms cubic-bezier(0.22, 1, 0.36, 1)
+.satx-guided-schedule-panel {
+  animation: satx-guided-schedule-enter 220ms cubic-bezier(0.22, 1, 0.36, 1)
     both;
 }
 
@@ -342,7 +342,7 @@ a.bg-white svg {
     .satx-profile-work-card-face,
   .satx-request-flow-shell,
   .satx-request-step-panel,
-  .satx-mobile-schedule-panel {
+  .satx-guided-schedule-panel {
     animation: none;
     filter: none;
     opacity: 1;

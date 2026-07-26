@@ -17,9 +17,15 @@ export type GalleryItem = {
   fullPath?: string;               // Firebase Storage path to full image
   originalPreviewPath?: string;    // Firebase Storage path to uncropped preview
   originalFileName?: string;       // Original preview processing key
+  processingError?: string;        // Safe processing failure category
+  processingFailedAt?: Timestamp | Date | FieldValue | null;
+  processingStartedAt?: Timestamp | Date | FieldValue | null;
+  originalProcessingStatus?: "processing" | "ready" | "failed";
+  originalProcessingError?: string;
 
   caption?: string;                // Optional artist-provided caption
   tags?: string[];                 // Optional: for search/filter
 
   createdAt?: Timestamp | Date | FieldValue | null; // Firestore timestamp
+  timestamp?: number;
 };

@@ -54,10 +54,9 @@ export default function TermsOfService() {
         <h2>Session Balances & Cancellations</h2>
         <p>
           The unpaid balance for a custom-tattoo session becomes due only after
-          the artist marks that session complete. The client may then pay the
-          session balance through Stripe when available, or pay at the shop.
-          Shop payments are recorded as settled only after both the client and
-          artist confirm the same session payment.
+          the artist marks that session complete and is settled directly with
+          the artist at the shop. The artist records the shop payment in SATX
+          INK after it is received.
         </p>
         <p>
           Multi-session projects are divided into session allocations. Each new

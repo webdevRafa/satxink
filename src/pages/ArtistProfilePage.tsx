@@ -269,7 +269,10 @@ export const ArtistProfilePage = () => {
       (snapshot) => {
         const items = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
-          .filter((item) => item.status !== "processing")
+          .filter(
+            (item) =>
+              item.status !== "processing" && item.status !== "failed"
+          )
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
         setGalleryItems(items);

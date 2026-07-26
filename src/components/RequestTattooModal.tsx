@@ -76,7 +76,7 @@ const availableDayOptions = [
 
 type AvailableTime = { from: string; to: string };
 type RequestStep = "idea" | "details" | "reference" | "schedule" | "review";
-type MobileScheduleStage = "dates" | "days" | "time" | "summary";
+type ScheduleStage = "dates" | "days" | "time" | "summary";
 type ReferencePreview = {
   file: File;
   url: string;
@@ -124,9 +124,9 @@ const RequestTattooModal: React.FC<Props> = ({
     getMonthStart(new Date())
   );
   const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [mobileScheduleStage, setMobileScheduleStage] =
-    useState<MobileScheduleStage>("dates");
-  const [hasConfirmedMobileDays, setHasConfirmedMobileDays] = useState(false);
+  const [scheduleStage, setScheduleStage] = useState<ScheduleStage>("dates");
+  const [hasConfirmedScheduleDays, setHasConfirmedScheduleDays] =
+    useState(false);
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
   const [referencePreviews, setReferencePreviews] = useState<
     ReferencePreview[]
@@ -180,10 +180,10 @@ const RequestTattooModal: React.FC<Props> = ({
       hasMinimumTimeWindow(availableTime.from, availableTime.to)
   );
   const isScheduleComplete = hasValidDateWindow && hasValidTimeWindow;
-  const getMobileScheduleEntryStage = (): MobileScheduleStage => {
+  const getScheduleEntryStage = (): ScheduleStage => {
     if (!hasValidDateWindow) return "dates";
     if (!hasValidTimeWindow) {
-      return availableDays.length > 0 || hasConfirmedMobileDays
+      return availableDays.length > 0 || hasConfirmedScheduleDays
         ? "time"
         : "days";
     }
@@ -302,8 +302,8 @@ const RequestTattooModal: React.FC<Props> = ({
     setAvailableTime({ from: "", to: "" });
     setVisibleCalendarMonth(getMonthStart(new Date()));
     setAvailableDays([]);
-    setMobileScheduleStage("dates");
-    setHasConfirmedMobileDays(false);
+    setScheduleStage("dates");
+    setHasConfirmedScheduleDays(false);
     setReferenceImages([]);
     setReferencePreviews([]);
     setBudget("");
@@ -323,7 +323,7 @@ const RequestTattooModal: React.FC<Props> = ({
 
     if (nextIndex <= maxReachableStepIndex) {
       if (nextStep === "schedule") {
-        setMobileScheduleStage(getMobileScheduleEntryStage());
+        setScheduleStage(getScheduleEntryStage());
       }
       setActiveStep(nextStep);
       return;
@@ -363,7 +363,7 @@ const RequestTattooModal: React.FC<Props> = ({
   };
 
   const enterScheduleStep = () => {
-    setMobileScheduleStage(getMobileScheduleEntryStage());
+    setScheduleStage(getScheduleEntryStage());
     setActiveStep("schedule");
   };
 
@@ -918,17 +918,7 @@ const RequestTattooModal: React.FC<Props> = ({
                               {index + 1}
                             </span>
                           </div>
-                          {index === 0 && (
-                            <span className="absolute bottom-1.5 left-1.5 rounded-full border border-[#19d69b]/35 bg-[#092b22]/90 px-2! py-1! text-[9px]! font-bold uppercase tracking-[0.08em] text-white sm:hidden">
-                              Primary
-                            </span>
-                          )}
                           <div className="absolute left-3 top-3 hidden flex-wrap gap-2 sm:flex">
-                            {index === 0 && (
-                              <span className="rounded-full border border-[#19d69b]/35 bg-[#19d69b]/15 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white">
-                                Primary
-                              </span>
-                            )}
                             <span className="rounded-full border border-white/15 bg-black/55 px-2! py-1! text-[10px]! font-bold uppercase tracking-[0.12em] text-white/70 sm:backdrop-blur">
                               {index + 1}
                             </span>
@@ -995,124 +985,26 @@ const RequestTattooModal: React.FC<Props> = ({
             )}
 
             {activeStep === "schedule" && (
-              <>
-                <MobileScheduleFlow
-                  stage={mobileScheduleStage}
-                  month={visibleCalendarMonth}
-                  preferredDateRange={preferredDateRange}
-                  todayDateInput={todayDateInput}
-                  availableDays={availableDays}
-                  availableTime={availableTime}
-                  earliestEndTime={earliestEndTime}
-                  hasValidDateWindow={hasValidDateWindow}
-                  hasValidTimeWindow={hasValidTimeWindow}
-                  onStageChange={setMobileScheduleStage}
-                  onMonthChange={setVisibleCalendarMonth}
-                  onSelectDate={handleSelectCalendarDate}
-                  onToggleDay={toggleAvailableDay}
-                  onConfirmDays={() => setHasConfirmedMobileDays(true)}
-                  onFromChange={handleAvailableTimeFromChange}
-                  onToChange={handleAvailableTimeToChange}
-                  onBack={() => setActiveStep("reference")}
-                  onReview={continueFromSchedule}
-                />
-
-                <div className="hidden grid-cols-1 gap-5 sm:grid lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                  <div className="mb-5 flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                      <CalendarDays size={19} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg! font-semibold! text-white">
-                        Preferred timing
-                      </h3>
-                      <p className="text-sm text-white/55">
-                        Pick an ideal date window and a preferred time range.
-                      </p>
-                    </div>
-                  </div>
-
-                  {preferredDateRange[0] && (
-                    <div className="mb-4 rounded-lg border border-[#19d69b]/25 bg-[#19d69b]/10 p-3">
-                      <p className="text-xs! uppercase tracking-[0.16em] text-[#19d69b]">
-                        Selected window
-                      </p>
-                      <p className="mt-1 text-sm! font-semibold text-white">
-                        {getDateRangeLabel(preferredDateRange)}
-                      </p>
-                    </div>
-                  )}
-
-                  <CalendarRangePicker
-                    month={visibleCalendarMonth}
-                    selectedRange={preferredDateRange}
-                    todayDateInput={todayDateInput}
-                    onMonthChange={setVisibleCalendarMonth}
-                    onSelectDate={handleSelectCalendarDate}
-                  />
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-white/65">
-                        From
-                      </span>
-                      <QuarterHourTimeSelect
-                        value={availableTime.from}
-                        onChange={handleAvailableTimeFromChange}
-                        placeholder="Select time"
-                        buttonClassName="focus:border-[#19d69b]"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-medium text-white/65">
-                        To
-                      </span>
-                      <QuarterHourTimeSelect
-                        value={availableTime.to}
-                        onChange={handleAvailableTimeToChange}
-                        placeholder="Select time"
-                        buttonClassName="focus:border-[#19d69b]"
-                        minTime={earliestEndTime}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-                  <h3 className="text-lg! font-semibold! text-white">
-                    Days that usually work
-                  </h3>
-                  <p className="mt-1 text-sm text-white/55">
-                    Select any days you are normally available. You can confirm
-                    exact times after the artist replies.
-                  </p>
-
-                  <AvailableDaysSelector
-                    availableDays={availableDays}
-                    onToggleDay={toggleAvailableDay}
-                  />
-
-                  <div className="mt-6 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep("reference")}
-                      className="modal-action-button inline-flex items-center justify-center rounded-lg! border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={continueFromSchedule}
-                      className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-4! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85"
-                    >
-                      Review
-                      <ChevronRight size={15} />
-                    </button>
-                  </div>
-                </div>
-                </div>
-              </>
+              <GuidedScheduleFlow
+                stage={scheduleStage}
+                month={visibleCalendarMonth}
+                preferredDateRange={preferredDateRange}
+                todayDateInput={todayDateInput}
+                availableDays={availableDays}
+                availableTime={availableTime}
+                earliestEndTime={earliestEndTime}
+                hasValidDateWindow={hasValidDateWindow}
+                hasValidTimeWindow={hasValidTimeWindow}
+                onStageChange={setScheduleStage}
+                onMonthChange={setVisibleCalendarMonth}
+                onSelectDate={handleSelectCalendarDate}
+                onToggleDay={toggleAvailableDay}
+                onConfirmDays={() => setHasConfirmedScheduleDays(true)}
+                onFromChange={handleAvailableTimeFromChange}
+                onToChange={handleAvailableTimeToChange}
+                onBack={() => setActiveStep("reference")}
+                onReview={continueFromSchedule}
+              />
             )}
 
             {activeStep === "review" && (
@@ -1129,7 +1021,7 @@ const RequestTattooModal: React.FC<Props> = ({
                 availableDays={availableDays}
                 isSubmitting={isSubmitting}
                 onBack={() => {
-                  setMobileScheduleStage("summary");
+                  setScheduleStage("summary");
                   setActiveStep("schedule");
                 }}
               />
@@ -1141,8 +1033,8 @@ const RequestTattooModal: React.FC<Props> = ({
   );
 };
 
-const mobileScheduleStages: Array<{
-  id: Exclude<MobileScheduleStage, "summary">;
+const scheduleStages: Array<{
+  id: Exclude<ScheduleStage, "summary">;
   label: string;
 }> = [
   { id: "dates", label: "Dates" },
@@ -1150,7 +1042,7 @@ const mobileScheduleStages: Array<{
   { id: "time", label: "Time" },
 ];
 
-const MobileScheduleFlow = ({
+const GuidedScheduleFlow = ({
   stage,
   month,
   preferredDateRange,
@@ -1170,7 +1062,7 @@ const MobileScheduleFlow = ({
   onBack,
   onReview,
 }: {
-  stage: MobileScheduleStage;
+  stage: ScheduleStage;
   month: Date;
   preferredDateRange: string[];
   todayDateInput: string;
@@ -1179,7 +1071,7 @@ const MobileScheduleFlow = ({
   earliestEndTime?: string;
   hasValidDateWindow: boolean;
   hasValidTimeWindow: boolean;
-  onStageChange: (stage: MobileScheduleStage) => void;
+  onStageChange: (stage: ScheduleStage) => void;
   onMonthChange: (month: Date) => void;
   onSelectDate: (date: Date) => void;
   onToggleDay: (day: string) => void;
@@ -1191,13 +1083,13 @@ const MobileScheduleFlow = ({
 }) => {
   const activeStageIndex =
     stage === "summary"
-      ? mobileScheduleStages.length
-      : mobileScheduleStages.findIndex((item) => item.id === stage);
+      ? scheduleStages.length
+      : scheduleStages.findIndex((item) => item.id === stage);
   const hasStartedDateWindow = Boolean(preferredDateRange[0]);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] sm:hidden">
-      <div className="border-b border-white/10 px-4 py-4">
+    <section className="mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
+      <div className="border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex items-start gap-3">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${
@@ -1216,9 +1108,9 @@ const MobileScheduleFlow = ({
             <p className="text-[10px]! font-semibold uppercase tracking-[0.16em] text-white/40">
               {stage === "summary"
                 ? "Schedule complete"
-                : `Schedule · ${activeStageIndex + 1} of 3`}
+                : `Schedule step ${activeStageIndex + 1} of 3`}
             </p>
-            <h3 className="mt-1 text-lg! font-semibold! text-white">
+            <h3 className="mt-1 text-lg! font-semibold! text-white sm:text-xl!">
               {stage === "summary"
                 ? "Confirm your availability"
                 : "Build your preferred schedule"}
@@ -1227,10 +1119,10 @@ const MobileScheduleFlow = ({
         </div>
 
         <ol
-          className="mt-4 grid grid-cols-3 gap-1.5"
+          className="mt-4 grid grid-cols-3 gap-1.5 sm:gap-3"
           aria-label="Schedule progress"
         >
-          {mobileScheduleStages.map((item, index) => {
+          {scheduleStages.map((item, index) => {
             const isActive = stage === item.id;
             const isComplete = stage === "summary" || index < activeStageIndex;
 
@@ -1238,7 +1130,7 @@ const MobileScheduleFlow = ({
               <li
                 key={item.id}
                 aria-current={isActive ? "step" : undefined}
-                className={`flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-2 ${
+                className={`flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-2 sm:gap-2.5 sm:px-3 sm:py-2.5 ${
                   isActive
                     ? "border-white/25 bg-white/[0.08] text-white"
                     : isComplete
@@ -1247,7 +1139,7 @@ const MobileScheduleFlow = ({
                 }`}
               >
                 <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]! font-bold ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]! font-bold sm:h-6 sm:w-6 ${
                     isComplete
                       ? "bg-[#19d69b]/20 text-[#7aebc7]"
                       : isActive
@@ -1261,7 +1153,7 @@ const MobileScheduleFlow = ({
                     index + 1
                   )}
                 </span>
-                <span className="truncate text-[10px]! font-semibold">
+                <span className="truncate text-[10px]! font-semibold sm:text-xs!">
                   {item.label}
                 </span>
               </li>
@@ -1270,15 +1162,15 @@ const MobileScheduleFlow = ({
         </ol>
       </div>
 
-      <div key={stage} className="satx-mobile-schedule-panel p-4">
+      <div key={stage} className="satx-guided-schedule-panel p-4 sm:p-6">
         {stage === "dates" && (
           <>
             <div>
-              <h4 className="text-base! font-semibold! text-white">
+              <h4 className="text-base! font-semibold! text-white sm:text-lg!">
                 Choose your date window
               </h4>
               <p className="mt-1 text-sm! leading-5 text-white/55">
-                Tap the first and last date that could work for you.
+                Select the first and last date that could work for you.
               </p>
             </div>
 
@@ -1295,7 +1187,7 @@ const MobileScheduleFlow = ({
               </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-4 sm:mx-auto sm:max-w-xl">
               <CalendarRangePicker
                 month={month}
                 selectedRange={preferredDateRange}
@@ -1305,7 +1197,7 @@ const MobileScheduleFlow = ({
               />
             </div>
 
-            <MobileScheduleActions
+            <ScheduleStageActions
               backLabel="Back"
               nextLabel={
                 hasStartedDateWindow && !hasValidDateWindow
@@ -1322,7 +1214,7 @@ const MobileScheduleFlow = ({
         {stage === "days" && (
           <>
             <div>
-              <h4 className="text-base! font-semibold! text-white">
+              <h4 className="text-base! font-semibold! text-white sm:text-lg!">
                 What days usually work?
               </h4>
               <p className="mt-1 text-sm! leading-5 text-white/55">
@@ -1343,7 +1235,7 @@ const MobileScheduleFlow = ({
               </p>
             )}
 
-            <MobileScheduleActions
+            <ScheduleStageActions
               backLabel="Dates"
               nextLabel={
                 availableDays.length > 0 ? "Continue" : "My days are flexible"
@@ -1360,7 +1252,7 @@ const MobileScheduleFlow = ({
         {stage === "time" && (
           <>
             <div>
-              <h4 className="text-base! font-semibold! text-white">
+              <h4 className="text-base! font-semibold! text-white sm:text-lg!">
                 Set your ideal time window
               </h4>
               <p className="mt-1 text-sm! leading-5 text-white/55">
@@ -1369,7 +1261,7 @@ const MobileScheduleFlow = ({
               </p>
             </div>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 flex items-center gap-2 text-sm font-medium text-white/65">
                   <Clock3 size={15} aria-hidden="true" />
@@ -1402,7 +1294,7 @@ const MobileScheduleFlow = ({
               confirmed with the artist later.
             </p>
 
-            <MobileScheduleActions
+            <ScheduleStageActions
               backLabel="Days"
               nextLabel="Confirm time"
               nextDisabled={!hasValidTimeWindow}
@@ -1415,7 +1307,7 @@ const MobileScheduleFlow = ({
         {stage === "summary" && (
           <>
             <div>
-              <h4 className="text-base! font-semibold! text-white">
+              <h4 className="text-base! font-semibold! text-white sm:text-lg!">
                 Your schedule at a glance
               </h4>
               <p className="mt-1 text-sm! leading-5 text-white/55">
@@ -1424,13 +1316,13 @@ const MobileScheduleFlow = ({
               </p>
             </div>
 
-            <div className="mt-4 space-y-2">
-              <MobileScheduleSummaryRow
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <ScheduleSummaryRow
                 label="Date window"
                 value={getDateRangeLabel(preferredDateRange)}
                 onEdit={() => onStageChange("dates")}
               />
-              <MobileScheduleSummaryRow
+              <ScheduleSummaryRow
                 label="Usual days"
                 value={
                   availableDays.length > 0
@@ -1439,14 +1331,14 @@ const MobileScheduleFlow = ({
                 }
                 onEdit={() => onStageChange("days")}
               />
-              <MobileScheduleSummaryRow
+              <ScheduleSummaryRow
                 label="Time window"
                 value={getTimeRangeLabel(availableTime)}
                 onEdit={() => onStageChange("time")}
               />
             </div>
 
-            <MobileScheduleActions
+            <ScheduleStageActions
               backLabel="Back"
               nextLabel="Review request"
               onBack={onBack}
@@ -1459,7 +1351,7 @@ const MobileScheduleFlow = ({
   );
 };
 
-const MobileScheduleActions = ({
+const ScheduleStageActions = ({
   backLabel,
   nextLabel,
   nextDisabled = false,
@@ -1476,7 +1368,7 @@ const MobileScheduleActions = ({
     <button
       type="button"
       onClick={onBack}
-      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.03] px-3.5! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10"
+      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! border border-white/10 bg-white/[0.03] px-3.5! py-2.5! text-xs! font-semibold text-white transition hover:bg-white/10 sm:px-5! sm:py-3! sm:text-sm!"
     >
       <ChevronLeft size={14} aria-hidden="true" />
       {backLabel}
@@ -1485,7 +1377,7 @@ const MobileScheduleActions = ({
       type="button"
       disabled={nextDisabled}
       onClick={onNext}
-      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! bg-white px-3.5! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+      className="modal-action-button inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg! bg-white px-3.5! py-2.5! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30 sm:px-5! sm:py-3! sm:text-sm!"
     >
       {nextLabel}
       <ChevronRight size={14} aria-hidden="true" />
@@ -1493,7 +1385,7 @@ const MobileScheduleActions = ({
   </div>
 );
 
-const MobileScheduleSummaryRow = ({
+const ScheduleSummaryRow = ({
   label,
   value,
   onEdit,
@@ -1502,7 +1394,7 @@ const MobileScheduleSummaryRow = ({
   value: string;
   onEdit: () => void;
 }) => (
-  <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 p-3">
+  <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 p-3 sm:min-h-32 sm:flex-col sm:items-stretch">
     <div className="min-w-0">
       <p className="text-[10px]! uppercase tracking-[0.14em] text-white/40">
         {label}
@@ -1512,7 +1404,7 @@ const MobileScheduleSummaryRow = ({
     <button
       type="button"
       onClick={onEdit}
-      className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2.5! py-2! text-xs! font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
+      className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2.5! py-2! text-xs! font-semibold text-white/75 transition hover:bg-white/10 hover:text-white sm:mt-auto sm:w-full"
     >
       Edit
     </button>

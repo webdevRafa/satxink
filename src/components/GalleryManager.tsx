@@ -3,6 +3,7 @@ import { db, storage } from "../firebase/firebaseConfig";
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -15,6 +16,7 @@ import {
 import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import {
   ArrowRight,
+  CircleAlert,
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
@@ -33,6 +35,33 @@ type SlideDirection = "next" | "prev";
 type GalleryArtistInfo = {
   avatarUrl?: string;
   displayName?: string;
+};
+
+const GALLERY_PROCESSING_STALE_AFTER_MS = 6 * 60 * 1000;
+
+const getGalleryProcessingStartedAt = (item: GalleryItem) => {
+  const value = item.processingStartedAt || item.createdAt;
+
+  if (value instanceof Date) return value.getTime();
+  if (
+    value &&
+    typeof value === "object" &&
+    "toMillis" in value &&
+    typeof value.toMillis === "function"
+  ) {
+    return value.toMillis();
+  }
+
+  return typeof item.timestamp === "number" ? item.timestamp : 0;
+};
+
+const isGalleryItemStalled = (item: GalleryItem) => {
+  if (item.status !== "processing") return false;
+  const startedAt = getGalleryProcessingStartedAt(item);
+  return (
+    startedAt > 0 &&
+    Date.now() - startedAt > GALLERY_PROCESSING_STALE_AFTER_MS
+  );
 };
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -59,7 +88,9 @@ const getGalleryAssetPaths = (item: GalleryItem) => {
   if (!item.artistId || !item.fileName) return null;
 
   const shouldProbeOriginalPreview =
-    item.status === "processing" || Boolean(item.originalPreviewPath);
+    item.status === "processing" ||
+    item.status === "failed" ||
+    Boolean(item.originalPreviewPath);
 
   return {
     thumbPath:
@@ -135,7 +166,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   const processedToastRef = useRef<Set<string>>(new Set());
 
   const previewItems = useMemo(
-    () => items.filter((item) => item.status !== "processing"),
+    () =>
+      items.filter(
+        (item) =>
+          item.status !== "failed" && hasReadyGalleryImageSet(item)
+      ),
     [items]
   );
 
@@ -215,7 +250,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
       const paths = getGalleryAssetPaths(item);
       const hasReadyImages = hasReadyGalleryImageSet(item);
       const needsImageRecovery = !hasReadyImages && Boolean(paths);
-      const needsStatusRecovery = item.status === "processing" && hasReadyImages;
+      const needsStatusRecovery = item.status !== "ready" && hasReadyImages;
       const needsOriginalRecovery =
         Boolean(paths?.originalPreviewPath) && !item.originalWebp90Url;
       const recoveryKey = `${item.id}:${item.fileName || ""}`;
@@ -261,19 +296,27 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                   fullPath: paths.fullPath,
                 }
               : {}),
-            ...(thumbUrl && webp90Url && fullUrl ? { status: "ready" } : {}),
+            ...(thumbUrl && webp90Url && fullUrl
+              ? {
+                  status: "ready",
+                  processingError: deleteField(),
+                  processingFailedAt: deleteField(),
+                }
+              : {}),
             ...(originalWebp90Url
               ? {
                   originalWebp90Url,
                   originalPreviewPath: paths?.originalPreviewPath,
                   originalFileName: item.originalFileName || item.fileName,
+                  originalProcessingStatus: "ready",
+                  originalProcessingError: deleteField(),
                 }
               : {}),
             updatedAt: serverTimestamp(),
           });
 
           if (
-            item.status === "processing" &&
+            item.status !== "ready" &&
             !processedToastRef.current.has(item.id)
           ) {
             processedToastRef.current.add(item.id);
@@ -348,12 +391,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div className="mt-6 w-full max-w-7xl space-y-8">
-      <section className="space-y-6">
+    <div className="mt-6 w-full max-w-7xl space-y-5 sm:space-y-6">
+      <section className="space-y-4">
         <div className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-3xl! font-semibold text-white">
-              Gallery Library
+              Gallery
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-neutral-400">
               Keep finished work polished, tagged, and ready for clients to
@@ -366,31 +409,15 @@ const GalleryManager = ({ uid }: { uid: string }) => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 backdrop-blur sm:p-4 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-0">
-          <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)] sm:h-10 sm:w-10">
-                <ImageIcon size={18} aria-hidden="true" />
-              </span>
-              <div>
-                <h2 className="mb-0! text-base! sm:text-lg!">
-                  Gallery actions
-                </h2>
-                <p className="text-sm text-neutral-400">
-                  Add finished work and keep portfolio pieces ready for clients.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsUploadOpen(true)}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white px-3! text-xs! font-semibold text-black transition hover:bg-zinc-200 sm:w-auto sm:px-4!"
-            >
-              <Upload size={16} />
-              Add work
-            </button>
-          </div>
+        <div className="flex justify-stretch sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setIsUploadOpen(true)}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white px-4! text-xs! font-semibold text-black transition hover:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:w-auto sm:min-w-[140px]"
+          >
+            <Upload size={16} aria-hidden="true" />
+            Add work
+          </button>
         </div>
       </section>
 
@@ -404,28 +431,9 @@ const GalleryManager = ({ uid }: { uid: string }) => {
         />
       )}
 
-      <section>
-        <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-red-300">
-              Portfolio pieces
-            </p>
-            <h2 className="mt-2 text-2xl! font-bold text-white">
-              Gallery work
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Open any piece to preview it, or manage details from the card.
-            </p>
-          </div>
-          {items.length > 0 && (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3! py-1.5! text-xs font-semibold text-zinc-300">
-              {items.length} total
-            </span>
-          )}
-        </div>
-
+      <section aria-label="Gallery pieces">
         {items.length === 0 ? (
-          <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
+          <div className="rounded-[1.5rem] border border-white/10 bg-[#121212] p-8 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-red-300">
               <ImageIcon size={22} />
             </span>
@@ -446,14 +454,19 @@ const GalleryManager = ({ uid }: { uid: string }) => {
             </button>
           </div>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {items.map((item, index) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
                 : [];
               const cardImageUrl = getGalleryCardImageUrl(item);
+              const isFailed =
+                item.status === "failed" || isGalleryItemStalled(item);
               const isProcessing =
-                item.status === "processing" || !hasReadyGalleryImageSet(item);
+                !isFailed &&
+                (item.status === "processing" ||
+                  !hasReadyGalleryImageSet(item));
+              const isUnavailable = isProcessing || isFailed;
 
               return (
                 <article
@@ -462,12 +475,24 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                 >
                   <button
                     type="button"
-                    onClick={() => !isProcessing && openPortfolioItem(item)}
+                    onClick={() => !isUnavailable && openPortfolioItem(item)}
                     className="block w-full text-left"
-                    disabled={isProcessing}
+                    disabled={isUnavailable}
                   >
                     <div className="relative aspect-[4/3] overflow-hidden bg-black">
-                      {isProcessing ? (
+                      {isFailed ? (
+                        <div className="relative flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden bg-[#100b0b] px-5 text-center">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full border border-red-300/15 bg-red-500/10 text-red-200">
+                            <CircleAlert size={19} aria-hidden="true" />
+                          </span>
+                          <span className="text-sm font-semibold text-white">
+                            Upload could not finish
+                          </span>
+                          <span className="max-w-52 text-xs leading-5 text-zinc-500">
+                            Remove this item and upload the photo again.
+                          </span>
+                        </div>
+                      ) : isProcessing ? (
                         <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#080808]">
                           <div
                             className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_56%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.08)_44%,transparent_68%)] opacity-35 animate-pulse"
@@ -486,7 +511,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                         />
                       )}
 
-                      {!isProcessing && (
+                      {!isUnavailable && (
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-4">
                           <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3! py-1.5! text-xs font-semibold text-white backdrop-blur">
                             <ImageIcon size={14} />
@@ -501,9 +526,11 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                     <div className="flex items-start justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => !isProcessing && openPortfolioItem(item)}
+                        onClick={() =>
+                          !isUnavailable && openPortfolioItem(item)
+                        }
                         className="min-w-0 flex-1 text-left"
-                        disabled={isProcessing}
+                        disabled={isUnavailable}
                       >
                         <h3 className="truncate text-lg! font-bold text-white">
                           {item.caption || "Untitled piece"}
@@ -521,10 +548,12 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => !isProcessing && openPortfolioItem(item)}
+                          onClick={() =>
+                            !isUnavailable && openPortfolioItem(item)
+                          }
                           className="rounded-full border border-white/10 bg-white/5 p-2! text-zinc-300 transition group-hover:bg-white group-hover:text-black"
                           aria-label={`Open ${item.caption || "gallery item"}`}
-                          disabled={isProcessing}
+                          disabled={isUnavailable}
                         >
                           <ArrowRight size={15} />
                         </button>
@@ -932,11 +961,16 @@ const EditGalleryItemModal = ({
   const [caption, setCaption] = useState(item.caption || "");
   const [tags, setTags] = useState<string[]>(item.tags || []);
   const [warning, setWarning] = useState<string | null>(null);
+  const isFailed = item.status === "failed" || isGalleryItemStalled(item);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-6 backdrop-blur-xl request-modal-scrollbar sm:py-8">
-      <div className="flex min-h-full items-center justify-center">
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:min-h-[min(760px,88vh)] md:grid-cols-[0.9fr_1.15fr]">
+    <div className="fixed inset-x-0 bottom-0 top-[4.75rem] z-[80] flex items-start justify-center overflow-hidden overscroll-contain bg-black/80 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-xl md:inset-0 md:items-center md:px-4 md:py-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-editor-title"
+        className="request-modal-scrollbar relative grid max-h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] w-full max-w-5xl overflow-y-auto overscroll-contain rounded-[1.25rem] border border-white/10 bg-[#111111] text-white shadow-2xl md:max-h-[88vh] md:min-h-[min(760px,88vh)] md:grid-cols-[0.9fr_1.15fr] md:overflow-hidden"
+      >
         <button
           type="button"
           onClick={onClose}
@@ -951,40 +985,73 @@ const EditGalleryItemModal = ({
             Manage gallery
           </p>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
-            <img
-              src={item.thumbUrl || item.webp90Url || item.fullUrl}
-              alt={item.caption || "Gallery preview"}
-              className="aspect-[4/3] w-full object-cover"
-            />
+            {isFailed ? (
+              <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 bg-[#100b0b] px-6 text-center">
+                <CircleAlert
+                  size={26}
+                  className="text-red-200"
+                  aria-hidden="true"
+                />
+                <p className="text-sm font-semibold text-white">
+                  No gallery image was published
+                </p>
+              </div>
+            ) : (
+              <img
+                src={item.thumbUrl || item.webp90Url || item.fullUrl}
+                alt={item.caption || "Gallery preview"}
+                className="aspect-[4/3] w-full object-cover"
+              />
+            )}
           </div>
         </div>
 
-        <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-5 request-modal-scrollbar md:max-h-[88vh] md:p-6">
-          <h2 className="text-2xl! font-bold text-white">Edit gallery work</h2>
+        <div className="p-5 md:max-h-[88vh] md:overflow-y-auto md:p-6 request-modal-scrollbar">
+          <h2
+            id="gallery-editor-title"
+            className="text-2xl! font-bold text-white"
+          >
+            {isFailed ? "Upload needs attention" : "Edit gallery work"}
+          </h2>
 
-          <label className="mt-6 block">
-            <span className="text-sm font-semibold text-zinc-300">Title</span>
-            <input
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
-              placeholder="Enter title"
-            />
-          </label>
+          {isFailed ? (
+            <p className="mt-4 max-w-lg text-sm leading-6 text-zinc-400">
+              The photo could not be optimized into the gallery image set.
+              Delete this item, then upload the original photo again.
+            </p>
+          ) : (
+            <>
+              <label className="mt-6 block">
+                <span className="text-sm font-semibold text-zinc-300">
+                  Title
+                </span>
+                <input
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
+                  placeholder="Enter title"
+                />
+              </label>
 
-          <AnimatedTagInput
-            className="mt-4"
-            value={tags}
-            onChange={(nextTags) => {
-              setTags(nextTags);
-              setWarning(null);
-            }}
-            label="Tags"
-            maxTags={6}
-            onLimitExceeded={() => setWarning("You can only add up to 6 tags.")}
-            emptyPlaceholder="Type a tag, then press comma or space"
-          />
-          {warning && <p className="mt-2 text-xs text-rose-200!">{warning}</p>}
+              <AnimatedTagInput
+                className="mt-4"
+                value={tags}
+                onChange={(nextTags) => {
+                  setTags(nextTags);
+                  setWarning(null);
+                }}
+                label="Tags"
+                maxTags={6}
+                onLimitExceeded={() =>
+                  setWarning("You can only add up to 6 tags.")
+                }
+                emptyPlaceholder="Type a tag, then press comma or space"
+              />
+              {warning && (
+                <p className="mt-2 text-xs text-rose-200!">{warning}</p>
+              )}
+            </>
+          )}
 
           <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
@@ -1002,17 +1069,18 @@ const EditGalleryItemModal = ({
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={() => onSave(item.id, caption, tags)}
-                className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"
-              >
-                Save changes
-              </button>
+              {!isFailed && (
+                <button
+                  type="button"
+                  onClick={() => onSave(item.id, caption, tags)}
+                  className="modal-action-button rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-zinc-200"
+                >
+                  Save changes
+                </button>
+              )}
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );

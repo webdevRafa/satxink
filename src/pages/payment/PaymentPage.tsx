@@ -25,11 +25,7 @@ import { getAllocationForSession } from "../../utils/projectPayments";
 
 type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
 
-const getFinalPaymentTermsLabel = (booking: Booking) => {
-  if (booking.finalPaymentTiming !== "before") return "After appointment";
-  const deadlineHours = booking.finalPaymentDeadlineHours === 48 ? 48 : 24;
-  return `${deadlineHours} hours before`;
-};
+const getFinalPaymentTermsLabel = () => "At shop after session";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
@@ -126,10 +122,11 @@ const PaymentPage = () => {
 
     if (
       booking.status === "deposit_paid" &&
-      booking.remainingPaymentMethod === "external" &&
       checkoutPaymentMode !== "platform_fee"
     ) {
-      toast.success("Your remaining balance will be settled with the artist.");
+      toast.success(
+        "Your remaining balance is settled with the artist at the shop."
+      );
       navigate("/dashboard");
       return;
     }
@@ -255,8 +252,7 @@ const PaymentPage = () => {
     0
   );
   const usesExternalRemaining =
-    booking.remainingPaymentMethod === "external" &&
-    externalRemainingAmount > 0;
+    booking.status === "deposit_paid" && externalRemainingAmount > 0;
   const isPlatformFeeCheckout =
     usesExternalRemaining &&
     pendingPlatformFeeCents > 0 &&
@@ -417,7 +413,7 @@ const PaymentPage = () => {
                   <h2 className="mt-1 text-lg! font-semibold text-white">
                     {usesProtectedSessionPayments
                       ? paymentMode === "remaining"
-                        ? "After-session balance"
+                        ? "Shop balance"
                         : "Session deposit"
                       : !shouldShowPaymentChoice
                       ? isMultiSession
@@ -427,16 +423,16 @@ const PaymentPage = () => {
                       ? isPlatformFeeCheckout
                         ? "Platform fee due"
                         : usesExternalRemaining
-                        ? "Direct balance"
+                        ? "Shop balance"
                         : isMultiSession
                         ? `Pay ${sessionPaymentLabel}`
-                        : "Pay remaining balance"
+                        : "Shop balance"
                       : "Choose how much to pay today"}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                     {usesProtectedSessionPayments
                       ? paymentMode === "remaining"
-                        ? "This exact balance became due only after the artist marked the session complete."
+                        ? "This balance is settled with your artist at the shop after the session."
                         : "This checkout collects only the active session deposit. The rest cannot be paid until after tattooing."
                       : !shouldShowPaymentChoice
                       ? `This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
@@ -444,7 +440,7 @@ const PaymentPage = () => {
                       ? isPlatformFeeCheckout
                         ? "This fee covers the SATX Ink platform difference from your accepted project amendment."
                         : usesExternalRemaining
-                        ? "Your appointment is confirmed with the deposit. The remaining artist balance is handled directly with the artist."
+                        ? "Your appointment is confirmed with the deposit. The remaining balance is settled with the artist at the shop."
                         : isMultiSession
                         ? `Your appointment is confirmed. This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
                         : "Your appointment is confirmed. This payment clears the remaining artist balance."
@@ -526,8 +522,8 @@ const PaymentPage = () => {
                     ) : (
                       usesExternalRemaining && (
                         <p className="mt-2 text-sm leading-6 text-emerald-50/75">
-                          Both you and the artist will be able to confirm the
-                          direct payment after the session is completed.
+                          Your artist records the shop payment after it is
+                          received.
                         </p>
                       )
                     )}
@@ -615,7 +611,7 @@ const PaymentPage = () => {
                 label="Payment"
                 value={
                   usesExternalRemaining
-                    ? "Stripe deposit + direct balance"
+                    ? "Stripe deposit + shop balance"
                     : isInternalPayment
                     ? "Stripe checkout"
                     : "Direct payment"
@@ -624,7 +620,7 @@ const PaymentPage = () => {
               <DetailTile
                 icon={<ShieldCheck size={17} />}
                 label="Final terms"
-                value={getFinalPaymentTermsLabel(booking)}
+                value={getFinalPaymentTermsLabel()}
               />
               {typeof booking.estimatedHoursPerSession === "number" &&
                 booking.estimatedHoursPerSession > 0 && (
@@ -670,7 +666,7 @@ const PaymentPage = () => {
                     isPlatformFeeCheckout
                       ? "Artist amount"
                       : externalBalanceDue
-                      ? "Direct balance"
+                      ? "Shop balance"
                       : paymentMode === "full"
                       ? "Full artist amount"
                       : paymentMode === "remaining"
@@ -734,13 +730,7 @@ const PaymentPage = () => {
                             Math.round(remainingAfterPayment * 100)
                           )}
                         </span>
-                        {usesExternalRemaining
-                          ? " and will be paid directly to the artist."
-                          : booking.finalPaymentTiming === "before"
-                          ? " and may be collected before your appointment."
-                          : " and may be collected after the session with your artist."}
-                        {!usesExternalRemaining &&
-                          " A second checkout for that balance will include its own Stripe processing fee."}
+                        {" and will be settled with the artist at the shop after the session."}
                       </>
                     ) : (
                       "This non-refundable payment secures your appointment and covers the artist quote."
