@@ -1,14 +1,12 @@
-// /pages/TermsOfService.tsx
-// /pages/TermsOfService.tsx
 export default function TermsOfService() {
   return (
-    <div className="prose prose-invert max-w-4xl mx-auto px-6 py-40 text-sm">
-      <h1 className="text-center text-3xl font-bold mb-6">Terms of Service</h1>
+    <div className="prose prose-invert mx-auto max-w-4xl px-6 py-40 text-sm">
+      <h1 className="mb-6 text-center text-3xl font-bold">Terms of Service</h1>
 
       <p className="mb-20">
-        By using <strong>SATX INK</strong>, you agree to the following terms.
-        These terms are in place to protect both clients and artists and ensure
-        a respectful, safe, and transparent booking experience.
+        By using <strong>SATX INK</strong>, you agree to these terms. They are
+        intended to support a respectful, safe, and transparent flash-tattoo
+        booking experience for clients and artists.
       </p>
 
       <div className="mb-10">
@@ -16,101 +14,90 @@ export default function TermsOfService() {
         <p>
           SATX INK is intended for users and visitors who are 18 years of age or
           older. The platform may display tattoo and body-art imagery with
-          mature themes, and by continuing to use the site you acknowledge that
-          you are at least 18 and comfortable viewing this content.
+          mature themes. By continuing, you confirm that you are at least 18
+          and comfortable viewing this content.
+        </p>
+      </div>
+
+      <div className="mb-10">
+        <h2>Flash Designs and Availability</h2>
+        <p>
+          Artists publish the flash designs, prices, repeatability, and
+          availability shown on SATX INK. Submitting a request does not reserve
+          a design or confirm an appointment. A booking is confirmed only after
+          the artist sends an offer, the client accepts an appointment option,
+          and the required deposit is successfully paid.
+        </p>
+        <p>
+          One-of-one flash may become unavailable while another request is being
+          completed. Repeatable flash may be booked more than once at the
+          artist&apos;s discretion.
+        </p>
+      </div>
+
+      <div className="mb-10">
+        <h2>Deposits and Booking</h2>
+        <p>
+          Each flash appointment requires a deposit through Stripe. The amount
+          is displayed before checkout and reserves the selected appointment
+          with the artist. Deposits are non-refundable unless the artist or
+          applicable law requires otherwise.
+        </p>
+        <p>
+          SATX INK processes only the booking deposit. The remaining balance is
+          paid directly to the artist at the shop after the appointment and may
+          be marked paid by the artist in SATX INK.
+        </p>
+      </div>
+
+      <div className="mb-10">
+        <h2>Cancellations and Rescheduling</h2>
+        <p>
+          If a client cancels or requests a new time, the artist may require a
+          new deposit. Artists are not obligated to refund a deposit when a
+          client cancels or reschedules, subject to applicable law and any terms
+          shown before payment.
         </p>
       </div>
 
       <div className="mb-10">
         <h2>User Conduct</h2>
         <p>
-          Users agree to communicate respectfully and honestly with artists and
-          other users. Any form of harassment, spam, or abuse may result in
-          account suspension or removal from the platform.
-        </p>
-      </div>
-
-      <div className="mb-10">
-        <h2>Deposits & Booking</h2>
-        <p>
-          To confirm a tattoo appointment, clients are required to pay a
-          non-refundable deposit. This deposit reserves your time with the
-          artist and allows them to begin preparing for your session.
-        </p>
-        <p>
-          The deposit amount is set by the artist and displayed at the time of
-          booking. This deposit is{" "}
-          <strong>non-refundable under all circumstances</strong>.
-        </p>
-        <p>
-          For custom tattoos, each session is booked separately. A session
-          deposit cannot exceed 50% of that session&apos;s artist quote, and
-          SATX INK does not offer prepayment of an entire custom project or an
-          entire custom-tattoo session.
-        </p>
-      </div>
-
-      <div className="mb-10">
-        <h2>Session Balances & Cancellations</h2>
-        <p>
-          The unpaid balance for a custom-tattoo session becomes due only after
-          the artist marks that session complete and is settled directly with
-          the artist at the shop. The artist records the shop payment in SATX
-          INK after it is received.
-        </p>
-        <p>
-          Multi-session projects are divided into session allocations. Each new
-          session requires its own deposit before it begins, and the balance for
-          one session must be settled before the next session is scheduled.
-          Failure to pay a completed session balance may pause the project or
-          result in account restrictions.
-        </p>
-        <p>
-          If you cancel your appointment <strong>within 24 hours</strong> of the
-          scheduled time, the session deposit remains non-refundable to
-          compensate the artist for reserved time and preparation.
-        </p>
-      </div>
-
-      <div className="mb-10">
-        <h2>Rescheduling</h2>
-        <p>
-          If you need to reschedule, you may be required to coordinate new
-          available dates with the artist. Artists are not obligated to refund
-          deposits if rescheduling is requested without reasonable notice.
+          Users must communicate respectfully and provide accurate booking
+          information. Harassment, spam, fraud, abuse, or misuse of the platform
+          may result in account restriction or removal.
         </p>
       </div>
 
       <div className="mb-10">
         <h2>Artist Responsibility</h2>
         <p>
-          Artists are responsible for maintaining accurate availability,
-          responding to booking requests promptly, and fulfilling appointments
-          professionally. Repeated cancellations or no-shows may result in
-          removal from the platform.
+          Artists are responsible for the accuracy of their flash listings,
+          prices, availability, licensing, shop information, and appointment
+          services. Artists must comply with applicable health, safety, and
+          professional requirements.
         </p>
       </div>
 
       <div className="mb-10">
         <h2>Platform Responsibility</h2>
         <p>
-          SATX INK is a facilitator of appointments and is not liable for the
-          outcome of any tattoo session, including artistic quality or
-          health-related concerns. Users should do their own due diligence when
-          booking.
+          SATX INK provides marketplace, scheduling, and deposit-payment tools.
+          It does not perform tattoo services and does not guarantee an
+          appointment, a particular artistic outcome, or the conduct of a user.
+          Clients should review the artist and shop before booking.
         </p>
       </div>
 
       <div className="mb-10">
         <h2>Changes to These Terms</h2>
         <p>
-          SATX INK reserves the right to update these terms at any time.
-          Continued use of the platform after changes are published constitutes
-          acceptance of the updated terms.
+          SATX INK may update these terms. Continued use after revised terms are
+          published constitutes acceptance of the updated terms.
         </p>
 
-        <p className="mt-20 text-center text-gray-400 text-xs">
-          Last updated: July 23, 2026
+        <p className="mt-20 text-center text-xs text-gray-400">
+          Last updated: August 7, 2026
         </p>
       </div>
     </div>

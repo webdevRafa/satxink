@@ -117,6 +117,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/bookingRequests/$(requestId);
     }
 
+    function flashPath(flashId) {
+      return /databases/$(database)/documents/flashes/$(flashId);
+    }
+
     function offerPath(offerId) {
       return /databases/$(database)/documents/offers/$(offerId);
     }
@@ -142,11 +146,39 @@ service cloud.firestore {
 
     function offerMatchesRequest() {
       return request.resource.data.requestId is string &&
+        request.resource.data.sourceType == "flash" &&
+        request.resource.data.flashId is string &&
         exists(requestPath(request.resource.data.requestId)) &&
         get(requestPath(request.resource.data.requestId)).data.artistId ==
           request.auth.uid &&
         get(requestPath(request.resource.data.requestId)).data.clientId ==
-          request.resource.data.clientId;
+          request.resource.data.clientId &&
+        get(requestPath(request.resource.data.requestId)).data.sourceType ==
+          "flash" &&
+        get(requestPath(request.resource.data.requestId)).data.flashId ==
+          request.resource.data.flashId &&
+        exists(flashPath(request.resource.data.flashId)) &&
+        get(flashPath(request.resource.data.flashId)).data.artistId ==
+          request.auth.uid &&
+        get(flashPath(request.resource.data.flashId)).data.marketplaceReady ==
+          true &&
+        request.resource.data.price ==
+          get(flashPath(request.resource.data.flashId)).data.price &&
+        request.resource.data.flashPrice ==
+          get(flashPath(request.resource.data.flashId)).data.price &&
+        request.resource.data.depositPolicy.amount is number &&
+        request.resource.data.depositPolicy.amount > 0 &&
+        request.resource.data.depositPolicy.amount <=
+          request.resource.data.price * 0.5 &&
+        !request.resource.data.keys().hasAny([
+          "projectType",
+          "estimatedSessionCount",
+          "sessionAllocations",
+          "sessionPricingStrategy",
+          "sessionPaymentPlan",
+          "sessionScheduling",
+          "sessionInstallmentTiming"
+        ]);
     }
 
     function acceptedOfferMatches(offerId) {
@@ -305,13 +337,14 @@ service cloud.firestore {
 
     function safeBookingRequestClientUpdate() {
       return request.auth.uid == resource.data.clientId &&
+        resource.data.sourceType == "flash" &&
         changedKeys().hasOnly([
-          "fullUrl",
-          "thumbUrl",
-          "referenceImages",
-          "referenceCleanupAt",
+          "status",
+          "cancelledAt",
           "updatedAt"
-        ]);
+        ]) &&
+        resource.data.status == "pending" &&
+        request.resource.data.status == "cancelled";
     }
 
     function safeBookingRequestArtistUpdate() {
@@ -321,9 +354,6 @@ service cloud.firestore {
           "declinedAt",
           "offeredAt",
           "referenceCleanupAt",
-          "offerPreparationStatus",
-          "offerPreparationEta",
-          "offerPreparationUpdatedAt",
           "updatedAt"
         ]) &&
         validRequestStatus();
@@ -356,10 +386,10 @@ service cloud.firestore {
           "declinedAt",
           "declinedReason",
           "declinedReasonLabel",
-          "bookingId",
           "updatedAt"
         ]) &&
-        validOfferStatus();
+        resource.data.status == "pending" &&
+        request.resource.data.status == "declined";
     }
 
     function safeOfferArtistUpdate() {
@@ -495,13 +525,7 @@ service cloud.firestore {
 
     match /bookingRequests/{requestId} {
       allow read: if isAdmin() || isParticipant(resource.data);
-      allow create: if isAdmin() ||
-        (
-          isClient() &&
-          request.resource.data.clientId == request.auth.uid &&
-          request.resource.data.artistId is string &&
-          request.resource.data.status == "pending"
-        );
+      allow create: if isAdmin();
       allow update: if isAdmin() || safeBookingRequestUpdate();
       allow delete: if isAdmin();
     }
@@ -521,28 +545,14 @@ service cloud.firestore {
 
     match /bookingOffers/{offerId} {
       allow read: if isAdmin() || isParticipant(resource.data);
-      allow create: if isAdmin() ||
-        (
-          isArtist() &&
-          request.resource.data.artistId == request.auth.uid &&
-          request.resource.data.status == "pending" &&
-          offerMatchesRequest()
-        );
+      allow create: if isAdmin();
       allow update: if isAdmin() || safeOfferParticipantUpdate();
       allow delete: if isAdmin();
     }
 
     match /bookings/{bookingId} {
       allow read: if isAdmin() || isParticipant(resource.data);
-      allow create: if isAdmin() ||
-        (
-          isClient() &&
-          (
-            !request.resource.data.keys().hasAny(["paymentModelVersion"]) ||
-            request.resource.data.paymentModelVersion != 2
-          ) &&
-          validBookingCreate()
-        );
+      allow create: if isAdmin();
       allow update: if isAdmin() || safeBookingParticipantUpdate();
       allow delete: if isAdmin();
 

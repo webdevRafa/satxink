@@ -201,51 +201,6 @@ const formatEstimatedSessionLength = (
   return `${hours} ${hours === 1 ? "hour" : "hours"}`;
 };
 
-const getEstimatedSessionCountLabel = (
-  data: admin.firestore.DocumentData
-) => {
-  if (data.sourceType === "flash") return "";
-  const count = getNumber(data, "estimatedSessionCount");
-  return count !== null && count > 0 ? `${Math.floor(count)}` : "1";
-};
-
-const getSessionPriceLabel = (data: admin.firestore.DocumentData) => {
-  if (data.sourceType === "flash") return "";
-
-  const firstAllocation = Array.isArray(data.sessionAllocations)
-    ? data.sessionAllocations.find(
-        (allocation: unknown) =>
-          allocation &&
-          typeof allocation === "object" &&
-          Number(
-            (allocation as admin.firestore.DocumentData).sessionNumber || 1
-          ) === 1
-      )
-    : null;
-  const quotedAmountCents =
-    firstAllocation &&
-    typeof (firstAllocation as admin.firestore.DocumentData)
-      .quotedAmountCents === "number"
-      ? (firstAllocation as admin.firestore.DocumentData).quotedAmountCents
-      : null;
-
-  if (quotedAmountCents !== null) {
-    return formatMoneyFromCents(quotedAmountCents);
-  }
-
-  const estimatedSessionPrice = getNumber(data, "estimatedSessionPrice");
-  return estimatedSessionPrice === null
-    ? ""
-    : formatMoney(estimatedSessionPrice);
-};
-
-const getProjectTypeLabel = (data: admin.firestore.DocumentData) => {
-  if (data.sourceType === "flash") return "";
-  return data.projectType === "multi_session"
-    ? "Multi-session project"
-    : "Single-session project";
-};
-
 const formatDate = (value: unknown) => {
   if (typeof value !== "string" || !value.trim()) return "";
   const [year, month, day] = value.split("-").map((part) => Number(part));
@@ -289,11 +244,6 @@ const formatAvailableTime = (value: unknown) => {
   const to = firstString(data.to);
   if (from && to) return `${from} - ${to}`;
   return from || to || "";
-};
-
-const formatBudget = (value: unknown) => {
-  if (typeof value === "number") return formatMoney(value);
-  return firstString(value);
 };
 
 const renderRows = (rows: DetailRow[] = []) => {
@@ -622,10 +572,10 @@ const renderClientWelcomeEmail = (
   const email = getUserEmail(user);
 
   return buildEmail("Welcome to SATX Ink", {
-    preview: "Find the right San Antonio tattoo artist for your idea.",
-    headline: "Discover San Antonio tattoo artists who fit your style.",
+    preview: "Discover available flash from San Antonio tattoo artists.",
+    headline: "Find local flash that fits your style.",
     body:
-      "Browse local artist profiles, explore their work and flash, and send your tattoo idea directly when it feels like the right fit.",
+      "Browse local artist profiles, explore available flash, and request a design when it feels like the right fit.",
     avatarUrl: firstString(user.avatarUrl),
     avatarAlt: name,
     sections: [
@@ -656,11 +606,11 @@ const renderArtistWelcomeEmail = (
     : [];
 
   return buildEmail("Welcome to SATX Ink for Artists", {
-    preview: "Manage requests, offers, and bookings from one dashboard.",
+    preview: "Publish flash and manage requests, offers, and bookings from one dashboard.",
     eyebrow: "Welcome, artist",
     headline: "Start connecting with clients",
     body:
-      "Use your dashboard to manage requests, send offers, and keep your booking flow organized as you finish getting set up.",
+      "Use your dashboard to publish flash, manage requests, send offers, and keep every appointment organized.",
     avatarUrl: firstString(user.avatarUrl),
     avatarAlt: name,
     sections: [
@@ -731,17 +681,18 @@ const renderRequestEmail = (
 ): EmailTemplate => {
   const artistName = getArtistName(request, artist);
   const clientName = getClientName(request, client);
-  const requestImage = firstString(request.thumbUrl, request.fullUrl);
-  const sourceLabel =
-    request.sourceType === "flash"
-      ? firstString(request.flashTitle, "Flash request")
-      : "Custom tattoo request";
+  const requestImage = firstString(
+    request.thumbUrl,
+    request.flashImageUrl,
+    request.fullUrl
+  );
+  const sourceLabel = firstString(request.flashTitle, "Flash request");
 
   return buildEmail(`Your request was sent to ${artistName}`, {
-    preview: `We sent your tattoo request to ${artistName}.`,
+    preview: `We sent your flash request to ${artistName}.`,
     eyebrow: "Request sent",
-    headline: "Your tattoo request is in.",
-    body: `We sent your request to ${artistName}. You will get an update when they reply with an offer or follow-up.`,
+    headline: "Your flash request is in.",
+    body: `We sent your request to ${artistName}. You will get an update when they reply with an offer.`,
     avatarUrl: getArtistAvatar(request, artist),
     avatarAlt: artistName,
     heroImageUrl: requestImage,
@@ -752,18 +703,14 @@ const renderRequestEmail = (
         rows: [
           { label: "Client", value: clientName },
           { label: "Artist", value: artistName },
-          { label: "Type", value: sourceLabel },
+          { label: "Flash", value: sourceLabel },
+          { label: "Listed price", value: formatMoney(getNumber(request, "flashPrice") || 0) },
           { label: "Placement", value: getString(request, "bodyPlacement") },
           { label: "Size", value: getString(request, "size") },
-          { label: "Budget", value: formatBudget(request.budget) },
           { label: "Preferred dates", value: formatDateRange(request.preferredDateRange) },
           { label: "Available time", value: formatAvailableTime(request.availableTime) },
           { label: "Available days", value: formatList(request.availableDays) },
         ],
-      },
-      {
-        title: "Notes",
-        body: getString(request, "description"),
       },
     ],
     cta: {
@@ -790,14 +737,22 @@ const renderOfferEmail = (
     typeof offer.depositPolicy?.amount === "number"
       ? offer.depositPolicy.amount
       : null;
-  const sourceImage = firstString(offer.thumbUrl, offer.fullUrl);
+  const sourceImage = firstString(
+    offer.thumbUrl,
+    offer.flashImageUrl,
+    offer.fullUrl
+  );
+  const shopBalance =
+    price !== null && depositAmount !== null
+      ? Math.max(price - depositAmount, 0)
+      : null;
 
   return buildEmail(`${artistName} sent you an offer`, {
-    preview: `Review the quote and appointment options from ${artistName}.`,
+    preview: `Review the flash booking details from ${artistName}.`,
     eyebrow: "New offer",
     headline: `You have a new offer from ${artistName}.`,
     body:
-      "Review the quote, deposit, appointment options, and studio details before choosing what works best.",
+      "Review the listed price, deposit, appointment options, and studio details before choosing what works best.",
     avatarUrl: getArtistAvatar(offer, artist),
     avatarAlt: artistName,
     heroImageUrl: sourceImage,
@@ -808,30 +763,23 @@ const renderOfferEmail = (
         rows: [
           { label: "Client", value: getClientName(offer, client) },
           { label: "Artist", value: artistName },
-          { label: "Quote", value: price === null ? "" : formatMoney(price) },
-          { label: "Project", value: getProjectTypeLabel(offer) },
+          { label: "Flash", value: firstString(offer.flashTitle) },
+          { label: "Listed price", value: price === null ? "" : formatMoney(price) },
           {
-            label: "Estimated sessions",
-            value: getEstimatedSessionCountLabel(offer),
-          },
-          {
-            label: "Estimated session length",
+            label: "Estimated appointment length",
             value: formatEstimatedSessionLength(offer),
           },
-          { label: "Price per session", value: getSessionPriceLabel(offer) },
           {
-            label:
-              offer.sourceType === "flash"
-                ? "Deposit"
-                : "Deposit per session",
+            label: "Deposit",
             value:
               depositAmount === null ? "" : formatMoney(depositAmount),
           },
-          { label: "Payment", value: firstString(offer.paymentType) },
-          { label: "Final payment", value: firstString(offer.finalPaymentTiming) },
+          {
+            label: "Balance at shop",
+            value: shopBalance === null ? "" : formatMoney(shopBalance),
+          },
           { label: "Studio", value: firstString(offer.shopName, shop?.name) },
           { label: "Address", value: firstString(offer.shopAddress, shop?.address) },
-          { label: "Flash", value: firstString(offer.flashTitle) },
         ],
       },
       {
@@ -871,7 +819,11 @@ const renderBookingReadyEmail = (
       "You accepted the offer. Complete the required payment to confirm your appointment.",
     avatarUrl: getArtistAvatar(booking, artist),
     avatarAlt: artistName,
-    heroImageUrl: firstString(booking.sampleImageUrl),
+    heroImageUrl: firstString(
+      booking.thumbUrl,
+      booking.flashImageUrl,
+      booking.fullUrl
+    ),
     heroImageAlt: firstString(booking.flashTitle, "Booking image"),
     sections: [
       {
@@ -881,26 +833,17 @@ const renderBookingReadyEmail = (
           { label: "Appointment", value: formatAppointment(booking.selectedDate) },
           { label: "Studio", value: getString(booking, "shopName") },
           { label: "Address", value: getString(booking, "shopAddress") },
-          { label: "Quote", value: price === null ? "" : formatMoney(price) },
-          { label: "Project", value: getProjectTypeLabel(booking) },
+          { label: "Flash", value: getString(booking, "flashTitle") },
+          { label: "Listed price", value: price === null ? "" : formatMoney(price) },
           {
-            label: "Estimated sessions",
-            value: getEstimatedSessionCountLabel(booking),
-          },
-          {
-            label: "Estimated session length",
+            label: "Estimated appointment length",
             value: formatEstimatedSessionLength(booking),
           },
-          { label: "Price per session", value: getSessionPriceLabel(booking) },
           {
-            label:
-              booking.sourceType === "flash"
-                ? "Deposit due"
-                : "Session deposit due",
+            label: "Deposit due",
             value: deposit === null ? "" : formatMoney(deposit),
           },
-          { label: "Remaining balance", value: remaining === null ? "" : formatMoney(remaining) },
-          { label: "Flash", value: getString(booking, "flashTitle") },
+          { label: "Balance paid at shop", value: remaining === null ? "" : formatMoney(remaining) },
         ],
       },
     ],
@@ -912,40 +855,20 @@ const renderBookingReadyEmail = (
   });
 };
 
-const getPaymentHeadline = (booking: admin.firestore.DocumentData) => {
-  const mode = firstString(booking.checkoutPaymentMode, booking.paymentMode);
-  if (mode === "remaining" && Number(booking.estimatedSessionCount || 1) > 1) {
-    return "Session payment received.";
-  }
-  if (mode === "remaining") return "Balance payment received.";
-  if (mode === "platform_fee") return "Platform fee payment received.";
-  if (mode === "full") return "Payment received - your booking is confirmed.";
-  return "Deposit received - your booking is confirmed.";
-};
-
-const getPaymentAmount = (booking: admin.firestore.DocumentData) => {
-  const mode = firstString(booking.checkoutPaymentMode, booking.paymentMode);
-  if (mode === "deposit") return formatMoneyFromCents(booking.depositPaidAmountCents);
-  if (mode === "remaining") return formatMoneyFromCents(booking.remainingPaidAmountCents);
-  if (mode === "platform_fee") return formatMoneyFromCents(booking.platformFeeCents);
-  return formatMoneyFromCents(booking.clientPaymentAmountCents);
-};
-
 const renderPaymentEmail = (
   bookingId: string,
   booking: admin.firestore.DocumentData,
   client: admin.firestore.DocumentData | null,
   artist: admin.firestore.DocumentData | null
 ): EmailTemplate => {
-  const headline = getPaymentHeadline(booking);
-  const mode = firstString(booking.checkoutPaymentMode, booking.paymentMode, "payment");
+  const headline = "Deposit received - your flash appointment is confirmed.";
   const artistName = getArtistName(booking, artist);
 
   return buildEmail(headline.replace(/\.$/, ""), {
-    preview: `We received your ${mode.replace("_", " ")} payment for ${artistName}.`,
+    preview: `We received your booking deposit for ${artistName}.`,
     eyebrow: "Payment received",
     headline,
-    body: `We received your ${mode.replace("_", " ")} payment for your booking with ${artistName}. Your dashboard has the latest booking and balance details.`,
+    body: `We received the deposit for your flash appointment with ${artistName}. The remaining balance will be settled with the artist at the shop after the appointment.`,
     avatarUrl: getArtistAvatar(booking, artist),
     avatarAlt: artistName,
     sections: [
@@ -954,10 +877,10 @@ const renderPaymentEmail = (
         rows: [
           { label: "Client", value: getClientName(booking, client) },
           { label: "Artist", value: artistName },
-          { label: "Payment type", value: mode },
-          { label: "Amount paid", value: getPaymentAmount(booking) },
-          { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
-          { label: "Session", value: booking.lastPaidSessionNumber ? `Session ${booking.lastPaidSessionNumber}` : "" },
+          { label: "Flash", value: getString(booking, "flashTitle") },
+          { label: "Payment type", value: "Booking deposit" },
+          { label: "Amount paid", value: formatMoneyFromCents(booking.depositPaidAmountCents) },
+          { label: "Balance paid at shop", value: formatMoneyFromCents(booking.remainingBalanceCents) },
           {
             label: "Estimated session length",
             value: formatEstimatedSessionLength(booking),
@@ -968,15 +891,8 @@ const renderPaymentEmail = (
       },
     ],
     cta: {
-      label:
-        mode === "remaining" && Number(booking.estimatedSessionCount || 1) > 1
-          ? "View sessions"
-          : "View booking",
-      href: getAbsoluteUrl(
-        mode === "remaining" && Number(booking.estimatedSessionCount || 1) > 1
-          ? "/dashboard?tab=sessions"
-          : "/dashboard?tab=bookings"
-      ),
+      label: "View booking",
+      href: getAbsoluteUrl("/dashboard?tab=bookings"),
     },
     footerNote: `Booking ID: ${bookingId}`,
   });
@@ -991,44 +907,28 @@ const renderSessionCompleteEmail = (
   artist: admin.firestore.DocumentData | null
 ): EmailTemplate => {
   const artistName = getArtistName(booking, artist);
-  const sessionNumber = Number(session.sessionNumber || booking.activeSessionNumber || 1);
-  const estimatedSessionCount = Math.max(Number(booking.estimatedSessionCount || 1), 1);
-  const completedSessionCount = Math.max(Number(booking.completedSessionCount || 0), sessionNumber);
-  const isProjectComplete =
-    booking.sessionStatus === "completed" || completedSessionCount >= estimatedSessionCount;
-  const amountDue = formatMoneyFromCents(session.amountDueCents);
-
-  return buildEmail(
-    isProjectComplete
-      ? "Your tattoo project is complete"
-      : `Session ${sessionNumber} is complete`,
-    {
-      preview: `Your artist marked session ${sessionNumber} complete.`,
-      eyebrow: isProjectComplete ? "Project complete" : "Session complete",
-      headline: isProjectComplete
-        ? "Your tattoo project is complete."
-        : `Session ${sessionNumber} is complete.`,
-      body: amountDue
-        ? `Your artist marked this session complete. The next payment due is ${amountDue}.`
-        : "Your artist marked this session complete. Your dashboard has the latest project status.",
+  return buildEmail("Your flash appointment is complete", {
+      preview: "Your artist marked your flash appointment complete.",
+      eyebrow: "Appointment complete",
+      headline: "Your flash appointment is complete.",
+      body: "Your artist marked the appointment complete. Any remaining balance is settled directly with the artist at the shop.",
       avatarUrl: getArtistAvatar(booking, artist),
       avatarAlt: artistName,
       heroImageUrl: Array.isArray(session.photoUrls) ? firstString(session.photoUrls[0]) : "",
-      heroImageAlt: `Session ${sessionNumber} photo`,
+      heroImageAlt: "Completed flash tattoo",
       sections: [
         {
-          title: "Session details",
+          title: "Appointment details",
           rows: [
             { label: "Client", value: getClientName(booking, client) },
             { label: "Artist", value: artistName },
-            { label: "Session", value: `${sessionNumber} of ${estimatedSessionCount}` },
+            { label: "Flash", value: getString(booking, "flashTitle") },
             {
               label: "Estimated session length",
               value: formatEstimatedSessionLength(booking),
             },
-            { label: "Amount due", value: amountDue },
-            { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
-            { label: "Status", value: isProjectComplete ? "Project complete" : "Session complete" },
+            { label: "Balance paid at shop", value: formatMoneyFromCents(booking.remainingBalanceCents) },
+            { label: "Status", value: "Appointment complete" },
           ],
         },
         {
@@ -1037,178 +937,11 @@ const renderSessionCompleteEmail = (
         },
       ],
       cta: {
-        label: "View sessions",
+        label: "View appointment",
         href: getAbsoluteUrl("/dashboard?tab=sessions"),
       },
       footerNote: `Booking ID: ${bookingId} - Session ID: ${sessionId}`,
-    }
-  );
-};
-
-const getAmendmentTitle = (amendment: admin.firestore.DocumentData) => {
-  if (amendment.type === "add_sessions") return "Add sessions / adjust scope";
-  if (amendment.type === "schedule_next_session") return "Schedule next session";
-  if (amendment.type === "pause_project") return "Pause project";
-  if (amendment.type === "resume_project") return "Resume project";
-  return "Project change";
-};
-
-const getAmendmentSummary = (amendment: admin.firestore.DocumentData) => {
-  if (amendment.type === "add_sessions") {
-    return `${Number(amendment.additionalSessionCount || 0)} added session(s) for ${formatMoneyFromCents(amendment.addedArtistAmountCents)}. Proposed total: ${formatMoneyFromCents(amendment.proposedPriceCents)}.`;
-  }
-
-  if (amendment.type === "schedule_next_session") {
-    return `Proposed appointment: ${formatAppointment(amendment.proposedSelectedDate)}.`;
-  }
-
-  if (amendment.type === "pause_project") {
-    return firstString(amendment.pausedUntil)
-      ? `Pause until ${firstString(amendment.pausedUntil)}.`
-      : "Pause this project for now.";
-  }
-
-  if (amendment.type === "resume_project") {
-    return "Resume this project.";
-  }
-
-  return "A project change was proposed.";
-};
-
-const renderProjectAmendmentEmail = (
-  bookingId: string,
-  amendmentId: string,
-  booking: admin.firestore.DocumentData,
-  amendment: admin.firestore.DocumentData,
-  client: admin.firestore.DocumentData | null,
-  artist: admin.firestore.DocumentData | null
-): EmailTemplate => {
-  const proposedByRole = firstString(amendment.proposedByRole, "artist");
-  const recipientRole = proposedByRole === "artist" ? "client" : "artist";
-  const title = getAmendmentTitle(amendment);
-
-  return buildEmail(`Project change needs your review`, {
-    preview: `A ${title.toLowerCase()} proposal is waiting on SATX Ink.`,
-    eyebrow: "Project change",
-    headline: `A project change needs your review.`,
-    body: `${proposedByRole === "artist" ? getArtistName(booking, artist) : getClientName(booking, client)} proposed: ${getAmendmentSummary(amendment)}`,
-    avatarUrl:
-      recipientRole === "client"
-        ? getArtistAvatar(booking, artist)
-        : firstString(client?.avatarUrl, booking.clientAvatar),
-    avatarAlt: recipientRole === "client" ? getArtistName(booking, artist) : getClientName(booking, client),
-    heroImageUrl: firstString(booking.sampleImageUrl),
-    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
-    sections: [
-      {
-        title: "Proposal",
-        rows: [
-          { label: "Project", value: bookingId },
-          { label: "Change", value: title },
-          { label: "Client", value: getClientName(booking, client) },
-          { label: "Artist", value: getArtistName(booking, artist) },
-          { label: "Message", value: getString(amendment, "message") },
-        ],
-      },
-    ],
-    cta: {
-      label: "Review project",
-      href: getAbsoluteUrl(
-        recipientRole === "client"
-          ? "/dashboard?tab=bookings"
-          : "/artist-dashboard?tab=projects"
-      ),
-    },
-    footerNote: `Booking ID: ${bookingId} - Amendment ID: ${amendmentId}`,
-  });
-};
-
-const renderProjectAmendmentResponseEmail = (
-  bookingId: string,
-  amendmentId: string,
-  booking: admin.firestore.DocumentData,
-  amendment: admin.firestore.DocumentData,
-  client: admin.firestore.DocumentData | null,
-  artist: admin.firestore.DocumentData | null
-): EmailTemplate => {
-  const status = firstString(amendment.status, "updated");
-  const title = getAmendmentTitle(amendment);
-
-  return buildEmail(`Project change ${status}`, {
-    preview: `Your ${title.toLowerCase()} proposal was ${status}.`,
-    eyebrow: "Project update",
-    headline: `Your project change was ${status}.`,
-    body: `The ${title.toLowerCase()} proposal for ${getClientName(booking, client)} and ${getArtistName(booking, artist)} was ${status}.`,
-    avatarUrl: getArtistAvatar(booking, artist),
-    avatarAlt: getArtistName(booking, artist),
-    heroImageUrl: firstString(booking.sampleImageUrl),
-    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
-    sections: [
-      {
-        title: "Proposal",
-        rows: [
-          { label: "Change", value: title },
-          { label: "Status", value: status },
-          { label: "Summary", value: getAmendmentSummary(amendment) },
-        ],
-      },
-    ],
-    cta: {
-      label: "View project",
-      href: getAbsoluteUrl(
-        amendment.proposedByRole === "artist"
-          ? "/artist-dashboard?tab=projects"
-          : "/dashboard?tab=bookings"
-      ),
-    },
-    footerNote: `Booking ID: ${bookingId} - Amendment ID: ${amendmentId}`,
-  });
-};
-
-const renderSessionPaymentRequestedEmail = (
-  bookingId: string,
-  sessionId: string,
-  booking: admin.firestore.DocumentData,
-  session: admin.firestore.DocumentData,
-  client: admin.firestore.DocumentData | null,
-  artist: admin.firestore.DocumentData | null
-): EmailTemplate => {
-  const artistName = getArtistName(booking, artist);
-  const sessionNumber = Number(session.sessionNumber || booking.pendingSessionNumber || 1);
-  const amountDue = formatMoneyFromCents(session.amountDueCents);
-
-  return buildEmail(`Session payment requested`, {
-    preview: `${artistName} requested ${amountDue} for session ${sessionNumber}.`,
-    eyebrow: "Payment requested",
-    headline: `Session ${sessionNumber} payment requested.`,
-    body: `${artistName} requested the next project installment before this session can begin.`,
-    avatarUrl: getArtistAvatar(booking, artist),
-    avatarAlt: artistName,
-    heroImageUrl: firstString(booking.sampleImageUrl),
-    heroImageAlt: firstString(booking.flashTitle, "Booking image"),
-    sections: [
-      {
-        title: "Payment details",
-        rows: [
-          { label: "Client", value: getClientName(booking, client) },
-          { label: "Artist", value: artistName },
-          { label: "Session", value: `${sessionNumber}` },
-          {
-            label: "Estimated session length",
-            value: formatEstimatedSessionLength(booking),
-          },
-          { label: "Amount due", value: amountDue },
-          { label: "Remaining balance", value: formatMoneyFromCents(booking.remainingBalanceCents) },
-          { label: "Note", value: getString(session, "note") },
-        ],
-      },
-    ],
-    cta: {
-      label: "Open payment",
-      href: getAbsoluteUrl(`/payment/${bookingId}`),
-    },
-    footerNote: `Booking ID: ${bookingId} - Session ID: ${sessionId}`,
-  });
+    });
 };
 
 const sendClientWelcome = async (
@@ -1253,7 +986,6 @@ export const sendUserCreatedWelcomeEmail = onDocumentCreated(
     await sendArtistWelcome(uid, user);
   }
 );
-
 export const sendArtistCompletedWelcomeEmail = onDocumentUpdated(
   {
     document: "users/{uid}",
@@ -1360,7 +1092,7 @@ export const sendRequestSubmittedEmail = onDocumentCreated(
   },
   async (event) => {
     const request = event.data?.data();
-    if (!request) return;
+    if (!request || request.sourceType !== "flash") return;
 
     const [client, artist] = await Promise.all([
       getUser(firstString(request.clientId)),
@@ -1384,7 +1116,13 @@ export const sendOfferReceivedEmail = onDocumentCreated(
   },
   async (event) => {
     const offer = event.data?.data();
-    if (!offer || offer.status !== "pending") return;
+    if (
+      !offer ||
+      offer.sourceType !== "flash" ||
+      offer.status !== "pending"
+    ) {
+      return;
+    }
 
     const [client, artist, shop] = await Promise.all([
       getUser(firstString(offer.clientId)),
@@ -1409,7 +1147,13 @@ export const sendBookingReadyEmail = onDocumentCreated(
   },
   async (event) => {
     const booking = event.data?.data();
-    if (!booking || booking.status !== "pending_payment") return;
+    if (
+      !booking ||
+      booking.sourceType !== "flash" ||
+      booking.status !== "pending_payment"
+    ) {
+      return;
+    }
 
     const [client, artist] = await Promise.all([
       getUser(firstString(booking.clientId)),
@@ -1466,7 +1210,7 @@ export const sendBookingPaymentEmail = onDocumentUpdated(
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
-    if (!before || !after) return;
+    if (!before || !after || after.sourceType !== "flash") return;
 
     const eventKey = getPaymentEventKey(event.params.bookingId, before, after);
     if (!eventKey) return;
@@ -1505,6 +1249,7 @@ export const sendSessionCompletedEmail = onDocumentWritten(
     if (!bookingSnap.exists) return;
 
     const booking = bookingSnap.data() || {};
+    if (booking.sourceType !== "flash") return;
     const [client, artist] = await Promise.all([
       getUser(firstString(booking.clientId)),
       getUser(firstString(booking.artistId)),
@@ -1515,137 +1260,6 @@ export const sendSessionCompletedEmail = onDocumentWritten(
       from: "bookings",
       to: getUserEmail(client),
       ...renderSessionCompleteEmail(
-        event.params.bookingId,
-        event.params.sessionId,
-        booking,
-        after,
-        client,
-        artist
-      ),
-    });
-  }
-);
-
-export const sendProjectAmendmentCreatedEmail = onDocumentCreated(
-  {
-    document: "bookings/{bookingId}/amendments/{amendmentId}",
-    region: EMAIL_REGION,
-    secrets: [RESEND_API_KEY],
-  },
-  async (event) => {
-    const amendment = event.data?.data();
-    if (!amendment || amendment.status !== "proposed") return;
-
-    const bookingSnap = await getDb()
-      .collection("bookings")
-      .doc(event.params.bookingId)
-      .get();
-    if (!bookingSnap.exists) return;
-
-    const booking = bookingSnap.data() || {};
-    const proposedByRole = firstString(amendment.proposedByRole, "artist");
-    const recipientId =
-      proposedByRole === "artist"
-        ? firstString(booking.clientId)
-        : firstString(booking.artistId);
-    const [recipient, client, artist] = await Promise.all([
-      getUser(recipientId),
-      getUser(firstString(booking.clientId)),
-      getUser(firstString(booking.artistId)),
-    ]);
-
-    await sendTransactionalEmail({
-      eventKey: `project-amendment-created-${event.params.bookingId}-${event.params.amendmentId}`,
-      from: "bookings",
-      to: getUserEmail(recipient),
-      ...renderProjectAmendmentEmail(
-        event.params.bookingId,
-        event.params.amendmentId,
-        booking,
-        amendment,
-        client,
-        artist
-      ),
-    });
-  }
-);
-
-export const sendProjectAmendmentResponseEmail = onDocumentUpdated(
-  {
-    document: "bookings/{bookingId}/amendments/{amendmentId}",
-    region: EMAIL_REGION,
-    secrets: [RESEND_API_KEY],
-  },
-  async (event) => {
-    const before = event.data?.before.data();
-    const after = event.data?.after.data();
-    if (!before || !after) return;
-    if (before.status === after.status || after.status === "proposed") return;
-
-    const bookingSnap = await getDb()
-      .collection("bookings")
-      .doc(event.params.bookingId)
-      .get();
-    if (!bookingSnap.exists) return;
-
-    const booking = bookingSnap.data() || {};
-    const [recipient, client, artist] = await Promise.all([
-      getUser(firstString(after.proposedById)),
-      getUser(firstString(booking.clientId)),
-      getUser(firstString(booking.artistId)),
-    ]);
-
-    await sendTransactionalEmail({
-      eventKey: `project-amendment-response-${event.params.bookingId}-${event.params.amendmentId}-${after.status}`,
-      from: "bookings",
-      to: getUserEmail(recipient),
-      ...renderProjectAmendmentResponseEmail(
-        event.params.bookingId,
-        event.params.amendmentId,
-        booking,
-        after,
-        client,
-        artist
-      ),
-    });
-  }
-);
-
-export const sendSessionPaymentRequestedEmail = onDocumentWritten(
-  {
-    document: "bookingSessions/{bookingId}/sessions/{sessionId}",
-    region: EMAIL_REGION,
-    secrets: [RESEND_API_KEY],
-  },
-  async (event) => {
-    const before = event.data?.before.data();
-    const after = event.data?.after.data();
-    if (
-      !after ||
-      after.paymentStatus !== "due" ||
-      before?.paymentStatus === "due" ||
-      Number(after.amountDueCents || 0) <= 0
-    ) {
-      return;
-    }
-
-    const bookingSnap = await getDb()
-      .collection("bookings")
-      .doc(event.params.bookingId)
-      .get();
-    if (!bookingSnap.exists) return;
-
-    const booking = bookingSnap.data() || {};
-    const [client, artist] = await Promise.all([
-      getUser(firstString(booking.clientId)),
-      getUser(firstString(booking.artistId)),
-    ]);
-
-    await sendTransactionalEmail({
-      eventKey: `session-payment-requested-${event.params.bookingId}-${event.params.sessionId}-${Number(after.amountDueCents || 0)}`,
-      from: "bookings",
-      to: getUserEmail(client),
-      ...renderSessionPaymentRequestedEmail(
         event.params.bookingId,
         event.params.sessionId,
         booking,

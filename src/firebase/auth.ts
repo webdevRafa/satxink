@@ -5,6 +5,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
+import type { User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig"; // adjust path if needed
 
@@ -46,7 +47,7 @@ export const signOutUser = async (navigate: (path: string) => void) => {
 };
 
 // 📡 Auth state listener (optional utility)
-export const observeUser = (callback: (user: any) => void) => {
+export const observeUser = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 

@@ -986,61 +986,6 @@ const buildEqualSessionAllocations = ({
   });
 };
 
-const validateAndBuildProjectAllocations = (
-  offer: admin.firestore.DocumentData
-) => {
-  const totalQuoteCents = getNonNegativeCents(
-    offer.quoteTotalCents,
-    dollarsToCents(offer.price)
-  );
-  const sessionCount =
-    offer.projectType === "multi_session"
-      ? getPositiveInteger(offer.estimatedSessionCount, 2)
-      : 1;
-  const depositAmountCents = dollarsToCents(offer.depositPolicy?.amount);
-
-  if (totalQuoteCents < MIN_ARTIST_PAYOUT_CENTS) {
-    throw new HttpsError("failed-precondition", "The project quote is invalid.");
-  }
-  if (sessionCount < 1 || sessionCount > MAX_PROJECT_SESSION_COUNT) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Projects must contain between 1 and 12 sessions."
-    );
-  }
-  if (depositAmountCents < MIN_ARTIST_PAYOUT_CENTS) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Each session needs a valid deposit."
-    );
-  }
-
-  const allocations = buildEqualSessionAllocations({
-    totalQuoteCents,
-    sessionCount,
-    depositAmountCents,
-  });
-  const smallestSessionCents = Math.min(
-    ...allocations.map((allocation) => allocation.quotedAmountCents)
-  );
-  if (
-    depositAmountCents >
-    Math.floor(smallestSessionCents * MAX_SESSION_DEPOSIT_RATE)
-  ) {
-    throw new HttpsError(
-      "failed-precondition",
-      "The session deposit cannot exceed 50% of the session price."
-    );
-  }
-
-  return {
-    totalQuoteCents,
-    sessionCount,
-    depositAmountCents,
-    allocations,
-  };
-};
-
 const getProjectSessionAllocation = (
   booking: admin.firestore.DocumentData,
   sessionNumber: number
@@ -1227,7 +1172,175 @@ const createSessionRecordUpdate = (
   ...update,
 });
 
-const acceptProjectOffer = onCall(
+const createFlashRequest = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in as a client to request this flash."
+      );
+    }
+
+    const flashId = getOptionalString(req.data?.flashId);
+    const bodyPlacement = getOptionalString(req.data?.bodyPlacement);
+    const size = getOptionalString(req.data?.size);
+    const preferredDateRange = Array.isArray(req.data?.preferredDateRange)
+      ? req.data.preferredDateRange.map(getOptionalString)
+      : [];
+    const availableTimeInput = req.data?.availableTime as
+      | { from?: unknown; to?: unknown }
+      | undefined;
+    const availableTime = {
+      from: getOptionalString(availableTimeInput?.from),
+      to: getOptionalString(availableTimeInput?.to),
+    };
+    const availableDays = Array.isArray(req.data?.availableDays)
+      ? [...new Set(req.data.availableDays.map(getOptionalString).filter(Boolean))]
+      : [];
+
+    if (!flashId) {
+      throw new HttpsError("invalid-argument", "Choose a flash design first.");
+    }
+    if (!bodyPlacement || !size) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Placement and size are required."
+      );
+    }
+    if (
+      preferredDateRange.length !== 2 ||
+      !preferredDateRange[0] ||
+      !preferredDateRange[1] ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(preferredDateRange[0]) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(preferredDateRange[1]) ||
+      preferredDateRange[1] < preferredDateRange[0]
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Choose a valid preferred date range."
+      );
+    }
+    if (!availableTime.from || !availableTime.to) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Choose a preferred start and end time."
+      );
+    }
+    if (availableDays.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Choose at least one day that usually works."
+      );
+    }
+
+    const clientRef = db.collection("users").doc(uid);
+    const flashRef = db.collection("flashes").doc(flashId);
+    const requestRef = db.collection("bookingRequests").doc();
+
+    await db.runTransaction(async (transaction) => {
+      const [clientSnap, flashSnap] = await Promise.all([
+        transaction.get(clientRef),
+        transaction.get(flashRef),
+      ]);
+      if (!clientSnap.exists || clientSnap.data()?.role !== "client") {
+        throw new HttpsError(
+          "permission-denied",
+          "Only client accounts can request flash."
+        );
+      }
+      if (!flashSnap.exists) {
+        throw new HttpsError("not-found", "This flash is no longer available.");
+      }
+
+      const client = clientSnap.data() || {};
+      const flash = flashSnap.data() || {};
+      const artistId = getOptionalString(flash.artistId);
+      if (!artistId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This flash is not connected to an artist."
+        );
+      }
+
+      const artistRef = db.collection("users").doc(artistId);
+      const artistSnap = await transaction.get(artistRef);
+      const artist = artistSnap.exists ? artistSnap.data() || {} : null;
+      const projection = buildFlashMarketplaceProjectionFromArtist(
+        flash,
+        artist
+      );
+      if (!projection.marketplaceReady) {
+        throw new HttpsError(
+          "failed-precondition",
+          getFlashRepeatability(flash) === "one_of_one"
+            ? "This one-of-one flash is no longer available."
+            : "This flash is no longer available."
+        );
+      }
+
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const clientFirstName = getFirstString(client.firstName);
+      const clientLastName = getFirstString(client.lastName);
+      const clientName =
+        getFirstString(
+          client.displayName,
+          client.name,
+          `${clientFirstName} ${clientLastName}`
+        ) || "Client";
+      const artistName =
+        getFirstString(artist?.displayName, artist?.name) || "Artist";
+      const flashTitle = getFirstString(flash.title, flash.caption) || "Flash";
+      const fullUrl = getFirstString(
+        flash.fullUrl,
+        flash.webp90Url,
+        flash.thumbUrl
+      );
+      const thumbUrl = getFirstString(
+        flash.thumbUrl,
+        flash.webp90Url,
+        flash.fullUrl
+      );
+
+      transaction.create(requestRef, {
+        sourceType: "flash",
+        flashId,
+        artistId,
+        artistName,
+        artistAvatar: getFirstString(artist?.avatarUrl) || "/default-avatar.png",
+        clientId: uid,
+        clientFirstName,
+        clientLastName,
+        clientName,
+        clientAvatar:
+          getFirstString(client.avatarUrl, client.photoURL) ||
+          "/default-avatar.png",
+        bodyPlacement,
+        size,
+        preferredDateRange,
+        availableTime,
+        availableDays,
+        status: "pending",
+        fullUrl,
+        thumbUrl,
+        flashTitle,
+        flashDescription: getOptionalString(flash.description),
+        flashPrice: Number(flash.price),
+        flashSheetId: getOptionalString(flash.sheetId),
+        flashRepeatability: getFlashRepeatability(flash),
+        flashAvailabilityStatus: getFlashAvailabilityStatus(flash),
+        isFromSheet: flash.isFromSheet === true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+    });
+
+    return { requestId: requestRef.id };
+  }
+);
+
+const acceptFlashOffer = onCall(
   { cors: true, region: "us-central1" },
   async (req) => {
     const uid = req.auth?.uid;
@@ -1240,15 +1353,19 @@ const acceptProjectOffer = onCall(
       | { date?: unknown; time?: unknown }
       | undefined;
     const selectedDate = {
-      date: getOptionalString(selectedDateInput?.date) || "TBD",
-      time: getOptionalString(selectedDateInput?.time) || "TBD",
+      date: getOptionalString(selectedDateInput?.date),
+      time: getOptionalString(selectedDateInput?.time),
     };
-    if (!offerId) {
-      throw new HttpsError("invalid-argument", "An offer is required.");
+    if (!offerId || !selectedDate.date || !selectedDate.time) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Choose an appointment option before accepting."
+      );
     }
 
     const offerRef = db.collection("offers").doc(offerId);
-    const bookingRef = db.collection("bookings").doc();
+    const newBookingRef = db.collection("bookings").doc();
+    let acceptedBookingId = newBookingRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
     await db.runTransaction(async (transaction) => {
@@ -1264,233 +1381,221 @@ const acceptProjectOffer = onCall(
           "Only the client who received this offer can accept it."
         );
       }
+      if (
+        offer.status === "accepted" &&
+        typeof offer.bookingId === "string" &&
+        offer.bookingId
+      ) {
+        acceptedBookingId = offer.bookingId;
+        return;
+      }
       if (offer.status !== "pending") {
         throw new HttpsError(
           "failed-precondition",
           "This offer is no longer available."
         );
       }
+      if (offer.sourceType !== "flash" || !getOptionalString(offer.flashId)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only flash offers can be accepted at launch."
+        );
+      }
 
       const offeredDates = Array.isArray(offer.dateOptions)
         ? offer.dateOptions
         : [];
-      if (
-        selectedDate.date !== "TBD" &&
-        !offeredDates.some(
-          (option: admin.firestore.DocumentData) =>
-            option?.date === selectedDate.date &&
-            option?.time === selectedDate.time
-        )
-      ) {
+      const matchesOfferedDate = offeredDates.some(
+        (option: admin.firestore.DocumentData) =>
+          option?.date === selectedDate.date &&
+          option?.time === selectedDate.time
+      );
+      if (!matchesOfferedDate) {
         throw new HttpsError(
           "invalid-argument",
           "Choose one of the appointment options from the offer."
         );
       }
 
-      const artistRef = db.collection("users").doc(String(offer.artistId || ""));
-      const artistSnap = await transaction.get(artistRef);
-      if (!artistSnap.exists) {
-        throw new HttpsError("failed-precondition", "Artist profile not found.");
+      const artistId = getOptionalString(offer.artistId);
+      const requestId = getOptionalString(offer.requestId);
+      const flashId = getOptionalString(offer.flashId);
+      if (!artistId || !requestId || !flashId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This offer is missing its flash relationship."
+        );
       }
+
+      const artistRef = db.collection("users").doc(artistId);
+      const requestRef = db.collection("bookingRequests").doc(requestId);
+      const flashRef = db.collection("flashes").doc(flashId);
+      const [artistSnap, requestSnap, flashSnap] = await Promise.all([
+        transaction.get(artistRef),
+        transaction.get(requestRef),
+        transaction.get(flashRef),
+      ]);
+      if (!artistSnap.exists || !requestSnap.exists || !flashSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The flash offer can no longer be verified."
+        );
+      }
+
       const artist = artistSnap.data() || {};
+      const request = requestSnap.data() || {};
+      const flash = flashSnap.data() || {};
+      if (
+        request.sourceType !== "flash" ||
+        request.flashId !== flashId ||
+        request.artistId !== artistId ||
+        request.clientId !== uid ||
+        flash.artistId !== artistId ||
+        getFlashPublicationStatus(flash) !== "published"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The flash offer does not match its request."
+        );
+      }
+
+      const repeatability = getFlashRepeatability(flash);
+      const availabilityStatus = getFlashAvailabilityStatus(flash);
+      if (
+        repeatability === "one_of_one" &&
+        availabilityStatus !== "available"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This one-of-one flash is no longer available."
+        );
+      }
+      if (flash.isAvailable === false && repeatability !== "one_of_one") {
+        throw new HttpsError(
+          "failed-precondition",
+          "This flash is no longer available."
+        );
+      }
+
+      const totalQuoteCents = dollarsToCents(flash.price);
+      const offeredPriceCents = dollarsToCents(offer.price);
+      const depositAmountCents = dollarsToCents(offer.depositPolicy?.amount);
+      if (
+        totalQuoteCents <= 0 ||
+        offeredPriceCents !== totalQuoteCents ||
+        depositAmountCents <= 0 ||
+        depositAmountCents > Math.round(totalQuoteCents * 0.5)
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The flash price or deposit is no longer valid."
+        );
+      }
 
       const shopId = getOptionalString(offer.shopId || artist.shopId);
       const shopRef = shopId ? db.collection("shops").doc(shopId) : null;
       const shopSnap = shopRef ? await transaction.get(shopRef) : null;
       const shop = shopSnap?.exists ? shopSnap.data() || {} : {};
-      const flashId = getOptionalString(offer.flashId);
-      const flashRef =
-        offer.sourceType === "flash" && flashId
-          ? db.collection("flashes").doc(flashId)
-          : null;
-      const flashSnap = flashRef ? await transaction.get(flashRef) : null;
-      const flash = flashSnap?.exists ? flashSnap.data() || {} : {};
-      if (offer.sourceType === "flash") {
-        if (!flashSnap?.exists || getFlashPublicationStatus(flash) !== "published") {
-          throw new HttpsError(
-            "failed-precondition",
-            "This flash is no longer available."
-          );
-        }
-        if (
-          getFlashRepeatability(flash) === "one_of_one" &&
-          getFlashAvailabilityStatus(flash) !== "available"
-        ) {
-          throw new HttpsError(
-            "failed-precondition",
-            "This one-of-one flash is no longer available."
-          );
-        }
-      }
-
-      const isCustomProject = offer.sourceType !== "flash";
-      const customPlan = isCustomProject
-        ? validateAndBuildProjectAllocations(offer)
-        : null;
-      const totalQuoteCents = customPlan
-        ? customPlan.totalQuoteCents
-        : dollarsToCents(offer.price);
-      const sessionCount = customPlan ? customPlan.sessionCount : 1;
-      const depositAmountCents = customPlan
-        ? customPlan.depositAmountCents
-        : Math.min(dollarsToCents(offer.depositPolicy?.amount), totalQuoteCents);
-      const allocations: SessionAllocation[] = customPlan
-        ? customPlan.allocations
-        : [
-            {
-              sessionNumber: 1,
-              quotedAmountCents: totalQuoteCents,
-              depositAmountCents,
-            },
-          ];
-      const allowedBalanceMethods: SessionBalanceMethod[] = ["external"];
-      const firstAllocation = allocations[0];
-      const firstSessionBalanceCents = Math.max(
-        firstAllocation.quotedAmountCents - firstAllocation.depositAmountCents,
+      const shopBalanceCents = Math.max(
+        totalQuoteCents - depositAmountCents,
         0
       );
-      const estimatedHoursInput = offer.estimatedHoursPerSession;
-      const estimatedHoursPerSession =
-        estimatedHoursInput === null ||
-        estimatedHoursInput === undefined ||
-        estimatedHoursInput === ""
-          ? null
-          : Number(estimatedHoursInput);
-      if (
-        estimatedHoursPerSession !== null &&
-        (!Number.isFinite(estimatedHoursPerSession) ||
-          estimatedHoursPerSession < 0.5 ||
-          estimatedHoursPerSession > 16)
-      ) {
-        throw new HttpsError(
-          "failed-precondition",
-          "The estimated session length must be between 0.5 and 16 hours."
-        );
-      }
+
       const bookingData = {
-        artistId: offer.artistId,
+        sourceType: "flash",
+        flashId,
+        requestId,
+        offerId,
+        artistId,
         artistName: offer.displayName || artist.displayName || "Artist",
         artistAvatar: offer.artistAvatar ?? artist.avatarUrl ?? null,
-        clientId: offer.clientId,
+        clientId: uid,
         clientFirstName: offer.clientFirstName ?? "",
         clientLastName: offer.clientLastName ?? "",
         clientName: offer.clientName ?? null,
         clientAvatar: offer.clientAvatar ?? null,
-        offerId,
+        flashTitle: flash.title || flash.caption || "Untitled flash",
+        flashDescription: flash.description ?? null,
+        flashImageUrl:
+          flash.fullUrl || flash.webp90Url || flash.thumbUrl || null,
+        fullUrl: flash.fullUrl || flash.webp90Url || flash.thumbUrl || null,
+        thumbUrl: flash.thumbUrl || flash.webp90Url || flash.fullUrl || null,
+        flashPrice: centsToDollars(totalQuoteCents),
+        flashSheetId: flash.sheetId ?? null,
+        flashRepeatability: repeatability,
+        flashAvailabilityStatus:
+          repeatability === "one_of_one" ? "held" : availabilityStatus,
+        isFromSheet: flash.isFromSheet === true,
+        bodyPlacement: request.bodyPlacement ?? null,
+        size: request.size ?? null,
         price: centsToDollars(totalQuoteCents),
         priceCents: totalQuoteCents,
         quoteTotalCents: totalQuoteCents,
+        totalAmountCents: totalQuoteCents,
         depositAmount: centsToDollars(depositAmountCents),
-        paymentType: "internal",
-        paymentModelVersion: PAYMENT_MODEL_VERSION,
-        sessionPricingStrategy: isCustomProject ? "equal_split" : null,
-        sessionAllocations: allocations,
-        allowedSessionBalanceMethods: allowedBalanceMethods,
-        projectType: sessionCount > 1 ? "multi_session" : "single_session",
-        depositApplication: "project_credit",
-        estimatedSessionCount: sessionCount,
-        estimatedSessionPrice: centsToDollars(firstAllocation.quotedAmountCents),
-        estimatedHoursPerSession,
-        sessionPaymentPlan: sessionCount > 1 ? "per_session" : "single_balance",
-        sessionScheduling:
-          sessionCount > 1
-            ? "first_session_now_rest_later"
-            : "single_session",
-        sessionInstallmentTiming: "after_session",
-        activeSessionNumber: 1,
-        completedSessionCount: 0,
-        pendingSessionPaymentAmount: centsToDollars(depositAmountCents),
-        pendingSessionPaymentAmountCents: depositAmountCents,
-        pendingSessionNumber: 1,
-        lastPaidSessionNumber: 0,
-        finalPaymentTiming: "after",
-        finalPaymentDeadlineHours: null,
-        remainingPaymentMethod: "stripe",
-        remainingPaymentStatus: "due",
-        externalRemainingAmount: centsToDollars(firstSessionBalanceCents),
-        externalRemainingAmountCents: firstSessionBalanceCents,
+        depositAmountCents,
+        depositStatus: "pending",
+        shopBalanceAmount: centsToDollars(shopBalanceCents),
+        shopBalanceAmountCents: shopBalanceCents,
+        shopBalanceStatus: shopBalanceCents > 0 ? "unpaid" : "paid",
+        remainingBalanceAmount: centsToDollars(totalQuoteCents),
+        remainingBalanceCents: totalQuoteCents,
+        remainingPaymentMethod: "external",
+        remainingPaymentStatus: "not_due",
+        externalRemainingAmount: centsToDollars(shopBalanceCents),
+        externalRemainingAmountCents: shopBalanceCents,
         artistPaidCents: 0,
         totalArtistPaidCents: 0,
         totalArtistPaidAmount: 0,
-        outstandingProjectCents: totalQuoteCents,
-        remainingBalanceCents: totalQuoteCents,
-        remainingBalanceAmount: centsToDollars(totalQuoteCents),
-        projectStatus: "active",
-        projectRevision: 1,
+        paymentType: "internal",
+        paymentModelVersion: PAYMENT_MODEL_VERSION,
+        appointmentStatus: "scheduled",
         sessionStatus: "not_started",
-        shopId,
-        shopName: offer.shopName || shop.name || "Unavailable",
-        shopAddress: offer.shopAddress || shop.address || "Unavailable",
-        shopMapLink: offer.shopMapLink || shop.mapLink || null,
         selectedDate,
-        sampleImageUrl: offer.fullUrl ?? null,
-        sourceType: offer.sourceType || "custom",
-        flashId: flashId ?? null,
-        flashTitle: offer.flashTitle ?? flash.title ?? null,
-        flashDescription: offer.flashDescription ?? flash.description ?? null,
-        flashPrice: offer.flashPrice ?? flash.price ?? null,
-        flashSheetId: offer.flashSheetId ?? flash.flashSheetId ?? null,
-        flashRepeatability:
-          offer.sourceType === "flash"
-            ? getFlashRepeatability(flash)
-            : null,
-        flashAvailabilityStatus:
-          offer.sourceType === "flash"
-            ? getFlashAvailabilityStatus(flash)
-            : null,
-        isFromSheet: offer.isFromSheet ?? null,
+        appointmentStartsAt: null,
+        shopId,
+        shopName: offer.shopName || shop.name || "Shop pending review",
+        shopAddress: offer.shopAddress || shop.address || null,
+        shopMapLink: offer.shopMapLink || shop.mapLink || null,
         status: "pending_payment",
         createdAt: timestamp,
         updatedAt: timestamp,
       };
 
-      transaction.create(bookingRef, bookingData);
-      allocations.forEach((allocation) => {
-        const { sessionRef } = getBookingSessionRefs(
-          bookingRef.id,
-          allocation.sessionNumber
-        );
-        const balanceAmountCents = Math.max(
-          allocation.quotedAmountCents - allocation.depositAmountCents,
-          0
-        );
-        transaction.create(sessionRef, {
-          bookingId: bookingRef.id,
-          artistId: offer.artistId,
-          clientId: offer.clientId,
-          sessionNumber: allocation.sessionNumber,
-          quotedAmountCents: allocation.quotedAmountCents,
-          quotedAmount: centsToDollars(allocation.quotedAmountCents),
-          depositAmountCents: allocation.depositAmountCents,
-          depositAmount: centsToDollars(allocation.depositAmountCents),
-          balanceAmountCents,
-          balanceAmount: centsToDollars(balanceAmountCents),
-          allowedBalanceMethods,
-          selectedBalanceMethod:
-            balanceAmountCents > 0 ? "external" : null,
-          depositStatus:
-            allocation.sessionNumber === 1 ? "due" : "not_due",
-          balanceStatus: "not_due",
-          paymentStatus:
-            allocation.sessionNumber === 1 ? "deposit_due" : "not_due",
-          status: allocation.sessionNumber === 1 ? "scheduled" : "planned",
-          selectedDate:
-            allocation.sessionNumber === 1 ? selectedDate : null,
-          checkoutAttemptNumber: 1,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        });
+      transaction.create(newBookingRef, bookingData);
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        newBookingRef.id,
+        1
+      );
+      transaction.create(sessionRef, {
+        bookingId: newBookingRef.id,
+        artistId,
+        clientId: uid,
+        sessionNumber: 1,
+        quotedAmountCents: totalQuoteCents,
+        quotedAmount: centsToDollars(totalQuoteCents),
+        depositAmountCents,
+        depositAmount: centsToDollars(depositAmountCents),
+        balanceAmountCents: shopBalanceCents,
+        balanceAmount: centsToDollars(shopBalanceCents),
+        allowedBalanceMethods: ["external"],
+        selectedBalanceMethod: shopBalanceCents > 0 ? "external" : null,
+        depositStatus: "due",
+        balanceStatus: "not_due",
+        paymentStatus: "deposit_due",
+        status: "scheduled",
+        selectedDate,
+        checkoutAttemptNumber: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
       });
-
-      const { summaryRef } = getBookingSessionRefs(bookingRef.id, 1);
       transaction.create(summaryRef, {
-        bookingId: bookingRef.id,
-        artistId: offer.artistId,
-        clientId: offer.clientId,
+        bookingId: newBookingRef.id,
+        artistId,
+        clientId: uid,
         offerId,
         activeSessionNumber: 1,
-        estimatedSessionCount: sessionCount,
+        estimatedSessionCount: 1,
         completedSessionCount: 0,
         remainingAmountCents: totalQuoteCents,
         remainingAmount: centsToDollars(totalQuoteCents),
@@ -1498,17 +1603,42 @@ const acceptProjectOffer = onCall(
         createdAt: timestamp,
         updatedAt: timestamp,
       });
+
+      if (repeatability === "one_of_one") {
+        const holdUntil = admin.firestore.Timestamp.fromDate(
+          new Date(Date.now() + FLASH_CHECKOUT_HOLD_SECONDS * 1000)
+        );
+        transaction.update(flashRef, {
+          repeatability: "one_of_one",
+          availabilityStatus: "held",
+          isAvailable: false,
+          heldByBookingId: newBookingRef.id,
+          heldByClientId: uid,
+          heldByCheckoutSessionId: admin.firestore.FieldValue.delete(),
+          heldUntil: holdUntil,
+          updatedAt: timestamp,
+        });
+      }
+
       transaction.update(offerRef, {
         status: "accepted",
         respondedAt: timestamp,
-        bookingId: bookingRef.id,
+        bookingId: newBookingRef.id,
+        updatedAt: timestamp,
+      });
+      transaction.update(requestRef, {
+        status: "offered",
+        offeredAt: request.offeredAt || timestamp,
         updatedAt: timestamp,
       });
     });
 
-    return { bookingId: bookingRef.id };
+    return { bookingId: acceptedBookingId };
   }
 );
+
+// Temporary compatibility alias for clients deployed before the flash-only release.
+const acceptProjectOffer = acceptFlashOffer;
 
 const getCompletedBookingUpdate = (
   booking: admin.firestore.DocumentData,
@@ -1729,7 +1859,156 @@ const finalizeBookingPaymentAndFlash = async (
     }
 
     paidOfferId = typeof booking.offerId === "string" ? booking.offerId : null;
-    if (isProtectedSessionPaymentBooking(booking)) {
+    if (booking.sourceType === "flash") {
+      const metadata = session.metadata || {};
+      const paymentPurpose = metadata.paymentPurpose as CheckoutPaymentPurpose;
+      if (paymentPurpose !== "session_deposit") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only a flash booking deposit can complete this checkout."
+        );
+      }
+
+      const { summaryRef, sessionRef } = getBookingSessionRefs(
+        bookingRef.id,
+        1
+      );
+      const paymentRef = bookingRef.collection("payments").doc(session.id);
+      const [sessionSnap, paymentSnap] = await Promise.all([
+        transaction.get(sessionRef),
+        transaction.get(paymentRef),
+      ]);
+      if (paymentSnap.exists) {
+        resultStatus = String(booking.status || "deposit_paid");
+      } else {
+        if (!sessionSnap.exists) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The flash appointment payment record is missing."
+          );
+        }
+
+        const sessionLedger = sessionSnap.data() || {};
+        const artistAmountCents = parseMetadataCents(
+          metadata,
+          "artistAmountCents"
+        );
+        const expectedDepositCents = getNonNegativeCents(
+          sessionLedger.depositAmountCents,
+          dollarsToCents(booking.depositAmount)
+        );
+        if (
+          expectedDepositCents < MIN_ARTIST_PAYOUT_CENTS ||
+          artistAmountCents !== expectedDepositCents
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Stripe payment does not match the flash booking deposit."
+          );
+        }
+
+        const timestamp = admin.firestore.FieldValue.serverTimestamp();
+        const priceCents = getBookingPriceCents(booking);
+        const shopBalanceCents = Math.max(
+          priceCents - artistAmountCents,
+          0
+        );
+        const platformFeeCents = parseMetadataCents(
+          metadata,
+          "platformFeeCents"
+        );
+        const clientTotalCents = parseMetadataCents(
+          metadata,
+          "clientTotalCents",
+          session.amount_total || 0
+        );
+        const stripeFeeCents = parseMetadataCents(
+          metadata,
+          "estimatedStripeFeeCents"
+        );
+        resultStatus = "deposit_paid";
+
+        transaction.update(bookingRef, {
+          status: "deposit_paid",
+          depositStatus: "paid",
+          depositPaidAt: timestamp,
+          depositPaidAmountCents: artistAmountCents,
+          depositPaidAmount: centsToDollars(artistAmountCents),
+          paymentMode: "deposit",
+          checkoutPaymentMode: "deposit",
+          checkoutPaymentPurpose: "session_deposit",
+          stripeCheckoutSessionId: session.id,
+          lastCompletedCheckoutSessionId: session.id,
+          stripePaymentIntentId: session.payment_intent,
+          stripeConnectedAccountId:
+            connectedAccountId ??
+            getOptionalString(metadata.stripeConnectedAccountId) ??
+            booking.stripeConnectedAccountId ??
+            null,
+          clientPaymentAmountCents: clientTotalCents,
+          clientPaymentAmount: centsToDollars(clientTotalCents),
+          estimatedStripeFeeCents: stripeFeeCents,
+          estimatedStripeFeeAmount: centsToDollars(stripeFeeCents),
+          platformFeeCents,
+          platformFeeAmount: centsToDollars(platformFeeCents),
+          platformFeeCollectedCents: platformFeeCents,
+          platformFeeCollectedAmount: centsToDollars(platformFeeCents),
+          artistPaidCents: artistAmountCents,
+          totalArtistPaidCents: artistAmountCents,
+          totalArtistPaidAmount: centsToDollars(artistAmountCents),
+          remainingBalanceCents: shopBalanceCents,
+          remainingBalanceAmount: centsToDollars(shopBalanceCents),
+          shopBalanceAmountCents: shopBalanceCents,
+          shopBalanceAmount: centsToDollars(shopBalanceCents),
+          shopBalanceStatus: shopBalanceCents > 0 ? "unpaid" : "paid",
+          remainingPaymentMethod: "external",
+          remainingPaymentStatus:
+            shopBalanceCents > 0 ? "not_due" : "confirmed",
+          pendingSessionPaymentAmount: 0,
+          pendingSessionPaymentAmountCents: 0,
+          pendingSessionNumber: null,
+          updatedAt: timestamp,
+        });
+        transaction.set(
+          sessionRef,
+          {
+            depositStatus: "paid",
+            depositPaidAt: timestamp,
+            depositCheckoutSessionId: session.id,
+            paymentStatus: "deposit_paid",
+            checkoutStatus: "complete",
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.set(
+          summaryRef,
+          {
+            activeSessionNumber: 1,
+            completedSessionCount: 0,
+            remainingAmountCents: shopBalanceCents,
+            remainingAmount: centsToDollars(shopBalanceCents),
+            paymentStatus: "deposit_paid",
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        );
+        transaction.create(paymentRef, {
+          bookingId: bookingRef.id,
+          sessionNumber: 1,
+          purpose: "session_deposit",
+          method: "stripe",
+          artistAmountCents,
+          platformFeeCents,
+          stripeFeeCents,
+          clientTotalCents,
+          checkoutSessionId: session.id,
+          paymentIntentId: session.payment_intent,
+          status: "confirmed",
+          createdAt: timestamp,
+        });
+      }
+    } else if (isProtectedSessionPaymentBooking(booking)) {
       const metadata = session.metadata || {};
       const paymentPurpose = metadata.paymentPurpose as CheckoutPaymentPurpose;
       const paidSessionNumber = getPositiveInteger(
@@ -2623,222 +2902,37 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       throw new HttpsError("permission-denied", "Only the booking client can pay this booking.");
     }
 
-    let paymentMode = (data.paymentMode || "deposit") as CheckoutPaymentMode;
-
-    if (!["deposit", "full", "remaining", "platform_fee"].includes(paymentMode)) {
-      paymentMode = "deposit";
-    }
-
-    const protectedSessionPayment = isProtectedSessionPaymentBooking(booking);
-    let paymentPurpose: CheckoutPaymentPurpose = "legacy";
-    const payableSessionNumber = Math.max(
-      getPositiveInteger(
-        booking.pendingSessionNumber,
-        booking.activeSessionNumber || 1
-      ),
-      1
-    );
-    let protectedSessionRef:
-      | admin.firestore.DocumentReference
-      | null = null;
-    let protectedSession: admin.firestore.DocumentData = {};
-    let checkoutAttemptNumber = 1;
-
-    if (protectedSessionPayment && paymentMode === "full") {
+    if (booking.sourceType !== "flash" || !getOptionalString(booking.flashId)) {
       throw new HttpsError(
         "failed-precondition",
-        "Custom tattoo projects cannot be prepaid in full."
+        "Checkout is available only for flash booking deposits."
       );
     }
 
-    if (protectedSessionPayment && paymentMode !== "platform_fee") {
-      const refs = getBookingSessionRefs(bookingId, payableSessionNumber);
-      protectedSessionRef = refs.sessionRef;
-      const protectedSessionSnap = await protectedSessionRef.get();
-      if (!protectedSessionSnap.exists) {
-        throw new HttpsError(
-          "failed-precondition",
-          "The active session payment plan is missing."
-        );
-      }
-      protectedSession = protectedSessionSnap.data() || {};
-      checkoutAttemptNumber = getPositiveInteger(
-        protectedSession.checkoutAttemptNumber,
-        1
+    if (data.paymentMode && data.paymentMode !== "deposit") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Only the flash booking deposit can be paid through SATX Ink."
       );
-
-      if (protectedSession.depositStatus === "due") {
-        paymentMode = "deposit";
-        paymentPurpose = "session_deposit";
-      } else if (protectedSession.balanceStatus === "due") {
-        if (protectedSession.selectedBalanceMethod === "external") {
-          throw new HttpsError(
-            "failed-precondition",
-            "This session balance is marked for payment at the shop."
-          );
-        }
-        paymentMode = "remaining";
-        paymentPurpose = "session_balance";
-      } else {
-        throw new HttpsError(
-          "failed-precondition",
-          "There is no Stripe payment due for this session."
-        );
-      }
-    } else if (paymentMode === "platform_fee") {
-      paymentPurpose = "platform_fee";
     }
 
-    const isPlatformFeeOnlyPayment = paymentMode === "platform_fee";
-
-    if (
-      (booking.status === "paid" || booking.status === "confirmed") &&
-      !isPlatformFeeOnlyPayment
-    ) {
-      throw new HttpsError("failed-precondition", "This booking has already been paid.");
+    if (booking.status !== "pending_payment") {
+      throw new HttpsError(
+        "failed-precondition",
+        "This flash booking deposit is no longer due."
+      );
     }
+
+    const paymentMode: CheckoutPaymentMode = "deposit";
+    const paymentPurpose: CheckoutPaymentPurpose = "session_deposit";
+    const payableSessionNumber = 1;
+    const checkoutAttemptNumber = 1;
 
     const priceCents = dollarsToCents(booking.price);
     const depositCents = dollarsToCents(booking.depositAmount || booking.price);
-    const totalArtistPaidCents = Number(
-      booking.totalArtistPaidCents ||
-        booking.depositPaidAmountCents ||
-        (booking.status === "deposit_paid" ? depositCents : 0)
-    );
+    const artistAmountCents = Math.min(depositCents, priceCents);
 
     if (
-      !protectedSessionPayment &&
-      booking.status === "pending_payment" &&
-      paymentMode === "full"
-    ) {
-      paymentMode = "deposit";
-    }
-
-    if (
-      !protectedSessionPayment &&
-      booking.status === "deposit_paid" &&
-      !isPlatformFeeOnlyPayment
-    ) {
-      paymentMode = "remaining";
-    }
-
-    if (String(paymentMode) === "remaining") {
-      throw new HttpsError(
-        "failed-precondition",
-        "Remaining session balances are settled with the artist at the shop."
-      );
-    }
-
-    if (
-      !protectedSessionPayment &&
-      paymentMode === "remaining" &&
-      booking.remainingPaymentMethod === "external"
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "This booking's remaining balance is marked for in-person payment."
-      );
-    }
-
-    if (
-      !protectedSessionPayment &&
-      paymentMode === "remaining" &&
-      booking.status !== "deposit_paid"
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "The remaining balance is not ready to be paid yet."
-      );
-    }
-
-    const pendingPlatformFeeCents = getPendingPlatformFeeCents(booking);
-
-    if (isPlatformFeeOnlyPayment) {
-      if (booking.remainingPaymentMethod !== "external") {
-        throw new HttpsError(
-          "failed-precondition",
-          "A platform fee checkout is only needed for in-person balance projects."
-        );
-      }
-
-      if (pendingPlatformFeeCents <= 0) {
-        throw new HttpsError(
-          "failed-precondition",
-          "There is no pending platform fee to collect."
-        );
-      }
-    }
-
-    const requestedSessionPaymentCents =
-      protectedSessionPayment && paymentPurpose === "session_balance"
-        ? getNonNegativeCents(protectedSession.balanceAmountCents, 0)
-        :
-      paymentMode === "remaining" &&
-      (booking.projectType === "multi_session" ||
-        Number(booking.estimatedSessionCount || 1) > 1)
-        ? Number(data.sessionPaymentAmountCents || 0) > 0
-          ? Number(data.sessionPaymentAmountCents)
-          : dollarsToCents(booking.pendingSessionPaymentAmount || 0)
-        : 0;
-    const minimumSessionPaymentCents =
-      paymentMode === "remaining" &&
-      (booking.projectType === "multi_session" ||
-        Number(booking.estimatedSessionCount || 1) > 1)
-        ? Math.max(
-            dollarsToCents(booking.pendingSessionPaymentAmount || 0),
-            Math.ceil(
-              Math.max(priceCents - totalArtistPaidCents, 0) /
-                getRemainingInstallmentCount(booking)
-            )
-          )
-        : 0;
-
-    if (
-      requestedSessionPaymentCents > 0 &&
-      requestedSessionPaymentCents < minimumSessionPaymentCents
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Session payment cannot be below the minimum amount due."
-      );
-    }
-
-    if (
-      paymentMode === "remaining" &&
-      (booking.projectType === "multi_session" ||
-        Number(booking.estimatedSessionCount || 1) > 1) &&
-      dollarsToCents(booking.pendingSessionPaymentAmount || 0) <= 0
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        "The next session payment is not ready yet."
-      );
-    }
-
-    const protectedArtistAmountCents =
-      paymentPurpose === "session_deposit"
-        ? getNonNegativeCents(protectedSession.depositAmountCents, 0)
-        : paymentPurpose === "session_balance"
-        ? getNonNegativeCents(protectedSession.balanceAmountCents, 0)
-        : null;
-    const artistAmountCents =
-      paymentMode === "platform_fee"
-        ? 0
-        : protectedArtistAmountCents !== null
-        ? protectedArtistAmountCents
-        : paymentMode === "full"
-        ? priceCents
-        : paymentMode === "remaining"
-        ? requestedSessionPaymentCents > 0
-          ? Math.min(
-              Math.max(priceCents - totalArtistPaidCents, 0),
-              requestedSessionPaymentCents
-            )
-          : Math.max(priceCents - totalArtistPaidCents, 0)
-        : Math.min(depositCents, priceCents);
-
-    if (
-      !isPlatformFeeOnlyPayment &&
       (!Number.isFinite(artistAmountCents) ||
         artistAmountCents < MIN_ARTIST_PAYOUT_CENTS)
     ) {
@@ -2848,15 +2942,9 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
-    const platformFeeCents = protectedSessionPayment
-      ? isPlatformFeeOnlyPayment
-        ? pendingPlatformFeeCents
-        : paymentPurpose === "session_deposit" && payableSessionNumber === 1
-        ? calculatePlatformFeeCents(priceCents || artistAmountCents)
-        : pendingPlatformFeeCents
-      : isPlatformFeeOnlyPayment || paymentMode === "remaining"
-      ? pendingPlatformFeeCents
-      : calculatePlatformFeeCents(priceCents || artistAmountCents);
+    const platformFeeCents = calculatePlatformFeeCents(
+      priceCents || artistAmountCents
+    );
 
     const {
       clientTotalCents,
@@ -2872,12 +2960,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
 
     const artistSnap = await db.collection("users").doc(booking.artistId).get();
     const artist = artistSnap.data() || {};
-    const connectedAccountId = isPlatformFeeOnlyPayment
-      ? undefined
-      : (artist.stripeConnect?.accountId as string | undefined);
+    const connectedAccountId = artist.stripeConnect?.accountId as string | undefined;
     reservedConnectedAccountId = connectedAccountId ?? null;
 
-    if (!isPlatformFeeOnlyPayment && !connectedAccountId) {
+    if (!connectedAccountId) {
       throw new HttpsError(
         "failed-precondition",
         "This artist has not connected Stripe payouts yet."
@@ -2885,7 +2971,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     }
 
     const connectStatus =
-      !isPlatformFeeOnlyPayment && connectedAccountId
+      connectedAccountId
         ? await syncArtistStripeAccount(
             booking.artistId,
             stripe,
@@ -2906,15 +2992,13 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
     reservedFlashId =
       typeof booking.flashId === "string" ? booking.flashId : null;
     reservedBookingId = bookingId;
-    reservedOneOfOneFlash = isPlatformFeeOnlyPayment
-      ? false
-      : await reserveOneOfOneFlashForCheckout({
-          bookingRef,
-          bookingId,
-          booking,
-          clientId: uid,
-          holdUntil: flashHoldUntil,
-        });
+    reservedOneOfOneFlash = await reserveOneOfOneFlashForCheckout({
+      bookingRef,
+      bookingId,
+      booking,
+      clientId: uid,
+      holdUntil: flashHoldUntil,
+    });
     const checkoutFlashRepeatability = reservedOneOfOneFlash
       ? "one_of_one"
       : booking.flashRepeatability || "";
@@ -2955,7 +3039,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       },
     };
 
-    if (platformFeeCents > 0 && !isPlatformFeeOnlyPayment) {
+    if (platformFeeCents > 0) {
       paymentIntentData.application_fee_amount = platformFeeCents;
     }
 
@@ -3015,14 +3099,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       "attempt",
       checkoutAttemptNumber,
     ].join(":");
-    const session = isPlatformFeeOnlyPayment
-      ? await stripe.checkout.sessions.create(sessionParams, {
-          idempotencyKey,
-        })
-      : await stripe.checkout.sessions.create(sessionParams, {
-          stripeAccount: connectedAccountId,
-          idempotencyKey,
-        });
+    const session = await stripe.checkout.sessions.create(sessionParams, {
+      stripeAccount: connectedAccountId,
+      idempotencyKey,
+    });
     createdCheckoutSessionId = session.id;
 
     if (reservedOneOfOneFlash) {
@@ -3032,19 +3112,6 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         sessionId: session.id,
         holdUntil: flashHoldUntil,
       });
-    }
-
-    if (protectedSessionRef) {
-      await protectedSessionRef.set(
-        {
-          checkoutSessionId: session.id,
-          checkoutStatus: "open",
-          checkoutAttemptNumber,
-          checkoutCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
     }
 
     await bookingRef.set(
@@ -3059,14 +3126,10 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
         platformFeeCents,
         estimatedStripeFeeAmount: stripeFeeCents / 100,
         estimatedStripeFeeCents: stripeFeeCents,
-        ...(isPlatformFeeOnlyPayment
-          ? {}
-          : {
-              artistQuotedAmount: artistAmountCents / 100,
-              artistQuotedAmountCents: artistAmountCents,
-              artistPayoutAmount: artistAmountCents / 100,
-              artistPayoutCents: artistAmountCents,
-            }),
+        artistQuotedAmount: artistAmountCents / 100,
+        artistQuotedAmountCents: artistAmountCents,
+        artistPayoutAmount: artistAmountCents / 100,
+        artistPayoutCents: artistAmountCents,
         checkoutPaymentMode: paymentMode,
         checkoutPaymentPurpose: paymentPurpose,
         checkoutSessionNumber: payableSessionNumber,
@@ -4887,6 +4950,469 @@ const attestExternalSessionPayment = onCall(
   }
 );
 
+const startFlashAppointment = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to start this appointment.");
+    }
+
+    const bookingId = getOptionalString(req.data?.bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A bookingId is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const { summaryRef, sessionRef } = getBookingSessionRefs(bookingId, 1);
+
+    await db.runTransaction(async (transaction) => {
+      const [bookingSnap, sessionSnap] = await Promise.all([
+        transaction.get(bookingRef),
+        transaction.get(sessionRef),
+      ]);
+      if (!bookingSnap.exists || !sessionSnap.exists) {
+        throw new HttpsError("not-found", "Flash appointment not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const session = sessionSnap.data() || {};
+      if (booking.sourceType !== "flash") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only flash appointments are supported at launch."
+        );
+      }
+      if (booking.artistId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the booked artist can start this appointment."
+        );
+      }
+      if (booking.status !== "deposit_paid") {
+        throw new HttpsError(
+          "failed-precondition",
+          "The booking deposit must be paid before the appointment starts."
+        );
+      }
+      if (session.depositStatus !== "paid") {
+        throw new HttpsError(
+          "failed-precondition",
+          "The appointment deposit has not been confirmed."
+        );
+      }
+      if (
+        booking.appointmentStatus === "completed" ||
+        session.status === "completed"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This appointment is already complete."
+        );
+      }
+      if (
+        booking.appointmentStatus === "in_progress" &&
+        session.status === "in_progress"
+      ) {
+        return;
+      }
+
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      transaction.update(bookingRef, {
+        appointmentStatus: "in_progress",
+        sessionStatus: "in_progress",
+        appointmentStartedAt: timestamp,
+        sessionStartedAt: timestamp,
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        sessionRef,
+        {
+          status: "in_progress",
+          startedAt: timestamp,
+          startedBy: uid,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.set(
+        summaryRef,
+        {
+          appointmentStatus: "in_progress",
+          activeSessionNumber: 1,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    });
+
+    return { status: "in_progress" };
+  }
+);
+
+const completeFlashAppointment = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to complete this appointment."
+      );
+    }
+
+    const bookingId = getOptionalString(req.data?.bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A bookingId is required.");
+    }
+    const submittedPhotoUrls = Array.isArray(req.data?.photoUrls)
+      ? req.data.photoUrls.filter(
+          (url: unknown): url is string =>
+            typeof url === "string" && url.trim().length > 0
+        )
+      : [];
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const { summaryRef, sessionRef } = getBookingSessionRefs(bookingId, 1);
+    let shopBalanceAmountCents = 0;
+
+    await db.runTransaction(async (transaction) => {
+      const [bookingSnap, sessionSnap] = await Promise.all([
+        transaction.get(bookingRef),
+        transaction.get(sessionRef),
+      ]);
+      if (!bookingSnap.exists || !sessionSnap.exists) {
+        throw new HttpsError("not-found", "Flash appointment not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const session = sessionSnap.data() || {};
+      if (booking.sourceType !== "flash") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only flash appointments are supported at launch."
+        );
+      }
+      if (booking.artistId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the booked artist can complete this appointment."
+        );
+      }
+      if (booking.status !== "deposit_paid" || session.depositStatus !== "paid") {
+        throw new HttpsError(
+          "failed-precondition",
+          "The booking deposit must be paid before completion."
+        );
+      }
+      if (
+        booking.appointmentStatus === "completed" &&
+        session.status === "completed"
+      ) {
+        shopBalanceAmountCents = getNonNegativeCents(
+          booking.shopBalanceAmountCents,
+          0
+        );
+        return;
+      }
+      if (
+        booking.appointmentStatus !== "in_progress" ||
+        session.status !== "in_progress"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Start the appointment before marking it complete."
+        );
+      }
+
+      const priceCents = getBookingPriceCents(booking);
+      const depositCents = getNonNegativeCents(
+        booking.depositAmountCents,
+        dollarsToCents(booking.depositAmount)
+      );
+      shopBalanceAmountCents = Math.max(priceCents - depositCents, 0);
+      const existingPhotoUrls = Array.isArray(session.photoUrls)
+        ? session.photoUrls.filter(
+            (url: unknown): url is string => typeof url === "string"
+          )
+        : [];
+      const photoUrls = Array.from(
+        new Set([...existingPhotoUrls, ...submittedPhotoUrls])
+      );
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const balanceStatus = shopBalanceAmountCents > 0 ? "due" : "paid";
+
+      transaction.update(bookingRef, {
+        appointmentStatus: "completed",
+        sessionStatus: "completed",
+        appointmentCompletedAt: timestamp,
+        sessionCompletedAt: timestamp,
+        shopBalanceAmountCents,
+        shopBalanceAmount: centsToDollars(shopBalanceAmountCents),
+        shopBalanceStatus: balanceStatus,
+        remainingBalanceCents: shopBalanceAmountCents,
+        remainingBalanceAmount: centsToDollars(shopBalanceAmountCents),
+        remainingPaymentMethod: "external",
+        remainingPaymentStatus:
+          shopBalanceAmountCents > 0 ? "due" : "confirmed",
+        externalRemainingAmountCents: shopBalanceAmountCents,
+        externalRemainingAmount: centsToDollars(shopBalanceAmountCents),
+        sessionPhotoUrls: photoUrls,
+        ...(shopBalanceAmountCents === 0
+          ? { status: "paid", paidAt: timestamp }
+          : {}),
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        sessionRef,
+        {
+          status: "completed",
+          completedAt: timestamp,
+          completedBy: uid,
+          notes: getOptionalString(req.data?.notes),
+          photoUrls,
+          balanceStatus,
+          selectedBalanceMethod:
+            shopBalanceAmountCents > 0 ? "external" : null,
+          paymentStatus:
+            shopBalanceAmountCents > 0 ? "balance_due" : "confirmed",
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.set(
+        summaryRef,
+        {
+          appointmentStatus: "completed",
+          completedSessionCount: 1,
+          remainingAmountCents: shopBalanceAmountCents,
+          remainingAmount: centsToDollars(shopBalanceAmountCents),
+          paymentStatus:
+            shopBalanceAmountCents > 0 ? "balance_due" : "confirmed",
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    });
+
+    return {
+      status: "completed",
+      shopBalanceAmountCents,
+    };
+  }
+);
+
+const recordFlashBalancePaidAtShop = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to record the shop payment."
+      );
+    }
+
+    const bookingId = getOptionalString(req.data?.bookingId);
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "A bookingId is required.");
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const { summaryRef, sessionRef } = getBookingSessionRefs(bookingId, 1);
+    const paymentRef = bookingRef.collection("payments").doc("shop-balance");
+    let shopBalanceAmountCents = 0;
+
+    await db.runTransaction(async (transaction) => {
+      const [bookingSnap, sessionSnap, paymentSnap] = await Promise.all([
+        transaction.get(bookingRef),
+        transaction.get(sessionRef),
+        transaction.get(paymentRef),
+      ]);
+      if (!bookingSnap.exists || !sessionSnap.exists) {
+        throw new HttpsError("not-found", "Flash appointment not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      const session = sessionSnap.data() || {};
+      if (booking.sourceType !== "flash") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only flash appointments are supported at launch."
+        );
+      }
+      if (booking.artistId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the booked artist can record this payment."
+        );
+      }
+      if (
+        booking.appointmentStatus !== "completed" ||
+        session.status !== "completed"
+      ) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Complete the appointment before recording the remaining balance."
+        );
+      }
+
+      const priceCents = getBookingPriceCents(booking);
+      const depositCents = getNonNegativeCents(
+        booking.depositAmountCents,
+        dollarsToCents(booking.depositAmount)
+      );
+      shopBalanceAmountCents = Math.max(priceCents - depositCents, 0);
+      if (paymentSnap.exists || booking.shopBalanceStatus === "paid") {
+        return;
+      }
+
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      transaction.update(bookingRef, {
+        status: "paid",
+        shopBalanceAmountCents,
+        shopBalanceAmount: centsToDollars(shopBalanceAmountCents),
+        shopBalanceStatus: "paid",
+        shopBalancePaidAt: timestamp,
+        remainingBalanceCents: 0,
+        remainingBalanceAmount: 0,
+        remainingPaymentMethod: "external",
+        remainingPaymentStatus: "confirmed",
+        externalRemainingPaidAt: timestamp,
+        totalArtistPaidCents: priceCents,
+        totalArtistPaidAmount: centsToDollars(priceCents),
+        artistPaidCents: priceCents,
+        paidAt: timestamp,
+        updatedAt: timestamp,
+      });
+      transaction.set(
+        sessionRef,
+        {
+          balanceStatus: "paid",
+          balancePaidAt: timestamp,
+          selectedBalanceMethod: "external",
+          paidBalanceAmountCents: shopBalanceAmountCents,
+          paidBalanceAmount: centsToDollars(shopBalanceAmountCents),
+          paymentStatus: "confirmed",
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.set(
+        summaryRef,
+        {
+          remainingAmountCents: 0,
+          remainingAmount: 0,
+          paymentStatus: "confirmed",
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+      transaction.create(paymentRef, {
+        bookingId,
+        sessionNumber: 1,
+        purpose: "shop_balance",
+        method: "external",
+        artistAmountCents: shopBalanceAmountCents,
+        platformFeeCents: 0,
+        stripeFeeCents: 0,
+        clientTotalCents: shopBalanceAmountCents,
+        status: "confirmed",
+        recordedBy: uid,
+        createdAt: timestamp,
+      });
+    });
+
+    return {
+      status: "paid",
+      shopBalanceAmountCents,
+    };
+  }
+);
+
+const addFlashAppointmentPhoto = onCall(
+  { cors: true, region: "us-central1" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to save an appointment photo."
+      );
+    }
+
+    const bookingId = getOptionalString(req.data?.bookingId);
+    const photoUrl = getOptionalString(req.data?.photoUrl);
+    if (!bookingId || !photoUrl) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A booking and photo URL are required."
+      );
+    }
+
+    let parsedPhotoUrl: URL;
+    try {
+      parsedPhotoUrl = new URL(photoUrl);
+    } catch {
+      throw new HttpsError("invalid-argument", "The photo URL is invalid.");
+    }
+    if (
+      parsedPhotoUrl.protocol !== "https:" ||
+      !["firebasestorage.googleapis.com", "storage.googleapis.com"].includes(
+        parsedPhotoUrl.hostname
+      ) ||
+      photoUrl.length > 2048
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "The photo must come from SATX Ink storage."
+      );
+    }
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const { summaryRef, sessionRef } = getBookingSessionRefs(bookingId, 1);
+    await db.runTransaction(async (transaction) => {
+      const bookingSnap = await transaction.get(bookingRef);
+      if (!bookingSnap.exists) {
+        throw new HttpsError("not-found", "Flash appointment not found.");
+      }
+
+      const booking = bookingSnap.data() || {};
+      if (booking.sourceType !== "flash") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Only flash appointments are supported at launch."
+        );
+      }
+      if (booking.artistId !== uid) {
+        throw new HttpsError(
+          "permission-denied",
+          "Only the booked artist can add appointment photos."
+        );
+      }
+
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const photoUpdate = {
+        bookingId,
+        artistId: booking.artistId,
+        clientId: booking.clientId,
+        sessionNumber: 1,
+        photoUrls: admin.firestore.FieldValue.arrayUnion(photoUrl),
+        updatedAt: timestamp,
+      };
+
+      transaction.update(bookingRef, {
+        sessionPhotoUrls: admin.firestore.FieldValue.arrayUnion(photoUrl),
+        updatedAt: timestamp,
+      });
+      transaction.set(summaryRef, photoUpdate, { merge: true });
+      transaction.set(sessionRef, photoUpdate, { merge: true });
+    });
+
+    return { sessionNumber: 1, photoUrl };
+  }
+);
+
 const syncBookingPaymentStatus = onCall(
   { cors: true, region: "us-central1", secrets: [STRIPE_SECRET_KEY] },
   async (req) => {
@@ -6185,6 +6711,8 @@ module.exports = {
   createStripeConnectOnboardingLink,
   getStripeConnectStatus,
   createStripeDashboardLoginLink,
+  createFlashRequest,
+  acceptFlashOffer,
   acceptProjectOffer,
   createCheckoutSession,
   proposeProjectAmendment,
@@ -6195,6 +6723,10 @@ module.exports = {
   startProjectSession,
   completeProjectSession,
   addProjectSessionPhoto,
+  startFlashAppointment,
+  completeFlashAppointment,
+  recordFlashBalancePaidAtShop,
+  addFlashAppointmentPhoto,
   selectSessionBalanceMethod,
   attestExternalSessionPayment,
   syncBookingPaymentStatus,

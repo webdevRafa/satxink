@@ -17,7 +17,6 @@ import {
   DollarSign,
   Eye,
   ImageIcon,
-  Layers,
   MapPin,
   MessageSquareText,
   ReceiptText,
@@ -119,10 +118,12 @@ const OffersList = ({
     const unsubscribe = onSnapshot(
       offersQuery,
       async (snapshot) => {
-        const data = snapshot.docs.map((offerDoc) => ({
-          id: offerDoc.id,
-          ...offerDoc.data(),
-        })) as DashboardOffer[];
+        const data = snapshot.docs
+          .filter((offerDoc) => offerDoc.data().sourceType === "flash")
+          .map((offerDoc) => ({
+            id: offerDoc.id,
+            ...offerDoc.data(),
+          })) as DashboardOffer[];
 
         const offersWithImages = await applyOfferImageFallbacks(data);
         if (!isActive) return;
@@ -614,8 +615,7 @@ const OfferRow = ({
 }) => {
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
-  const isFlashOffer = offer.sourceType === "flash";
-  const sessionLabel = getOfferSessionLabel(offer);
+  const sessionLabel = getOfferSessionLabel();
   const statusTitle = getOfferStatusTitle(offer);
   const clientName = offer.clientName || "Client";
   const clientTableName = getClientFirstName(offer);
@@ -650,14 +650,12 @@ const OfferRow = ({
         type="button"
         onClick={onOpen}
         className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
-        aria-label="View offer sample"
+        aria-label="View flash design"
       >
         {previewUrl ? (
           <img
             src={previewUrl}
-            alt={
-              isFlashOffer ? offer.flashTitle || "Flash offer" : "Offer sample"
-            }
+            alt={offer.flashTitle || "Flash offer"}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -753,25 +751,13 @@ const OfferMobileCard = ({
   const previewUrl = offer.thumbUrl || offer.fullUrl || "";
   const earliestDateOption = getEarliestAppointmentOption(offer.dateOptions);
   const isDeclined = offer.status === "declined";
-  const isFlashOffer = offer.sourceType === "flash";
-  const isMultiSessionOffer = offer.projectType === "multi_session";
   const clientName = offer.clientName || "Client";
   const clientTableName = getClientFirstName(offer);
   const clientTitle = getFullClientNameTitle(clientName, clientTableName);
-  const scopeTile = isFlashOffer
-    ? {
-        label: "Flash",
-        value: offer.flashTitle || "Flash item",
-      }
-    : isMultiSessionOffer
-    ? {
-        label: "Sessions",
-        value: `${offer.estimatedSessionCount || 2} sessions`,
-      }
-    : {
-        label: "Session",
-        value: "Single session",
-      };
+  const scopeTile = {
+    label: "Flash",
+    value: offer.flashTitle || "Flash item",
+  };
 
   return (
     <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
@@ -809,11 +795,7 @@ const OfferMobileCard = ({
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt={
-                isFlashOffer
-                  ? offer.flashTitle || "Flash offer"
-                  : "Offer sample"
-              }
+              alt={offer.flashTitle || "Flash offer"}
               className="h-full w-full object-cover"
             />
           ) : (
@@ -979,16 +961,10 @@ const OfferDetailsDialog = ({
                   <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
                     <div>
                       <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        {offer.sourceType === "flash"
-                          ? "Flash offer details"
-                          : "Offer details"}
+                        Flash offer details
                       </p>
                       <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                        {offer.sourceType === "flash"
-                          ? `Flash offer sent to ${
-                              offer.clientName || "Client"
-                            }`
-                          : `Offer sent to ${offer.clientName || "Client"}`}
+                        Flash offer sent to {offer.clientName || "Client"}
                       </Dialog.Title>
                     </div>
                     <button
@@ -1006,17 +982,13 @@ const OfferDetailsDialog = ({
                       {offer.fullUrl || offer.thumbUrl ? (
                         <img
                           src={offer.fullUrl || offer.thumbUrl || undefined}
-                          alt={
-                            offer.sourceType === "flash"
-                              ? offer.flashTitle || "Flash offer"
-                              : "Offer sample"
-                          }
+                          alt={offer.flashTitle || "Flash offer"}
                           className="max-h-[58dvh] w-full object-contain sm:max-h-[calc(100dvh-5.75rem-7rem)] lg:max-h-none"
                         />
                       ) : (
                         <div className="flex min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:min-h-[420px]">
                           <ImageIcon size={34} />
-                          <span>No sample image uploaded</span>
+                          <span>Flash image unavailable</span>
                         </div>
                       )}
                     </div>
@@ -1076,20 +1048,14 @@ const OfferDetailsDialog = ({
                       )}
 
                       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        {offer.sourceType === "flash" && (
-                          <DetailTile
-                            icon={<ReceiptText size={17} />}
-                            label="Flash item"
-                            value={offer.flashTitle || "Untitled flash"}
-                          />
-                        )}
+                        <DetailTile
+                          icon={<ReceiptText size={17} />}
+                          label="Flash item"
+                          value={offer.flashTitle || "Untitled flash"}
+                        />
                         <DetailTile
                           icon={<DollarSign size={17} />}
-                          label={
-                            offer.sourceType === "flash"
-                              ? "Listed flash price"
-                              : "Offer price"
-                          }
+                          label="Listed flash price"
                           value={`$${offer.price}`}
                         />
                         <DetailTile
@@ -1114,20 +1080,6 @@ const OfferDetailsDialog = ({
                               }`}
                             />
                           )}
-                        {offer.projectType === "multi_session" && (
-                          <>
-                            <DetailTile
-                              icon={<Layers size={17} />}
-                              label="Sessions"
-                              value={`${offer.estimatedSessionCount || 2}`}
-                            />
-                            <DetailTile
-                              icon={<DollarSign size={17} />}
-                              label="Per session"
-                              value={`$${offer.estimatedSessionPrice || 0}`}
-                            />
-                          </>
-                        )}
                       </div>
 
                       <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
@@ -1305,17 +1257,7 @@ const getDeclineReasonLabel = (offer: DashboardOffer) => {
   return "Reason not provided";
 };
 
-const getOfferSessionLabel = (offer: DashboardOffer) => {
-  if (
-    offer.projectType === "multi_session" ||
-    Number(offer.estimatedSessionCount || 1) > 1
-  ) {
-    const count = Math.max(Number(offer.estimatedSessionCount || 2), 2);
-    return `${count} sessions`;
-  }
-
-  return "1 session";
-};
+const getOfferSessionLabel = () => "1 appointment";
 
 const getRevisionRequestFromOffer = (
   offer: DashboardOffer

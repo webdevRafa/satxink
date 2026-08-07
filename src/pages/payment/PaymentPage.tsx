@@ -1,16 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { toast } from "react-hot-toast";
+import toast from "react-hot-toast";
 import {
   CalendarDays,
   CheckCircle2,
-  Clock,
   CreditCard,
   DollarSign,
   ImageIcon,
-  Layers,
   MapPin,
   ShieldCheck,
   Store,
@@ -21,777 +19,160 @@ import {
   calculateClientPaymentBreakdown,
   formatMoneyFromCents,
 } from "../../utils/paymentFees";
-import { getAllocationForSession } from "../../utils/projectPayments";
-
-type PaymentMode = "deposit" | "full" | "remaining" | "platform_fee";
-
-const getFinalPaymentTermsLabel = () => "At shop after session";
 
 const PaymentPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("deposit");
-  const [sessionPaymentAmount, setSessionPaymentAmount] = useState("");
 
   useEffect(() => {
-    if (!bookingId) return;
-
-    const ref = doc(db, "bookings", bookingId);
-    const unsubscribe = onSnapshot(
-      ref,
-      (snap) => {
-        if (!snap.exists()) {
+    if (!bookingId) return undefined;
+    return onSnapshot(
+      doc(db, "bookings", bookingId),
+      (snapshot) => {
+        if (!snapshot.exists()) {
           toast.error("Booking not found.");
           navigate("/dashboard");
           return;
         }
-
-        setBooking({ id: snap.id, ...snap.data() } as Booking);
+        setBooking({ id: snapshot.id, ...snapshot.data() } as Booking);
         setLoading(false);
       },
       (error) => {
-        console.error(error);
-        toast.error("Error loading booking.");
+        console.error("Could not load flash booking:", error);
+        toast.error("Could not load this booking.");
         navigate("/dashboard");
       }
     );
-
-    return () => unsubscribe();
   }, [bookingId, navigate]);
 
-  useEffect(() => {
-    if (!booking) return;
-    const usesProtectedSessionPayments = booking.paymentModelVersion === 2;
-    const hasPendingPlatformFee =
-      booking.remainingPaymentMethod === "external" &&
-      Number(booking.pendingPlatformFeeCents || 0) > 0;
-    setPaymentMode(
-      hasPendingPlatformFee
-        ? "platform_fee"
-        : usesProtectedSessionPayments
-        ? booking.sessionStatus === "completed"
-          ? "remaining"
-          : "deposit"
-        : booking.status === "deposit_paid" &&
-          booking.remainingPaymentMethod !== "external"
-        ? "remaining"
-        : "deposit"
-    );
-    if (
-      !usesProtectedSessionPayments &&
-      booking.status === "deposit_paid" &&
-      booking.remainingPaymentMethod !== "external" &&
-      isMultiSessionBooking(booking)
-    ) {
-      setSessionPaymentAmount(String(getSessionInstallmentAmount(booking)));
-    }
-  }, [booking]);
+  const depositCents = Math.max(
+    Number(booking?.depositAmountCents) ||
+      Math.round(Number(booking?.depositAmount || 0) * 100),
+    0
+  );
+  const priceCents = Math.max(
+    Number(booking?.totalAmountCents || booking?.priceCents) ||
+      Math.round(Number(booking?.price || 0) * 100),
+    0
+  );
+  const shopBalanceCents = Math.max(
+    Number(booking?.shopBalanceAmountCents) || priceCents - depositCents,
+    0
+  );
+  const breakdown = useMemo(
+    () =>
+      calculateClientPaymentBreakdown(depositCents / 100, {
+        platformFeeBaseAmount: priceCents / 100,
+      }),
+    [depositCents, priceCents]
+  );
+  const depositIsDue = booking?.status === "pending_payment";
+  const depositIsPaid = Boolean(
+    booking &&
+      ["deposit_paid", "confirmed", "paid"].includes(booking.status)
+  );
 
   const handleCheckout = async () => {
-    if (!booking) return;
-
-    const hasPendingPlatformFee =
-      booking.remainingPaymentMethod === "external" &&
-      Number(booking.pendingPlatformFeeCents || 0) > 0;
-    const checkoutPaymentMode: PaymentMode = hasPendingPlatformFee
-      ? "platform_fee"
-      : booking.paymentModelVersion === 2
-      ? booking.sessionStatus === "completed"
-        ? "remaining"
-        : "deposit"
-      : booking.status === "pending_payment"
-      ? "deposit"
-      : paymentMode;
-
-    if (
-      booking.status === "paid" ||
-      booking.status === "confirmed" ||
-      booking.status === "cancelled"
-    ) {
-      if (
-        checkoutPaymentMode !== "platform_fee" ||
-        booking.status === "cancelled"
-      ) {
-        navigate("/dashboard");
-        return;
-      }
-    }
-
-    if (
-      booking.status === "deposit_paid" &&
-      checkoutPaymentMode !== "platform_fee"
-    ) {
-      toast.success(
-        "Your remaining balance is settled with the artist at the shop."
-      );
-      navigate("/dashboard");
+    if (!booking || booking.sourceType !== "flash" || !booking.flashId) {
+      toast.error("This checkout is available only for flash bookings.");
       return;
     }
-
-    if (
-      booking.paymentModelVersion === 2 &&
-      checkoutPaymentMode !== "platform_fee" &&
-      Number(booking.pendingSessionPaymentAmountCents || 0) <= 0
-    ) {
-      toast.success("There is no session payment due right now.");
-      navigate("/dashboard");
-      return;
-    }
-
-    if (
-      booking.status === "deposit_paid" &&
-      isMultiSessionBooking(booking) &&
-      checkoutPaymentMode === "remaining" &&
-      Number(booking.pendingSessionPaymentAmount || 0) <= 0
-    ) {
-      toast.error("The next session payment is not ready yet.");
-      navigate("/dashboard");
+    if (!depositIsDue) {
+      navigate("/dashboard?tab=bookings");
       return;
     }
 
     try {
-      const sessionMinimum =
-        booking.paymentModelVersion === 2
-          ? Number(booking.pendingSessionPaymentAmount || 0)
-          :
-        checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
-          ? getSessionInstallmentAmount(booking)
-          : 0;
-      const sessionAmount =
-        booking.paymentModelVersion === 2
-          ? sessionMinimum
-          :
-        checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
-          ? Number(sessionPaymentAmount || 0)
-          : 0;
-
-      if (
-        booking.paymentModelVersion !== 2 &&
-        sessionMinimum > 0 &&
-        sessionAmount < sessionMinimum
-      ) {
-        toast.error(
-          `Enter at least ${formatMoneyFromCents(
-            Math.round(sessionMinimum * 100)
-          )} for this session.`
-        );
-        return;
-      }
-
-      if (
-        booking.paymentModelVersion !== 2 &&
-        sessionAmount > getRemainingBalance(booking)
-      ) {
-        toast.error("Payment cannot exceed the remaining project balance.");
-        return;
-      }
-
       setIsStartingCheckout(true);
-      toast.loading("Redirecting to Stripe...");
-
+      const toastId = toast.loading("Opening secure Stripe checkout…");
       const createSession = httpsCallable(functions, "createCheckoutSession");
       const response = await createSession({
         bookingId: booking.id,
-        paymentMode: checkoutPaymentMode,
-        sessionPaymentAmountCents:
-          booking.paymentModelVersion === 2
-            ? undefined
-            :
-          checkoutPaymentMode === "remaining" && isMultiSessionBooking(booking)
-            ? Math.round(sessionAmount * 100)
-            : undefined,
+        paymentMode: "deposit",
         successUrl: `${window.location.origin}/payment-success?bookingId=${booking.id}`,
         cancelUrl: `${window.location.origin}/payment/${booking.id}`,
       });
-
-      const { sessionUrl } = response.data as { sessionUrl: string };
+      const { sessionUrl } = response.data as { sessionUrl?: string };
+      toast.dismiss(toastId);
+      if (!sessionUrl) throw new Error("Stripe checkout URL was not returned.");
+      window.location.assign(sessionUrl);
+    } catch (error) {
+      console.error("Could not start flash deposit checkout:", error);
       toast.dismiss();
-      window.location.href = sessionUrl;
-    } catch (err) {
-      console.error(err);
-      toast.dismiss();
-      toast.error("Failed to start checkout.");
+      toast.error("Could not open Stripe checkout. Please try again.");
       setIsStartingCheckout(false);
     }
   };
 
   if (loading) {
+    return <PaymentShell><div className="mx-auto max-w-3xl rounded-xl border border-white/10 bg-white/[0.03] p-10 text-center text-neutral-300">Loading payment details…</div></PaymentShell>;
+  }
+  if (!booking) return null;
+
+  if (booking.sourceType !== "flash" || !booking.flashId) {
     return (
       <PaymentShell>
-        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
-          Loading payment details...
+        <div className="mx-auto max-w-xl rounded-xl border border-white/10 bg-[#121212] p-6 text-center text-white">
+          <h1 className="text-2xl! font-semibold!">Checkout unavailable</h1>
+          <p className="mt-3 text-sm leading-6 text-neutral-400">SATX Ink checkout now supports flash booking deposits only. Your historical record remains available from the dashboard.</p>
+          <Link to="/dashboard" className="mt-5 inline-flex rounded-lg bg-white px-4! py-2.5! text-sm! font-semibold text-black">Return to dashboard</Link>
         </div>
       </PaymentShell>
     );
   }
 
-  if (!booking) {
-    return (
-      <PaymentShell>
-        <div className="mx-auto max-w-4xl rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center text-white">
-          Booking not found or failed to load.
-        </div>
-      </PaymentShell>
-    );
-  }
-
-  const isInternalPayment = booking.paymentType === "internal";
-  const isPaid = booking.status === "paid" || booking.status === "confirmed";
-  const price = Number(booking.price || 0);
-  const deposit = Math.min(Number(booking.depositAmount || price), price);
-  const alreadyPaid = Number(booking.totalArtistPaidAmount || 0);
-  const externalRemainingAmount =
-    typeof booking.externalRemainingAmount === "number"
-      ? Math.max(booking.externalRemainingAmount, 0)
-      : Math.max(price - deposit, 0);
-  const pendingPlatformFeeCents = Math.max(
-    Number(booking.pendingPlatformFeeCents || 0),
-    0
-  );
-  const usesExternalRemaining =
-    booking.status === "deposit_paid" && externalRemainingAmount > 0;
-  const isPlatformFeeCheckout =
-    usesExternalRemaining &&
-    pendingPlatformFeeCents > 0 &&
-    paymentMode === "platform_fee";
-  const isMultiSession = isMultiSessionBooking(booking);
-  const usesProtectedSessionPayments = booking.paymentModelVersion === 2;
-  const payableSessionNumber = getPayableSessionNumber(booking);
-  const activeAllocation = getAllocationForSession(
-    booking.sessionAllocations,
-    payableSessionNumber
-  );
-  const protectedAmountDue =
-    usesProtectedSessionPayments &&
-    paymentMode !== "platform_fee"
-      ? Math.max(Number(booking.pendingSessionPaymentAmount || 0), 0)
-      : null;
-  const hasProtectedPaymentDue =
-    usesProtectedSessionPayments &&
-    Number(booking.pendingSessionPaymentAmountCents || 0) > 0;
-  const sessionInstallmentAmount = getSessionInstallmentAmount(booking);
-  const sessionPaymentLabel = isMultiSession
-    ? `${getSessionOrdinal(getPayableSessionNumber(booking))} session`
-    : "";
-  const customSessionPaymentAmount =
-    isMultiSession && paymentMode === "remaining"
-      ? Math.min(
-          Math.max(Number(sessionPaymentAmount || sessionInstallmentAmount), 0),
-          getRemainingBalance(booking)
-        )
-      : sessionInstallmentAmount;
-  const externalBalanceDue =
-    usesExternalRemaining && booking.status === "deposit_paid";
-  const artistAmountDue =
-    isPlatformFeeCheckout || externalBalanceDue
-      ? 0
-      : protectedAmountDue !== null
-      ? protectedAmountDue
-      : paymentMode === "full"
-      ? price
-      : paymentMode === "remaining"
-      ? isMultiSession
-        ? customSessionPaymentAmount
-        : Math.max(
-            Number(booking.remainingBalanceAmount ?? price - alreadyPaid),
-            0
-          )
-      : deposit;
-  const paymentBreakdown = calculateClientPaymentBreakdown(artistAmountDue, {
-    platformFeeBaseAmount: price,
-    platformFeeCentsOverride:
-      paymentMode === "platform_fee" || paymentMode === "remaining"
-        ? pendingPlatformFeeCents
-        : undefined,
-  });
-  const totalDueTodayCents =
-    externalBalanceDue && !isPlatformFeeCheckout
-      ? 0
-      : paymentBreakdown.clientTotalCents;
-  const remainingAfterPayment =
-    paymentMode === "deposit" ? Math.max(price - deposit, 0) : 0;
-  const isDepositWithShopBalance =
-    booking.status === "pending_payment" &&
-    paymentMode === "deposit" &&
-    remainingAfterPayment > 0;
-  const todayTotalLabel = isDepositWithShopBalance
-    ? "Deposit due today"
-    : "Total due today";
-  const depositBreakdown = calculateClientPaymentBreakdown(deposit, {
-    platformFeeBaseAmount: price,
-  });
-  const paymentOptions =
-    booking.status === "deposit_paid"
-      ? []
-      : [
-          {
-            mode: "deposit" as PaymentMode,
-            title: "Pay deposit",
-            description:
-              remainingAfterPayment > 0
-                ? "Confirm the appointment now and settle the artist balance directly with the artist."
-                : "Confirm the appointment with the artist's required deposit.",
-            breakdown: depositBreakdown,
-          },
-        ];
-  const shouldShowPaymentChoice = paymentOptions.length > 1;
-  const shouldShowPaymentOptionPanel =
-    hasProtectedPaymentDue ||
-    shouldShowPaymentChoice ||
-    (booking.status === "deposit_paid" &&
-      isMultiSession &&
-      !usesExternalRemaining &&
-      !usesProtectedSessionPayments);
-  const checkoutActionLabel = isPaid
-    ? "Return to dashboard"
-    : isStartingCheckout
-    ? "Opening Stripe..."
-    : booking.status === "deposit_paid" &&
-      usesExternalRemaining &&
-      !isPlatformFeeCheckout
-    ? "Return to dashboard"
-    : usesProtectedSessionPayments && !hasProtectedPaymentDue
-    ? "Return to dashboard"
-    : "Continue to Stripe";
+  const imageUrl = booking.thumbUrl || booking.flashImageUrl || booking.fullUrl || booking.sampleImageUrl || "";
 
   return (
     <PaymentShell>
-      <section className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl lg:h-[calc(100dvh-7.25rem)] lg:min-h-[560px] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-        <div className="border-b border-white/10 bg-black lg:min-h-0 lg:border-b-0 lg:border-r">
-          {booking.sampleImageUrl ? (
-            <img
-              src={booking.sampleImageUrl}
-              alt="Tattoo sample"
-              className="h-[32dvh] min-h-[220px] w-full object-contain sm:h-[38dvh] lg:h-full lg:min-h-0"
-            />
-          ) : (
-            <div className="flex h-[32dvh] min-h-[220px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500 sm:h-[38dvh] lg:h-full lg:min-h-0">
-              <ImageIcon size={34} />
-              <span>No sample image uploaded</span>
+      <section className="mx-auto w-full max-w-4xl">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
+          <header className="flex flex-col gap-4 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex items-center gap-3">
+              <img src={booking.artistAvatar || "/default-avatar.png"} alt="" className="h-12 w-12 rounded-full border border-white/10 object-cover" />
+              <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">Flash deposit</p><h1 className="mt-1 text-xl! font-semibold! text-white">Secure your appointment with {booking.artistName}</h1></div>
             </div>
-          )}
-        </div>
+            <StatusBadge paid={depositIsPaid} cancelled={booking.status === "cancelled"} />
+          </header>
 
-        <div className="flex min-h-0 flex-col">
-          <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.025] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex items-center gap-4">
-              <img
-                src={booking.artistAvatar || "/default-avatar.png"}
-                alt={booking.artistName}
-                className="h-14 w-14 rounded-full border border-white/10 object-cover"
-              />
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                  Booking payment
-                </p>
-                <h1 className="mt-1 text-xl! font-semibold text-white sm:text-2xl!">
-                  Confirm with {booking.artistName}
-                </h1>
-                <p className="mt-1 text-sm text-neutral-500">
-                  {booking.shopName || "Studio not listed"}
-                </p>
+          <div className="grid md:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
+            <div className="border-b border-white/10 bg-black/25 p-4 md:border-b-0 md:border-r md:p-6">
+              <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-xl bg-black">
+                {imageUrl ? <img src={imageUrl} alt={booking.flashTitle || "Selected flash"} className="max-h-[420px] w-full object-contain" /> : <ImageIcon size={28} className="text-neutral-600" />}
               </div>
-            </div>
-            <StatusBadge status={booking.status} />
-          </div>
-
-          <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            {isInternalPayment &&
-              !isPaid &&
-              booking.status !== "cancelled" &&
-              shouldShowPaymentOptionPanel && (
-              <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                <div className="mb-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-emerald-50/60">
-                    {shouldShowPaymentChoice
-                      ? "Payment choice"
-                      : "Session payment"}
-                  </p>
-                  <h2 className="mt-1 text-lg! font-semibold text-white">
-                    {usesProtectedSessionPayments
-                      ? paymentMode === "remaining"
-                        ? "Shop balance"
-                        : "Session deposit"
-                      : !shouldShowPaymentChoice
-                      ? isMultiSession
-                        ? `Pay ${sessionPaymentLabel}`
-                        : "Payment due"
-                      : booking.status === "deposit_paid"
-                      ? isPlatformFeeCheckout
-                        ? "Platform fee due"
-                        : usesExternalRemaining
-                        ? "Shop balance"
-                        : isMultiSession
-                        ? `Pay ${sessionPaymentLabel}`
-                        : "Shop balance"
-                      : "Choose how much to pay today"}
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                    {usesProtectedSessionPayments
-                      ? paymentMode === "remaining"
-                        ? "This balance is settled with your artist at the shop after the session."
-                        : "This checkout collects only the active session deposit. The rest cannot be paid until after tattooing."
-                      : !shouldShowPaymentChoice
-                      ? `This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
-                      : booking.status === "deposit_paid"
-                      ? isPlatformFeeCheckout
-                        ? "This fee covers the SATX Ink platform difference from your accepted project amendment."
-                        : usesExternalRemaining
-                        ? "Your appointment is confirmed with the deposit. The remaining balance is settled with the artist at the shop."
-                        : isMultiSession
-                        ? `Your appointment is confirmed. This checkout applies the ${sessionPaymentLabel} installment toward the project balance.`
-                        : "Your appointment is confirmed. This payment clears the remaining artist balance."
-                      : "Select the amount you want to pay today. Stripe opens only after you confirm below."}
-                  </p>
-                </div>
-
-                {shouldShowPaymentChoice ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {paymentOptions.map((option) => {
-                      const isSelected = paymentMode === option.mode;
-
-                      return (
-                        <button
-                          key={option.mode}
-                          type="button"
-                          onClick={() => setPaymentMode(option.mode)}
-                          aria-pressed={isSelected}
-                          className={`relative flex min-h-[142px] flex-col rounded-lg border p-4! text-left transition ${
-                            isSelected
-                              ? "border-emerald-200/60 bg-emerald-300/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                              : "border-white/10 bg-black/25 hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          <span
-                            className={`absolute right-4 top-4 flex h-4 w-4 items-center justify-center rounded-full border ${
-                              isSelected
-                                ? "border-emerald-200 bg-emerald-200"
-                                : "border-white/35 bg-white/5"
-                            }`}
-                          >
-                            {isSelected && (
-                              <span className="h-1.5 w-1.5 rounded-full bg-black" />
-                            )}
-                          </span>
-                          <span className="pr-8 text-sm font-semibold text-white">
-                            {option.title}
-                          </span>
-                          <span className="mt-2 block flex-1 text-xs leading-5 text-emerald-50/70">
-                            {option.description}
-                          </span>
-                          <span className="mt-4 block text-xl font-semibold text-white">
-                            {formatMoneyFromCents(
-                              option.breakdown.clientTotalCents
-                            )}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-emerald-300/20 bg-black/25 p-4">
-                    <p className="text-sm text-emerald-50/85">
-                      {isPlatformFeeCheckout
-                        ? "SATX Ink platform fee due today: "
-                        : usesExternalRemaining
-                        ? "Remaining balance to settle with the artist: "
-                        : isMultiSession
-                        ? "Next session installment: "
-                        : "Remaining artist balance: "}
-                      <span className="font-semibold text-white">
-                        {formatMoneyFromCents(
-                          Math.round(
-                            (isPlatformFeeCheckout
-                              ? pendingPlatformFeeCents / 100
-                              : usesExternalRemaining
-                              ? externalRemainingAmount
-                              : paymentBreakdown.artistAmountCents / 100) * 100
-                          )
-                        )}
-                      </span>
-                    </p>
-                    {isPlatformFeeCheckout ? (
-                      <p className="mt-2 text-sm leading-6 text-emerald-50/75">
-                        This covers the SATX Ink fee from the accepted project
-                        amendment. Your artist balance is still settled directly
-                        with the artist.
-                      </p>
-                    ) : (
-                      usesExternalRemaining && (
-                        <p className="mt-2 text-sm leading-6 text-emerald-50/75">
-                          Your artist records the shop payment after it is
-                          received.
-                        </p>
-                      )
-                    )}
-                    {usesProtectedSessionPayments && activeAllocation && (
-                      <div className="mt-3 grid gap-2 border-t border-white/10 pt-3 sm:grid-cols-3">
-                        <MiniLedgerValue
-                          label="Session"
-                          value={`${payableSessionNumber} of ${
-                            booking.estimatedSessionCount || 1
-                          }`}
-                        />
-                        <MiniLedgerValue
-                          label="Session price"
-                          value={formatMoneyFromCents(
-                            activeAllocation.quotedAmountCents
-                          )}
-                        />
-                        <MiniLedgerValue
-                          label={
-                            paymentMode === "remaining"
-                              ? "Balance due now"
-                              : "Deposit due now"
-                          }
-                          value={formatMoneyFromCents(
-                            Math.round((protectedAmountDue || 0) * 100)
-                          )}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {booking.status === "deposit_paid" &&
-                  isMultiSession &&
-                  !usesExternalRemaining &&
-                  !usesProtectedSessionPayments && (
-                    <label className="mt-4 block space-y-2 rounded-lg border border-white/10 bg-black/25 p-4">
-                      <span className="text-sm font-semibold text-white">
-                        Session payment amount
-                      </span>
-                      <div className="relative">
-                        <DollarSign
-                          size={16}
-                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-                        />
-                        <input
-                          type="number"
-                          min={sessionInstallmentAmount}
-                          max={getRemainingBalance(booking)}
-                          step="1"
-                          value={sessionPaymentAmount}
-                          onChange={(event) =>
-                            setSessionPaymentAmount(event.target.value)
-                          }
-                          className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-emerald-300/70"
-                        />
-                      </div>
-                      <p className="text-xs leading-5 text-neutral-400">
-                        Minimum due for this session is{" "}
-                        {formatMoneyFromCents(
-                          Math.round(sessionInstallmentAmount * 100)
-                        )}
-                        . You can pay more to get ahead; the remaining balance
-                        will be recalculated across the sessions left.
-                      </p>
-                    </label>
-                  )}
-
-              </div>
-            )}
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <DetailTile
-                icon={<DollarSign size={17} />}
-                label={todayTotalLabel}
-                value={formatMoneyFromCents(totalDueTodayCents)}
-              />
-              <DetailTile
-                icon={<CalendarDays size={17} />}
-                label="Appointment"
-                value={formatAppointment(booking.selectedDate)}
-              />
-              <DetailTile
-                icon={<CreditCard size={17} />}
-                label="Payment"
-                value={
-                  usesExternalRemaining
-                    ? "Stripe deposit + shop balance"
-                    : isInternalPayment
-                    ? "Stripe checkout"
-                    : "Direct payment"
-                }
-              />
-              <DetailTile
-                icon={<ShieldCheck size={17} />}
-                label="Final terms"
-                value={getFinalPaymentTermsLabel()}
-              />
-              {typeof booking.estimatedHoursPerSession === "number" &&
-                booking.estimatedHoursPerSession > 0 && (
-                  <DetailTile
-                    icon={<Clock size={17} />}
-                    label="Estimated session length"
-                    value={`${booking.estimatedHoursPerSession} ${
-                      booking.estimatedHoursPerSession === 1 ? "hour" : "hours"
-                    }`}
-                  />
-                )}
-              {isMultiSession && (
-                <DetailTile
-                  icon={<Layers size={17} />}
-                  label="Project sessions"
-                  value={`${booking.completedSessionCount || 0}/${
-                    booking.estimatedSessionCount || 2
-                  } complete`}
-                />
-              )}
+              <h2 className="mt-4 text-xl! font-semibold! text-white">{booking.flashTitle || "Selected flash"}</h2>
+              <p className="mt-1 text-sm text-neutral-400">{booking.shopName || "Shop pending review"}</p>
             </div>
 
-            {booking.shopAddress && (
-              <a
-                href={booking.shopMapLink || undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300 transition hover:bg-white/[0.06]"
-              >
-                <MapPin size={17} className="mt-0.5 text-neutral-500" />
-                {booking.shopAddress}
-              </a>
-            )}
+            <div className="p-4 sm:p-6">
+              <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-100"><ShieldCheck size={17} />Deposit secures this booking</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-300">Stripe collects the non-refundable deposit today. The remaining balance is settled directly with the artist at the shop after the appointment.</p>
+              </div>
 
-            <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                <ShieldCheck size={17} />
-                Payment breakdown
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <DetailTile icon={<DollarSign size={16} />} label="Flash price" value={formatMoneyFromCents(priceCents)} />
+                <DetailTile icon={<CalendarDays size={16} />} label="Appointment" value={formatAppointment(booking.selectedDate)} />
+                <DetailTile icon={<CreditCard size={16} />} label="Deposit to artist" value={formatMoneyFromCents(depositCents)} />
+                <DetailTile icon={<Store size={16} />} label="Paid at shop" value={formatMoneyFromCents(shopBalanceCents)} />
               </div>
-              <div className="space-y-2 text-sm">
-                <BreakdownRow
-                  label={
-                    isPlatformFeeCheckout
-                      ? "Artist amount"
-                      : externalBalanceDue
-                      ? "Shop balance"
-                      : paymentMode === "full"
-                      ? "Full artist amount"
-                      : paymentMode === "remaining"
-                      ? "Remaining artist balance"
-                      : "Deposit to artist"
-                  }
-                  value={formatMoneyFromCents(
-                    isPlatformFeeCheckout
-                      ? 0
-                      : externalBalanceDue
-                      ? Math.round(externalRemainingAmount * 100)
-                      : paymentBreakdown.artistAmountCents
-                  )}
-                />
-                <BreakdownRow
-                  label="SATX Ink platform fee"
-                  value={
-                    isPlatformFeeCheckout
-                      ? formatMoneyFromCents(pendingPlatformFeeCents)
-                      : externalBalanceDue
-                      ? "Collected with deposit"
-                      : formatMoneyFromCents(paymentBreakdown.platformFeeCents)
-                  }
-                />
-                <BreakdownRow
-                  label="Estimated Stripe processing"
-                  value={
-                    externalBalanceDue && !isPlatformFeeCheckout
-                      ? "$0.00"
-                      : formatMoneyFromCents(paymentBreakdown.stripeFeeCents)
-                  }
-                />
-                <div className="border-t border-white/10 pt-2">
-                  <BreakdownRow
-                    label={todayTotalLabel}
-                    value={formatMoneyFromCents(totalDueTodayCents)}
-                    strong
-                  />
-                </div>
+
+              {booking.shopAddress && <a href={booking.shopMapLink || undefined} target="_blank" rel="noreferrer" className="mt-4 flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-4 text-sm text-neutral-300 hover:bg-white/[0.05]"><MapPin size={16} className="mt-0.5 shrink-0 text-neutral-500" />{booking.shopAddress}</a>}
+
+              <div className="mt-5 rounded-xl border border-white/10 bg-black/25 p-4">
+                <p className="mb-3 text-sm font-semibold text-white">Today’s Stripe checkout</p>
+                <div className="space-y-2 text-sm"><BreakdownRow label="Deposit to artist" value={formatMoneyFromCents(breakdown.artistAmountCents)} /><BreakdownRow label="SATX Ink platform fee" value={formatMoneyFromCents(breakdown.platformFeeCents)} /><BreakdownRow label="Estimated Stripe processing" value={formatMoneyFromCents(breakdown.stripeFeeCents)} /><div className="border-t border-white/10 pt-2"><BreakdownRow strong label="Total due today" value={formatMoneyFromCents(breakdown.clientTotalCents)} /></div></div>
               </div>
-              <p className="mt-3 text-sm leading-6 text-neutral-400">
-                {externalBalanceDue &&
-                  !isPlatformFeeCheckout &&
-                  `Your deposit is paid. The remaining artist balance is ${formatMoneyFromCents(
-                    Math.round(externalRemainingAmount * 100)
-                  )} and is settled directly with the artist.`}
-                {paymentMode === "full" &&
-                  "This payment covers the full artist quote and secures your appointment."}
-                {paymentMode === "remaining" &&
-                  (isMultiSession
-                    ? "This payment applies one session installment toward your larger project balance."
-                    : "This payment clears the remaining artist balance on your confirmed booking.")}
-                {paymentMode === "deposit" && !externalBalanceDue && (
-                  <>
-                    {remainingAfterPayment > 0 ? (
-                      <>
-                        This non-refundable deposit secures your appointment.
-                        The remaining artist balance is{" "}
-                        <span className="font-semibold text-white">
-                          {formatMoneyFromCents(
-                            Math.round(remainingAfterPayment * 100)
-                          )}
-                        </span>
-                        {" and will be settled with the artist at the shop after the session."}
-                      </>
-                    ) : (
-                      "This non-refundable payment secures your appointment and covers the artist quote."
-                    )}
-                  </>
-                )}
-              </p>
+
+              <button type="button" onClick={handleCheckout} disabled={isStartingCheckout || booking.status === "cancelled"} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5! py-3! text-sm! font-semibold text-black hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-55">
+                {booking.status === "cancelled" ? "Booking cancelled" : depositIsPaid ? "Return to bookings" : isStartingCheckout ? "Opening Stripe…" : "Pay deposit securely"}
+                {depositIsPaid ? <CheckCircle2 size={16} /> : <CreditCard size={16} />}
+              </button>
+              <p className="mt-3 text-xs leading-5 text-neutral-500">By continuing, you agree to the <Link to="/terms" target="_blank" className="text-neutral-300 underline">Terms of Service</Link>.</p>
             </div>
-
-            {booking.paymentType === "external" && (
-              <div className="mt-5 rounded-lg border border-white/10 bg-black/25 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Store size={17} />
-                  Direct payment instructions
-                </div>
-                <p className="mt-3 text-sm leading-6 text-neutral-300">
-                  Settle this payment directly with your artist outside SATX Ink
-                  checkout.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-white/10 bg-[#151515]/95 p-4 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] sm:p-5">
-            {booking.paymentType !== "external" && (
-              <>
-                {!isPaid && (
-                  <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm">
-                    <span className="text-neutral-400">{todayTotalLabel}</span>
-                    <span className="font-semibold text-white">
-                      {formatMoneyFromCents(totalDueTodayCents)}
-                    </span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleCheckout}
-                  disabled={isStartingCheckout}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {checkoutActionLabel}
-                  {isPaid ? (
-                    <CheckCircle2 size={16} />
-                  ) : (
-                    <CreditCard size={16} />
-                  )}
-                </button>
-              </>
-            )}
-
-            <p className="mt-3 text-xs leading-5 text-neutral-500">
-              By continuing, you agree to the{" "}
-              <Link
-                to="/terms"
-                target="_blank"
-                className="text-white underline"
-              >
-                Terms of Service
-              </Link>
-              .
-            </p>
           </div>
         </div>
       </section>
@@ -799,166 +180,10 @@ const PaymentPage = () => {
   );
 };
 
-const PaymentShell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-dvh bg-gradient-to-b from-[#121212] via-[#0f0f0f] to-[#121212] px-3 pb-6 pt-[calc(env(safe-area-inset-top)+5rem)] sm:px-4 sm:pb-8 sm:pt-24 lg:px-6 lg:pt-[5.75rem]">
-    {children}
-  </div>
-);
-
-const DetailTile = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
-    </div>
-    <p className="mt-2 text-sm font-medium text-white">{value}</p>
-  </div>
-);
-
-const MiniLedgerValue = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) => (
-  <div className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
-    <p className="text-[10px] uppercase tracking-[0.12em] text-emerald-50/50">
-      {label}
-    </p>
-    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
-  </div>
-);
-
-const BreakdownRow = ({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) => (
-  <div className="flex items-center justify-between gap-4">
-    <span className={strong ? "font-semibold text-white" : "text-neutral-400"}>
-      {label}
-    </span>
-    <span className={strong ? "font-semibold text-white" : "text-neutral-200"}>
-      {value}
-    </span>
-  </div>
-);
-
-const StatusBadge = ({ status }: { status: string }) => {
-  const className =
-    status === "paid" || status === "confirmed" || status === "deposit_paid"
-      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-      : status === "cancelled"
-      ? "border-red-300/25 bg-red-300/10 text-red-100"
-      : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  const label =
-    status === "deposit_paid" ? "deposit paid" : status.replace("_", " ");
-
-  return (
-    <span
-      className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${className}`}
-    >
-      {label}
-    </span>
-  );
-};
-
-const formatAppointment = (date: { date: string; time: string }) => {
-  if (!date?.date || !date?.time || date.date === "TBD") return "TBD";
-  const [year, month, day] = date.date.split("-").map(Number);
-  const [hours, minutes] = date.time.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes).toLocaleString(
-    "en-US",
-    {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }
-  );
-};
-
-const getRemainingBalance = (booking: Booking) => {
-  if (typeof booking.remainingBalanceAmount === "number") {
-    return Math.max(booking.remainingBalanceAmount, 0);
-  }
-
-  return Math.max(
-    Number(booking.price || 0) -
-      Number(booking.totalArtistPaidAmount || booking.depositAmount || 0),
-    0
-  );
-};
-
-const isMultiSessionBooking = (booking: Booking) =>
-  booking.projectType === "multi_session" ||
-  Number(booking.estimatedSessionCount || 1) > 1;
-
-const getPayableSessionNumber = (booking: Booking) =>
-  Math.max(
-    Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
-    1
-  );
-
-const getSessionOrdinal = (sessionNumber: number) => {
-  const remainder = sessionNumber % 100;
-  if (remainder >= 11 && remainder <= 13) return `${sessionNumber}th`;
-  switch (sessionNumber % 10) {
-    case 1:
-      return `${sessionNumber}st`;
-    case 2:
-      return `${sessionNumber}nd`;
-    case 3:
-      return `${sessionNumber}rd`;
-    default:
-      return `${sessionNumber}th`;
-  }
-};
-
-const getSessionInstallmentAmount = (booking: Booking) => {
-  const remaining = getRemainingBalance(booking);
-  const pending = Number(booking.pendingSessionPaymentAmount || 0);
-  if (pending > 0) return Math.min(pending, remaining);
-
-  const sessionsLeft = isMultiSessionBooking(booking)
-    ? getRemainingInstallmentCount(booking)
-    : Math.max(
-        Number(booking.estimatedSessionCount || 1) -
-          Number(booking.completedSessionCount || 0),
-        1
-      );
-  return Math.ceil(remaining / sessionsLeft);
-};
-
-const getRemainingInstallmentCount = (booking: Booking) => {
-  const totalLaterInstallments = Math.max(
-    Number(booking.estimatedSessionCount || 1) - 1,
-    1
-  );
-  const lastPaidSessionNumber = Math.max(
-    Number(booking.lastPaidSessionNumber || 0),
-    0
-  );
-  const paidLaterInstallments =
-    booking.sessionInstallmentTiming === "before_session"
-      ? Math.max(lastPaidSessionNumber - 1, 0)
-      : lastPaidSessionNumber;
-
-  return Math.max(totalLaterInstallments - paidLaterInstallments, 1);
-};
+const PaymentShell = ({ children }: { children: ReactNode }) => <main className="min-h-dvh bg-gradient-to-b from-[#121212] via-[#0d0d0d] to-[#121212] px-3 pb-8 pt-[calc(env(safe-area-inset-top)+5rem)] sm:px-5 sm:pt-24">{children}</main>;
+const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => <div className="rounded-xl border border-white/10 bg-black/25 p-3"><p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-neutral-500">{icon}{label}</p><p className="mt-2 text-sm font-medium text-white">{value}</p></div>;
+const BreakdownRow = ({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) => <div className="flex items-center justify-between gap-4"><span className={strong ? "font-semibold text-white" : "text-neutral-400"}>{label}</span><span className={strong ? "font-semibold text-white" : "text-neutral-200"}>{value}</span></div>;
+const StatusBadge = ({ paid, cancelled }: { paid: boolean; cancelled: boolean }) => <span className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${cancelled ? "border-red-300/20 bg-red-300/10 text-red-100" : paid ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100" : "border-amber-300/20 bg-amber-300/10 text-amber-100"}`}>{cancelled ? "Cancelled" : paid ? "Deposit paid" : "Deposit due"}</span>;
+const formatAppointment = (value: { date: string; time: string }) => { if (!value?.date || !value?.time || value.date === "TBD") return "To be confirmed"; const date = new Date(`${value.date}T${value.time}`); return Number.isNaN(date.getTime()) ? `${value.date} at ${value.time}` : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(date); };
 
 export default PaymentPage;

@@ -45,7 +45,13 @@ export type Booking = {
   
     price: number;
     priceCents?: number;
+    totalAmountCents?: number;
     depositAmount: number;
+    depositAmountCents?: number;
+    depositStatus?: "pending" | "paid" | "failed" | "refunded";
+    shopBalanceAmount?: number;
+    shopBalanceAmountCents?: number;
+    shopBalanceStatus?: "unpaid" | "paid";
     paymentModelVersion?: 1 | 2;
     sessionPricingStrategy?: "equal_split";
     sessionAllocations?: SessionAllocation[];
@@ -134,6 +140,10 @@ export type Booking = {
     };
   
     sampleImageUrl?: string;
+    requestId?: string;
+    flashImageUrl?: string | null;
+    fullUrl?: string | null;
+    thumbUrl?: string | null;
     sourceType?: "custom" | "flash" | string;
     flashId?: string | null;
     flashTitle?: string | null;
@@ -146,6 +156,8 @@ export type Booking = {
   
     status: "pending_payment" | "deposit_paid" | "paid" | "confirmed" | "cancelled";
     sessionStatus?: BookingSessionStatus;
+    appointmentStatus?: "scheduled" | "in_progress" | "completed" | "cancelled";
+    appointmentStartsAt?: Timestamp | null;
     sessionId?: string;
     sessionPhotoUrls?: string[];
     createdAt: Timestamp; // or FirebaseFirestore.Timestamp if you're using strict typing

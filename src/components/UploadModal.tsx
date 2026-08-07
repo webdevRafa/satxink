@@ -483,7 +483,7 @@ const UploadModal: React.FC<Props> = ({
                       e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
                     )
                   }
-                  placeholder="Optional context, placement idea, or what clients should focus on."
+                  placeholder="Optional context, placement suggestions, or what clients should notice."
                   className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
                 />
                 <span className="mt-1 block text-right text-[11px] text-zinc-600">

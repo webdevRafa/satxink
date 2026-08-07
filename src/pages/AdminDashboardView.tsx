@@ -708,20 +708,18 @@ const buildSessionRows = (
   sessions: GenericRecord[],
   bookings: GenericRecord[]
 ): GenericRecord[] => {
-  const explicitRows = sessions.map((session) => ({
-    ...session,
-    adminSessionSource: "session",
-  }));
+  const flashBookingIds = new Set(bookings.map((booking) => booking.id));
+  const explicitRows = sessions
+    .filter((session) =>
+      flashBookingIds.has(getString(session, "bookingId"))
+    )
+    .map((session) => ({
+      ...session,
+      adminSessionSource: "session",
+    }));
 
   const bookingRows = bookings
-    .filter((booking) => {
-      const estimatedSessions = getNumber(booking, "estimatedSessionCount") || 1;
-      return (
-        estimatedSessions > 1 ||
-        Boolean(booking.sessionStatus) ||
-        getString(booking, "projectType") === "multi_session"
-      );
-    })
+    .filter((booking) => Boolean(booking.sessionStatus))
     .map((booking) => ({
       ...booking,
       id:
@@ -2999,7 +2997,6 @@ const BookingsTable: React.FC<
         remainingBalance: getNumber(booking, "remainingBalanceAmount") || 0,
         offerId: getString(booking, "offerId"),
         sourceType: getString(booking, "sourceType"),
-        projectType: getString(booking, "projectType"),
       };
     });
 
@@ -3058,7 +3055,6 @@ const BookingsTable: React.FC<
       "remainingBalance",
       "offerId",
       "sourceType",
-      "projectType",
     ];
     const csv = [
       headers.map(csvEscape).join(","),
@@ -3726,7 +3722,9 @@ const AdminDashboardView: React.FC = () => {
       (snap) => {
         const results: GenericRecord[] = [];
         snap.forEach((docSnap) => {
-          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+          const data = docSnap.data();
+          if (data.sourceType !== "flash") return;
+          results.push({ id: docSnap.id, ...data } as GenericRecord);
         });
         setRequests(results);
         updateStatus("requests", getCollectionSuccessState());
@@ -3743,7 +3741,9 @@ const AdminDashboardView: React.FC = () => {
       (snap) => {
         const results: GenericRecord[] = [];
         snap.forEach((docSnap) => {
-          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+          const data = docSnap.data();
+          if (data.sourceType !== "flash") return;
+          results.push({ id: docSnap.id, ...data } as GenericRecord);
         });
         setOffers(results);
         updateStatus("offers", getCollectionSuccessState());
@@ -3760,7 +3760,9 @@ const AdminDashboardView: React.FC = () => {
       (snap) => {
         const results: GenericRecord[] = [];
         snap.forEach((docSnap) => {
-          results.push({ id: docSnap.id, ...docSnap.data() } as GenericRecord);
+          const data = docSnap.data();
+          if (data.sourceType !== "flash") return;
+          results.push({ id: docSnap.id, ...data } as GenericRecord);
         });
         setBookings(results);
         updateStatus("bookings", getCollectionSuccessState());

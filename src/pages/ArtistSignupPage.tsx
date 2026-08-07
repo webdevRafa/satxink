@@ -882,12 +882,12 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
                   </h1>
                   <p className="mt-1 max-w-2xl text-[0.82rem] leading-5 text-neutral-400 sm:mt-2 sm:text-sm sm:leading-6">
                     <span className="sm:hidden">
-                      Set up the profile clients will see before they request or
-                      book.
+                      Set up the profile clients will see when they browse and
+                      book your flash.
                     </span>
                     <span className="hidden sm:inline">
-                      Build the profile clients will see before they request,
-                      book, or follow your work.
+                      Build the profile clients will see when they browse your
+                      flash, book an appointment, or follow your work.
                     </span>
                   </p>
                 </div>

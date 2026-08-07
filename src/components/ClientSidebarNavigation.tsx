@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Heart,
   Inbox,
-  Layers,
   LayoutDashboard,
   ReceiptText,
   UserRound,
@@ -21,8 +20,7 @@ interface Props {
     | "requests"
     | "offers"
     | "bookings"
-    | "sessions"
-    | "projects";
+    | "sessions";
   onViewChange: (view: Props["activeView"]) => void;
   counts?: Partial<Record<Props["activeView"], number>>;
 }
@@ -40,7 +38,6 @@ const ClientSidebarNavigation: React.FC<Props> = ({
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
     { key: "sessions", label: "Sessions", icon: CalendarCheck },
-    { key: "projects", label: "Projects", icon: Layers },
     { key: "profile", label: "Profile", icon: UserRound },
   ];
   const activeLabel =

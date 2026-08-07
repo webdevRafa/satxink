@@ -503,8 +503,8 @@ export const HomePage: FC = () => {
   const bookingSectionCopy = hasBookingArtistsThisMonth
     ? {
         eyebrow: "Open books",
-        title: "Artists ready to receive your ideas.",
-        body: "Explore San Antonio artists with current availability, then open a profile when someone feels like the right fit.",
+        title: "Fresh flash from artists with open books.",
+        body: "Explore available designs from San Antonio artists, then request the flash that feels right.",
       }
     : hasBookingArtistsWithAvailability
     ? {
@@ -514,8 +514,8 @@ export const HomePage: FC = () => {
       }
     : {
         eyebrow: "Local artists",
-        title: "Artists taking requests.",
-        body: "Browse artist profiles, compare shop details, and start a request from the profile that fits your idea.",
+        title: "Discover local flash.",
+        body: "Browse artist profiles, compare shop details, and find an available design for your next tattoo.",
       };
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
   const isStyleSectionRevealed = styleSectionEntryCount > 0;
@@ -1027,8 +1027,8 @@ export const HomePage: FC = () => {
               Find the right San Antonio tattoo artist for your next piece.
             </h1>
             <p className="satx-home-copy-motion satx-home-copy-motion--body mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
-              Browse verified San Antonio artists, view their work, and send
-              your idea when you find the right fit.
+              Browse verified San Antonio artists, explore available flash,
+              and request the design that fits you.
             </p>
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link

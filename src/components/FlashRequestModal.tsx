@@ -1,8 +1,8 @@
 import { type FormEvent, useState } from "react";
-import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
-import { db } from "../firebase/firebaseConfig";
+import { functions } from "../firebase/firebaseConfig";
 import type { Flash } from "../types/Flash";
 import CustomSelect from "./ui/CustomSelect";
 import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
@@ -12,15 +12,6 @@ import {
   hasPastDateInputValue,
   isDateRangeBackwards,
 } from "../utils/dateInputGuards";
-import {
-  getFlashAvailabilityStatus,
-  getFlashRepeatability,
-  isFlashAvailableForClients,
-} from "../utils/flashAvailability";
-import {
-  formatClientFullName,
-  getClientNameParts,
-} from "../utils/clientDisplayName";
 
 export type FlashRequestArtist = {
   id: string;
@@ -56,9 +47,6 @@ const FlashRequestModal = ({
   flash,
   onClose,
 }: FlashRequestModalProps) => {
-  const [description, setDescription] = useState(
-    `I would like to request this flash design: ${getFlashTitle(flash)}.`
-  );
   const [bodyPlacement, setBodyPlacement] = useState("");
   const [size, setSize] = useState("");
   const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
@@ -80,6 +68,11 @@ const FlashRequestModal = ({
       return;
     }
 
+    if (!preferredDateRange[0] || !preferredDateRange[1]) {
+      toast.error("Please choose your preferred date range.");
+      return;
+    }
+
     if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
       toast.error("Preferred dates must be today or later.");
       return;
@@ -90,60 +83,26 @@ const FlashRequestModal = ({
       return;
     }
 
+    if (!availableTime.from || !availableTime.to) {
+      toast.error("Please choose your preferred time window.");
+      return;
+    }
+
+    if (availableDays.length === 0) {
+      toast.error("Please choose at least one day that usually works.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      const clientNameParts = getClientNameParts(client);
-      const clientName = formatClientFullName(
-        clientNameParts.firstName,
-        clientNameParts.lastName,
-        client.name || "Client"
-      );
-
-      const flashSnap = await getDoc(doc(db, "flashes", flash.id));
-      const latestFlash = flashSnap.exists()
-        ? ({ id: flashSnap.id, ...flashSnap.data() } as Flash)
-        : flash;
-
-      if (!isFlashAvailableForClients(latestFlash)) {
-        toast.error(
-          getFlashRepeatability(latestFlash) === "one_of_one"
-            ? "This one-of-one flash is no longer available."
-            : "This flash is no longer available."
-        );
-        return;
-      }
-
-      await addDoc(collection(db, "bookingRequests"), {
-        artistId: artist.id,
-        artistName: getArtistName(artist),
-        artistAvatar: artist.avatarUrl || "/default-avatar.png",
-        clientId: client.id,
-        clientFirstName: clientNameParts.firstName,
-        clientLastName: clientNameParts.lastName,
-        clientName,
-        clientAvatar: client.avatarUrl,
-        description,
+      const createRequest = httpsCallable(functions, "createFlashRequest");
+      await createRequest({
+        flashId: flash.id,
         bodyPlacement,
         size,
         preferredDateRange,
         availableTime,
         availableDays,
-        status: "pending",
-        createdAt: serverTimestamp(),
-
-        fullUrl:
-          latestFlash.fullUrl || latestFlash.webp90Url || latestFlash.thumbUrl,
-        thumbUrl:
-          latestFlash.thumbUrl || latestFlash.webp90Url || latestFlash.fullUrl,
-        sourceType: "flash",
-        flashId: latestFlash.id,
-        flashTitle: getFlashTitle(latestFlash),
-        flashDescription: latestFlash.description || null,
-        flashPrice: latestFlash.price ?? null,
-        flashSheetId: latestFlash.sheetId || null,
-        flashRepeatability: getFlashRepeatability(latestFlash),
-        flashAvailabilityStatus: getFlashAvailabilityStatus(latestFlash),
-        isFromSheet: latestFlash.isFromSheet,
       });
 
       toast.success("Flash request sent!");
@@ -220,16 +179,6 @@ const FlashRequestModal = ({
                 Sign in as a client to send this request.
               </div>
             )}
-
-            <label className="block">
-              <span className="mb-1 block text-sm text-white/70">Message</span>
-              <textarea
-                required
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="min-h-28 w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-              />
-            </label>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">

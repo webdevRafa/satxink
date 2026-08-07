@@ -165,7 +165,7 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
             </h2>
             <p className="mt-3 text-sm leading-6 text-white/55">
               Connect Stripe so required client deposits can be sent to your
-              account. Remaining session balances are settled directly at the
+              account. Remaining appointment balances are settled directly at the
               shop.
             </p>
           </div>
@@ -270,11 +270,11 @@ const StripeConnectPanel = ({ artist }: StripeConnectPanelProps) => {
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard
           title="How client payments work"
-          body="When a client accepts an offer, Stripe Checkout collects the required session deposit on your connected account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $10, and the client covers that fee plus estimated Stripe processing."
+          body="When a client accepts an offer, Stripe Checkout collects the required booking deposit on your connected account. SATX Ink applies a hybrid platform fee of $5 minimum, 10%, capped at $10, and the client covers that fee plus estimated Stripe processing."
         />
         <InfoCard
           title="Before taking paid requests"
-          body="Finish onboarding first. Session deposits require card payments to be enabled on your connected Stripe account. Remaining balances are collected at the shop."
+          body="Finish onboarding first. Booking deposits require card payments to be enabled on your connected Stripe account. Remaining balances are collected at the shop."
         />
       </div>
     </section>

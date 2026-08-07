@@ -50,7 +50,7 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
       const offerRef = doc(db, "offers", offerId);
 
       if (action === "accepted") {
-        const acceptOffer = httpsCallable(functions, "acceptProjectOffer");
+        const acceptOffer = httpsCallable(functions, "acceptFlashOffer");
         const response = await acceptOffer({ offerId, selectedDate });
         const { bookingId } = response.data as { bookingId: string };
         setOffers((current) => current.filter((offer) => offer.id !== offerId));
@@ -90,10 +90,12 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
     const unsubscribe = onSnapshot(
       offersQuery,
       async (snap) => {
-        const data = snap.docs.map((offerDoc) => ({
-          id: offerDoc.id,
-          ...offerDoc.data(),
-        })) as DashboardOffer[];
+        const data = snap.docs
+          .filter((offerDoc) => offerDoc.data().sourceType === "flash")
+          .map((offerDoc) => ({
+            id: offerDoc.id,
+            ...offerDoc.data(),
+          })) as DashboardOffer[];
         const offersWithImages = await applyOfferImageFallbacks(data);
         if (!isActive) return;
 
@@ -142,13 +144,29 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
           description="When artists respond to your requests, their offers will appear here."
         />
       ) : (
-        <OffersTable
-          offers={sortedOffers}
-          onOpen={(offer) => {
-            setSelectedOffer(offer);
-            setIsModalOpen(true);
-          }}
-        />
+        <>
+          <div className="space-y-3 md:hidden">
+            {sortedOffers.map((offer) => (
+              <MobileOfferCard
+                key={offer.id}
+                offer={offer}
+                onOpen={() => {
+                  setSelectedOffer(offer);
+                  setIsModalOpen(true);
+                }}
+              />
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <OffersTable
+              offers={sortedOffers}
+              onOpen={(offer) => {
+                setSelectedOffer(offer);
+                setIsModalOpen(true);
+              }}
+            />
+          </div>
+        </>
       )}
 
       <ViewOfferModal
@@ -174,6 +192,70 @@ const ClientOffersList: React.FC<Props> = ({ clientId, onOfferResolved }) => {
         }}
       />
     </section>
+  );
+};
+
+const MobileOfferCard = ({
+  offer,
+  onOpen,
+}: {
+  offer: DashboardOffer;
+  onOpen: () => void;
+}) => {
+  const previewUrl = offer.thumbUrl || offer.fullUrl || "";
+  const options = getSortedAppointmentOptions(offer.dateOptions);
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111]">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="grid w-full grid-cols-[84px_minmax(0,1fr)] gap-3 p-3! text-left"
+      >
+        <div className="aspect-square overflow-hidden rounded-md border border-white/10 bg-white/[0.035]">
+          {previewUrl ? (
+            <OfferPreviewImage
+              src={previewUrl}
+              alt={offer.flashTitle || "Flash tattoo"}
+            />
+          ) : (
+            <span className="flex h-full items-center justify-center text-neutral-500">
+              <ImageIcon size={19} />
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-white">
+                {offer.flashTitle || "Flash tattoo"}
+              </p>
+              <p className="mt-1 truncate text-xs text-neutral-400">
+                by {offer.displayName || "Artist"}
+              </p>
+            </div>
+            <StatusBadge status={offer.status || "pending"} />
+          </div>
+          <p className="mt-3 text-sm font-semibold text-white">
+            ${offer.price} total · {formatDeposit(offer)} deposit
+          </p>
+          <p className="mt-1 truncate text-xs text-neutral-500">
+            {options.length
+              ? `${options.length} appointment option${options.length === 1 ? "" : "s"}`
+              : "Appointment time pending"}
+          </p>
+        </div>
+      </button>
+      <div className="border-t border-white/10 p-3">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4! py-2.5! text-sm! font-semibold text-black"
+        >
+          <Eye size={14} /> Review offer
+        </button>
+      </div>
+    </article>
   );
 };
 
@@ -232,7 +314,7 @@ const OfferRow = ({
   const depositLabel = formatDeposit(offer);
   const depositTooltip =
     offer.depositPolicy?.depositRequired && Number(offer.depositPolicy.amount || 0) > 0
-      ? `${depositLabel} reserves your appointment. The remaining artist balance is handled after checkout based on the offer terms.`
+      ? `${depositLabel} reserves your appointment. The remaining balance is paid to the artist at the shop after the appointment.`
       : "No deposit is required to reserve this appointment.";
   const appointmentTooltip = appointmentOptions.length
     ? appointmentOptions
@@ -257,10 +339,10 @@ const OfferRow = ({
         type="button"
         onClick={onOpen}
         className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
-        aria-label="View offer sample"
+        aria-label="View flash design"
       >
         {previewUrl ? (
-          <OfferPreviewImage src={previewUrl} alt="Offer sample" />
+          <OfferPreviewImage src={previewUrl} alt="Flash design" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-neutral-500">
             <ImageIcon size={18} />

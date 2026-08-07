@@ -17,7 +17,8 @@ export default function PrivacyPolicy() {
             SATX Ink collects basic user information such as your first name,
             last name, email address, and profile photo to connect clients and
             tattoo artists. We may also collect additional details you provide
-            voluntarily, such as preferred tattoo styles and booking requests.
+            voluntarily, such as preferred tattoo styles, selected flash
+            designs, placement, sizing, availability, and booking requests.
           </p>
         </section>
 

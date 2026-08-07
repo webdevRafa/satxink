@@ -6,7 +6,7 @@ export const HeroSection = () => {
   const isIOS =
     typeof window !== "undefined" &&
     /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(window as any).MSStream;
+    !("MSStream" in window);
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -44,7 +44,7 @@ export const HeroSection = () => {
               data-aos="fade-in"
               className=" text-gray-300 translate-y-[-5px] text-sm mb-6 text-left"
             >
-              Search by style. Drop ideas. Book directly.
+              Search by style. Find flash. Book directly.
             </p>
           </div>
         </div>
