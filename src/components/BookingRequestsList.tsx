@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
+  CircleX,
   Clock,
   DollarSign,
   Eye,
@@ -58,6 +59,8 @@ const BookingRequestsList = ({
 }: Props) => {
   const [selectedRequest, setSelectedRequest] =
     useState<FlashBookingRequest | null>(null);
+  const [requestToDecline, setRequestToDecline] =
+    useState<FlashBookingRequest | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const flashRequests = useMemo(
     () =>
@@ -71,23 +74,19 @@ const BookingRequestsList = ({
   );
 
   const declineRequest = async (request: FlashBookingRequest) => {
-    if (
-      !window.confirm(
-        "Let the client know this flash is not available for their request?"
-      )
-    ) {
-      return;
-    }
     try {
       setDecliningId(request.id);
       await updateDoc(doc(db, "bookingRequests", request.id), {
         status: "declined",
         declinedAt: serverTimestamp(),
+        declinedReason: "artist_unable_to_move_forward",
+        declinedReasonLabel: "Artist unable to move forward",
         updatedAt: serverTimestamp(),
       });
       onRequestResolved?.(request.id);
       if (selectedRequest?.id === request.id) setSelectedRequest(null);
-      toast.success("The client will see that this flash is unavailable.");
+      setRequestToDecline(null);
+      toast.success("Request declined. The client will be notified.");
     } catch (error) {
       console.error("Failed to decline flash request:", error);
       toast.error("Could not update this request.");
@@ -142,7 +141,7 @@ const BookingRequestsList = ({
                 declining={decliningId === request.id}
                 onDetails={() => setSelectedRequest(request)}
                 onOffer={() => onMakeOffer(request)}
-                onDecline={() => void declineRequest(request)}
+                onDecline={() => setRequestToDecline(request)}
               />
             ))}
           </div>
@@ -158,7 +157,7 @@ const BookingRequestsList = ({
                 <p className="text-sm text-neutral-300">{formatDateWindow(request.preferredDateRange)}</p>
                 <div className="flex justify-end gap-2">
                   <ActionButton onClick={() => setSelectedRequest(request)} icon={<Eye size={14} />} label="Details" />
-                  <ActionButton onClick={() => void declineRequest(request)} label={decliningId === request.id ? "Updating…" : "Unavailable"} disabled={decliningId === request.id} />
+                  <ActionButton onClick={() => setRequestToDecline(request)} label={decliningId === request.id ? "Declining…" : "Decline"} disabled={decliningId === request.id} />
                   <ActionButton primary onClick={() => onMakeOffer(request)} icon={<Send size={14} />} label="Make offer" />
                 </div>
               </div>
@@ -171,11 +170,20 @@ const BookingRequestsList = ({
         request={selectedRequest}
         declining={decliningId === selectedRequest?.id}
         onClose={() => setSelectedRequest(null)}
-        onDecline={(request) => void declineRequest(request)}
+        onDecline={setRequestToDecline}
         onOffer={(request) => {
           setSelectedRequest(null);
           onMakeOffer(request);
         }}
+      />
+
+      <DeclineRequestDialog
+        request={requestToDecline}
+        declining={decliningId === requestToDecline?.id}
+        onClose={() => {
+          if (!decliningId) setRequestToDecline(null);
+        }}
+        onConfirm={(request) => void declineRequest(request)}
       />
     </section>
   );
@@ -198,7 +206,7 @@ const RequestCard = ({ request, declining, onDetails, onOffer, onDecline }: { re
     </div>
     <div className="mt-4 grid grid-cols-3 gap-2">
       <ActionButton onClick={onDetails} label="Details" />
-      <ActionButton onClick={onDecline} label={declining ? "Updating…" : "Unavailable"} disabled={declining} />
+      <ActionButton onClick={onDecline} label={declining ? "Declining…" : "Decline"} disabled={declining} />
       <ActionButton primary onClick={onOffer} label="Offer" />
     </div>
   </article>
@@ -220,10 +228,105 @@ const RequestDetailsDialog = ({ request, declining, onClose, onDecline, onOffer 
                     <FlashIdentity request={request} />
                     <div className="grid grid-cols-2 gap-2"><DetailTile icon={<MapPin size={15} />} label="Placement" value={request.bodyPlacement || "Not provided"} /><DetailTile icon={<Ruler size={15} />} label="Size" value={request.size || "Not provided"} /><DetailTile icon={<CalendarDays size={15} />} label="Preferred dates" value={formatDateWindow(request.preferredDateRange)} /><DetailTile icon={<Clock size={15} />} label="Preferred time" value={formatTimeWindow(request.availableTime)} /></div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Days that usually work</p><p className="mt-2 text-sm text-neutral-300">{request.availableDays?.join(", ") || "Not provided"}</p></div>
-                    <div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onDecline(request)} label={declining ? "Updating…" : "Flash unavailable"} disabled={declining} /><ActionButton primary onClick={() => onOffer(request)} icon={<Send size={14} />} label="Make offer" /></div>
+                    <div className="grid grid-cols-2 gap-2"><ActionButton onClick={() => onDecline(request)} label={declining ? "Declining…" : "Decline request"} disabled={declining} /><ActionButton primary onClick={() => onOffer(request)} icon={<Send size={14} />} label="Make offer" /></div>
                   </div>
                 </div>
               </>}
+            </Dialog.Panel>
+          </Transition.Child>
+        </div>
+      </div>
+    </Dialog>
+  </Transition>
+);
+
+const DeclineRequestDialog = ({
+  request,
+  declining,
+  onClose,
+  onConfirm,
+}: {
+  request: FlashBookingRequest | null;
+  declining: boolean;
+  onClose: () => void;
+  onConfirm: (request: FlashBookingRequest) => void;
+}) => (
+  <Transition appear show={Boolean(request)} as={Fragment}>
+    <Dialog as="div" className="relative z-[110]" onClose={onClose}>
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-200"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="ease-in duration-150"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+      >
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+      </Transition.Child>
+
+      <div className="fixed inset-0 overflow-y-auto p-4">
+        <div className="flex min-h-full items-center justify-center">
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-200"
+            enterFrom="opacity-0 scale-95 translate-y-2"
+            enterTo="opacity-100 scale-100 translate-y-0"
+            leave="ease-in duration-150"
+            leaveFrom="opacity-100 scale-100 translate-y-0"
+            leaveTo="opacity-0 scale-95 translate-y-2"
+          >
+            <Dialog.Panel className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#151515] text-white shadow-2xl">
+              {request && (
+                <>
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-start gap-4">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-300/15 bg-red-400/10 text-red-200">
+                        <CircleX size={21} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                          Flash request
+                        </p>
+                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
+                          Decline this request?
+                        </Dialog.Title>
+                      </div>
+                    </div>
+
+                    <p className="mt-5 text-sm leading-6 text-neutral-300">
+                      {request.clientName || "The client"} will see that you’re
+                      unable to move forward with this request.
+                    </p>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                      <p className="text-sm leading-6 text-neutral-400">
+                        This only closes this client’s request. Your flash design
+                        will remain published and available unless it is already
+                        held or sold.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 border-t border-white/10 bg-black/20 p-4 sm:px-6">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      disabled={declining}
+                      className="min-h-11 rounded-lg border border-white/10 bg-white/[0.035] px-4! py-2.5! text-sm! font-semibold text-neutral-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Keep request
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onConfirm(request)}
+                      disabled={declining}
+                      className="min-h-11 rounded-lg border border-red-300/20 bg-red-400/10 px-4! py-2.5! text-sm! font-semibold text-red-100 transition hover:bg-red-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {declining ? "Declining…" : "Decline request"}
+                    </button>
+                  </div>
+                </>
+              )}
             </Dialog.Panel>
           </Transition.Child>
         </div>
