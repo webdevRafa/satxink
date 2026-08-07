@@ -260,7 +260,8 @@ export const ArtistProfilePage = () => {
       try {
         const sheetsQuery = query(
           collection(db, "flashSheets"),
-          where("artistId", "==", id)
+          where("artistId", "==", id),
+          where("marketplaceReady", "==", true)
         );
         const snapshot = await getDocs(sheetsQuery);
         const sheets = snapshot.docs
@@ -288,7 +289,8 @@ export const ArtistProfilePage = () => {
         const flashesQuery = query(
           collection(db, "flashes"),
           where("artistId", "==", id),
-          where("sheetId", "==", focusedSheet.id)
+          where("sheetId", "==", focusedSheet.id),
+          where("marketplaceReady", "==", true)
         );
         const snapshot = await getDocs(flashesQuery);
         const flashes = snapshot.docs
