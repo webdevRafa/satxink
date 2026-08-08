@@ -116,6 +116,7 @@ const FlashMarketplacePage = () => {
   const flashCardRefs = useRef<Array<HTMLElement | null>>([]);
   const pendingFlashScrollIndexRef = useRef<number | null>(null);
   const projectionEnsurePromiseRef = useRef<Promise<void> | null>(null);
+  const hasCheckedInitialSheetFallbackRef = useRef(false);
 
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
@@ -337,6 +338,38 @@ const FlashMarketplacePage = () => {
           fetchRounds < CLIENT_FILTER_MAX_FETCH_ROUNDS
         );
 
+        const shouldCheckInitialSheetFallback =
+          !isAppend &&
+          tab === "flashes" &&
+          collected.length === 0 &&
+          !hasCheckedInitialSheetFallbackRef.current &&
+          !searchParams.has("tab") &&
+          searchTokens.length === 0 &&
+          priceSort === "newest" &&
+          minPrice === null &&
+          maxPrice === null;
+
+        if (shouldCheckInitialSheetFallback) {
+          hasCheckedInitialSheetFallbackRef.current = true;
+          const availableSheets = await getDocs(
+            buildMarketplaceQuery({
+              tab: "sheets",
+              cursor: null,
+              searchTokens: [],
+              priceSort: "newest",
+              minPrice: null,
+              maxPrice: null,
+              batchSize: 1,
+            })
+          );
+
+          if (!availableSheets.empty) {
+            if (sequence !== fetchSequenceRef.current) return;
+            handleTabChange("sheets");
+            return;
+          }
+        }
+
         if (!isAppend && collected.length === 0 && projectionError) {
           throw projectionError;
         }
@@ -377,9 +410,11 @@ const FlashMarketplacePage = () => {
     [
       activeTab,
       ensureMarketplaceProjectionReady,
+      handleTabChange,
       maxPrice,
       minPrice,
       priceSort,
+      searchParams,
       searchTokens,
     ]
   );
@@ -947,6 +982,7 @@ const buildMarketplaceQuery = ({
   priceSort,
   minPrice,
   maxPrice,
+  batchSize,
 }: {
   tab: MarketplaceTab;
   cursor: MarketplaceCursor;
@@ -954,6 +990,7 @@ const buildMarketplaceQuery = ({
   priceSort: PriceSort;
   minPrice: number | null;
   maxPrice: number | null;
+  batchSize?: number;
 }) => {
   const collectionName = tab === "flashes" ? "flashes" : "flashSheets";
   const constraints: QueryConstraint[] = [
@@ -976,7 +1013,7 @@ const buildMarketplaceQuery = ({
   }
 
   if (cursor) constraints.push(startAfter(cursor));
-  constraints.push(firestoreLimit(getMarketplaceBatchSize(tab)));
+  constraints.push(firestoreLimit(batchSize || getMarketplaceBatchSize(tab)));
 
   return query(collection(db, collectionName), ...constraints);
 };
