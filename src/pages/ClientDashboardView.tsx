@@ -198,8 +198,6 @@ const activeViewLabels: Record<ClientView, string> = {
 };
 
 const CLIENT_VIEWS: ClientView[] = [
-  "overview",
-  "following",
   "requests",
   "offers",
   "bookings",
@@ -208,14 +206,13 @@ const CLIENT_VIEWS: ClientView[] = [
 ];
 
 const getClientDashboardView = (view: string | null): ClientView => {
-  if (view === "liked") return "following";
   if (view === "projects") return "sessions";
   if (["pending", "confirmed", "paid", "cancelled"].includes(view || "")) {
     return "bookings";
   }
   return CLIENT_VIEWS.includes(view as ClientView)
     ? (view as ClientView)
-    : "overview";
+    : "requests";
 };
 
 const isClientDashboardView = (view: string | null): view is ClientView =>
@@ -287,12 +284,18 @@ const ClientDashboardView = () => {
     if (isClientDashboardView(nextView)) {
       setActiveView(nextView);
     }
-  }, [searchParams]);
+    if (viewParam && !isClientDashboardView(viewParam)) {
+      setSearchParams(
+        nextView === "requests" ? {} : { tab: nextView },
+        { replace: true }
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleViewChange = useCallback(
     (view: ClientView) => {
       setActiveView(view);
-      setSearchParams(view === "overview" ? {} : { tab: view });
+      setSearchParams(view === "requests" ? {} : { tab: view });
     },
     [setSearchParams]
   );

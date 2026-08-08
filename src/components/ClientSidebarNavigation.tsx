@@ -3,7 +3,6 @@ import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarCheck,
   ChevronDown,
-  Heart,
   Inbox,
   LayoutDashboard,
   ReceiptText,
@@ -32,8 +31,6 @@ const ClientSidebarNavigation: React.FC<Props> = ({
 }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const links = [
-    { key: "overview", label: "Overview", icon: LayoutDashboard },
-    { key: "following", label: "Following", icon: Heart },
     { key: "requests", label: "Requests", icon: Inbox },
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
