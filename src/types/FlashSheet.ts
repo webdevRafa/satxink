@@ -6,6 +6,10 @@ export type FlashSheet = {
   artistId: string;
   imageUrl: string;
   thumbUrl?: string;
+  webp90Url?: string;
+  fullUrl?: string;
+  thumbPath?: string;
+  previewPath?: string;
   fullPath?: string;
   sourceWidth?: number;
   sourceHeight?: number;

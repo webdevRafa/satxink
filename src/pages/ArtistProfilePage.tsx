@@ -40,6 +40,10 @@ import {
 } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
+import {
+  getFlashSheetFullUrl,
+  getFlashSheetPreviewUrl,
+} from "../utils/flashSheetImage";
 import type { Flash } from "../types/Flash";
 import {
   isStripeConnectReady,
@@ -967,9 +971,6 @@ const getTouchCenter = (
   y: (first.clientY + second.clientY) / 2,
 });
 
-const getSheetPreviewUrl = (sheet: FlashSheet) =>
-  sheet.thumbUrl || sheet.imageUrl;
-
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || "Artist";
 
@@ -1436,7 +1437,9 @@ const FlashSheetsPanel = ({
   }, [pageCount]);
 
   useEffect(() => {
-    flashSheets.forEach((sheet) => preloadImage(getSheetPreviewUrl(sheet)));
+    flashSheets.forEach((sheet) =>
+      preloadImage(getFlashSheetPreviewUrl(sheet))
+    );
   }, [flashSheets]);
 
   const updateActivePosition = useCallback(() => {
@@ -1810,7 +1813,7 @@ const FlashSheetCard = ({
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-black">
         <FadeInImage
-          src={getSheetPreviewUrl(sheet)}
+          src={getFlashSheetPreviewUrl(sheet)}
           alt={sheetTitle || "Flash sheet"}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           loading={priority ? "eager" : "lazy"}
@@ -1910,7 +1913,7 @@ const FlashSheetItemsSection = ({
           className="group relative h-44 w-full overflow-hidden rounded-xl border border-white/10 bg-black p-0! sm:w-36"
         >
           <img
-            src={getSheetPreviewUrl(sheet)}
+            src={getFlashSheetPreviewUrl(sheet)}
             alt={sheet.title || "Selected flash sheet"}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
@@ -2074,7 +2077,7 @@ const FlashSheetLightbox = ({
 
       <img
         data-aos="zoom-out-up"
-        src={sheet.imageUrl}
+        src={getFlashSheetFullUrl(sheet)}
         alt={sheet.title || "Full flash sheet view"}
         className={`max-h-[72vh] max-w-full rounded-xl object-contain shadow-2xl transition-opacity duration-300 ${
           modalLoading ? "opacity-0" : "opacity-100"

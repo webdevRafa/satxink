@@ -40,6 +40,7 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
 import { getClientNameParts } from "../utils/clientDisplayName";
 import {
   flashPreviewCardClassName,
@@ -759,7 +760,7 @@ const FlashSheetMarketCard = ({ sheet }: { sheet: MarketFlashSheet }) => {
       <Link to={`/flash/sheets/${sheet.id}`} className="block">
         <div className="relative aspect-[4/5] bg-black/30">
           <img
-            src={sheet.thumbUrl || sheet.imageUrl}
+            src={getFlashSheetPreviewUrl(sheet)}
             alt={sheet.title || "Flash sheet"}
             className="h-full w-full object-cover"
             loading="lazy"
