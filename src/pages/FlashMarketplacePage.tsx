@@ -9,8 +9,10 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
+  CircleAlert,
   Filter,
   Loader2,
+  RefreshCw,
   Search,
   SlidersHorizontal,
   Tag,
@@ -31,7 +33,8 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../firebase/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase/firebaseConfig";
 import FlashRequestModal, {
   type FlashRequestArtist,
   type FlashRequestClient,
@@ -73,6 +76,9 @@ type MarketFlashSheet = FlashSheet & {
 const FLASH_MARKETPLACE_BATCH_SIZE = 12;
 const SHEET_MARKETPLACE_BATCH_SIZE = 18;
 const CLIENT_FILTER_MAX_FETCH_ROUNDS = 5;
+const MARKETPLACE_PROJECTION_VERSION = 1;
+const MARKETPLACE_PROJECTION_WAIT_ATTEMPTS = 20;
+const MARKETPLACE_PROJECTION_WAIT_MS = 500;
 
 const getMarketplaceBatchSize = (tab: MarketplaceTab) =>
   tab === "flashes"
@@ -93,6 +99,8 @@ const FlashMarketplacePage = () => {
   const [sheets, setSheets] = useState<MarketFlashSheet[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [hasMoreFlashes, setHasMoreFlashes] = useState(false);
   const [hasMoreSheets, setHasMoreSheets] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,6 +115,7 @@ const FlashMarketplacePage = () => {
   const sheetCursorRef = useRef<MarketplaceCursor>(null);
   const flashCardRefs = useRef<Array<HTMLElement | null>>([]);
   const pendingFlashScrollIndexRef = useRef<number | null>(null);
+  const projectionEnsurePromiseRef = useRef<Promise<void> | null>(null);
 
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
@@ -139,6 +148,7 @@ const FlashMarketplacePage = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setClient(null);
+        setAuthResolved(true);
         return;
       }
 
@@ -174,10 +184,62 @@ const FlashMarketplacePage = () => {
           lastName: clientNameParts.lastName,
           avatarUrl: user.photoURL || "/default-avatar.png",
         });
+      } finally {
+        setAuthResolved(true);
       }
     });
 
     return () => unsubscribe();
+  }, []);
+
+  const ensureMarketplaceProjectionReady = useCallback(async () => {
+    if (!auth.currentUser) return;
+    if (projectionEnsurePromiseRef.current) {
+      return projectionEnsurePromiseRef.current;
+    }
+
+    const ensurePromise = (async () => {
+      const metadataRef = doc(db, "siteSettings", "flashMarketplace");
+      const metadataSnap = await getDoc(metadataRef);
+      if (
+        Number(metadataSnap.data()?.projectionVersion || 0) >=
+        MARKETPLACE_PROJECTION_VERSION
+      ) {
+        return;
+      }
+
+      const ensureProjection = httpsCallable<
+        Record<string, never>,
+        { status?: string; projectionVersion?: number }
+      >(functions, "ensureMarketplaceProjection");
+      const response = await ensureProjection({});
+      if (response.data.status !== "running") return;
+
+      for (
+        let attempt = 0;
+        attempt < MARKETPLACE_PROJECTION_WAIT_ATTEMPTS;
+        attempt += 1
+      ) {
+        await wait(MARKETPLACE_PROJECTION_WAIT_MS);
+        const refreshedMetadata = await getDoc(metadataRef);
+        if (
+          Number(refreshedMetadata.data()?.projectionVersion || 0) >=
+          MARKETPLACE_PROJECTION_VERSION
+        ) {
+          return;
+        }
+      }
+
+      throw new Error("marketplace-projection-timeout");
+    })();
+
+    projectionEnsurePromiseRef.current = ensurePromise;
+    try {
+      await ensurePromise;
+    } catch (error) {
+      projectionEnsurePromiseRef.current = null;
+      throw error;
+    }
   }, []);
 
   const fetchMarketplacePage = useCallback(
@@ -201,6 +263,7 @@ const FlashMarketplacePage = () => {
         setLoadingMore(true);
       } else {
         setLoading(true);
+        setMarketplaceError(null);
         setSelectedFlash(null);
         if (tab === "flashes") {
           setFlashes([]);
@@ -214,6 +277,16 @@ const FlashMarketplacePage = () => {
       }
 
       try {
+        let projectionError: unknown = null;
+        if (!isAppend) {
+          try {
+            await ensureMarketplaceProjectionReady();
+          } catch (error) {
+            projectionError = error;
+            console.warn("Failed to reconcile flash marketplace listings:", error);
+          }
+        }
+
         do {
           fetchRounds += 1;
           const marketplaceQuery = buildMarketplaceQuery({
@@ -264,6 +337,10 @@ const FlashMarketplacePage = () => {
           fetchRounds < CLIENT_FILTER_MAX_FETCH_ROUNDS
         );
 
+        if (!isAppend && collected.length === 0 && projectionError) {
+          throw projectionError;
+        }
+
         if (sequence !== fetchSequenceRef.current) return;
 
         if (tab === "flashes") {
@@ -286,6 +363,7 @@ const FlashMarketplacePage = () => {
       } catch (err) {
         console.error("Failed to fetch flash marketplace:", err);
         if (sequence === fetchSequenceRef.current && !isAppend) {
+          setMarketplaceError(getMarketplaceErrorMessage(err));
           if (tab === "flashes") setFlashes([]);
           else setSheets([]);
         }
@@ -296,7 +374,14 @@ const FlashMarketplacePage = () => {
         }
       }
     },
-    [activeTab, maxPrice, minPrice, priceSort, searchTokens]
+    [
+      activeTab,
+      ensureMarketplaceProjectionReady,
+      maxPrice,
+      minPrice,
+      priceSort,
+      searchTokens,
+    ]
   );
 
   const scrollToLoadedFlashBatch = useCallback((targetIndex: number) => {
@@ -320,15 +405,22 @@ const FlashMarketplacePage = () => {
   }, [fetchMarketplacePage, flashes.length]);
 
   useEffect(() => {
+    if (!authResolved) return;
     void fetchMarketplacePage("replace");
   }, [
     activeTab,
+    authResolved,
     maxPrice,
     minPrice,
     priceSort,
     searchTokens,
     fetchMarketplacePage,
   ]);
+
+  const handleRetryMarketplace = useCallback(() => {
+    projectionEnsurePromiseRef.current = null;
+    void fetchMarketplacePage("replace");
+  }, [fetchMarketplacePage]);
 
   useEffect(() => {
     const pendingIndex = pendingFlashScrollIndexRef.current;
@@ -502,6 +594,11 @@ const FlashMarketplacePage = () => {
 
         {loading ? (
           <MarketplaceSkeleton activeTab={activeTab} />
+        ) : marketplaceError ? (
+          <MarketplaceErrorState
+            message={marketplaceError}
+            onRetry={handleRetryMarketplace}
+          />
         ) : activeTab === "flashes" ? (
           flashes.length > 0 ? (
             <>
@@ -814,6 +911,35 @@ const EmptyMarketplaceState = () => (
   </div>
 );
 
+const MarketplaceErrorState = ({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) => (
+  <div
+    role="alert"
+    className="mt-5 rounded-2xl border border-amber-300/15 bg-amber-300/[0.045] p-8 text-center sm:p-10"
+  >
+    <CircleAlert className="mx-auto mb-4 text-amber-200/70" size={36} />
+    <h3 className="text-xl! font-semibold text-white sm:text-2xl!">
+      Flash is taking a moment
+    </h3>
+    <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/55">
+      {message}
+    </p>
+    <button
+      type="button"
+      onClick={onRetry}
+      className="mx-auto mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.07] px-5 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.12]"
+    >
+      <RefreshCw size={15} />
+      Try again
+    </button>
+  </div>
+);
+
 const buildMarketplaceQuery = ({
   tab,
   cursor,
@@ -967,6 +1093,28 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+
+const getMarketplaceErrorMessage = (error: unknown) => {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code || "")
+      : "";
+
+  if (code.includes("not-found")) {
+    return "The marketplace update is still deploying. Please try again in a moment.";
+  }
+  if (code.includes("permission-denied")) {
+    return "We couldn't access the public flash catalog. Please refresh and try again.";
+  }
+  if (code.includes("failed-precondition")) {
+    return "The flash catalog is still being prepared. Please try again shortly.";
+  }
+
+  return "We couldn't load the flash catalog right now. Please check your connection and try again.";
+};
 
 const parseBudgetValue = (value: string) => {
   const trimmedValue = value.trim();

@@ -302,6 +302,8 @@ const MARKETPLACE_METADATA_REF = db
 const MARKETPLACE_TAG_COUNTS_COLLECTION = "marketplaceTagCounts";
 const MARKETPLACE_TOP_TAG_LIMIT = 18;
 const MARKETPLACE_BATCH_LIMIT = 450;
+const MARKETPLACE_PROJECTION_VERSION = 1;
+const MARKETPLACE_PROJECTION_LEASE_MS = 10 * 60 * 1000;
 
 const getFirstString = (...values: unknown[]) => {
   for (const value of values) {
@@ -6475,6 +6477,85 @@ const syncArtistMarketplaceProjection = onDocumentWritten(
   }
 );
 
+const rebuildMarketplaceProjectionDocuments = async () => {
+  const [flashSnapshot, sheetSnapshot] = await Promise.all([
+    db.collection("flashes").get(),
+    db.collection("flashSheets").get(),
+  ]);
+  const artistsById = new Map<string, admin.firestore.DocumentData | null>();
+  let batch = db.batch();
+  let writeCount = 0;
+  let updatedFlashes = 0;
+  let updatedSheets = 0;
+
+  const getArtistForProjection = async (artistId: string) => {
+    if (!artistId) return null;
+    if (artistsById.has(artistId)) return artistsById.get(artistId) || null;
+    const artist = await getMarketplaceArtist(artistId);
+    artistsById.set(artistId, artist);
+    return artist;
+  };
+
+  const commitIfNeeded = async () => {
+    if (writeCount === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    writeCount = 0;
+  };
+
+  for (const flashDoc of flashSnapshot.docs) {
+    const data = flashDoc.data();
+    const projection = buildFlashMarketplaceProjectionFromArtist(
+      data,
+      await getArtistForProjection(getFirstString(data.artistId))
+    );
+    if (!projectionMatches(data, projection)) {
+      batch.update(flashDoc.ref, getProjectionUpdate(projection));
+      writeCount += 1;
+      updatedFlashes += 1;
+    }
+    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+  }
+
+  for (const sheetDoc of sheetSnapshot.docs) {
+    const data = sheetDoc.data();
+    const projection = buildSheetMarketplaceProjectionFromArtist(
+      data,
+      await getArtistForProjection(getFirstString(data.artistId))
+    );
+    if (!projectionMatches(data, projection)) {
+      batch.update(sheetDoc.ref, getProjectionUpdate(projection));
+      writeCount += 1;
+      updatedSheets += 1;
+    }
+    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+  }
+
+  await commitIfNeeded();
+
+  return {
+    scannedFlashes: flashSnapshot.size,
+    scannedSheets: sheetSnapshot.size,
+    updatedFlashes,
+    updatedSheets,
+  };
+};
+
+const markMarketplaceProjectionReady = async (
+  result: Awaited<ReturnType<typeof rebuildMarketplaceProjectionDocuments>>
+) => {
+  await MARKETPLACE_METADATA_REF.set(
+    {
+      projectionVersion: MARKETPLACE_PROJECTION_VERSION,
+      projectionState: "ready",
+      projectionCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      projectionLeaseUntil: admin.firestore.FieldValue.delete(),
+      projectionLastResult: result,
+    },
+    { merge: true }
+  );
+};
+
 const rebuildMarketplaceProjection = onCall(
   { cors: true, region: "us-central1", timeoutSeconds: 540, memory: "1GiB" },
   async (req) => {
@@ -6488,67 +6569,80 @@ const rebuildMarketplaceProjection = onCall(
       throw new HttpsError("permission-denied", "Only admins can rebuild marketplace projections.");
     }
 
-    const [flashSnapshot, sheetSnapshot] = await Promise.all([
-      db.collection("flashes").get(),
-      db.collection("flashSheets").get(),
-    ]);
-    const artistsById = new Map<string, admin.firestore.DocumentData | null>();
-    let batch = db.batch();
-    let writeCount = 0;
-    let updatedFlashes = 0;
-    let updatedSheets = 0;
+    const result = await rebuildMarketplaceProjectionDocuments();
+    await markMarketplaceProjectionReady(result);
+    return result;
+  }
+);
 
-    const getArtistForProjection = async (artistId: string) => {
-      if (!artistId) return null;
-      if (artistsById.has(artistId)) return artistsById.get(artistId) || null;
-      const artist = await getMarketplaceArtist(artistId);
-      artistsById.set(artistId, artist);
-      return artist;
-    };
-
-    const commitIfNeeded = async () => {
-      if (writeCount === 0) return;
-      await batch.commit();
-      batch = db.batch();
-      writeCount = 0;
-    };
-
-    for (const flashDoc of flashSnapshot.docs) {
-      const data = flashDoc.data();
-      const projection = buildFlashMarketplaceProjectionFromArtist(
-        data,
-        await getArtistForProjection(getFirstString(data.artistId))
+const ensureMarketplaceProjection = onCall(
+  { cors: true, region: "us-central1", timeoutSeconds: 540, memory: "1GiB" },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in to prepare the flash marketplace."
       );
-      if (!projectionMatches(data, projection)) {
-        batch.update(flashDoc.ref, getProjectionUpdate(projection));
-        writeCount += 1;
-        updatedFlashes += 1;
-      }
-      if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
     }
 
-    for (const sheetDoc of sheetSnapshot.docs) {
-      const data = sheetDoc.data();
-      const projection = buildSheetMarketplaceProjectionFromArtist(
-        data,
-        await getArtistForProjection(getFirstString(data.artistId))
-      );
-      if (!projectionMatches(data, projection)) {
-        batch.update(sheetDoc.ref, getProjectionUpdate(projection));
-        writeCount += 1;
-        updatedSheets += 1;
+    const leaseState = await db.runTransaction(async (transaction) => {
+      const metadataSnap = await transaction.get(MARKETPLACE_METADATA_REF);
+      const metadata = metadataSnap.data() || {};
+      if (Number(metadata.projectionVersion || 0) >= MARKETPLACE_PROJECTION_VERSION) {
+        return "ready" as const;
       }
-      if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
+
+      const leaseUntil = toMillis(metadata.projectionLeaseUntil);
+      if (metadata.projectionState === "running" && leaseUntil > Date.now()) {
+        return "running" as const;
+      }
+
+      transaction.set(
+        MARKETPLACE_METADATA_REF,
+        {
+          projectionState: "running",
+          projectionStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+          projectionLeaseUntil: admin.firestore.Timestamp.fromMillis(
+            Date.now() + MARKETPLACE_PROJECTION_LEASE_MS
+          ),
+        },
+        { merge: true }
+      );
+      return "acquired" as const;
+    });
+
+    if (leaseState === "ready") {
+      return { status: "ready", projectionVersion: MARKETPLACE_PROJECTION_VERSION };
+    }
+    if (leaseState === "running") {
+      return { status: "running", projectionVersion: MARKETPLACE_PROJECTION_VERSION };
     }
 
-    await commitIfNeeded();
-
-    return {
-      scannedFlashes: flashSnapshot.size,
-      scannedSheets: sheetSnapshot.size,
-      updatedFlashes,
-      updatedSheets,
-    };
+    try {
+      const result = await rebuildMarketplaceProjectionDocuments();
+      await markMarketplaceProjectionReady(result);
+      logger.info("Rebuilt legacy flash marketplace projections.", {
+        requestedBy: uid,
+        projectionVersion: MARKETPLACE_PROJECTION_VERSION,
+        ...result,
+      });
+      return {
+        status: "rebuilt",
+        projectionVersion: MARKETPLACE_PROJECTION_VERSION,
+        ...result,
+      };
+    } catch (error) {
+      await MARKETPLACE_METADATA_REF.set(
+        {
+          projectionState: "failed",
+          projectionLeaseUntil: admin.firestore.FieldValue.delete(),
+          projectionFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      throw error;
+    }
   }
 );
 
@@ -6739,6 +6833,7 @@ module.exports = {
   syncFlashSheetMarketplaceProjection,
   syncArtistMarketplaceProjection,
   rebuildMarketplaceProjection,
+  ensureMarketplaceProjection,
   cleanupProcessedEvents,
   cleanupBookingRequestReferences,
   cleanupExpiredFlashHolds,
