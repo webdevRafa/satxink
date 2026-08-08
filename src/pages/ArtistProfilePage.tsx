@@ -281,8 +281,7 @@ export const ArtistProfilePage = () => {
         const items = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
           .filter(
-            (item) =>
-              item.status !== "processing" && item.status !== "failed"
+            (item) => item.status !== "processing" && item.status !== "failed"
           )
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
@@ -360,9 +359,7 @@ export const ArtistProfilePage = () => {
     const section = flashSectionRef.current;
     const hasFlashSheets = !flashSheetsLoading && flashSheets.length > 0;
     const hasOverlayOpen = Boolean(
-      selectedItem ||
-        selectedSheet ||
-        selectedFlash
+      selectedItem || selectedSheet || selectedFlash
     );
     const isDesktop =
       typeof window !== "undefined" &&
@@ -600,10 +597,7 @@ export const ArtistProfilePage = () => {
     flashSheets.length === 1 ? "" : "s"
   }`;
   const shouldShowFlashCue =
-    shouldPromptForFlash &&
-    !selectedItem &&
-    !selectedSheet &&
-    !selectedFlash;
+    shouldPromptForFlash && !selectedItem && !selectedSheet && !selectedFlash;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -620,7 +614,7 @@ export const ArtistProfilePage = () => {
       )}
 
       <div className="relative z-10">
-        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-5 lg:mb-10">
+        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg  p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)]  sm:p-5 lg:mb-10">
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
           <div className="relative z-10 grid gap-5 lg:min-h-[152px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-center">
@@ -713,60 +707,60 @@ export const ArtistProfilePage = () => {
         </div>
 
         <div className="mt-6 scroll-mt-24 pb-60 lg:mt-8">
-            <div className="satx-profile-work-shell">
-              <section aria-label="Artist portfolio">
-                <PortfolioPanel
-                  galleryItems={featuredGalleryItems}
-                  galleryLoading={galleryLoading}
-                  onOpenItem={openPortfolioItem}
-                />
-              </section>
+          <div className="satx-profile-work-shell">
+            <section aria-label="Artist portfolio">
+              <PortfolioPanel
+                galleryItems={featuredGalleryItems}
+                galleryLoading={galleryLoading}
+                onOpenItem={openPortfolioItem}
+              />
+            </section>
 
-              <section
-                ref={flashSectionRef}
-                aria-labelledby="artist-flash-heading"
-                className="mt-10 border-t border-white/10 pt-8"
+            <section
+              ref={flashSectionRef}
+              aria-labelledby="artist-flash-heading"
+              className="mt-10 border-t border-white/10 pt-8"
+            >
+              <div
+                data-aos="fade-up"
+                className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
               >
-                <div
-                  data-aos="fade-up"
-                  className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+                <h2
+                  id="artist-flash-heading"
+                  className="my-0! text-2xl! font-semibold! text-white"
                 >
-                  <h2
-                    id="artist-flash-heading"
-                    className="my-0! text-2xl! font-semibold! text-white"
-                  >
-                    Flash Sheets
-                  </h2>
-                  {!flashSheetsLoading && flashSheets.length > 0 && (
-                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
-                      <Layers size={15} />
-                      {flashSheets.length} sheet
-                      {flashSheets.length === 1 ? "" : "s"}
-                    </span>
-                  )}
-                </div>
-                <FlashSheetsPanel
-                  flashSheets={flashSheets}
-                  flashSheetsLoading={flashSheetsLoading}
-                  focusedSheetId={focusedSheet?.id}
-                  onOpenSheet={handleSelectSheet}
-                />
-              </section>
+                  Flash Sheets
+                </h2>
+                {!flashSheetsLoading && flashSheets.length > 0 && (
+                  <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
+                    <Layers size={15} />
+                    {flashSheets.length} sheet
+                    {flashSheets.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <FlashSheetsPanel
+                flashSheets={flashSheets}
+                flashSheetsLoading={flashSheetsLoading}
+                focusedSheetId={focusedSheet?.id}
+                onOpenSheet={handleSelectSheet}
+              />
+            </section>
 
-              {focusedSheet && (
-                <FlashSheetItemsSection
-                  sheet={focusedSheet}
-                  flashes={sheetFlashes}
-                  loading={sheetFlashesLoading}
-                  onClose={() => {
-                    setFocusedSheet(null);
-                    setSheetFlashes([]);
-                  }}
-                  onPreviewSheet={() => setSelectedSheet(focusedSheet)}
-                  onSelectFlash={setSelectedFlash}
-                />
-              )}
-            </div>
+            {focusedSheet && (
+              <FlashSheetItemsSection
+                sheet={focusedSheet}
+                flashes={sheetFlashes}
+                loading={sheetFlashesLoading}
+                onClose={() => {
+                  setFocusedSheet(null);
+                  setSheetFlashes([]);
+                }}
+                onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+                onSelectFlash={setSelectedFlash}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -880,7 +874,11 @@ const ArtistHeaderActionCard = ({
   onBrowseFlash: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className={`grid w-full gap-2 lg:w-[380px] ${hasFlash ? "grid-cols-2" : "grid-cols-1"}`}>
+  <div
+    className={`grid w-full gap-2 lg:w-[380px] ${
+      hasFlash ? "grid-cols-2" : "grid-cols-1"
+    }`}
+  >
     {hasFlash && (
       <button
         type="button"
@@ -961,7 +959,11 @@ const getLightboxPreviewUrl = (item: GalleryItem) =>
   "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl || "";
+  item.originalWebp90Url ||
+  item.fullUrl ||
+  item.webp90Url ||
+  item.thumbUrl ||
+  "";
 
 const MIN_LIGHTBOX_IMAGE_SCALE = 1;
 const MAX_LIGHTBOX_IMAGE_SCALE = 3.2;
@@ -1002,8 +1004,7 @@ const clampNumber = (value: number, min: number, max: number) =>
 const getTouchDistance = (
   first: LightboxTouchPoint,
   second: LightboxTouchPoint
-) =>
-  Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 
 const getTouchCenter = (
   first: LightboxTouchPoint,
