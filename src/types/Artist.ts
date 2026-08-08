@@ -44,6 +44,7 @@ export type SocialLinks = {
     avatarUrl: string;
     name?: string;
     displayName?: string;
+    slug?: string;
     bio: string;
     email: string;
     phoneNumber?: string;

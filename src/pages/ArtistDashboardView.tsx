@@ -14,6 +14,10 @@ import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
+import {
+  getArtistProfilePath,
+  isReservedArtistSlug,
+} from "../utils/artistProfilePath";
 import { RiInstagramFill } from "react-icons/ri";
 import {
   CalendarDays,
@@ -801,6 +805,7 @@ const ArtistDashboardView = () => {
 
       const slug = slugify(displayName, { lower: true, strict: true });
       if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
+      if (isReservedArtistSlug(slug)) return "taken" as DisplayNameStatus;
 
       const nameQuery = query(
         collection(db, "users"),
@@ -1073,7 +1078,14 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    const profileUrl = `${window.location.origin}/artists/${uid}`;
+    const profilePath = getArtistProfilePath({
+      id: uid,
+      slug: currentSlug || artist?.slug,
+      displayName:
+        artist?.displayName || profileForm.displayName.trim(),
+      name: artist?.name,
+    });
+    const profileUrl = `${window.location.origin}${profilePath}`;
     const artistName =
       artist?.displayName ||
       artist?.name ||
@@ -1133,7 +1145,7 @@ const ArtistDashboardView = () => {
       console.error("Artist profile sharing failed:", error);
       toast.error("Could not share your profile.");
     }
-  }, [artist, profileForm.displayName, uid]);
+  }, [artist, currentSlug, profileForm.displayName, uid]);
 
   const handleSaveProfile = async () => {
     if (!uid) return;

@@ -52,6 +52,7 @@ import {
   FlashArtistAvatar,
   FlashPreviewImage,
 } from "../components/FlashPreviewCard";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
@@ -61,6 +62,7 @@ type PublicArtist = {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   avatarUrl?: string;
   studioName?: string;
 };
@@ -736,7 +738,9 @@ const FlashCardActions = ({
 }: FlashCardProps & { className: string }) => (
   <div className={className}>
     <Link
-      to={`/artists/${flash.artistId}`}
+      to={getArtistProfilePath(
+        flash.artist || { id: flash.artistId }
+      )}
       className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
@@ -1036,6 +1040,7 @@ const toPublicArtist = (value: unknown): PublicArtist | null => {
     name: typeof data.name === "string" ? data.name : undefined,
     displayName:
       typeof data.displayName === "string" ? data.displayName : undefined,
+    slug: typeof data.slug === "string" ? data.slug : undefined,
     avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : undefined,
     studioName:
       typeof data.studioName === "string" ? data.studioName : undefined,

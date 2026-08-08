@@ -8,6 +8,7 @@ export type MarketplaceArtistPublic = {
   id: string;
   name?: string | null;
   displayName?: string | null;
+  slug?: string | null;
   avatarUrl?: string | null;
   studioName?: string | null;
 };

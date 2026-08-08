@@ -35,11 +35,13 @@ import {
   getFlashTitle,
 } from "../utils/flashPreview";
 import { getClientNameParts } from "../utils/clientDisplayName";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 type PublicArtist = {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   avatarUrl?: string;
   studioName?: string;
 };
@@ -283,7 +285,9 @@ const PublicFlashSheetPage = () => {
                 {flashes.length === 1 ? "" : "es"}
               </p>
               <Link
-                to={`/artists/${sheet.artistId}`}
+                to={getArtistProfilePath(
+                  artist || { id: sheet.artistId }
+                )}
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
               >
                 View artist
@@ -430,7 +434,7 @@ const PublicFlashCard = ({
         <FlashPreviewMeta flash={flash} artist={artist} />
         <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
           <Link
-            to={`/artists/${artistId}`}
+            to={getArtistProfilePath(artist || { id: artistId })}
             className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
           >
             View artist

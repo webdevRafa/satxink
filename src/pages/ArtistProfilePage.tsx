@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   arrayRemove,
   arrayUnion,
@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   query,
   updateDoc,
@@ -61,6 +62,10 @@ import {
   getBookingAvailabilityLabel,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
+import {
+  getArtistProfilePath,
+  normalizeArtistSlug,
+} from "../utils/artistProfilePath";
 
 const profileBackdropMediaQuery = "(min-width: 768px)";
 
@@ -68,6 +73,7 @@ interface Artist {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   email: string;
   bio: string;
   avatarUrl: string;
@@ -110,7 +116,12 @@ const PORTFOLIO_FADE_PHASE_GAP_MS = 40;
 const PORTFOLIO_FADE_SETTLE_BUFFER_MS = 48;
 
 export const ArtistProfilePage = () => {
-  const { id } = useParams();
+  const { id: routeArtistId, artistSlug } = useParams<{
+    id?: string;
+    artistSlug?: string;
+  }>();
+  const navigate = useNavigate();
+  const [artistId, setArtistId] = useState<string | null>(null);
   const [artist, setArtist] = useState<StripeReadyArtist | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [client, setClient] = useState<ClientProfile | null>(null);
@@ -184,12 +195,38 @@ export const ArtistProfilePage = () => {
 
   useEffect(() => {
     const fetchArtist = async () => {
+      setLoading(true);
+      setArtist(null);
+      setArtistId(null);
+      setShop(null);
+
       try {
-        const ref = doc(db, "users", id as string);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
+        const snap = routeArtistId
+          ? await getDoc(doc(db, "users", routeArtistId))
+          : (
+              await getDocs(
+                query(
+                  collection(db, "users"),
+                  where("role", "==", "artist"),
+                  where("slug", "==", normalizeArtistSlug(artistSlug)),
+                  limit(2)
+                )
+              )
+            ).docs[0];
+
+        if (snap?.exists()) {
           const artistData = snap.data() as Omit<StripeReadyArtist, "id">;
-          setArtist({ id: snap.id, ...artistData });
+          const resolvedArtist = { id: snap.id, ...artistData };
+          setArtist(resolvedArtist);
+          setArtistId(snap.id);
+
+          const canonicalPath = getArtistProfilePath(resolvedArtist);
+          const currentRoutePath = routeArtistId
+            ? `/artists/${routeArtistId}`
+            : `/${normalizeArtistSlug(artistSlug)}`;
+          if (canonicalPath !== currentRoutePath) {
+            navigate(canonicalPath, { replace: true });
+          }
 
           if (artistData.shopId) {
             const shopRef = doc(db, "shops", artistData.shopId);
@@ -210,8 +247,13 @@ export const ArtistProfilePage = () => {
       }
     };
 
-    fetchArtist();
-  }, [id]);
+    void fetchArtist();
+  }, [artistSlug, navigate, routeArtistId]);
+
+  useEffect(() => {
+    if (!artist) return;
+    document.title = `${getArtistDisplayName(artist)} | SATX Ink`;
+  }, [artist]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(profileBackdropMediaQuery);
@@ -226,12 +268,12 @@ export const ArtistProfilePage = () => {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
+    if (!artistId) return;
 
     setGalleryLoading(true);
     const galleryQuery = query(
       collection(db, "gallery"),
-      where("artistId", "==", id)
+      where("artistId", "==", artistId)
     );
     const unsubscribe = onSnapshot(
       galleryQuery,
@@ -254,17 +296,17 @@ export const ArtistProfilePage = () => {
     );
 
     return () => unsubscribe();
-  }, [id]);
+  }, [artistId]);
 
   useEffect(() => {
     const fetchFlashSheets = async () => {
-      if (!id) return;
+      if (!artistId) return;
 
       setFlashSheetsLoading(true);
       try {
         const sheetsQuery = query(
           collection(db, "flashSheets"),
-          where("artistId", "==", id),
+          where("artistId", "==", artistId),
           where("marketplaceReady", "==", true)
         );
         const snapshot = await getDocs(sheetsQuery);
@@ -282,17 +324,17 @@ export const ArtistProfilePage = () => {
     };
 
     fetchFlashSheets();
-  }, [id, artist]);
+  }, [artistId, artist]);
 
   useEffect(() => {
     const fetchSheetFlashes = async () => {
-      if (!focusedSheet || !id) return;
+      if (!focusedSheet || !artistId) return;
 
       setSheetFlashesLoading(true);
       try {
         const flashesQuery = query(
           collection(db, "flashes"),
-          where("artistId", "==", id),
+          where("artistId", "==", artistId),
           where("sheetId", "==", focusedSheet.id),
           where("marketplaceReady", "==", true)
         );
@@ -312,7 +354,7 @@ export const ArtistProfilePage = () => {
     };
 
     fetchSheetFlashes();
-  }, [focusedSheet, id, artist]);
+  }, [focusedSheet, artistId, artist]);
 
   const updateFlashCueVisibility = useCallback(() => {
     const section = flashSectionRef.current;

@@ -27,11 +27,13 @@ import {
   type BookingAvailability,
 } from "../utils/bookingAvailability";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 interface Artist {
   id: string;
   name: string;
   displayName?: string;
+  slug?: string;
   avatarUrl: string;
   studioName?: string;
   shopName?: string;
@@ -317,7 +319,7 @@ const FollowedArtistRow = ({
         </div>
       </div>
 
-      <LatestSheetCell sheet={artist.latestSheet} artistId={artist.id} />
+      <LatestSheetCell sheet={artist.latestSheet} artist={artist} />
 
       <BookingAvailabilityCell
         artistId={artist.id}
@@ -326,7 +328,7 @@ const FollowedArtistRow = ({
 
       <div className="grid gap-2 md:min-w-[150px]">
         <Link
-          to={`/artists/${artist.id}`}
+          to={getArtistProfilePath(artist)}
           className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           <UserRound size={16} />
@@ -542,13 +544,13 @@ const FollowingPagination = ({
 };
 
 const LatestSheetCell = ({
-  artistId,
+  artist,
   sheet,
 }: {
-  artistId: string;
+  artist: Artist;
   sheet?: LatestSheetPreview;
 }) => {
-  const href = sheet?.href || `/artists/${artistId}`;
+  const href = sheet?.href || getArtistProfilePath(artist);
 
   return (
     <Link

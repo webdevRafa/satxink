@@ -285,6 +285,7 @@ type MarketplaceArtistPublic = {
   id: string;
   name: string | null;
   displayName: string | null;
+  slug: string | null;
   avatarUrl: string | null;
   studioName: string | null;
 };
@@ -387,6 +388,7 @@ const buildMarketplaceArtistPublic = (
   id: artistId,
   name: getFirstString(artist?.name) || null,
   displayName: getFirstString(artist?.displayName) || null,
+  slug: getFirstString(artist?.slug) || null,
   avatarUrl: getFirstString(artist?.avatarUrl, artist?.avatar, artist?.photoURL) || null,
   studioName: getFirstString(artist?.studioName, artist?.shopName) || null,
 });
@@ -6509,6 +6511,7 @@ const hasArtistMarketplaceProjectionChange = (
   const publicFields = [
     "name",
     "displayName",
+    "slug",
     "avatarUrl",
     "avatar",
     "photoURL",

@@ -55,11 +55,13 @@ import {
 } from "../utils/flashPreview";
 import { getClientNameParts } from "../utils/clientDisplayName";
 import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 type PublicArtist = {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   avatarUrl?: string;
   bio?: string;
   shopId?: string;
@@ -1400,7 +1402,7 @@ const HeroFeaturedArtistPanel = ({
         <div className="mt-5">
           {artist ? (
             <Link
-              to={`/artists/${artist.id}`}
+              to={getArtistProfilePath(artist)}
               className="inline-flex min-h-10 select-none items-center gap-2  px-4 py-2 text-sm font-semibold bg-white/2 hover:bg-white/5 text-neutral-300! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition group"
             >
               View artist profile
@@ -2054,7 +2056,9 @@ const FlashCardActions = ({
 }) => (
   <div className={className}>
     <Link
-      to={`/artists/${flash.artistId}`}
+      to={getArtistProfilePath(
+        flash.artist || { id: flash.artistId }
+      )}
       className="inline-flex h-9 select-none items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
@@ -2218,7 +2222,7 @@ const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
       </div>
 
       <Link
-        to={`/artists/${artist.id}`}
+        to={getArtistProfilePath(artist)}
         className="mt-7 inline-flex select-none items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white group-hover:text-[#0b0b0b]!"
       >
         View profile
@@ -2563,6 +2567,7 @@ const toHomeMarketplaceArtist = (
     id: artist.id,
     name: artist.name || undefined,
     displayName: artist.displayName || undefined,
+    slug: artist.slug || undefined,
     avatarUrl: artist.avatarUrl || undefined,
     studioName: artist.studioName || undefined,
   };

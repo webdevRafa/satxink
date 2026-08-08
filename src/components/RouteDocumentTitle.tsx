@@ -32,6 +32,7 @@ const staticRouteTitles = [
   { path: "/terms", title: "Terms of Service" },
   { path: "/login-page", title: "Sign In" },
   { path: "/admin", title: "Admin Dashboard" },
+  { path: "/:artistSlug", title: "Artist Profile" },
 ] as const;
 
 const formatTitle = (pageTitle: string) => `${pageTitle} | ${SITE_NAME}`;

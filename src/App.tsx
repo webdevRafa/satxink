@@ -102,6 +102,7 @@ function App() {
         <Route path="/login-page" element={<LoginPage />} />
         <Route path="/artists/:id" element={<ArtistProfilePage />} />
         <Route path="/flash-sheet/:id" element={<FlashSheetDetailPage />} />
+        <Route path="/:artistSlug" element={<ArtistProfilePage />} />
 
       </Routes>
 

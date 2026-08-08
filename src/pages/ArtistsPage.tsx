@@ -24,6 +24,7 @@ import sa from "../assets/san-antonio.svg";
 import { db } from "../firebase/firebaseConfig";
 import type { Artist } from "../types/Artist";
 import type { GalleryItem } from "../types/GalleryItem";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 import {
   TATTOO_STYLES,
   artistHasTattooStyle,
@@ -932,7 +933,7 @@ const ArtistPreviewCard = ({
 
   return (
     <Link
-      to={`/artists/${artist.id}`}
+      to={getArtistProfilePath(artist)}
       onPointerEnter={previewIntent.handlePointerEnter}
       onPointerLeave={previewIntent.deactivatePreview}
       onFocus={previewIntent.activatePreview}
@@ -972,7 +973,7 @@ const ArtistSpotlightCard = ({
 
   return (
     <Link
-      to={`/artists/${artist.id}`}
+      to={getArtistProfilePath(artist)}
       className="group block"
       onPointerEnter={previewIntent.handlePointerEnter}
       onPointerLeave={previewIntent.deactivatePreview}

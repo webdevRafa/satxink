@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Dialog } from "@headlessui/react";
 import slugify from "slugify";
+import { isReservedArtistSlug } from "../utils/artistProfilePath";
 import { toast } from "react-hot-toast";
 import {
   ArrowLeft,
@@ -291,6 +292,12 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
 
     const slug = slugify(displayName, { lower: true, strict: true });
 
+    if (isReservedArtistSlug(slug)) {
+      setIsNameTaken(true);
+      setIsCheckingName(false);
+      return;
+    }
+
     const timer = window.setTimeout(async () => {
       setIsCheckingName(true);
       const nameQuery = query(
@@ -453,6 +460,12 @@ const ArtistSignupPage = ({ onBack }: { onBack?: () => void }) => {
     setProfileCreationPhase("dim");
 
     const slug = slugify(displayName, { lower: true, strict: true });
+
+    if (isReservedArtistSlug(slug)) {
+      toast.error("That display name is reserved. Please choose another.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const startedAt = Date.now();
