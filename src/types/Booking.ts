@@ -20,7 +20,8 @@ export type BookingSessionStatus =
     | "not_started"
     | "in_progress"
     | "completed"
-    | "awaiting_next_session";
+    | "awaiting_next_session"
+    | "cancelled";
 export type ProjectStatus = "active" | "paused" | "completed";
 
 export type SessionAllocation = {
@@ -158,6 +159,11 @@ export type Booking = {
     sessionStatus?: BookingSessionStatus;
     appointmentStatus?: "scheduled" | "in_progress" | "completed" | "cancelled";
     appointmentStartsAt?: Timestamp | null;
+    paymentDueAt?: Timestamp;
+    checkoutExpiredAt?: Timestamp;
+    cancelledAt?: Timestamp;
+    cancellationReason?: string;
+    cancellationSource?: "system" | "artist" | "client" | string;
     sessionId?: string;
     sessionPhotoUrls?: string[];
     createdAt: Timestamp; // or FirebaseFirestore.Timestamp if you're using strict typing

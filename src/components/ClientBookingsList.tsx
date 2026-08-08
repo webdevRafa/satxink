@@ -269,10 +269,13 @@ const EmptyState = ({ icon, title, description }: { icon: ReactNode; title: stri
 const SectionSkeleton = () => <div className="mt-6 space-y-4"><div className="h-24 animate-pulse rounded-lg bg-white/[0.04]" /><div className="h-64 animate-pulse rounded-lg bg-white/[0.04]" /></div>;
 
 const StatusBadge = ({ booking }: { booking: Booking }) => {
+  const cancelled = booking.status === "cancelled";
+  const paymentExpired =
+    booking.cancellationReason === "deposit_payment_window_expired";
   const completed = booking.appointmentStatus === "completed";
   const inProgress = booking.appointmentStatus === "in_progress";
-  const label = booking.status === "pending_payment" ? "Deposit due" : booking.status === "paid" || booking.shopBalanceStatus === "paid" ? "Paid" : completed ? "Completed" : inProgress ? "In progress" : "Booked";
-  const tone = booking.status === "pending_payment" ? "border-amber-300/20 bg-amber-300/10 text-amber-100" : "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
+  const label = cancelled ? paymentExpired ? "Payment window expired" : "Cancelled" : booking.status === "pending_payment" ? "Deposit due" : booking.status === "paid" || booking.shopBalanceStatus === "paid" ? "Paid" : completed ? "Completed" : inProgress ? "In progress" : "Booked";
+  const tone = cancelled ? "border-neutral-400/20 bg-neutral-400/10 text-neutral-300" : booking.status === "pending_payment" ? "border-amber-300/20 bg-amber-300/10 text-amber-100" : "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
   return <span className={`inline-flex w-fit shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${tone}`}>{label}</span>;
 };
 

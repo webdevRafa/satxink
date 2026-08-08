@@ -42,7 +42,8 @@ const STRIPE_PERCENT_FEE = 0.029;
 const STRIPE_FIXED_FEE_CENTS = 30;
 const MIN_ARTIST_PAYOUT_CENTS = 100;
 const DEFAULT_APP_URL = "https://satxink.com";
-const FLASH_CHECKOUT_HOLD_SECONDS = 60 * 60;
+const FLASH_PAYMENT_WINDOW_SECONDS = 60 * 60;
+const STRIPE_CHECKOUT_MINIMUM_WINDOW_SECONDS = 31 * 60;
 
 const getReferenceImageOrder = (reference: { fileName?: string }) => {
   const order = Number(reference.fileName?.split("-")[0]);
@@ -302,8 +303,6 @@ const MARKETPLACE_METADATA_REF = db
 const MARKETPLACE_TAG_COUNTS_COLLECTION = "marketplaceTagCounts";
 const MARKETPLACE_TOP_TAG_LIMIT = 18;
 const MARKETPLACE_BATCH_LIMIT = 450;
-const MARKETPLACE_PROJECTION_VERSION = 1;
-const MARKETPLACE_PROJECTION_LEASE_MS = 10 * 60 * 1000;
 
 const getFirstString = (...values: unknown[]) => {
   for (const value of values) {
@@ -410,8 +409,7 @@ const buildFlashMarketplaceProjectionFromArtist = (
 ): MarketplaceProjection => {
   const artistId = getFirstString(item.artistId);
   const artistPublic = artistId ? buildMarketplaceArtistPublic(artistId, artist) : null;
-  const artistReady =
-    item.artistStripeConnectReady === true || isStripeConnectReadyForMarketplace(artist);
+  const artistReady = isStripeConnectReadyForMarketplace(artist);
   const hasPrice = hasValidMarketplacePrice(item);
   const marketplaceReady = Boolean(
     artistId &&
@@ -447,8 +445,7 @@ const buildSheetMarketplaceProjectionFromArtist = (
 ): MarketplaceProjection => {
   const artistId = getFirstString(item.artistId);
   const artistPublic = artistId ? buildMarketplaceArtistPublic(artistId, artist) : null;
-  const artistReady =
-    item.artistStripeConnectReady === true || isStripeConnectReadyForMarketplace(artist);
+  const artistReady = isStripeConnectReadyForMarketplace(artist);
   const marketplaceReady = Boolean(
     artistId &&
       artistReady &&
@@ -800,55 +797,6 @@ const setOneOfOneFlashCheckoutSession = async ({
   });
 };
 
-const releaseOneOfOneFlashHold = async ({
-  flashId,
-  bookingId,
-  sessionId,
-}: {
-  flashId?: string | null;
-  bookingId?: string | null;
-  sessionId?: string | null;
-}) => {
-  if (!flashId) return false;
-
-  return db.runTransaction(async (transaction) => {
-    const flashRef = db.collection("flashes").doc(flashId);
-    const flashSnap = await transaction.get(flashRef);
-    if (!flashSnap.exists) return false;
-
-    const flash = flashSnap.data() || {};
-    if (
-      getFlashRepeatability(flash) !== "one_of_one" ||
-      getFlashAvailabilityStatus(flash) !== "held"
-    ) {
-      return false;
-    }
-
-    if (bookingId && flash.heldByBookingId !== bookingId) return false;
-    if (
-      sessionId &&
-      flash.heldByCheckoutSessionId &&
-      flash.heldByCheckoutSessionId !== sessionId
-    ) {
-      return false;
-    }
-
-    transaction.update(flashRef, getFlashHoldReleaseUpdate());
-    if (bookingId) {
-      transaction.set(
-        db.collection("bookings").doc(bookingId),
-        {
-          flashAvailabilityStatus: "available",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }
-
-    return true;
-  });
-};
-
 const parseStoragePathFromDownloadUrl = (url: string) => {
   try {
     const parsed = new URL(url);
@@ -1121,6 +1069,145 @@ const getBookingSessionRefs = (bookingId: string, sessionNumber: number) => {
 
   return { summaryRef, sessionRef };
 };
+
+const getFlashPaymentDeadlineMillis = (
+  booking: admin.firestore.DocumentData,
+  flash?: admin.firestore.DocumentData
+) =>
+  Math.max(
+    toMillis(booking.paymentDueAt),
+    toMillis(booking.stripeCheckoutExpiresAt),
+    toMillis(flash?.heldUntil)
+  );
+
+const expireUnpaidFlashBooking = async ({
+  bookingId,
+  flashId,
+  checkoutSessionId,
+  requireExpiredDeadline = true,
+}: {
+  bookingId: string;
+  flashId?: string | null;
+  checkoutSessionId?: string | null;
+  requireExpiredDeadline?: boolean;
+}) =>
+  db.runTransaction(async (transaction) => {
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists) {
+      return { bookingCancelled: false, flashReleased: false };
+    }
+
+    const booking = bookingSnap.data() || {};
+    if (booking.sourceType !== "flash" || booking.status !== "pending_payment") {
+      return { bookingCancelled: false, flashReleased: false };
+    }
+    if (
+      checkoutSessionId &&
+      booking.stripeCheckoutSessionId &&
+      booking.stripeCheckoutSessionId !== checkoutSessionId
+    ) {
+      return { bookingCancelled: false, flashReleased: false };
+    }
+
+    const resolvedFlashId = getOptionalString(flashId || booking.flashId);
+    if (!resolvedFlashId) {
+      return { bookingCancelled: false, flashReleased: false };
+    }
+
+    const flashRef = db.collection("flashes").doc(resolvedFlashId);
+    const flashSnap = await transaction.get(flashRef);
+    const flash = flashSnap.exists ? flashSnap.data() || {} : {};
+    const deadlineMillis = getFlashPaymentDeadlineMillis(booking, flash);
+    if (
+      requireExpiredDeadline &&
+      (deadlineMillis <= 0 || deadlineMillis > Date.now())
+    ) {
+      return { bookingCancelled: false, flashReleased: false };
+    }
+
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const { summaryRef, sessionRef } = getBookingSessionRefs(bookingId, 1);
+    const requestId = getOptionalString(booking.requestId);
+    const offerId = getOptionalString(booking.offerId);
+    let flashReleased = false;
+
+    if (
+      flashSnap.exists &&
+      getFlashRepeatability(flash) === "one_of_one" &&
+      getFlashAvailabilityStatus(flash) === "held" &&
+      flash.heldByBookingId === bookingId &&
+      (!checkoutSessionId ||
+        !flash.heldByCheckoutSessionId ||
+        flash.heldByCheckoutSessionId === checkoutSessionId)
+    ) {
+      transaction.update(flashRef, getFlashHoldReleaseUpdate());
+      flashReleased = true;
+    }
+
+    transaction.update(bookingRef, {
+      status: "cancelled",
+      appointmentStatus: "cancelled",
+      sessionStatus: "cancelled",
+      depositStatus: "failed",
+      flashAvailabilityStatus: flashReleased
+        ? "available"
+        : booking.flashAvailabilityStatus || null,
+      cancellationReason: "deposit_payment_window_expired",
+      cancellationSource: "system",
+      cancelledAt: timestamp,
+      checkoutExpiredAt: timestamp,
+      updatedAt: timestamp,
+    });
+    transaction.set(
+      sessionRef,
+      {
+        status: "cancelled",
+        paymentStatus: "cancelled",
+        checkoutStatus: "expired",
+        checkoutExpiredAt: timestamp,
+        updatedAt: timestamp,
+      },
+      { merge: true }
+    );
+    transaction.set(
+      summaryRef,
+      {
+        status: "cancelled",
+        paymentStatus: "cancelled",
+        cancelledAt: timestamp,
+        updatedAt: timestamp,
+      },
+      { merge: true }
+    );
+
+    if (requestId) {
+      transaction.set(
+        db.collection("bookingRequests").doc(requestId),
+        {
+          status: "cancelled",
+          cancellationReason: "deposit_payment_window_expired",
+          cancelledAt: timestamp,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+    if (offerId) {
+      transaction.set(
+        db.collection("offers").doc(offerId),
+        {
+          bookingStatus: "cancelled",
+          paymentStatus: "expired",
+          paymentExpiredAt: timestamp,
+          updatedAt: timestamp,
+        },
+        { merge: true }
+      );
+    }
+
+    return { bookingCancelled: true, flashReleased };
+  });
 
 const getParticipantRole = (
   booking: admin.firestore.DocumentData,
@@ -1502,6 +1589,9 @@ const acceptFlashOffer = onCall(
         totalQuoteCents - depositAmountCents,
         0
       );
+      const paymentDueAt = admin.firestore.Timestamp.fromDate(
+        new Date(Date.now() + FLASH_PAYMENT_WINDOW_SECONDS * 1000)
+      );
 
       const bookingData = {
         sourceType: "flash",
@@ -1560,6 +1650,7 @@ const acceptFlashOffer = onCall(
         shopAddress: offer.shopAddress || shop.address || null,
         shopMapLink: offer.shopMapLink || shop.mapLink || null,
         status: "pending_payment",
+        paymentDueAt,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -1607,9 +1698,6 @@ const acceptFlashOffer = onCall(
       });
 
       if (repeatability === "one_of_one") {
-        const holdUntil = admin.firestore.Timestamp.fromDate(
-          new Date(Date.now() + FLASH_CHECKOUT_HOLD_SECONDS * 1000)
-        );
         transaction.update(flashRef, {
           repeatability: "one_of_one",
           availabilityStatus: "held",
@@ -1617,7 +1705,7 @@ const acceptFlashOffer = onCall(
           heldByBookingId: newBookingRef.id,
           heldByClientId: uid,
           heldByCheckoutSessionId: admin.firestore.FieldValue.delete(),
-          heldUntil: holdUntil,
+          heldUntil: paymentDueAt,
           updatedAt: timestamp,
         });
       }
@@ -1856,8 +1944,35 @@ const finalizeBookingPaymentAndFlash = async (
     if (booking.sourceType === "flash" && flashId) {
       const flashRef = db.collection("flashes").doc(flashId);
       flashSnap = await transaction.get(flashRef);
+      if (!flashSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "The flash connected to this checkout no longer exists."
+        );
+      }
       flash = flashSnap.exists ? flashSnap.data() || {} : {};
       repeatability = getFlashRepeatability(flash);
+
+      if (repeatability === "one_of_one") {
+        const availabilityStatus = getFlashAvailabilityStatus(flash);
+        const heldForThisCheckout =
+          availabilityStatus === "held" &&
+          flash.heldByBookingId === bookingRef.id &&
+          (!flash.heldByCheckoutSessionId ||
+            flash.heldByCheckoutSessionId === session.id);
+        const alreadySoldToThisCheckout =
+          availabilityStatus === "sold" &&
+          flash.soldBookingId === bookingRef.id &&
+          (!flash.soldCheckoutSessionId ||
+            flash.soldCheckoutSessionId === session.id);
+
+        if (!heldForThisCheckout && !alreadySoldToThisCheckout) {
+          throw new HttpsError(
+            "failed-precondition",
+            "This one-of-one flash is no longer reserved for this checkout."
+          );
+        }
+      }
     }
 
     paidOfferId = typeof booking.offerId === "string" ? booking.offerId : null;
@@ -2988,8 +3103,35 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       );
     }
 
+    const nowMillis = Date.now();
+    const existingCheckoutExpiryMillis = toMillis(
+      booking.stripeCheckoutExpiresAt
+    );
+    const acceptedPaymentDeadlineMillis = toMillis(booking.paymentDueAt);
+    if (
+      (existingCheckoutExpiryMillis > 0 &&
+        existingCheckoutExpiryMillis <= nowMillis) ||
+      (existingCheckoutExpiryMillis <= 0 &&
+        acceptedPaymentDeadlineMillis > 0 &&
+        acceptedPaymentDeadlineMillis <= nowMillis)
+    ) {
+      await expireUnpaidFlashBooking({
+        bookingId,
+        flashId: getOptionalString(booking.flashId),
+      });
+      throw new HttpsError(
+        "failed-precondition",
+        "The deposit payment window has expired."
+      );
+    }
+
     const flashHoldUntil = new Date(
-      Date.now() + FLASH_CHECKOUT_HOLD_SECONDS * 1000
+      existingCheckoutExpiryMillis > nowMillis
+        ? existingCheckoutExpiryMillis
+        : Math.max(
+            acceptedPaymentDeadlineMillis,
+            nowMillis + STRIPE_CHECKOUT_MINIMUM_WINDOW_SECONDS * 1000
+          )
     );
     reservedFlashId =
       typeof booking.flashId === "string" ? booking.flashId : null;
@@ -3120,6 +3262,7 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
       {
         stripeCheckoutSessionId: session.id,
         stripeCheckoutExpiresAt: admin.firestore.Timestamp.fromDate(flashHoldUntil),
+        paymentDueAt: admin.firestore.Timestamp.fromDate(flashHoldUntil),
         stripeConnectedAccountId:
           connectedAccountId ?? booking.stripeConnectedAccountId ?? null,
         clientPaymentAmount: clientTotalCents / 100,
@@ -3148,21 +3291,23 @@ const createCheckoutSession = onCall({ cors: true, region: "us-central1", secret
 
     return { sessionUrl: session.url };
   } catch (error) {
-    if (reservedOneOfOneFlash) {
+    if (createdCheckoutSessionId) {
       try {
-        if (createdCheckoutSessionId && reservedConnectedAccountId) {
+        if (reservedConnectedAccountId) {
           await stripe.checkout.sessions.expire(
             createdCheckoutSessionId,
             {},
             { stripeAccount: reservedConnectedAccountId }
           );
         }
-        await releaseOneOfOneFlashHold({
+        await expireUnpaidFlashBooking({
+          bookingId: reservedBookingId || "",
           flashId: reservedFlashId,
-          bookingId: reservedBookingId,
+          checkoutSessionId: createdCheckoutSessionId,
+          requireExpiredDeadline: false,
         });
       } catch (releaseError) {
-        logger.error("Failed to release one-of-one flash hold", releaseError);
+        logger.error("Failed to cancel an unusable checkout", releaseError);
       }
     }
     if (error instanceof HttpsError) throw error;
@@ -5610,46 +5755,23 @@ const stripeWebhook = onRequest(
       }
 
       try {
-        const released = await releaseOneOfOneFlashHold({
+        const expiration = await expireUnpaidFlashBooking({
+          bookingId,
           flashId,
-          bookingId,
-          sessionId: session.id,
+          checkoutSessionId: session.id,
+          requireExpiredDeadline: false,
         });
-
-        if (released) {
-          await firestore.collection("bookings").doc(bookingId).set(
-            {
-              flashAvailabilityStatus: "available",
-              checkoutExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
-        const expiredSessionNumber = getPositiveInteger(
-          session.metadata?.sessionNumber,
-          1
-        );
-        const expiredSessionRef = getBookingSessionRefs(
-          bookingId,
-          expiredSessionNumber
-        ).sessionRef;
-        await expiredSessionRef.set(
-          {
-            checkoutStatus: "expired",
-            checkoutAttemptNumber: admin.firestore.FieldValue.increment(1),
-            checkoutExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
         await eventDoc.set({
           status: "processed",
           processedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
 
-        console.log(`Checkout session ${session.id} expired. Flash hold released: ${released}.`);
+        console.log(
+          `Checkout session ${session.id} expired. ` +
+            `Booking cancelled: ${expiration.bookingCancelled}. ` +
+            `Flash hold released: ${expiration.flashReleased}.`
+        );
         res.status(200).send("Checkout expiration handled.");
       } catch (err) {
         console.error("Error handling checkout expiration:", err);
@@ -6477,175 +6599,6 @@ const syncArtistMarketplaceProjection = onDocumentWritten(
   }
 );
 
-const rebuildMarketplaceProjectionDocuments = async () => {
-  const [flashSnapshot, sheetSnapshot] = await Promise.all([
-    db.collection("flashes").get(),
-    db.collection("flashSheets").get(),
-  ]);
-  const artistsById = new Map<string, admin.firestore.DocumentData | null>();
-  let batch = db.batch();
-  let writeCount = 0;
-  let updatedFlashes = 0;
-  let updatedSheets = 0;
-
-  const getArtistForProjection = async (artistId: string) => {
-    if (!artistId) return null;
-    if (artistsById.has(artistId)) return artistsById.get(artistId) || null;
-    const artist = await getMarketplaceArtist(artistId);
-    artistsById.set(artistId, artist);
-    return artist;
-  };
-
-  const commitIfNeeded = async () => {
-    if (writeCount === 0) return;
-    await batch.commit();
-    batch = db.batch();
-    writeCount = 0;
-  };
-
-  for (const flashDoc of flashSnapshot.docs) {
-    const data = flashDoc.data();
-    const projection = buildFlashMarketplaceProjectionFromArtist(
-      data,
-      await getArtistForProjection(getFirstString(data.artistId))
-    );
-    if (!projectionMatches(data, projection)) {
-      batch.update(flashDoc.ref, getProjectionUpdate(projection));
-      writeCount += 1;
-      updatedFlashes += 1;
-    }
-    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
-  }
-
-  for (const sheetDoc of sheetSnapshot.docs) {
-    const data = sheetDoc.data();
-    const projection = buildSheetMarketplaceProjectionFromArtist(
-      data,
-      await getArtistForProjection(getFirstString(data.artistId))
-    );
-    if (!projectionMatches(data, projection)) {
-      batch.update(sheetDoc.ref, getProjectionUpdate(projection));
-      writeCount += 1;
-      updatedSheets += 1;
-    }
-    if (writeCount >= MARKETPLACE_BATCH_LIMIT) await commitIfNeeded();
-  }
-
-  await commitIfNeeded();
-
-  return {
-    scannedFlashes: flashSnapshot.size,
-    scannedSheets: sheetSnapshot.size,
-    updatedFlashes,
-    updatedSheets,
-  };
-};
-
-const markMarketplaceProjectionReady = async (
-  result: Awaited<ReturnType<typeof rebuildMarketplaceProjectionDocuments>>
-) => {
-  await MARKETPLACE_METADATA_REF.set(
-    {
-      projectionVersion: MARKETPLACE_PROJECTION_VERSION,
-      projectionState: "ready",
-      projectionCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
-      projectionLeaseUntil: admin.firestore.FieldValue.delete(),
-      projectionLastResult: result,
-    },
-    { merge: true }
-  );
-};
-
-const rebuildMarketplaceProjection = onCall(
-  { cors: true, region: "us-central1", timeoutSeconds: 540, memory: "1GiB" },
-  async (req) => {
-    const uid = req.auth?.uid;
-    if (!uid) {
-      throw new HttpsError("unauthenticated", "Sign in as an admin to rebuild marketplace projections.");
-    }
-
-    const adminSnap = await db.collection("users").doc(uid).get();
-    if (adminSnap.data()?.role !== "admin") {
-      throw new HttpsError("permission-denied", "Only admins can rebuild marketplace projections.");
-    }
-
-    const result = await rebuildMarketplaceProjectionDocuments();
-    await markMarketplaceProjectionReady(result);
-    return result;
-  }
-);
-
-const ensureMarketplaceProjection = onCall(
-  { cors: true, region: "us-central1", timeoutSeconds: 540, memory: "1GiB" },
-  async (req) => {
-    const uid = req.auth?.uid;
-    if (!uid) {
-      throw new HttpsError(
-        "unauthenticated",
-        "Sign in to prepare the flash marketplace."
-      );
-    }
-
-    const leaseState = await db.runTransaction(async (transaction) => {
-      const metadataSnap = await transaction.get(MARKETPLACE_METADATA_REF);
-      const metadata = metadataSnap.data() || {};
-      if (Number(metadata.projectionVersion || 0) >= MARKETPLACE_PROJECTION_VERSION) {
-        return "ready" as const;
-      }
-
-      const leaseUntil = toMillis(metadata.projectionLeaseUntil);
-      if (metadata.projectionState === "running" && leaseUntil > Date.now()) {
-        return "running" as const;
-      }
-
-      transaction.set(
-        MARKETPLACE_METADATA_REF,
-        {
-          projectionState: "running",
-          projectionStartedAt: admin.firestore.FieldValue.serverTimestamp(),
-          projectionLeaseUntil: admin.firestore.Timestamp.fromMillis(
-            Date.now() + MARKETPLACE_PROJECTION_LEASE_MS
-          ),
-        },
-        { merge: true }
-      );
-      return "acquired" as const;
-    });
-
-    if (leaseState === "ready") {
-      return { status: "ready", projectionVersion: MARKETPLACE_PROJECTION_VERSION };
-    }
-    if (leaseState === "running") {
-      return { status: "running", projectionVersion: MARKETPLACE_PROJECTION_VERSION };
-    }
-
-    try {
-      const result = await rebuildMarketplaceProjectionDocuments();
-      await markMarketplaceProjectionReady(result);
-      logger.info("Rebuilt legacy flash marketplace projections.", {
-        requestedBy: uid,
-        projectionVersion: MARKETPLACE_PROJECTION_VERSION,
-        ...result,
-      });
-      return {
-        status: "rebuilt",
-        projectionVersion: MARKETPLACE_PROJECTION_VERSION,
-        ...result,
-      };
-    } catch (error) {
-      await MARKETPLACE_METADATA_REF.set(
-        {
-          projectionState: "failed",
-          projectionLeaseUntil: admin.firestore.FieldValue.delete(),
-          projectionFailedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-      throw error;
-    }
-  }
-);
-
 const cleanupProcessedEvents = onSchedule("every 24 hours", async () => {
   const firestore = admin.firestore();
   const cutoff = admin.firestore.Timestamp.fromDate(
@@ -6751,46 +6704,121 @@ const cleanupBookingRequestReferences = onSchedule("every 24 hours", async () =>
   );
 });
 
-const cleanupExpiredFlashHolds = onSchedule("every 15 minutes", async () => {
-  const firestore = admin.firestore();
-  const snapshot = await firestore
-    .collection("flashes")
-    .where("availabilityStatus", "==", "held")
-    .get();
+const cleanupExpiredFlashHolds = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    secrets: [STRIPE_SECRET_KEY],
+  },
+  async () => {
+    const firestore = admin.firestore();
+    const stripe = getStripeClient();
+    const snapshot = await firestore
+      .collection("bookings")
+      .where("status", "==", "pending_payment")
+      .get();
 
-  if (snapshot.empty) {
-    console.log("No expired flash holds to release.");
-    return;
-  }
-
-  const batches: FirebaseFirestore.WriteBatch[] = [];
-  let batch = firestore.batch();
-  let writeCount = 0;
-  let releasedCount = 0;
-
-  snapshot.docs.forEach((docSnap) => {
-    const flash = docSnap.data() || {};
-    if (getFlashRepeatability(flash) !== "one_of_one") return;
-    if (!isHeldUntilExpired(flash.heldUntil)) return;
-
-    if (writeCount >= 450) {
-      batches.push(batch);
-      batch = firestore.batch();
-      writeCount = 0;
+    if (snapshot.empty) {
+      console.log("No unpaid flash bookings need expiration checks.");
+      return;
     }
 
-    batch.update(docSnap.ref, getFlashHoldReleaseUpdate());
-    writeCount += 1;
-    releasedCount += 1;
-  });
+    let cancelledCount = 0;
+    let releasedCount = 0;
+    let recoveredPaymentCount = 0;
+    let failedCount = 0;
 
-  if (releasedCount > 0) {
-    batches.push(batch);
-    await Promise.all(batches.map((batchToCommit) => batchToCommit.commit()));
+    for (const bookingDoc of snapshot.docs) {
+      const booking = bookingDoc.data() || {};
+      if (booking.sourceType !== "flash") continue;
+      const deadlineMillis = getFlashPaymentDeadlineMillis(booking);
+      if (deadlineMillis <= 0 || deadlineMillis > Date.now()) continue;
+
+      try {
+        const checkoutSessionId = getOptionalString(
+          booking.stripeCheckoutSessionId
+        );
+        const connectedAccountId = getOptionalString(
+          booking.stripeConnectedAccountId
+        );
+
+        if (checkoutSessionId) {
+          if (!connectedAccountId) {
+            logger.warn(
+              "Skipped an expired flash checkout without a connected account.",
+              { bookingId: bookingDoc.id, checkoutSessionId }
+            );
+            continue;
+          }
+
+          const checkoutSession = await stripe.checkout.sessions.retrieve(
+            checkoutSessionId,
+            { expand: ["payment_intent"] },
+            { stripeAccount: connectedAccountId }
+          );
+
+          if (
+            checkoutSession.payment_status === "paid" ||
+            checkoutSession.status === "complete"
+          ) {
+            const paymentIntent =
+              typeof checkoutSession.payment_intent === "string"
+                ? checkoutSession.payment_intent
+                : checkoutSession.payment_intent?.id ?? null;
+            await finalizeBookingPaymentAndFlash(
+              bookingDoc.ref,
+              {
+                ...checkoutSession,
+                payment_intent: paymentIntent,
+              } as Stripe.Checkout.Session,
+              connectedAccountId
+            );
+            recoveredPaymentCount += 1;
+            continue;
+          }
+
+          if (checkoutSession.status === "open") {
+            if (checkoutSession.expires_at * 1000 > Date.now()) continue;
+            await stripe.checkout.sessions.expire(
+              checkoutSessionId,
+              {},
+              { stripeAccount: connectedAccountId }
+            );
+          } else if (checkoutSession.status !== "expired") {
+            logger.warn("Skipped a flash checkout with an ambiguous status.", {
+              bookingId: bookingDoc.id,
+              checkoutSessionId,
+              status: checkoutSession.status,
+              paymentStatus: checkoutSession.payment_status,
+            });
+            continue;
+          }
+        }
+
+        const result = await expireUnpaidFlashBooking({
+          bookingId: bookingDoc.id,
+          flashId: getOptionalString(booking.flashId),
+          checkoutSessionId: checkoutSessionId || null,
+          requireExpiredDeadline: !checkoutSessionId,
+        });
+        if (result.bookingCancelled) cancelledCount += 1;
+        if (result.flashReleased) releasedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        logger.error("Failed to expire an unpaid flash booking.", {
+          bookingId: bookingDoc.id,
+          error,
+        });
+      }
+    }
+
+    console.log(
+      `Cancelled ${cancelledCount} expired unpaid flash booking(s); ` +
+        `released ${releasedCount} one-of-one hold(s); ` +
+        `recovered ${recoveredPaymentCount} paid checkout(s); ` +
+        `${failedCount} failed.`
+    );
   }
-
-  console.log(`Released ${releasedCount} expired one-of-one flash holds.`);
-});
+);
 
 
 
@@ -6832,8 +6860,6 @@ module.exports = {
   syncFlashMarketplaceProjection,
   syncFlashSheetMarketplaceProjection,
   syncArtistMarketplaceProjection,
-  rebuildMarketplaceProjection,
-  ensureMarketplaceProjection,
   cleanupProcessedEvents,
   cleanupBookingRequestReferences,
   cleanupExpiredFlashHolds,

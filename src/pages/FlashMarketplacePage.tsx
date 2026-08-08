@@ -33,8 +33,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
-import { auth, db, functions } from "../firebase/firebaseConfig";
+import { auth, db } from "../firebase/firebaseConfig";
 import FlashRequestModal, {
   type FlashRequestArtist,
   type FlashRequestClient,
@@ -76,9 +75,6 @@ type MarketFlashSheet = FlashSheet & {
 const FLASH_MARKETPLACE_BATCH_SIZE = 12;
 const SHEET_MARKETPLACE_BATCH_SIZE = 18;
 const CLIENT_FILTER_MAX_FETCH_ROUNDS = 5;
-const MARKETPLACE_PROJECTION_VERSION = 1;
-const MARKETPLACE_PROJECTION_WAIT_ATTEMPTS = 20;
-const MARKETPLACE_PROJECTION_WAIT_MS = 500;
 
 const getMarketplaceBatchSize = (tab: MarketplaceTab) =>
   tab === "flashes"
@@ -115,7 +111,6 @@ const FlashMarketplacePage = () => {
   const sheetCursorRef = useRef<MarketplaceCursor>(null);
   const flashCardRefs = useRef<Array<HTMLElement | null>>([]);
   const pendingFlashScrollIndexRef = useRef<number | null>(null);
-  const projectionEnsurePromiseRef = useRef<Promise<void> | null>(null);
   const hasCheckedInitialSheetFallbackRef = useRef(false);
 
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
@@ -193,56 +188,6 @@ const FlashMarketplacePage = () => {
     return () => unsubscribe();
   }, []);
 
-  const ensureMarketplaceProjectionReady = useCallback(async () => {
-    if (!auth.currentUser) return;
-    if (projectionEnsurePromiseRef.current) {
-      return projectionEnsurePromiseRef.current;
-    }
-
-    const ensurePromise = (async () => {
-      const metadataRef = doc(db, "siteSettings", "flashMarketplace");
-      const metadataSnap = await getDoc(metadataRef);
-      if (
-        Number(metadataSnap.data()?.projectionVersion || 0) >=
-        MARKETPLACE_PROJECTION_VERSION
-      ) {
-        return;
-      }
-
-      const ensureProjection = httpsCallable<
-        Record<string, never>,
-        { status?: string; projectionVersion?: number }
-      >(functions, "ensureMarketplaceProjection");
-      const response = await ensureProjection({});
-      if (response.data.status !== "running") return;
-
-      for (
-        let attempt = 0;
-        attempt < MARKETPLACE_PROJECTION_WAIT_ATTEMPTS;
-        attempt += 1
-      ) {
-        await wait(MARKETPLACE_PROJECTION_WAIT_MS);
-        const refreshedMetadata = await getDoc(metadataRef);
-        if (
-          Number(refreshedMetadata.data()?.projectionVersion || 0) >=
-          MARKETPLACE_PROJECTION_VERSION
-        ) {
-          return;
-        }
-      }
-
-      throw new Error("marketplace-projection-timeout");
-    })();
-
-    projectionEnsurePromiseRef.current = ensurePromise;
-    try {
-      await ensurePromise;
-    } catch (error) {
-      projectionEnsurePromiseRef.current = null;
-      throw error;
-    }
-  }, []);
-
   const fetchMarketplacePage = useCallback(
     async (mode: "replace" | "append" = "replace") => {
       const sequence = ++fetchSequenceRef.current;
@@ -278,16 +223,6 @@ const FlashMarketplacePage = () => {
       }
 
       try {
-        let projectionError: unknown = null;
-        if (!isAppend) {
-          try {
-            await ensureMarketplaceProjectionReady();
-          } catch (error) {
-            projectionError = error;
-            console.warn("Failed to reconcile flash marketplace listings:", error);
-          }
-        }
-
         do {
           fetchRounds += 1;
           const marketplaceQuery = buildMarketplaceQuery({
@@ -370,10 +305,6 @@ const FlashMarketplacePage = () => {
           }
         }
 
-        if (!isAppend && collected.length === 0 && projectionError) {
-          throw projectionError;
-        }
-
         if (sequence !== fetchSequenceRef.current) return;
 
         if (tab === "flashes") {
@@ -409,7 +340,6 @@ const FlashMarketplacePage = () => {
     },
     [
       activeTab,
-      ensureMarketplaceProjectionReady,
       handleTabChange,
       maxPrice,
       minPrice,
@@ -453,7 +383,6 @@ const FlashMarketplacePage = () => {
   ]);
 
   const handleRetryMarketplace = useCallback(() => {
-    projectionEnsurePromiseRef.current = null;
     void fetchMarketplacePage("replace");
   }, [fetchMarketplacePage]);
 
@@ -1131,9 +1060,6 @@ const normalizeSearchValue = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
-
 const getMarketplaceErrorMessage = (error: unknown) => {
   const code =
     typeof error === "object" && error !== null && "code" in error
@@ -1141,13 +1067,13 @@ const getMarketplaceErrorMessage = (error: unknown) => {
       : "";
 
   if (code.includes("not-found")) {
-    return "The marketplace update is still deploying. Please try again in a moment.";
+    return "The flash catalog could not be found. Please refresh and try again.";
   }
   if (code.includes("permission-denied")) {
     return "We couldn't access the public flash catalog. Please refresh and try again.";
   }
   if (code.includes("failed-precondition")) {
-    return "The flash catalog is still being prepared. Please try again shortly.";
+    return "The flash catalog is temporarily unavailable. Please try again shortly.";
   }
 
   return "We couldn't load the flash catalog right now. Please check your connection and try again.";

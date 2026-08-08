@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import {
   CalendarDays,
   CheckCircle2,
+  Clock3,
   CreditCard,
   DollarSign,
   ImageIcon,
@@ -74,6 +75,8 @@ const PaymentPage = () => {
     booking &&
       ["deposit_paid", "confirmed", "paid"].includes(booking.status)
   );
+  const paymentDeadline =
+    booking?.stripeCheckoutExpiresAt || booking?.paymentDueAt;
 
   const handleCheckout = async () => {
     if (!booking || booking.sourceType !== "flash" || !booking.flashId) {
@@ -153,6 +156,22 @@ const PaymentPage = () => {
                 <p className="mt-2 text-sm leading-6 text-neutral-300">Stripe collects the non-refundable deposit today. The remaining balance is settled directly with the artist at the shop after the appointment.</p>
               </div>
 
+              {depositIsDue && paymentDeadline && (
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-amber-100">
+                  <Clock3 size={16} className="mt-0.5 shrink-0" />
+                  <p>
+                    Complete payment by {formatPaymentDeadline(paymentDeadline)} to keep this flash reserved.
+                  </p>
+                </div>
+              )}
+              {booking.status === "cancelled" &&
+                booking.cancellationReason ===
+                  "deposit_payment_window_expired" && (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-neutral-300">
+                    The deposit window expired, so this booking was cancelled and the flash was released.
+                  </div>
+                )}
+
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <DetailTile icon={<DollarSign size={16} />} label="Flash price" value={formatMoneyFromCents(priceCents)} />
                 <DetailTile icon={<CalendarDays size={16} />} label="Appointment" value={formatAppointment(booking.selectedDate)} />
@@ -185,5 +204,6 @@ const DetailTile = ({ icon, label, value }: { icon: ReactNode; label: string; va
 const BreakdownRow = ({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) => <div className="flex items-center justify-between gap-4"><span className={strong ? "font-semibold text-white" : "text-neutral-400"}>{label}</span><span className={strong ? "font-semibold text-white" : "text-neutral-200"}>{value}</span></div>;
 const StatusBadge = ({ paid, cancelled }: { paid: boolean; cancelled: boolean }) => <span className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${cancelled ? "border-red-300/20 bg-red-300/10 text-red-100" : paid ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100" : "border-amber-300/20 bg-amber-300/10 text-amber-100"}`}>{cancelled ? "Cancelled" : paid ? "Deposit paid" : "Deposit due"}</span>;
 const formatAppointment = (value: { date: string; time: string }) => { if (!value?.date || !value?.time || value.date === "TBD") return "To be confirmed"; const date = new Date(`${value.date}T${value.time}`); return Number.isNaN(date.getTime()) ? `${value.date} at ${value.time}` : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(date); };
+const formatPaymentDeadline = (value: { toDate: () => Date }) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(value.toDate());
 
 export default PaymentPage;
