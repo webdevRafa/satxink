@@ -1,4 +1,5 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { httpsCallable } from "firebase/functions";
 import toast from "react-hot-toast";
 import { Send, X } from "lucide-react";
@@ -54,6 +55,26 @@ const FlashRequestModal = ({
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const todayDateInput = getTodayDateInputValue();
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSubmitting) onClose();
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isSubmitting, onClose]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -115,15 +136,23 @@ const FlashRequestModal = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="request-modal-scrollbar max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+  return createPortal(
+    <div className="fixed inset-x-0 bottom-0 top-[4.75rem] z-[120] flex items-start justify-center overflow-hidden overscroll-contain bg-black/75 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-sm md:inset-0 md:items-center md:px-4 md:py-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="flash-request-title"
+        className="request-modal-scrollbar max-h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl md:max-h-[92vh]"
+      >
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#121212]/95 px-4 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/40">
               Flash request
             </p>
-            <h2 className="mt-1 text-xl! font-semibold! text-white">
+            <h2
+              id="flash-request-title"
+              className="mt-1 text-xl! font-semibold! text-white"
+            >
               {getFlashTitle(flash)}
             </h2>
           </div>
@@ -139,13 +168,13 @@ const FlashRequestModal = ({
 
         <form
           onSubmit={handleSubmit}
-          className="grid grid-cols-1 gap-6 p-5 md:grid-cols-[0.9fr_1.1fr]"
+          className="grid grid-cols-1 gap-5 p-4 sm:p-5 md:grid-cols-[0.9fr_1.1fr] md:gap-6"
         >
           <div>
             <img
               src={getFlashPreviewUrl(flash)}
               alt={getFlashTitle(flash)}
-              className="max-h-[420px] w-full rounded-xl border border-white/10 bg-black object-contain"
+              className="max-h-[min(48dvh,420px)] w-full rounded-xl border border-white/10 bg-black object-contain md:max-h-[420px]"
             />
             <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-3">
@@ -321,7 +350,8 @@ const FlashRequestModal = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
