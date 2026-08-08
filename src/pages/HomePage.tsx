@@ -34,19 +34,15 @@ import FlashRequestModal, {
   type FlashRequestArtist,
   type FlashRequestClient,
 } from "../components/FlashRequestModal";
-import type { Flash } from "../types/Flash";
+import type { Flash, MarketplaceArtistPublic } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
-import {
-  isStripeConnectReady,
-  type StripeConnectLike,
-} from "../utils/stripeConnect";
+import type { StripeConnectLike } from "../utils/stripeConnect";
 import {
   getBookingAvailabilityMonthKeys,
   getRollingBookingMonthOptions,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
-import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
   FlashArtistAvatar,
   FlashPreviewImage,
@@ -58,11 +54,14 @@ import {
   getFlashVisualTitle,
 } from "../utils/flashPreview";
 import { getClientNameParts } from "../utils/clientDisplayName";
+import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 type PublicArtist = {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   avatarUrl?: string;
   bio?: string;
   shopId?: string;
@@ -128,6 +127,14 @@ const HOME_BOOKING_ARTIST_FETCH_LIMIT = 48;
 const HOME_BOOKING_ARTIST_DISPLAY_LIMIT = 3;
 const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
 const loadedFeaturedArtistSlideUrls = new Set<string>();
+
+// Keep these sections available for a future launch phase without loading or
+// rendering them in the flash-marketplace-first experience.
+const HOME_SECTION_VISIBILITY = {
+  heroArtistSpotlight: false,
+  browseByStyle: false,
+  localArtists: false,
+} as const;
 
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
@@ -333,8 +340,10 @@ export const HomePage: FC = () => {
               limit(HOME_SHEET_FETCH_LIMIT)
             )
           ),
-          getDoc(doc(db, "siteSettings", "homepage")),
-          currentBookingMonthKey
+          HOME_SECTION_VISIBILITY.heroArtistSpotlight
+            ? getDoc(doc(db, "siteSettings", "homepage"))
+            : Promise.resolve(null),
+          HOME_SECTION_VISIBILITY.localArtists && currentBookingMonthKey
             ? getDocs(
                 query(
                   collection(db, "users"),
@@ -348,15 +357,17 @@ export const HomePage: FC = () => {
                 )
               )
             : Promise.resolve(null),
-          getDocs(
-            query(
-              collection(db, "users"),
-              where("role", "==", "artist"),
-              limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
-            )
-          ),
+          HOME_SECTION_VISIBILITY.localArtists
+            ? getDocs(
+                query(
+                  collection(db, "users"),
+                  where("role", "==", "artist"),
+                  limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+                )
+              )
+            : Promise.resolve(null),
         ]);
-        const homepageSettings = homepageSettingsSnap.data();
+        const homepageSettings = homepageSettingsSnap?.data();
         const featuredArtistId =
           typeof homepageSettings?.featuredArtistId === "string"
             ? homepageSettings.featuredArtistId
@@ -371,7 +382,6 @@ export const HomePage: FC = () => {
             const typedFlash = flash as Flash;
             return Boolean(
               typedFlash.artistId &&
-                isFlashAvailableForClients(typedFlash) &&
                 (typedFlash.thumbUrl ||
                   typedFlash.webp90Url ||
                   typedFlash.fullUrl)
@@ -385,49 +395,56 @@ export const HomePage: FC = () => {
           }))
           .filter((sheet): sheet is FlashSheet => {
             const typedSheet = sheet as FlashSheet;
-            return Boolean(typedSheet.artistId && typedSheet.imageUrl);
+            return Boolean(
+              typedSheet.artistId && getFlashSheetPreviewUrl(typedSheet)
+            );
           });
 
-        const artistIds = Array.from(
-          new Set(
-            [...rawFlashes, ...rawSheets]
-              .map((item) => item.artistId)
-              .concat(featuredArtistId ? [featuredArtistId] : [])
-              .filter(Boolean)
-          )
-        );
+        const artistIds =
+          HOME_SECTION_VISIBILITY.heroArtistSpotlight && featuredArtistId
+            ? [featuredArtistId]
+            : [];
 
         const artistsById = await fetchArtistsById(artistIds);
-        const readyBookingArtists = await getHomepageBookingArtists(
-          getUniqueDocsById([
-            ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
-            ...fallbackBookingArtistsSnapshot.docs,
-          ])
-            .map((artistDoc) => ({
-              id: artistDoc.id,
-              ...artistDoc.data(),
-            }))
-            .filter(isVisiblePublicArtist)
-        );
+        const readyBookingArtists = HOME_SECTION_VISIBILITY.localArtists
+          ? await getHomepageBookingArtists(
+              getUniqueDocsById([
+                ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
+                ...(fallbackBookingArtistsSnapshot?.docs ?? []),
+              ])
+                .map((artistDoc) => ({
+                  id: artistDoc.id,
+                  ...artistDoc.data(),
+                }))
+                .filter(isVisiblePublicArtist)
+            )
+          : [];
 
         if (!isMounted) return;
 
+        // marketplaceReady and artistPublic are maintained together by the
+        // server projection. Cards should consume that public projection
+        // directly instead of re-reading private user records and applying a
+        // second, potentially contradictory Stripe eligibility check.
+        const marketplaceFlashes: HomeFlash[] = rawFlashes.map((flash) => ({
+          ...flash,
+          artist:
+            toHomeMarketplaceArtist(flash.artistPublic) ||
+            artistsById[flash.artistId],
+        }));
+        const marketplaceSheets: HomeFlashSheet[] = rawSheets.map((sheet) => ({
+          ...sheet,
+          artist:
+            toHomeMarketplaceArtist(sheet.artistPublic) ||
+            artistsById[sheet.artistId],
+        }));
+
         const readyFlashes = shuffleItems(
-          rawFlashes
-            .map((flash) => ({
-              ...flash,
-              artist: artistsById[flash.artistId],
-            }))
-            .filter(isMarketplaceReady)
+          marketplaceFlashes
         ).slice(0, 5);
 
         const readySheets = shuffleItems(
-          rawSheets
-            .map((sheet) => ({
-              ...sheet,
-              artist: artistsById[sheet.artistId],
-            }))
-            .filter(isMarketplaceReady)
+          marketplaceSheets
         ).slice(0, 5);
 
         const selectedFeaturedArtist = featuredArtistId
@@ -435,18 +452,8 @@ export const HomePage: FC = () => {
           : null;
         const featuredPreviews = selectedFeaturedArtist
           ? getFeaturedPreviewItems(
-              rawFlashes
-                .map((flash) => ({
-                  ...flash,
-                  artist: artistsById[flash.artistId],
-                }))
-                .filter(isMarketplaceReady),
-              rawSheets
-                .map((sheet) => ({
-                  ...sheet,
-                  artist: artistsById[sheet.artistId],
-                }))
-                .filter(isMarketplaceReady),
+              marketplaceFlashes,
+              marketplaceSheets,
               selectedFeaturedArtist.id
             )
           : [];
@@ -478,6 +485,8 @@ export const HomePage: FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!HOME_SECTION_VISIBILITY.heroArtistSpotlight) return;
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
@@ -503,8 +512,8 @@ export const HomePage: FC = () => {
   const bookingSectionCopy = hasBookingArtistsThisMonth
     ? {
         eyebrow: "Open books",
-        title: "Artists ready to receive your ideas.",
-        body: "Explore San Antonio artists with current availability, then open a profile when someone feels like the right fit.",
+        title: "Fresh flash from artists with open books.",
+        body: "Explore available designs from San Antonio artists, then request the flash that feels right.",
       }
     : hasBookingArtistsWithAvailability
     ? {
@@ -514,8 +523,8 @@ export const HomePage: FC = () => {
       }
     : {
         eyebrow: "Local artists",
-        title: "Artists taking requests.",
-        body: "Browse artist profiles, compare shop details, and start a request from the profile that fits your idea.",
+        title: "Discover local flash.",
+        body: "Browse artist profiles, compare shop details, and find an available design for your next tattoo.",
       };
   const isHeroCopyRevealed = heroCopyEntryCount > 0;
   const isStyleSectionRevealed = styleSectionEntryCount > 0;
@@ -1017,35 +1026,41 @@ export const HomePage: FC = () => {
         <div className="absolute inset-x-0 top-0 z-[2] h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
+        <div
+          className={`relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:gap-12 lg:pb-20 lg:pt-32 ${
+            HOME_SECTION_VISIBILITY.heroArtistSpotlight
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)]"
+              : "lg:grid-cols-1"
+          }`}
+        >
           <div
             ref={heroCopyRef}
             className="satx-home-hero-copy max-w-3xl"
             data-revealed={isHeroCopyRevealed}
           >
-            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-4xl!">
-              Find the right San Antonio tattoo artist for your next piece.
+            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-4xl text-3xl! font-bold leading-[0.98] text-white md:text-5xl!">
+              Find your next tattoo in San Antonio&apos;s flash marketplace.
             </h1>
             <p className="satx-home-copy-motion satx-home-copy-motion--body mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
-              Browse verified San Antonio artists, view their work, and send
-              your idea when you find the right fit.
+              Browse ready-to-book designs from local artists, explore full
+              flash sheets, and request the piece that fits you.
             </p>
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
-                to="/artists"
-                className="inline-flex min-h-10 select-none group items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 "
+                to="/flash"
+                className="inline-flex min-h-11 select-none group items-center gap-2 rounded-md border border-white bg-white px-5 py-2.5 text-sm font-semibold text-black! transition hover:bg-white/85"
               >
-                Browse artists
+                Browse flash
                 <ChevronRight
                   size={17}
-                  className="text-white transition group-hover:translate-x-1"
+                  className="text-black transition group-hover:translate-x-1"
                 />
               </Link>
               <Link
-                to="/flash"
+                to="/artists"
                 className="inline-flex min-h-10 select-none items-center gap-2 rounded-md group border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
-                Explore flash
+                Meet the artists
                 <ChevronRight
                   size={17}
                   className="text-white transition group-hover:translate-x-1"
@@ -1054,16 +1069,19 @@ export const HomePage: FC = () => {
             </div>
           </div>
 
-          <HeroFeaturedArtistPanel
-            artist={featuredArtist}
-            previewItems={featuredPreviewItems}
-            loading={loading}
-            isRevealed={isFeaturedArtistPanelRevealed}
-          />
+          {HOME_SECTION_VISIBILITY.heroArtistSpotlight && (
+            <HeroFeaturedArtistPanel
+              artist={featuredArtist}
+              previewItems={featuredPreviewItems}
+              loading={loading}
+              isRevealed={isFeaturedArtistPanelRevealed}
+            />
+          )}
         </div>
       </section>
 
-      <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
+      {HOME_SECTION_VISIBILITY.browseByStyle && (
+        <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
         <div
           ref={styleSectionRef}
           className="satx-style-section mx-auto max-w-7xl"
@@ -1100,7 +1118,8 @@ export const HomePage: FC = () => {
             ))}
           </div>
         </div>
-      </section>
+        </section>
+      )}
 
       <section
         ref={marketplaceSectionRef}
@@ -1156,7 +1175,8 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="relative z-50 border-t border-white/5 bg-[#171717] px-5 py-18 md:px-8">
+      {HOME_SECTION_VISIBILITY.localArtists && (
+        <section className="relative z-50 border-t border-white/5 bg-[#171717] px-5 py-18 md:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div className="max-w-3xl">
@@ -1236,7 +1256,8 @@ export const HomePage: FC = () => {
             </div>
           )}
         </div>
-      </section>
+        </section>
+      )}
 
       {selectedFlash && (
         <FlashRequestModal
@@ -1381,7 +1402,7 @@ const HeroFeaturedArtistPanel = ({
         <div className="mt-5">
           {artist ? (
             <Link
-              to={`/artists/${artist.id}`}
+              to={getArtistProfilePath(artist)}
               className="inline-flex min-h-10 select-none items-center gap-2  px-4 py-2 text-sm font-semibold bg-white/2 hover:bg-white/5 text-neutral-300! hover:text-white! shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_28px_rgba(0,0,0,0.22)] transition group"
             >
               View artist profile
@@ -2035,7 +2056,9 @@ const FlashCardActions = ({
 }) => (
   <div className={className}>
     <Link
-      to={`/artists/${flash.artistId}`}
+      to={getArtistProfilePath(
+        flash.artist || { id: flash.artistId }
+      )}
       className="inline-flex h-9 select-none items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
@@ -2060,6 +2083,7 @@ const FeaturedSheetPanel = ({
 }) => {
   const artistName = getArtistName(sheet.artist);
   const sheetHref = `/flash/sheets/${sheet.id}`;
+  const sheetPreviewUrl = getFlashSheetPreviewUrl(sheet);
   const railDelay = 700 + railIndex * 280;
 
   return (
@@ -2111,9 +2135,9 @@ const FeaturedSheetPanel = ({
           className="relative block h-[18rem] select-none overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
           aria-label={`Open ${sheet.title || "flash sheet"}`}
         >
-          {sheet.thumbUrl || sheet.imageUrl ? (
+          {sheetPreviewUrl ? (
             <img
-              src={sheet.thumbUrl || sheet.imageUrl}
+              src={sheetPreviewUrl}
               alt={sheet.title || "Flash sheet"}
               className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
               loading="lazy"
@@ -2198,7 +2222,7 @@ const BookingArtistCard = ({ artist }: { artist: PublicArtist }) => {
       </div>
 
       <Link
-        to={`/artists/${artist.id}`}
+        to={getArtistProfilePath(artist)}
         className="mt-7 inline-flex select-none items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/70 transition group-hover:border-white/20 group-hover:bg-white group-hover:text-[#0b0b0b]!"
       >
         View profile
@@ -2432,7 +2456,7 @@ const getFeaturedPreviewItems = (
     .map((sheet) => ({
       id: sheet.id,
       href: `/flash/sheets/${sheet.id}`,
-      imageUrl: sheet.thumbUrl || sheet.imageUrl,
+      imageUrl: getFlashSheetPreviewUrl(sheet),
       label: sheet.title || "Featured flash sheet",
       type: "sheet",
     }));
@@ -2534,10 +2558,19 @@ const chunkArray = <T,>(items: T[], size: number) => {
 const shuffleItems = <T,>(items: T[]) =>
   [...items].sort(() => Math.random() - 0.5);
 
-const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
-  if (item.marketplaceVisible === false) return false;
-  if (item.artistStripeConnectReady === true) return true;
-  return isStripeConnectReady(item.artist);
+const toHomeMarketplaceArtist = (
+  artist: MarketplaceArtistPublic | null | undefined
+): PublicArtist | undefined => {
+  if (!artist?.id) return undefined;
+
+  return {
+    id: artist.id,
+    name: artist.name || undefined,
+    displayName: artist.displayName || undefined,
+    slug: artist.slug || undefined,
+    avatarUrl: artist.avatarUrl || undefined,
+    studioName: artist.studioName || undefined,
+  };
 };
 
 const getArtistName = (artist?: PublicArtist) =>

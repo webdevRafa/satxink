@@ -51,7 +51,7 @@ const DevAddDocs = () => {
     getClientIds();
   }, []);
   const { user } = useAuth();
-  const [jsonData, setJsonData] = useState<any[]>([]);
+  const [jsonData, setJsonData] = useState<Record<string, unknown>[]>([]);
   const [collectionName, setCollectionName] = useState("users");
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState("");
@@ -66,14 +66,20 @@ const DevAddDocs = () => {
         const result = event.target?.result;
         if (typeof result === "string") {
           const parsed = JSON.parse(result);
-          if (Array.isArray(parsed)) {
+          if (
+            Array.isArray(parsed) &&
+            parsed.every(
+              (item): item is Record<string, unknown> =>
+                typeof item === "object" && item !== null && !Array.isArray(item)
+            )
+          ) {
             setJsonData(parsed);
             setStatus(`Loaded ${parsed.length} documents.`);
           } else {
             setStatus("JSON must be an array of objects.");
           }
         }
-      } catch (err) {
+      } catch {
         setStatus("Error parsing JSON file.");
       }
     };
@@ -109,7 +115,7 @@ const DevAddDocs = () => {
       let skipped = 0;
 
       for (const docData of jsonData) {
-        if (!docData.id) {
+        if (typeof docData.id !== "string" || !docData.id) {
           console.warn("Skipping doc without 'id':", docData);
           skipped++;
           continue;

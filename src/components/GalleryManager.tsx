@@ -29,6 +29,11 @@ import UploadModal from "./UploadModal";
 import type { GalleryItem } from "../types/GalleryItem";
 import AnimatedTagInput from "./ui/AnimatedTagInput";
 import toast from "react-hot-toast";
+import {
+  GALLERY_MANAGER_CARD_SIZES,
+  getGalleryPreviewSrcSet,
+  getGalleryPreviewUrl,
+} from "../utils/galleryImage";
 
 type SlideDirection = "next" | "prev";
 
@@ -108,18 +113,17 @@ const getGalleryAssetPaths = (item: GalleryItem) => {
   };
 };
 
-const getGalleryCardImageUrl = (item: GalleryItem) =>
-  item.thumbUrl || item.webp90Url || item.fullUrl || "";
-
 const hasReadyGalleryImageSet = (item: GalleryItem) =>
   Boolean(item.thumbUrl && item.webp90Url && item.fullUrl);
 
 const GalleryCardImage = ({
   src,
+  srcSet,
   alt,
   priority,
 }: {
   src: string;
+  srcSet?: string;
   alt: string;
   priority: boolean;
 }) => {
@@ -139,9 +143,11 @@ const GalleryCardImage = ({
       />
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={GALLERY_MANAGER_CARD_SIZES}
         alt={alt}
-        width={640}
-        height={480}
+        width={864}
+        height={1080}
         className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105 ${
           isLoaded ? "opacity-100" : "opacity-0"
         }`}
@@ -459,7 +465,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
               const tags = Array.isArray(item.tags)
                 ? item.tags.slice(0, 3)
                 : [];
-              const cardImageUrl = getGalleryCardImageUrl(item);
+              const cardImageUrl = getGalleryPreviewUrl(item);
               const isFailed =
                 item.status === "failed" || isGalleryItemStalled(item);
               const isProcessing =
@@ -479,7 +485,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                     className="block w-full text-left"
                     disabled={isUnavailable}
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-black">
+                    <div className="relative aspect-[4/5] overflow-hidden bg-black">
                       {isFailed ? (
                         <div className="relative flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden bg-[#100b0b] px-5 text-center">
                           <span className="flex h-10 w-10 items-center justify-center rounded-full border border-red-300/15 bg-red-500/10 text-red-200">
@@ -506,6 +512,7 @@ const GalleryManager = ({ uid }: { uid: string }) => {
                       ) : (
                         <GalleryCardImage
                           src={cardImageUrl}
+                          srcSet={getGalleryPreviewSrcSet(item)}
                           alt={item.caption || "Gallery item"}
                           priority={index < 4}
                         />
@@ -986,7 +993,7 @@ const EditGalleryItemModal = ({
           </p>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35">
             {isFailed ? (
-              <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 bg-[#100b0b] px-6 text-center">
+              <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-3 bg-[#100b0b] px-6 text-center">
                 <CircleAlert
                   size={26}
                   className="text-red-200"
@@ -998,9 +1005,11 @@ const EditGalleryItemModal = ({
               </div>
             ) : (
               <img
-                src={item.thumbUrl || item.webp90Url || item.fullUrl}
+                src={getGalleryPreviewUrl(item)}
+                srcSet={getGalleryPreviewSrcSet(item)}
+                sizes="(max-width: 767px) calc(100vw - 4rem), 28rem"
                 alt={item.caption || "Gallery preview"}
-                className="aspect-[4/3] w-full object-cover"
+                className="aspect-[4/5] w-full object-cover"
               />
             )}
           </div>

@@ -17,7 +17,7 @@ const clientBenefits = [
   },
   {
     title: "Simplified booking",
-    body: "Request custom work/flash. SATX Ink makes booking incredibly simple and organized. From the idea to the ink.",
+    body: "Request available flash, review the artist's appointment options, and secure your booking with one deposit.",
     icon: MessageSquareText,
   },
 ];

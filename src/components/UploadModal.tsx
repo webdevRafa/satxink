@@ -32,6 +32,7 @@ import {
   FLASH_DESCRIPTION_MAX_LENGTH,
   normalizeFlashDescription,
 } from "../utils/flashSourceQuality";
+import { GALLERY_PREVIEW_ASPECT_RATIO } from "../utils/galleryImage";
 
 type Props = {
   uid: string;
@@ -370,22 +371,26 @@ const UploadModal: React.FC<Props> = ({
           <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-400">
             {isFlashUpload
               ? "Crop a clean square, add the details clients need, and choose whether this belongs to one of your sheets."
-              : "Crop the image, add any details you want, then publish it to your portfolio."}
+              : "Choose the gallery preview, add any details you want, then publish it to your portfolio."}
           </p>
 
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/35 md:mt-6">
             {previewUrl ? (
               <img
                 src={previewUrl}
-                alt="Platform flash preview"
+                alt={
+                  isFlashUpload
+                    ? "Flash marketplace preview"
+                    : "Gallery thumbnail preview"
+                }
                 className={`w-full object-cover ${
-                  isFlashUpload ? "aspect-square" : "aspect-[4/3]"
+                  isFlashUpload ? "aspect-square" : "aspect-[4/5]"
                 }`}
               />
             ) : (
               <label
                 className={`flex w-full cursor-pointer flex-col items-center justify-center gap-4 text-center transition hover:bg-white/[0.03] ${
-                  isFlashUpload ? "aspect-square" : "aspect-[4/3]"
+                  isFlashUpload ? "aspect-square" : "aspect-[4/5]"
                 }`}
               >
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/15 text-red-300">
@@ -419,6 +424,18 @@ const UploadModal: React.FC<Props> = ({
               <p className="mt-1 text-xs leading-4 text-zinc-500">
                 This 1:1 crop matches the square frame used by flash items
                 cropped from sheets.
+              </p>
+            </div>
+          )}
+
+          {previewUrl && isGalleryUpload && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+              <p className="text-xs font-semibold text-white">
+                Gallery preview
+              </p>
+              <p className="mt-1 text-xs leading-4 text-zinc-500">
+                This is the thumbnail clients browse. Opening it still shows
+                your full, uncropped photo.
               </p>
             </div>
           )}
@@ -483,7 +500,7 @@ const UploadModal: React.FC<Props> = ({
                       e.target.value.slice(0, FLASH_DESCRIPTION_MAX_LENGTH)
                     )
                   }
-                  placeholder="Optional context, placement idea, or what clients should focus on."
+                  placeholder="Optional context, placement suggestions, or what clients should notice."
                   className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-black/35 px-4! py-3! text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400/70"
                 />
                 <span className="mt-1 block text-right text-[11px] text-zinc-600">
@@ -647,15 +664,20 @@ const UploadModal: React.FC<Props> = ({
       {cropSrc && (
         <ImageCropperModal
           imageSrc={cropSrc}
-          aspect={isFlashUpload ? 1 : 4 / 3}
+          aspect={
+            isFlashUpload ? 1 : GALLERY_PREVIEW_ASPECT_RATIO
+          }
           cropShape="rect"
           outputSize={isFlashUpload ? 1080 : undefined}
-          title={isFlashUpload ? "Frame your flash" : "Position your photo"}
+          title={
+            isFlashUpload ? "Frame your flash" : "Choose your gallery preview"
+          }
           description={
             isFlashUpload
               ? "Center the design inside the square marketplace crop used across SATX Ink."
-              : "Drag to frame the image, then zoom until it feels right."
+              : "Frame the thumbnail clients will browse. Your full photo stays intact and opens when they select it."
           }
+          saveLabel={isFlashUpload ? "Use photo" : "Use preview"}
           onCancel={() => {
             setCropSrc(null);
           }}

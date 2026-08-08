@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 .env.local
 /scripts/serviceAccountKey.json
+/scripts/audit-reports/
 .json
 functions/.env

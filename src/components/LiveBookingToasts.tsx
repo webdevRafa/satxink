@@ -146,6 +146,7 @@ const LiveBookingToasts = () => {
       ),
       createAddedListener((docSnap) => {
         const request = toRequest(docSnap);
+        if (request.sourceType !== "flash") return;
         pushToast(createArtistRequestToast(request));
       }),
       (error) => console.error("Artist request toast listener failed:", error)
@@ -164,6 +165,7 @@ const LiveBookingToasts = () => {
       query(collection(db, "offers"), where("artistId", "==", user.uid)),
       (snapshot) => {
         snapshot.docs.forEach((docSnap) => {
+          if (docSnap.data().sourceType !== "flash") return;
           const status = String(docSnap.data().status || "");
           const previousStatus = statusByOfferId.get(docSnap.id);
 
@@ -198,12 +200,13 @@ const LiveBookingToasts = () => {
       (snapshot) => {
         snapshot.docs.forEach((docSnap) => {
           const booking = toBooking(docSnap);
+          if (booking.sourceType !== "flash") return;
           const previousStatus = statusByBookingId.get(docSnap.id);
 
           if (
             initialized &&
             previousStatus !== booking.status &&
-            (booking.status === "deposit_paid" || booking.status === "paid")
+            booking.status === "deposit_paid"
           ) {
             pushToast(createArtistPaymentToast(booking));
           }
@@ -230,6 +233,7 @@ const LiveBookingToasts = () => {
       ),
       createAddedListener((docSnap) => {
         const offer = toOffer(docSnap);
+        if (offer.sourceType !== "flash") return;
         pushToast(createClientOfferToast(offer));
       }),
       (error) => console.error("Client offer toast listener failed:", error)
@@ -344,22 +348,16 @@ const toBooking = (docSnap: SnapshotDocument): Booking => ({
 const createArtistRequestToast = (request: BookingRequest): LiveToast => ({
   id: `request-${request.id}`,
   kind: "request",
-  title:
-    request.sourceType === "flash"
-      ? `${request.clientName || "A client"} requested flash`
-      : `${request.clientName || "A client"} requested a tattoo`,
+  title: `${request.clientName || "A client"} requested ${
+    request.flashTitle || "your flash"
+  }`,
   message:
-    request.description ||
-    (request.sourceType === "flash"
-      ? "A new flash request is ready with the listed design, placement, size, and availability details."
-      : "A new tattoo request is ready with placement, size, budget, and availability details."),
-  imageUrl: request.clientAvatar || request.thumbUrl || request.fullUrl || null,
+    "A new flash request is ready with placement, size, and availability details.",
+  imageUrl: request.thumbUrl || request.fullUrl || null,
   meta: [
     request.bodyPlacement || "Placement open",
     request.size || "Size open",
-    request.sourceType === "flash"
-      ? formatMoney(request.flashPrice || 0)
-      : formatBudget(request.budget),
+    formatMoney(request.flashPrice || 0),
   ],
   actionLabel: "Open requests",
   actionTo: "/dashboard?tab=requests",
@@ -412,25 +410,21 @@ const createArtistOfferResponseToast = (
 
 const createArtistPaymentToast = (booking: Booking): LiveToast => {
   const clientName = booking.clientName || "The client";
-  const paidInFull = booking.status === "paid";
 
   return {
     id: `booking-payment-${booking.id}-${booking.status}`,
-    kind: paidInFull ? "paid" : "deposit",
-    title: paidInFull ? "Booking paid in full" : "Deposit paid",
-    message: paidInFull
-      ? `${clientName}'s booking is confirmed and paid in full.`
-      : `${clientName}'s booking is confirmed with the deposit paid.`,
-    imageUrl: booking.clientAvatar || booking.sampleImageUrl || null,
+    kind: "deposit",
+    title: "Deposit paid",
+    message: `${clientName}'s flash appointment is confirmed with the deposit paid.`,
+    imageUrl:
+      booking.thumbUrl || booking.flashImageUrl || booking.fullUrl || null,
     meta: [
       formatMoney(booking.price),
-      paidInFull
-        ? "Paid in full"
-        : `${formatMoney(booking.depositPaidAmount || booking.depositAmount)} paid`,
+      `${formatMoney(booking.depositPaidAmount || booking.depositAmount)} paid`,
       formatAppointment(booking.selectedDate),
     ],
-    actionLabel: paidInFull ? "Open paid bookings" : "Open confirmed bookings",
-    actionTo: paidInFull ? "/dashboard?tab=paid" : "/dashboard?tab=confirmed",
+    actionLabel: "Open confirmed bookings",
+    actionTo: "/dashboard?tab=confirmed",
   };
 };
 
@@ -481,17 +475,6 @@ const formatMoney = (amount?: number | null) =>
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(Number(amount || 0));
-
-const formatBudget = (budget?: string | number) => {
-  if (typeof budget === "number") return formatMoney(budget);
-  if (!budget) return "Budget open";
-  if (budget.endsWith("+")) return `$${budget}`;
-  if (budget.includes("-")) {
-    const [min, max] = budget.split("-");
-    return `$${min}-$${max}`;
-  }
-  return budget;
-};
 
 const getFirstAppointment = (dateOptions?: { date: string; time: string }[]) => {
   const firstOption = dateOptions?.find((option) => option.date && option.time);

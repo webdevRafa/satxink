@@ -17,8 +17,8 @@ const LoginPage = () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       navigate("/dev-add-docs");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to sign in.");
     }
   };
 

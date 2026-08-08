@@ -4,25 +4,19 @@ import {
   type SetStateAction,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarDays,
-  CheckCircle2,
+  Check,
   Clock,
   DollarSign,
-  ImageIcon,
-  Layers,
   MapPin,
   MessageSquareText,
-  ReceiptText,
-  Ruler,
   Send,
-  Upload,
   X,
 } from "lucide-react";
-import { db, storage } from "../firebase/firebaseConfig";
 import {
   addDoc,
   collection,
@@ -31,41 +25,23 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
-import Zoom from "react-medium-image-zoom";
-import "react-medium-image-zoom/dist/styles.css";
-import {
-  calculateClientPaymentBreakdown,
-  formatMoneyFromCents,
-} from "../utils/paymentFees";
-import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
-import {
-  getTodayDateInputValue,
-  isPastDateInputValue,
-} from "../utils/dateInputGuards";
+import { db } from "../firebase/firebaseConfig";
 import type {
   Flash,
   FlashAvailabilityStatus,
   FlashRepeatability,
 } from "../types/Flash";
 import {
-  buildEqualSessionAllocations,
-  fromCents,
-  getMaximumSessionDepositCents,
-  getSessionAllocationError,
-} from "../utils/projectPayments";
-import {
   getFlashAvailabilityStatus,
   getFlashRepeatability,
   isFlashAvailableForClients,
 } from "../utils/flashAvailability";
 import {
-  BOOKING_REFERENCE_STANDARD_RETENTION_DAYS,
-  getBookingReferenceCleanupTimestamp,
-} from "../utils/bookingReferenceRetention";
-import type { FinalPaymentDeadlineHours } from "../types/PaymentPreferences";
+  getTodayDateInputValue,
+  isPastDateInputValue,
+} from "../utils/dateInputGuards";
+import QuarterHourTimeSelect from "./ui/QuarterHourTimeSelect";
 
 type BookingRequest = {
   id: string;
@@ -74,21 +50,15 @@ type BookingRequest = {
   clientLastName?: string;
   clientName: string;
   clientAvatar: string;
-  description: string;
-  preferredDateRange?: string[];
-  availableDays?: string[];
-  availableTime?: {
-    from?: string;
-    to?: string;
-  };
+  description?: string;
   bodyPlacement: string;
-  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
+  size: string;
+  budget?: string | number;
   fullUrl?: string;
   thumbUrl?: string;
   offerFullUrl?: string | null;
   offerThumbUrl?: string | null;
   offerImageFilename?: string | null;
-  budget?: string | number;
   sourceType?: string;
   flashId?: string;
   flashTitle?: string;
@@ -104,12 +74,7 @@ type OfferArtist = {
   displayName?: string;
   avatarUrl?: string;
   shopId?: string;
-  paymentType?: "internal" | "external";
-  depositPolicy?: {
-    amount?: number;
-  };
-  finalPaymentTiming?: "before" | "after";
-  finalPaymentDeadlineHours?: FinalPaymentDeadlineHours | null;
+  depositPolicy?: { amount?: number };
 };
 
 type ShopDetails = {
@@ -137,17 +102,8 @@ type Props = {
   additionalOfferData?: Record<string, unknown>;
 };
 
-const CUSTOM_OFFER_STEPS = [
-  { id: "project", label: "Project" },
-  { id: "pricing", label: "Pricing" },
-  { id: "appointment", label: "Appointment" },
-  { id: "extras", label: "Extras" },
-  { id: "preview", label: "Preview" },
-] as const;
-
-type CustomOfferStepId = (typeof CUSTOM_OFFER_STEPS)[number]["id"];
-
-const FINAL_CUSTOM_OFFER_STEP_INDEX = CUSTOM_OFFER_STEPS.length - 1;
+const OFFER_STEPS = ["Deposit", "Appointment", "Note", "Review"] as const;
+const MAX_APPOINTMENT_OPTIONS = 3;
 
 const MakeOfferModal = ({
   isOpen,
@@ -167,493 +123,78 @@ const MakeOfferModal = ({
   shouldUpdateRequestStatus = true,
   additionalOfferData,
 }: Props) => {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [offerImage, setOfferImage] = useState<File | null>(null);
+  const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPreviewingOffer, setIsPreviewingOffer] = useState(false);
-  const [isMultiSessionProject, setIsMultiSessionProject] = useState(false);
-  const [estimatedSessionCount, setEstimatedSessionCount] = useState(2);
-  const [estimatedHoursPerSession, setEstimatedHoursPerSession] = useState("");
-  const [customOfferStepIndex, setCustomOfferStepIndex] = useState(0);
-  const [furthestCustomOfferStepIndex, setFurthestCustomOfferStepIndex] =
-    useState(0);
-  const [hasTriedPricingContinue, setHasTriedPricingContinue] =
-    useState(false);
-  const dateInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const offerModalBodyRef = useRef<HTMLDivElement | null>(null);
-  const todayDateInput = getTodayDateInputValue();
+  const today = getTodayDateInputValue();
 
-  const isFlashRequest = selectedRequest?.sourceType === "flash";
-  const shouldUseCustomOfferStepper =
-    !isFlashRequest && !isPreviewingOffer;
-  const hasCompletedCustomOfferStepper =
-    !shouldUseCustomOfferStepper ||
-    furthestCustomOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
-  const isOfferActionLocked =
-    shouldUseCustomOfferStepper && !hasCompletedCustomOfferStepper;
-  const flashListedPrice = Number(selectedRequest?.flashPrice || 0);
-  const effectiveOfferPrice = isFlashRequest
-    ? flashListedPrice
-    : Number(offerPrice || 0);
-  const requestImageUrl = selectedRequest?.thumbUrl || selectedRequest?.fullUrl || "";
-  const retainedOfferSampleUrl =
-    selectedRequest?.offerThumbUrl || selectedRequest?.offerFullUrl || "";
+  const listedPrice = Number(selectedRequest?.flashPrice || offerPrice || 0);
+  const maximumDeposit = Math.round(listedPrice * 50) / 100;
   const completedDateOptions = useMemo(
     () => dateOptions.filter((option) => option.date && option.time),
     [dateOptions]
   );
-  const remainingArtistBalance = Math.max(
-    effectiveOfferPrice - Number(depositAmount || 0),
-    0
-  );
-  const hasRemainingArtistBalance =
-    Number(depositAmount || 0) > 0 &&
-    remainingArtistBalance > 0;
-  const projectSessionCount =
-    !isFlashRequest && isMultiSessionProject ? estimatedSessionCount : 1;
-  const sessionAllocations = useMemo(
-    () =>
-      buildEqualSessionAllocations({
-        totalQuote: effectiveOfferPrice,
-        sessionCount: projectSessionCount,
-        depositAmount: Number(depositAmount || 0),
-      }),
-    [depositAmount, effectiveOfferPrice, projectSessionCount]
-  );
-  const firstSessionAllocation = sessionAllocations[0];
-  const sessionEstimate = fromCents(
-    firstSessionAllocation?.quotedAmountCents || 0
-  );
-  const firstSessionBalance = fromCents(
-    Math.max(
-      (firstSessionAllocation?.quotedAmountCents || 0) -
-        (firstSessionAllocation?.depositAmountCents || 0),
-      0
-    )
-  );
-  const parsedEstimatedHoursPerSession = Number(estimatedHoursPerSession);
-  const normalizedEstimatedHoursPerSession =
-    !isFlashRequest &&
-    estimatedHoursPerSession.trim() &&
-    Number.isFinite(parsedEstimatedHoursPerSession) &&
-    parsedEstimatedHoursPerSession > 0
-      ? parsedEstimatedHoursPerSession
-      : null;
-  const paymentPreview = useMemo(
-    () =>
-      calculateClientPaymentBreakdown(Number(depositAmount || 0), {
-        platformFeeBaseAmount: Number(effectiveOfferPrice || depositAmount || 0),
-      }),
-    [depositAmount, effectiveOfferPrice]
-  );
-  const currentOfferPrice = Number(offerPrice || 0);
-  const currentDepositAmount = Number(depositAmount || 0);
-  const maximumSessionDepositCents = !isFlashRequest
-    ? getMaximumSessionDepositCents({
-        totalQuote: currentOfferPrice,
-        sessionCount: projectSessionCount,
-      })
-    : 0;
-  const pricingStepInlineError = !isFlashRequest
-    ? getSessionAllocationError({
-        totalQuote: currentOfferPrice,
-        sessionCount: projectSessionCount,
-        depositAmount: currentDepositAmount,
-      }) || ""
-    : currentDepositAmount <= 0
-    ? "Enter a deposit to book before continuing."
-    : currentDepositAmount > currentOfferPrice
-    ? "Deposit cannot be greater than the offer price."
-    : "";
-  const currentCustomOfferStepId =
-    CUSTOM_OFFER_STEPS[customOfferStepIndex]?.id;
-  const appointmentStepIndex = CUSTOM_OFFER_STEPS.findIndex(
-    (step) => step.id === "appointment"
-  );
-  const shouldShowDesktopTimingContext =
-    !isFlashRequest && customOfferStepIndex >= appointmentStepIndex;
-  const shouldShowPricingStepInlineError =
-    Boolean(pricingStepInlineError) &&
-    (hasTriedPricingContinue ||
-      (currentOfferPrice > 0 && currentDepositAmount > 0));
-  const isCustomPricingValid =
-    !isFlashRequest &&
-    currentOfferPrice > 0 &&
-    currentDepositAmount > 0 &&
-    !pricingStepInlineError;
-  const isCustomOfferStepContinueBlocked =
-    currentCustomOfferStepId === "appointment" &&
-    completedDateOptions.length === 0;
-  const isCustomOfferStepperFinalStep =
-    customOfferStepIndex >= FINAL_CUSTOM_OFFER_STEP_INDEX;
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    setCustomOfferStepIndex(0);
-    setFurthestCustomOfferStepIndex(0);
-    setHasTriedPricingContinue(false);
-  }, [isOpen, selectedRequest?.id]);
-
-  useEffect(() => {
-    if (!isOpen || isFlashRequest || isPreviewingOffer) return;
-
-    const scrollFrame = window.requestAnimationFrame(() => {
-      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
-        .matches
-        ? "auto"
-        : "smooth";
-
-      offerModalBodyRef.current?.scrollTo({ top: 0, behavior });
-    });
-
-    return () => window.cancelAnimationFrame(scrollFrame);
-  }, [
-    customOfferStepIndex,
-    isFlashRequest,
-    isOpen,
-    isPreviewingOffer,
-  ]);
+  const shopBalance = Math.max(listedPrice - Number(depositAmount || 0), 0);
 
   useEffect(() => {
     if (!isOpen || !selectedRequest) return;
-
-    if (selectedRequest.sourceType === "flash") {
-      setIsMultiSessionProject(false);
-      setEstimatedSessionCount(2);
-      setOfferPrice(Number(selectedRequest.flashPrice || 0));
-    }
-  }, [isOpen, selectedRequest, setOfferPrice]);
+    setStep(0);
+    const price = Number(selectedRequest.flashPrice || 0);
+    setOfferPrice(price);
+    setDepositAmount((current) => {
+      if (current > 0) return Math.min(current, price * 0.5);
+      const preferred = Number(artist?.depositPolicy?.amount || 0);
+      return preferred > 0 ? Math.min(preferred, price * 0.5) : 0;
+    });
+  }, [artist?.depositPolicy?.amount, isOpen, selectedRequest, setDepositAmount, setOfferPrice]);
 
   useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      document.body.style.overflow = previousOverflow;
     };
-  }, [previewUrl]);
+  }, [isOpen]);
 
   if (!isOpen || !selectedRequest || !artist) return null;
 
-  const resetOfferForm = () => {
+  const reset = () => {
+    setStep(0);
     setOfferPrice(0);
+    setDepositAmount(0);
     setOfferMessage("");
-    setDateOptions([
-      { date: "", time: "" },
-      { date: "", time: "" },
-      { date: "", time: "" },
-    ]);
-    setOfferImage(null);
-    setPreviewUrl(null);
-    setIsMultiSessionProject(false);
-    setEstimatedSessionCount(2);
-    setEstimatedHoursPerSession("");
-    setIsPreviewingOffer(false);
-    setCustomOfferStepIndex(0);
-    setFurthestCustomOfferStepIndex(0);
-    setHasTriedPricingContinue(false);
+    setDateOptions(
+      Array.from({ length: MAX_APPOINTMENT_OPTIONS }, () => ({
+        date: "",
+        time: "",
+      }))
+    );
   };
 
-  const handleClose = () => {
-    setIsPreviewingOffer(false);
+  const close = () => {
+    if (isSubmitting) return;
     onClose();
   };
 
-  const getSubmissionOfferPrice = () =>
-    selectedRequest.sourceType === "flash"
-      ? Number(selectedRequest.flashPrice || 0)
-      : Number(offerPrice || 0);
-
-  const getDraftValidationError = () => {
-    const submissionOfferPrice = getSubmissionOfferPrice();
-    const submitAsMultiSession =
-      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
-
-    if (submitAsMultiSession) {
-      if (estimatedSessionCount < 2 || estimatedSessionCount > 12) {
-        return "Multi-session projects need 2 to 12 estimated sessions.";
+  const getStepError = (targetStep = step) => {
+    if (selectedRequest.sourceType !== "flash" || !selectedRequest.flashId) {
+      return "Only flash requests can receive offers at launch.";
+    }
+    if (!Number.isFinite(listedPrice) || listedPrice <= 0) {
+      return "This flash needs a listed price before you can send an offer.";
+    }
+    if (targetStep >= 0) {
+      if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+        return "Enter a booking deposit.";
+      }
+      if (depositAmount > maximumDeposit) {
+        return `The deposit cannot exceed $${maximumDeposit.toFixed(2)}.`;
       }
     }
-
-    if (
-      selectedRequest.sourceType !== "flash" &&
-      estimatedHoursPerSession.trim() &&
-      (!Number.isFinite(parsedEstimatedHoursPerSession) ||
-        parsedEstimatedHoursPerSession < 0.5 ||
-        parsedEstimatedHoursPerSession > 16)
-    ) {
-      return "Estimated session length must be between 0.5 and 16 hours.";
-    }
-
-    if (!submissionOfferPrice || submissionOfferPrice <= 0) {
-      return selectedRequest.sourceType === "flash"
-          ? "This flash item needs a listed price before you can send an offer."
-          : "Enter a valid offer price.";
-    }
-
-    if (depositAmount <= 0) {
-      return "Enter a deposit to book before sending this offer.";
-    }
-
-    if (selectedRequest.sourceType !== "flash") {
-      const allocationError = getSessionAllocationError({
-        totalQuote: submissionOfferPrice,
-        sessionCount: isMultiSessionProject ? estimatedSessionCount : 1,
-        depositAmount,
-      });
-      if (allocationError) return allocationError;
-    } else if (depositAmount > submissionOfferPrice) {
-      return "Deposit cannot be greater than the offer price.";
-    }
-
-    if (completedDateOptions.length === 0) {
-      return "Add at least one appointment option.";
-    }
-
-    if (completedDateOptions.some((option) => isPastDateInputValue(option.date))) {
-      return "Appointment options must be today or later.";
-    }
-
-    return null;
-  };
-
-  const handlePreviewOffer = () => {
-    if (isOfferActionLocked) {
-      toast.error("Review each offer section before previewing.");
-      return;
-    }
-
-    const validationError = getDraftValidationError();
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
-    setIsPreviewingOffer(true);
-  };
-
-  const handleOfferSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!selectedRequest || !uid) return;
-
-    if (isOfferActionLocked) {
-      toast.error("Review each offer section before sending.");
-      return;
-    }
-
-    const validationError = getDraftValidationError();
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
-    const submissionOfferPrice = getSubmissionOfferPrice();
-    const submitAsMultiSession =
-      selectedRequest.sourceType !== "flash" && isMultiSessionProject;
-
-    try {
-      setIsSubmitting(true);
-
-      let filename: string | null = null;
-      let fullUrl: string | null = null;
-      let thumbUrl: string | null = null;
-      const fallbackFullUrl =
-        selectedRequest.sourceType === "flash"
-          ? selectedRequest.fullUrl || selectedRequest.thumbUrl || null
-          : selectedRequest.offerFullUrl || null;
-      const fallbackThumbUrl =
-        selectedRequest.sourceType === "flash"
-          ? selectedRequest.thumbUrl || selectedRequest.fullUrl || null
-          : selectedRequest.offerThumbUrl || null;
-
-      if (offerImage) {
-        filename = `${uuidv4()}-${offerImage.name}`;
-        const fullPath = `users/${uid}/offers/full/${filename}`;
-        const fullRef = ref(storage, fullPath);
-        await uploadBytes(fullRef, offerImage);
-        fullUrl = await getDownloadURL(fullRef);
-
-        const thumbRef = ref(storage, `users/${uid}/offers/thumbs/${filename}`);
-        try {
-          thumbUrl = await getDownloadURL(thumbRef);
-        } catch {
-          console.warn("Thumbnail not yet generated.");
-        }
-      }
-
-      let shop: ShopDetails | null = null;
-      if (artist.shopId) {
-        const shopRef = doc(db, "shops", artist.shopId);
-        const shopSnap = await getDoc(shopRef);
-        if (shopSnap.exists()) {
-          shop = shopSnap.data() as ShopDetails;
-        }
-      }
-
-      let flashRepeatability = selectedRequest.flashRepeatability;
-      let flashAvailabilityStatus = selectedRequest.flashAvailabilityStatus;
-      if (selectedRequest.sourceType === "flash" && selectedRequest.flashId) {
-        const flashSnap = await getDoc(doc(db, "flashes", selectedRequest.flashId));
-        if (flashSnap.exists()) {
-          const latestFlash = {
-            id: flashSnap.id,
-            ...flashSnap.data(),
-          } as Flash;
-          flashRepeatability = getFlashRepeatability(latestFlash);
-          flashAvailabilityStatus = getFlashAvailabilityStatus(latestFlash);
-
-          if (!isFlashAvailableForClients(latestFlash)) {
-            toast.error(
-              flashRepeatability === "one_of_one"
-                ? "This one-of-one flash is no longer available."
-                : "This flash is no longer available."
-            );
-            return;
-          }
-        }
-      }
-
-      const offerData = {
-        artistId: uid,
-        displayName: artist.displayName,
-        artistAvatar: artist.avatarUrl || null,
-        shopId: artist.shopId || null,
-        shopName: shop?.name || "Unavailable",
-        shopAddress: shop?.address || "Unavailable",
-        shopMapLink: shop?.mapLink || null,
-        clientId: selectedRequest.clientId,
-        clientFirstName: selectedRequest.clientFirstName || "",
-        clientLastName: selectedRequest.clientLastName || "",
-        clientName: selectedRequest.clientName,
-        clientAvatar: selectedRequest.clientAvatar,
-        requestId: selectedRequest.id,
-        price: submissionOfferPrice,
-        message: offerMessage,
-        dateOptions: completedDateOptions,
-        imageFilename: filename || selectedRequest.offerImageFilename || null,
-        fullUrl: fullUrl || fallbackFullUrl,
-        thumbUrl: thumbUrl || fallbackThumbUrl,
-        sourceType: selectedRequest.sourceType || "custom",
-        flashId:
-          selectedRequest.sourceType === "flash"
-            ? selectedRequest.flashId || null
-            : null,
-        flashTitle:
-          selectedRequest.sourceType === "flash"
-            ? selectedRequest.flashTitle || "Untitled flash"
-            : null,
-        flashDescription:
-          selectedRequest.sourceType === "flash"
-            ? selectedRequest.flashDescription || null
-            : null,
-        flashPrice:
-          selectedRequest.sourceType === "flash"
-            ? submissionOfferPrice
-            : null,
-        flashSheetId:
-          selectedRequest.sourceType === "flash"
-            ? selectedRequest.flashSheetId || null
-            : null,
-        flashRepeatability:
-          selectedRequest.sourceType === "flash"
-            ? flashRepeatability || "repeatable"
-            : null,
-        flashAvailabilityStatus:
-          selectedRequest.sourceType === "flash"
-            ? flashAvailabilityStatus || "available"
-            : null,
-        isFromSheet:
-          selectedRequest.sourceType === "flash"
-            ? Boolean(selectedRequest.isFromSheet)
-            : null,
-        paymentType: "internal",
-        depositPolicy: {
-          amount: depositAmount,
-          depositRequired: true,
-          nonRefundable: true,
-        },
-        finalPaymentTiming: "after",
-        finalPaymentDeadlineHours: null,
-        allowExternalRemainingPayment: hasRemainingArtistBalance,
-        projectType: submitAsMultiSession ? "multi_session" : "single_session",
-        depositApplication: "project_credit",
-        paymentModelVersion: 2,
-        sessionPricingStrategy:
-          selectedRequest.sourceType === "flash" ? null : "equal_split",
-        sessionAllocations:
-          selectedRequest.sourceType === "flash" ? null : sessionAllocations,
-        allowedSessionBalanceMethods: hasRemainingArtistBalance
-          ? ["external"]
-          : [],
-        estimatedSessionCount: submitAsMultiSession
-          ? estimatedSessionCount
-          : 1,
-        estimatedSessionPrice:
-          selectedRequest.sourceType === "flash" ? null : sessionEstimate,
-        estimatedHoursPerSession:
-          selectedRequest.sourceType === "flash"
-            ? null
-            : normalizedEstimatedHoursPerSession,
-        sessionPaymentPlan: submitAsMultiSession
-          ? "per_session"
-          : "single_balance",
-        sessionScheduling: submitAsMultiSession
-          ? "first_session_now_rest_later"
-          : "single_session",
-        sessionInstallmentTiming: "after_session",
-        ...additionalOfferData,
-        status: "pending",
-        createdAt: serverTimestamp(),
-      };
-
-      const offerRef = await addDoc(collection(db, "offers"), offerData);
-      if (shouldUpdateRequestStatus) {
-        await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
-          status: "offered",
-          offeredAt: serverTimestamp(),
-          referenceCleanupAt: getBookingReferenceCleanupTimestamp(
-            BOOKING_REFERENCE_STANDARD_RETENTION_DAYS
-          ),
-        });
-      }
-
-      toast.success("Offer sent.");
-      await onOfferSent?.(selectedRequest.id, offerRef.id);
-      resetOfferForm();
-      onClose();
-    } catch (error) {
-      console.error("Failed to send offer:", error);
-      toast.error("Could not send this offer.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const getCustomOfferStepValidationError = (stepId: CustomOfferStepId) => {
-    if (stepId === "project") {
-      if (
-        isMultiSessionProject &&
-        (estimatedSessionCount < 2 || estimatedSessionCount > 12)
-      ) {
-        return "Multi-session projects need 2 to 12 estimated sessions.";
-      }
-
-      if (
-        estimatedHoursPerSession.trim() &&
-        (!Number.isFinite(parsedEstimatedHoursPerSession) ||
-          parsedEstimatedHoursPerSession < 0.5 ||
-          parsedEstimatedHoursPerSession > 16)
-      ) {
-        return "Estimated session length must be between 0.5 and 16 hours.";
-      }
-
-      return null;
-    }
-
-    if (stepId === "appointment") {
+    if (targetStep >= 1) {
       if (completedDateOptions.length === 0) {
-        return "Add at least one appointment option before continuing.";
+        return "Add at least one appointment option.";
       }
-
       if (
         completedDateOptions.some((option) =>
           isPastDateInputValue(option.date)
@@ -661,1777 +202,330 @@ const MakeOfferModal = ({
       ) {
         return "Appointment options must be today or later.";
       }
-
-      return null;
     }
+    return null;
+  };
 
-    if (stepId !== "pricing") return null;
-
-    if (currentOfferPrice <= 0) {
-      return "Enter a valid offer price before continuing.";
+  const continueToNextStep = () => {
+    const error = getStepError(step);
+    if (error) {
+      toast.error(error);
+      return;
     }
+    setStep((current) => Math.min(current + 1, OFFER_STEPS.length - 1));
+  };
 
-    if (currentDepositAmount <= 0) {
-      return "Enter a deposit to book before continuing.";
-    }
-
-    return (
-      getSessionAllocationError({
-        totalQuote: currentOfferPrice,
-        sessionCount: projectSessionCount,
-        depositAmount: currentDepositAmount,
-      }) || null
+  const updateAppointment = (
+    index: number,
+    field: "date" | "time",
+    value: string
+  ) => {
+    setDateOptions((current) =>
+      current.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, [field]: value } : option
+      )
     );
   };
 
-  const goToCustomOfferStep = (stepIndex: number) => {
-    const nextStepIndex = Math.min(
-      Math.max(stepIndex, 0),
-      FINAL_CUSTOM_OFFER_STEP_INDEX
-    );
-
-    if (nextStepIndex > customOfferStepIndex) {
-      for (
-        let stepToValidate = customOfferStepIndex;
-        stepToValidate < nextStepIndex;
-        stepToValidate += 1
-      ) {
-        const step = CUSTOM_OFFER_STEPS[stepToValidate];
-        if (step.id === "pricing") {
-          setHasTriedPricingContinue(true);
-        }
-
-        const validationError = getCustomOfferStepValidationError(step.id);
-        if (validationError) {
-          setCustomOfferStepIndex(stepToValidate);
-          toast.error(validationError);
-          return;
-        }
-      }
+  const submitOffer = async (event: FormEvent) => {
+    event.preventDefault();
+    const validationError = getStepError(OFFER_STEPS.length - 1);
+    if (validationError) {
+      toast.error(validationError);
+      return;
     }
 
-    setCustomOfferStepIndex(nextStepIndex);
-    if (nextStepIndex > 0) {
-      setHasTriedPricingContinue(false);
-    }
-    setFurthestCustomOfferStepIndex((currentStepIndex) =>
-      Math.max(currentStepIndex, nextStepIndex)
-    );
-  };
-
-  const openDatePicker = (optionIndex: number) => {
-    const input = dateInputRefs.current[optionIndex];
-    if (!input) return;
-
-    input.focus({ preventScroll: true });
-
-    const inputWithPicker = input as HTMLInputElement & {
-      showPicker?: () => void;
-    };
-
-    if (typeof inputWithPicker.showPicker === "function") {
-      try {
-        inputWithPicker.showPicker();
+    try {
+      setIsSubmitting(true);
+      const flashRef = doc(db, "flashes", selectedRequest.flashId!);
+      const flashSnap = await getDoc(flashRef);
+      if (!flashSnap.exists()) {
+        toast.error("This flash is no longer available.");
         return;
-      } catch {
-        // Fall back to the native click path below when a browser blocks showPicker.
       }
+      const flash = { id: flashSnap.id, ...flashSnap.data() } as Flash;
+      if (
+        flash.artistId !== uid ||
+        !isFlashAvailableForClients(flash)
+      ) {
+        toast.error(
+          getFlashRepeatability(flash) === "one_of_one"
+            ? "This one-of-one flash is no longer available."
+            : "This flash is no longer available."
+        );
+        return;
+      }
+
+      const authoritativePrice = Number(flash.price || 0);
+      const authoritativeMaximumDeposit = authoritativePrice * 0.5;
+      if (
+        authoritativePrice <= 0 ||
+        depositAmount <= 0 ||
+        depositAmount > authoritativeMaximumDeposit
+      ) {
+        toast.error("The flash price changed. Review the deposit and try again.");
+        setOfferPrice(authoritativePrice);
+        setStep(0);
+        return;
+      }
+
+      let shop: ShopDetails | null = null;
+      if (artist.shopId) {
+        const shopSnap = await getDoc(doc(db, "shops", artist.shopId));
+        if (shopSnap.exists()) shop = shopSnap.data() as ShopDetails;
+      }
+
+      const revisionData = additionalOfferData
+        ? {
+            previousOfferId:
+              typeof additionalOfferData.previousOfferId === "string"
+                ? additionalOfferData.previousOfferId
+                : null,
+            revisionOfOfferId:
+              typeof additionalOfferData.revisionOfOfferId === "string"
+                ? additionalOfferData.revisionOfOfferId
+                : null,
+            revisionReason:
+              typeof additionalOfferData.revisionReason === "string"
+                ? additionalOfferData.revisionReason
+                : null,
+          }
+        : {};
+      const fullUrl = flash.fullUrl || flash.webp90Url || flash.thumbUrl || null;
+      const thumbUrl = flash.thumbUrl || flash.webp90Url || flash.fullUrl || null;
+
+      const offerRef = await addDoc(collection(db, "offers"), {
+        sourceType: "flash",
+        flashId: flash.id,
+        requestId: selectedRequest.id,
+        artistId: uid,
+        displayName: artist.displayName || "Artist",
+        artistAvatar: artist.avatarUrl || null,
+        clientId: selectedRequest.clientId,
+        clientFirstName: selectedRequest.clientFirstName || "",
+        clientLastName: selectedRequest.clientLastName || "",
+        clientName: selectedRequest.clientName,
+        clientAvatar: selectedRequest.clientAvatar,
+        shopId: artist.shopId || null,
+        shopName: shop?.name || "Shop pending review",
+        shopAddress: shop?.address || null,
+        shopMapLink: shop?.mapLink || null,
+        price: authoritativePrice,
+        message: offerMessage.trim(),
+        dateOptions: completedDateOptions,
+        fullUrl,
+        thumbUrl,
+        flashTitle: flash.title || flash.caption || "Untitled flash",
+        flashDescription: flash.description || null,
+        flashPrice: authoritativePrice,
+        flashSheetId: flash.sheetId || null,
+        flashRepeatability: getFlashRepeatability(flash),
+        flashAvailabilityStatus: getFlashAvailabilityStatus(flash),
+        isFromSheet: flash.isFromSheet === true,
+        paymentType: "internal",
+        depositPolicy: {
+          amount: Number(depositAmount),
+          depositRequired: true,
+          nonRefundable: true,
+        },
+        finalPaymentTiming: "after",
+        allowExternalRemainingPayment: shopBalance > 0,
+        ...revisionData,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      if (shouldUpdateRequestStatus) {
+        await updateDoc(doc(db, "bookingRequests", selectedRequest.id), {
+          status: "offered",
+          offeredAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await onOfferSent?.(selectedRequest.id, offerRef.id);
+      toast.success("Flash offer sent.");
+      reset();
+      onClose();
+    } catch (error) {
+      console.error("Failed to send flash offer:", error);
+      toast.error("Could not send this flash offer.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    input.click();
   };
 
-  const getCustomOfferStepClassName = (stepId: CustomOfferStepId) => {
-    if (isFlashRequest) return "";
+  const imageUrl =
+    selectedRequest.thumbUrl || selectedRequest.fullUrl || "/default-avatar.png";
 
-    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
-      (step) => step.id === stepId
-    );
-
-    return customOfferStepIndex === stepIndex
-      ? "block animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
-      : "hidden";
-  };
-
-  const getCustomOfferPreviewStepClassName = () => {
-    const stepIndex = CUSTOM_OFFER_STEPS.findIndex(
-      (step) => step.id === "preview"
-    );
-
-    return customOfferStepIndex === stepIndex
-      ? "block animate-[offer-step-in_260ms_cubic-bezier(0.22,1,0.36,1)]"
-      : "hidden";
-  };
-
-  const offerModalShellClassName =
-    "fixed inset-0 z-[120] flex h-dvh items-start justify-center overflow-hidden overscroll-none bg-black/80 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white backdrop-blur-md sm:px-4 sm:pb-4 sm:pt-[5.75rem] lg:pb-5";
-
-  const offerModalPanelClassName =
-    "relative flex min-w-0 max-h-[calc(100dvh-env(safe-area-inset-top)-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-2xl sm:max-h-[calc(100dvh-5.75rem-1rem)] lg:max-h-[calc(100dvh-5.75rem-1.25rem)]";
-
-  return (
-    <div className={offerModalShellClassName}>
-      <div className={offerModalPanelClassName}>
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 px-3 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm md:items-center md:p-6">
+      <form
+        onSubmit={submitOffer}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111] text-white shadow-2xl"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-              {isFlashRequest ? "Your flash offer" : "Your offer"}
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+              Flash offer
             </p>
             <h2 className="mt-1 text-xl! font-semibold! text-white">
-              {isFlashRequest
-                ? `Create flash offer for ${selectedRequest.clientName}`
-                : `Create offer for ${selectedRequest.clientName}`}
+              Offer for {selectedRequest.clientName || "client"}
             </h2>
           </div>
           <button
             type="button"
-            onClick={handleClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-            aria-label="Close offer modal"
+            onClick={close}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] p-0! text-neutral-300 hover:bg-white/10 hover:text-white"
+            aria-label="Close offer"
           >
-            <X size={18} />
+            <X size={17} />
           </button>
-        </div>
+        </header>
 
-        <form
-          onSubmit={handleOfferSubmit}
-          className="flex min-h-0 min-w-0 flex-1 flex-col"
-        >
-          <div
-            ref={offerModalBodyRef}
-            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto request-modal-scrollbar"
-          >
-            {isPreviewingOffer ? (
-              <OfferPreview
-                request={selectedRequest}
-                requestImageUrl={requestImageUrl}
-                sampleImageUrl={
-                  previewUrl ||
-                  (isFlashRequest
-                    ? selectedRequest.fullUrl || selectedRequest.thumbUrl || ""
-                    : retainedOfferSampleUrl)
-                }
-                isFlashRequest={isFlashRequest}
-                isMultiSessionProject={!isFlashRequest && isMultiSessionProject}
-                offerPrice={effectiveOfferPrice}
-                depositAmount={Number(depositAmount || 0)}
-                remainingArtistBalance={remainingArtistBalance}
-                paymentPreview={paymentPreview}
-                sessionCount={estimatedSessionCount}
-                sessionEstimate={sessionEstimate}
-                estimatedHoursPerSession={normalizedEstimatedHoursPerSession}
-                dateOptions={completedDateOptions}
-                message={offerMessage}
-              />
-            ) : (
-              <>
-                <div className="grid w-full min-w-0 gap-0 lg:grid-cols-[0.78fr_1.22fr]">
-                  <aside
-                    className={`border-b border-white/10 bg-black/25 p-5 lg:sticky lg:top-0 lg:block lg:self-start lg:border-b-0 lg:border-r lg:p-6 ${
-                      isFlashRequest ? "" : "hidden"
-                    }`}
-                  >
-                    {isFlashRequest ? (
-                      <FlashOfferSummaryCard
-                        request={selectedRequest}
-                        previewUrl={requestImageUrl}
-                      />
-                    ) : (
-                      <div>
-                        <div className="relative hidden h-[38rem] overflow-hidden lg:block">
-                          <div
-                            className={`absolute inset-x-0 top-0 space-y-4 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-                              shouldShowDesktopTimingContext
-                                ? "pointer-events-none -translate-y-10 opacity-0"
-                                : "translate-y-0 opacity-100"
-                            }`}
-                          >
-                            <ClientRequestImageCard
-                              imageUrl={requestImageUrl}
-                              emptyLabel="No request image"
-                            />
-                            <ClientRequestSummaryCard
-                              request={selectedRequest}
-                            />
-                          </div>
-
-                          <div
-                            className={`absolute inset-0 overflow-y-auto pr-1 request-modal-scrollbar transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-                              shouldShowDesktopTimingContext
-                                ? "translate-y-0 opacity-100"
-                                : "pointer-events-none translate-y-12 opacity-0"
-                            }`}
-                          >
-                            <div className="space-y-4 pb-4">
-                              <ClientRequestSummaryCard
-                                request={selectedRequest}
-                              />
-                              <ClientTimingWindowCard
-                                request={selectedRequest}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </aside>
-
-                  <div className="w-full min-w-0 space-y-5 overflow-x-hidden p-5 sm:p-6">
-                    {!isFlashRequest && (
-                      <div className="sticky top-0 z-40 -mx-5 -mt-5 mb-2 bg-[#111111]/98 px-5 pb-3 pt-4 shadow-[0_18px_26px_rgba(0,0,0,0.45)] sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-5 lg:-mt-5 lg:mb-0 lg:px-5 lg:pt-5">
-                        <div className="rounded-lg border border-white/10 bg-[#111111]/95 p-2.5 shadow-[0_14px_34px_rgba(0,0,0,0.22)] backdrop-blur lg:p-3">
-                          <nav
-                            aria-label="Offer steps"
-                            className="min-w-0"
-                          >
-                            <div className="grid min-w-0 grid-cols-5 gap-1 lg:gap-1.5">
-                              {CUSTOM_OFFER_STEPS.map((step, index) => {
-                                const isActive =
-                                  index === customOfferStepIndex;
-                                const isComplete =
-                                  index < furthestCustomOfferStepIndex &&
-                                  !getCustomOfferStepValidationError(step.id);
-                                const canVisit =
-                                  index <= furthestCustomOfferStepIndex + 1;
-
-                                return (
-                                  <button
-                                    key={step.id}
-                                    type="button"
-                                    disabled={!canVisit}
-                                    onClick={() => goToCustomOfferStep(index)}
-                                    aria-current={isActive ? "step" : undefined}
-                                    className={`group flex min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-1! py-2! text-center transition lg:px-1.5! lg:py-2.5! ${
-                                      isActive
-                                        ? "border-white/35 bg-white/[0.08] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
-                                        : isComplete
-                                        ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-50 hover:border-emerald-200/45"
-                                        : "border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-white/10 disabled:hover:bg-white/[0.03]"
-                                    }`}
-                                  >
-                                    <span
-                                      className={`flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold lg:hidden ${
-                                        isActive
-                                          ? "bg-white text-black"
-                                          : isComplete
-                                          ? "bg-emerald-300/20 text-emerald-50"
-                                          : "bg-white/[0.07] text-neutral-400"
-                                      }`}
-                                    >
-                                      {index + 1}
-                                    </span>
-                                    <span className="max-w-full truncate whitespace-nowrap text-[10px] font-semibold sm:text-[11px] lg:text-[10px] lg:uppercase lg:tracking-[0.08em]">
-                                      {step.label}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </nav>
-                          <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                            <div
-                              className="h-full rounded-full bg-white transition-all duration-300 ease-out"
-                              style={{
-                                width: `${
-                                  ((customOfferStepIndex + 1) /
-                                    CUSTOM_OFFER_STEPS.length) *
-                                  100
-                                }%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-              {!isFlashRequest && (
-                <section
-                  className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName(
-                    "project"
-                  )}`}
-                >
-                  <div className="mb-5 flex items-start gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                      <Layers size={19} />
-                    </span>
-                    <div>
-                      <h3 className="text-lg! font-semibold! text-white">
-                        Project structure
-                      </h3>
-                      <p className="text-sm text-neutral-400">
-                        Start with the number and expected length of sessions so
-                        pricing can be calculated clearly.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsMultiSessionProject(false)}
-                      className={`rounded-lg border p-4! text-left transition ${
-                        !isMultiSessionProject
-                          ? "border-white/40 bg-white/[0.09] text-white shadow-[0_14px_30px_rgba(0,0,0,0.2)]"
-                          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold">
-                        Single session
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                        One appointment with one deposit and one post-session
-                        balance.
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsMultiSessionProject(true)}
-                      className={`rounded-lg border p-4! text-left transition ${
-                        isMultiSessionProject
-                          ? "border-emerald-300/40 bg-emerald-300/[0.09] text-white shadow-[0_14px_30px_rgba(0,0,0,0.2)]"
-                          : "border-white/10 bg-black/25 text-white hover:bg-white/[0.06]"
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold">
-                        Multi-session project
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-neutral-400">
-                        Split the quote evenly and protect each appointment with
-                        its own deposit.
-                      </span>
-                    </button>
-                  </div>
-
-                  <div
-                    className={`mt-4 grid gap-4 ${
-                      isMultiSessionProject ? "md:grid-cols-2" : ""
-                    }`}
-                  >
-                    {isMultiSessionProject && (
-                      <label className="space-y-2">
-                        <span className="text-sm font-medium text-neutral-200">
-                          Estimated sessions
-                        </span>
-                        <input
-                          type="number"
-                          min="2"
-                          max="12"
-                          value={estimatedSessionCount}
-                          onChange={(event) =>
-                            setEstimatedSessionCount(
-                              Math.min(
-                                12,
-                                Math.max(2, Number(event.target.value || 2))
-                              )
-                            )
-                          }
-                          className="h-11 w-full rounded-md border border-white/10 bg-[#101010] px-3 text-sm text-white outline-none transition focus:border-white/40 focus:ring-1 focus:ring-white/10"
-                        />
-                        <span className="block text-[11px] leading-4 text-neutral-500">
-                          Choose 2–12 sessions. Later appointments are scheduled
-                          after the project begins.
-                        </span>
-                      </label>
-                    )}
-
-                    <label className="space-y-2">
-                      <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
-                        <span>
-                          {isMultiSessionProject
-                            ? "Estimated hours per session"
-                            : "Estimated hours"}
-                        </span>
-                        <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                          Optional
-                        </span>
-                      </span>
-                      <div className="relative">
-                        <Clock
-                          size={15}
-                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-                        />
-                        <input
-                          type="number"
-                          min="0.5"
-                          max="16"
-                          step="0.5"
-                          value={estimatedHoursPerSession}
-                          onChange={(event) =>
-                            setEstimatedHoursPerSession(event.target.value)
-                          }
-                          placeholder="e.g. 4"
-                          className="h-11 w-full rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-white/40 focus:ring-1 focus:ring-white/10"
-                        />
-                      </div>
-                      <span className="block text-[11px] leading-4 text-neutral-500">
-                        Shown to the client as an estimate, not a guaranteed
-                        appointment duration.
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-4 py-3 text-xs text-neutral-400">
-                    <span className="font-semibold text-white">
-                      {isMultiSessionProject
-                        ? `${estimatedSessionCount}-session project`
-                        : "Single-session project"}
-                    </span>
-                    {normalizedEstimatedHoursPerSession && (
-                      <>
-                        <span aria-hidden="true" className="text-neutral-600">
-                          •
-                        </span>
-                        <span>
-                          About {normalizedEstimatedHoursPerSession}{" "}
-                          {normalizedEstimatedHoursPerSession === 1
-                            ? "hour"
-                            : "hours"}
-                          {isMultiSessionProject ? " per session" : ""}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </section>
-              )}
-
-              <section
-                className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName(
-                  "pricing"
-                )}`}
-              >
-                <div className="mb-5 flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                    <DollarSign size={19} />
-                  </span>
-                  <div>
-                    <h3 className="text-lg! font-semibold! text-white">
-                      Pricing
-                    </h3>
-                    <p className="text-sm text-neutral-400">
-                      {isFlashRequest
-                        ? "The offer price is locked to the flash listing. Set the deposit required to reserve the design."
-                        : projectSessionCount === 1
-                        ? "Set the full quote and the deposit that reserves the appointment."
-                        : `Set the full quote and the deposit that reserves each of the ${projectSessionCount} sessions.`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {isFlashRequest ? (
-                    <LockedPriceTile
-                      label="Listed flash price"
-                      value={
-                        flashListedPrice > 0
-                          ? formatMoneyFromCents(
-                              Math.round(flashListedPrice * 100)
-                            )
-                          : "Price not listed"
-                      }
-                    />
-                  ) : (
-                    <MoneyInput
-                      label="Total project quote"
-                      value={offerPrice === 0 ? "" : offerPrice}
-                      onChange={(value) =>
-                        setOfferPrice(value ? Number(value) : 0)
-                      }
-                      required
-                    />
-                  )}
-                  <div>
-                    <MoneyInput
-                      label={
-                        isFlashRequest
-                          ? "Deposit to book"
-                          : projectSessionCount > 1
-                          ? "Deposit per session"
-                          : "Session deposit"
-                      }
-                      value={depositAmount === 0 ? "" : depositAmount}
-                      onChange={(value) =>
-                        setDepositAmount(value ? Number(value) : 0)
-                      }
-                      required
-                      actionLabel={
-                        !isFlashRequest &&
-                        currentOfferPrice > 0 &&
-                        maximumSessionDepositCents > 0
-                          ? "Use max"
-                          : undefined
-                      }
-                      onAction={() =>
-                        setDepositAmount(
-                          fromCents(maximumSessionDepositCents)
-                        )
-                      }
-                    />
-                    {!isFlashRequest &&
-                      currentOfferPrice > 0 &&
-                      maximumSessionDepositCents > 0 && (
-                        <p className="mt-2 text-[11px] leading-4 text-neutral-500">
-                          Maximum{" "}
-                          {formatMoneyFromCents(maximumSessionDepositCents)}{" "}
-                          (up to 50% of{" "}
-                          {projectSessionCount > 1
-                            ? "each session's total"
-                            : "the session total"}
-                          )
-                        </p>
-                      )}
-                  </div>
-                </div>
-                {shouldShowPricingStepInlineError && (
-                  <p className="mt-3 rounded-md border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100/85">
-                    {pricingStepInlineError}
-                  </p>
-                )}
-
-                {isCustomPricingValid ? (
-                  <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-200/15 bg-emerald-300/[0.08] text-emerald-100">
-                        <ReceiptText size={16} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white">
-                          Protected session-by-session plan
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-neutral-400">
-                          Client pays up to half of{" "}
-                          {projectSessionCount > 1
-                            ? "each session amount"
-                            : "the session amount"}{" "}
-                          to secure the booking.
-                        </p>
-                        <p className="mt-2 border-t border-white/10 pt-2 text-xs leading-5 text-neutral-400">
-                          The remaining balance is settled at the shop after the
-                          session is complete.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      <PlanMetric
-                        label="Project total"
-                        value={formatMoneyFromCents(
-                          Math.round(currentOfferPrice * 100)
-                        )}
-                      />
-                      <PlanMetric
-                        label="Sessions"
-                        value={String(projectSessionCount)}
-                      />
-                      <PlanMetric
-                        label="Session price"
-                        value={formatMoneyFromCents(
-                          firstSessionAllocation?.quotedAmountCents || 0
-                        )}
-                      />
-                      <PlanMetric
-                        label="Deposit"
-                        value={formatMoneyFromCents(
-                          Math.round(currentDepositAmount * 100)
-                        )}
-                      />
-                      <PlanMetric
-                        label="Shop balance"
-                        value={formatMoneyFromCents(
-                          Math.round(firstSessionBalance * 100)
-                        )}
-                      />
-                    </div>
-                    {projectSessionCount > 1 && (
-                      <p className="mt-3 text-[11px] leading-4 text-neutral-500">
-                        The quote is split evenly. Any leftover cents are applied
-                        to the earliest sessions.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  hasRemainingArtistBalance &&
-                  isFlashRequest && (
-                    <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
-                      <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-neutral-300">
-                          <ReceiptText size={16} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-white">
-                            Only the deposit is collected before tattooing
-                          </p>
-                          <p className="mt-1 text-sm leading-6 text-neutral-400">
-                            SATX Ink collects the non-refundable deposit today.
-                            The remaining balance is settled at the shop after
-                            the appointment.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                )}
-              </section>
-
-              <section className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferStepClassName("appointment")}`}>
-                <div className="mb-5 flex min-w-0 items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
-                    <CalendarDays size={19} />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-lg! font-semibold! text-white">
-                      {isMultiSessionProject
-                        ? "First-session appointment options"
-                        : isFlashRequest
-                        ? "Flash appointment options"
-                        : "Appointment options"}
-                    </h3>
-                    <p className="text-sm text-neutral-400">
-                      {isMultiSessionProject
-                        ? "Give the client a few clear times to choose from for session 1 only. Later sessions can be scheduled after the project begins."
-                        : isFlashRequest
-                        ? "Give the client a few clear times to reserve this flash design."
-                        : "Give the client a few clear times to choose from."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3">
-                  {dateOptions.map((option, index) => (
-                    <div
-                      key={index}
-                      className="grid min-w-0 gap-3 rounded-md border border-white/10 bg-black/25 p-3 md:grid-cols-[auto_1fr_1fr]"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/5 text-sm font-semibold text-neutral-300">
-                        {index + 1}
-                      </div>
-                      <div className="relative min-w-0">
-                        <input
-                          ref={(element) => {
-                            dateInputRefs.current[index] = element;
-                          }}
-                          type="date"
-                          min={todayDateInput}
-                          value={option.date}
-                          onChange={(event) =>
-                            setDateOptions((prev) => {
-                              const updated = [...prev];
-                              updated[index] = {
-                                ...updated[index],
-                                date: event.target.value,
-                              };
-                              return updated;
-                            })
-                          }
-                          className="offer-date-input h-10 w-full rounded-md border border-white/10 bg-[#101010] px-3 pr-10 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => openDatePicker(index)}
-                          className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center rounded-r-md p-0! text-neutral-300 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/70"
-                          aria-label={`Open appointment date option ${
-                            index + 1
-                          } calendar`}
-                        >
-                          <CalendarDays size={15} />
-                        </button>
-                      </div>
-                      <QuarterHourTimeSelect
-                        value={option.time}
-                        className="min-w-0"
-                        onChange={(value) =>
-                          setDateOptions((prev) => {
-                            const updated = [...prev];
-                            updated[index] = {
-                              ...updated[index],
-                              time: value,
-                            };
-                            return updated;
-                          })
-                        }
-                        placeholder="Select time"
-                        buttonClassName="h-10 bg-[#101010] py-0 focus:border-[var(--color-primary)]"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section
-                className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${
-                  isFlashRequest
-                    ? ""
-                    : getCustomOfferStepClassName("extras")
-                }`}
-              >
-                <div className="mb-5 flex min-w-0 items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
-                    <MessageSquareText size={19} />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-lg! font-semibold! text-white">
-                      {isFlashRequest ? "Message" : "Message & sample"}
-                    </h3>
-                    <p className="text-sm leading-5 text-neutral-400">
-                      {isFlashRequest
-                        ? "Add context, prep notes, or expectations."
-                        : "Personalize the offer with an optional note and visual reference."}
-                    </p>
-                  </div>
-                </div>
-
-                <label className="block min-w-0">
-                  <span className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-200">
-                    <span>Message</span>
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                      Optional
-                    </span>
-                  </span>
-                  <textarea
-                    placeholder={
-                      isFlashRequest
-                        ? "Add a note about placement, sizing, prep, or reservation expectations..."
-                        : "Add a note, preparation details, or expectations..."
-                    }
-                    value={offerMessage}
-                    onChange={(event) => setOfferMessage(event.target.value)}
-                    className="mt-2 min-h-32 w-full max-w-full resize-y rounded-md border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[var(--color-primary)]"
-                  />
-                </label>
-
-                {!isFlashRequest && (
-                  <div className="mt-5 min-w-0 border-t border-white/10 pt-5">
-                    <div className="mb-4 flex min-w-0 items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/10 text-white">
-                        <Upload size={18} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-base! font-semibold! text-white">
-                            Sample image
-                          </h4>
-                          <span className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                            Optional
-                          </span>
-                        </div>
-                        <p className="text-sm leading-5 text-neutral-400">
-                          Add a visual reference for the offer.
-                        </p>
-                      </div>
-                    </div>
-
-                    <label
-                      className={`group relative flex w-full max-w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-md border border-dashed border-white/20 bg-black/35 p-4 text-center transition hover:border-white/40 hover:bg-white/[0.04] ${
-                        previewUrl || retainedOfferSampleUrl
-                          ? "min-h-64 sm:min-h-[18rem]"
-                          : "min-h-40"
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] || null;
-                          if (previewUrl) URL.revokeObjectURL(previewUrl);
-                          setOfferImage(file);
-                          setPreviewUrl(
-                            file ? URL.createObjectURL(file) : null
-                          );
-                        }}
-                        className="sr-only"
-                      />
-                      {previewUrl || retainedOfferSampleUrl ? (
-                        <img
-                          src={previewUrl || retainedOfferSampleUrl}
-                          alt={
-                            previewUrl
-                              ? "Offer sample preview"
-                              : "Retained offer sample"
-                          }
-                          className="absolute inset-0 h-full w-full object-contain opacity-90"
-                        />
-                      ) : (
-                        <>
-                          <Upload size={22} className="mb-2 text-white" />
-                          <span className="text-sm font-semibold text-white">
-                            Upload sample
-                          </span>
-                          <span className="mt-1 text-xs text-neutral-500">
-                            JPG, PNG, or WebP
-                          </span>
-                        </>
-                      )}
-                      {(previewUrl || retainedOfferSampleUrl) && (
-                        <span className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-full border border-white/15 bg-black/70 px-3 py-1 text-xs text-white backdrop-blur">
-                          {previewUrl
-                            ? "Click to replace image"
-                            : "Keeping previous sample. Click to replace."}
-                        </span>
-                      )}
-                    </label>
-                  </div>
-                )}
-              </section>
-
-                    {!isFlashRequest && (
-                      <section className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] p-4 sm:p-5 ${getCustomOfferPreviewStepClassName()}`}>
-                        <div className="mb-5 flex items-start gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
-                            <ReceiptText size={19} />
-                          </span>
-                          <div>
-                            <h3 className="text-lg! font-semibold! text-white">
-                              Preview
-                            </h3>
-                            <p className="text-sm text-neutral-400">
-                              Quick final check before the offer goes out.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <PreviewTile
-                            label="Offer price"
-                            value={formatMoneyFromCents(
-                              Math.round(effectiveOfferPrice * 100)
-                            )}
-                            tone="strong"
-                          />
-                          <PreviewTile
-                            label={
-                              projectSessionCount > 1
-                                ? "Deposit per session"
-                                : "Session deposit"
-                            }
-                            value={formatMoneyFromCents(
-                              Math.round(Number(depositAmount || 0) * 100)
-                            )}
-                          />
-                          <PreviewTile
-                            label="Shop balance"
-                            value={formatMoneyFromCents(
-                              Math.round(remainingArtistBalance * 100)
-                            )}
-                          />
-                          <PreviewTile
-                            label="Project"
-                            value={
-                              isMultiSessionProject
-                                ? `${estimatedSessionCount} sessions`
-                                : "Single session"
-                            }
-                          />
-                          <PreviewTile
-                            label="Estimated session length"
-                            value={
-                              normalizedEstimatedHoursPerSession
-                                ? `${normalizedEstimatedHoursPerSession} ${
-                                    normalizedEstimatedHoursPerSession === 1
-                                      ? "hour"
-                                      : "hours"
-                                  }`
-                                : "Not provided"
-                            }
-                          />
-                          {isMultiSessionProject && (
-                            <PreviewTile
-                              label="Session balances"
-                              value="Due after each session"
-                            />
-                          )}
-                        </div>
-
-                        <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-4">
-                          <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
-                            Appointment options
-                          </p>
-                          <div className="mt-3 grid gap-2">
-                            {completedDateOptions.length > 0 ? (
-                              completedDateOptions.map((option, index) => (
-                                <div
-                                  key={`${option.date}-${option.time}-${index}`}
-                                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm"
-                                >
-                                  <span className="font-semibold text-neutral-500">
-                                    Option {index + 1}
-                                  </span>
-                                  <span className="text-right font-medium text-white">
-                                    {formatOfferPreviewAppointment(option)}
-                                  </span>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
-                                No complete appointment options yet.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                          <div className="rounded-lg border border-white/10 bg-black/25 p-4">
-                            <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">
-                              Message
-                            </p>
-                            <p className="mt-3 min-h-24 whitespace-pre-line text-sm leading-6 text-neutral-300">
-                              {offerMessage || "No message included."}
-                            </p>
-                          </div>
-                          <PreviewImage
-                            label="Offer sample"
-                            imageUrl={previewUrl || retainedOfferSampleUrl}
-                            emptyLabel="No sample included"
-                          />
-                        </div>
-                      </section>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div
-            className={`z-20 flex flex-col-reverse gap-3 border-t border-white/10 bg-[#171717]/95 px-4 py-3 shadow-[0_-16px_30px_rgba(0,0,0,0.28)] backdrop-blur sm:flex-row sm:items-center sm:px-6 sm:py-4 ${
-              shouldUseCustomOfferStepper ? "sm:justify-end" : "sm:justify-between"
-            }`}
-          >
-            {!shouldUseCustomOfferStepper && (
-              <p className="text-sm text-neutral-500">
-                {isPreviewingOffer
-                  ? "Review the offer summary before sending."
-                  : `${completedDateOptions.length} appointment option${
-                      completedDateOptions.length === 1 ? "" : "s"
-                    } ready`}
-              </p>
-            )}
-            <div
-              className={`grid w-full gap-2 sm:flex sm:w-auto sm:flex-row sm:gap-3 ${
-                isPreviewingOffer ? "grid-cols-2" : "grid-cols-3"
+        <nav className="grid shrink-0 grid-cols-4 gap-1.5 border-b border-white/10 px-3 py-3 sm:px-6" aria-label="Offer steps">
+          {OFFER_STEPS.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                if (index <= step) setStep(index);
+              }}
+              className={`min-w-0 rounded-lg border px-1! py-2! text-[10px]! font-semibold transition sm:text-xs! ${
+                index === step
+                  ? "border-white/35 bg-white/[0.09] text-white"
+                  : index < step
+                  ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100"
+                  : "border-white/8 bg-white/[0.025] text-neutral-500"
               }`}
+              aria-current={index === step ? "step" : undefined}
             >
-              <button
-                type="button"
-                onClick={
-                  isPreviewingOffer
-                    ? () => setIsPreviewingOffer(false)
-                    : handleClose
-                }
-                className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-              >
-                {isPreviewingOffer ? "Back to edit" : "Cancel"}
-              </button>
-              {shouldUseCustomOfferStepper && !isPreviewingOffer && (
-                <button
-                  type="button"
-                  disabled={customOfferStepIndex === 0}
-                  onClick={() =>
-                    goToCustomOfferStep(customOfferStepIndex - 1)
-                  }
-                  className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Back
-                </button>
-              )}
-              {shouldUseCustomOfferStepper &&
-                !isPreviewingOffer &&
-                !isCustomOfferStepperFinalStep && (
-                  <button
-                    type="button"
-                    disabled={isCustomOfferStepContinueBlocked}
-                    onClick={() =>
-                      goToCustomOfferStep(customOfferStepIndex + 1)
-                    }
-                    className="modal-action-button inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-black/55"
-                  >
-                    Continue
-                  </button>
-                )}
-              {!isPreviewingOffer && !shouldUseCustomOfferStepper && (
-                <button
-                  type="button"
-                  onClick={handlePreviewOffer}
-                  disabled={isOfferActionLocked}
-                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg! border border-amber-200/55 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(252,211,77,0.08)] backdrop-blur transition hover:border-amber-100/75 hover:bg-amber-300/16 hover:text-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-neutral-500 disabled:shadow-none sm:gap-2"
-                >
-                  Preview offer
-                  <ReceiptText size={16} className="text-amber-200" />
-                </button>
-              )}
-              {(!shouldUseCustomOfferStepper ||
-                isCustomOfferStepperFinalStep) && (
-                <button
-                  type="submit"
-                  disabled={isSubmitting || isOfferActionLocked}
-                  className="modal-action-button inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-60 sm:gap-2"
-                >
-                  {isSubmitting ? "Sending..." : "Send offer"}
-                  <Send size={16} />
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const OfferPreview = ({
-  request,
-  requestImageUrl,
-  sampleImageUrl,
-  isFlashRequest,
-  isMultiSessionProject,
-  offerPrice,
-  depositAmount,
-  remainingArtistBalance,
-  paymentPreview,
-  sessionCount,
-  sessionEstimate,
-  estimatedHoursPerSession,
-  dateOptions,
-  message,
-}: {
-  request: BookingRequest;
-  requestImageUrl: string;
-  sampleImageUrl: string;
-  isFlashRequest: boolean;
-  isMultiSessionProject: boolean;
-  offerPrice: number;
-  depositAmount: number;
-  remainingArtistBalance: number;
-  paymentPreview: ReturnType<typeof calculateClientPaymentBreakdown>;
-  sessionCount: number;
-  sessionEstimate: number;
-  estimatedHoursPerSession: number | null;
-  dateOptions: { date: string; time: string }[];
-  message: string;
-}) => {
-  const finalPaymentTermsLabel = !isFlashRequest
-    ? "Each session balance is settled at the shop after that session is complete."
-    : "Remaining balance is settled at the shop after the appointment.";
-  const todayClientPayment = formatMoneyFromCents(paymentPreview.clientTotalCents);
-  const artistReceivesToday = formatMoneyFromCents(paymentPreview.artistAmountCents);
-  const laterPaymentLabel =
-    remainingArtistBalance <= 0
-      ? "No later balance"
-      : isFlashRequest
-      ? "Remaining balance is settled at the shop after the appointment."
-      : "Each session balance is settled at the shop after that session is complete.";
-
-  return (
-    <div className="p-5 sm:p-6">
-      <div className="mb-5 rounded-lg border border-white/10 bg-white/[0.035] p-5">
-        <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-          Offer preview
-        </p>
-        <h3 className="mt-2 text-2xl! font-semibold! text-white">
-          Review what {request.clientName || "the client"} will receive
-        </h3>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">
-          This is a final check of price, payment timing, appointment options,
-          reference images, and your message before the offer is sent.
-        </p>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="space-y-5">
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#f04438]/10 text-[#f04438]">
-                <DollarSign size={19} />
+              <span className="mx-auto mb-1 flex h-5 w-5 items-center justify-center rounded-md bg-white/10">
+                {index < step ? <Check size={12} /> : index + 1}
               </span>
-              <div>
-                <h4 className="text-lg! font-semibold! text-white">
-                  Payment breakdown
-                </h4>
-                <p className="text-sm text-neutral-400">
-                  Total quote, deposit due today, and later balance.
-                </p>
-              </div>
-            </div>
+              <span className="block truncate">{label}</span>
+            </button>
+          ))}
+        </nav>
 
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-black/25">
-              <div className="border-b border-white/10 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                  Client checkout today
-                </p>
+        <div className="request-modal-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {step === 0 && (
+            <section className="space-y-5 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+              <SectionHeading icon={<DollarSign size={18} />} title="Booking deposit" description="The published flash price stays fixed. Choose the deposit that secures this appointment." />
+              <FlashSummary imageUrl={imageUrl} title={selectedRequest.flashTitle || "Untitled flash"} price={listedPrice} />
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-neutral-300">Deposit amount</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <div className="flex min-w-0 items-center rounded-lg border border-white/10 bg-black/30 px-3 focus-within:border-white/30">
+                    <span className="text-neutral-500">$</span>
+                    <input type="number" min="0" max={maximumDeposit} step="0.01" value={depositAmount || ""} onChange={(event) => setDepositAmount(Number(event.target.value))} className="min-w-0 flex-1 border-0 bg-transparent px-2 py-3 text-white outline-none" />
+                  </div>
+                  <button type="button" onClick={() => setDepositAmount(maximumDeposit)} className="rounded-lg border border-white/15 bg-white/[0.06] px-3! py-2! text-xs! font-semibold text-white hover:bg-white/10">USE MAX</button>
+                </div>
+                <span className="mt-2 block text-xs text-neutral-500">Maximum ${maximumDeposit.toFixed(2)} (up to 50% of the flash price)</span>
+              </label>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm text-neutral-300">The client pays the deposit through Stripe to secure the booking.</p>
+                <div className="my-3 h-px bg-white/10" />
+                <p className="text-sm text-neutral-300">The remaining <strong className="text-white">${shopBalance.toFixed(2)}</strong> is settled at the shop after the appointment.</p>
               </div>
-              <div className="divide-y divide-white/10">
-                <ReceiptLine
-                  label="Artist deposit"
-                  value={formatMoneyFromCents(Math.round(depositAmount * 100))}
-                  note="Amount you are asking the client to reserve today."
-                />
-                <ReceiptLine
-                  label="SATX Ink fee"
-                  value={formatMoneyFromCents(paymentPreview.platformFeeCents)}
-                  note="Platform fee calculated from the full artist quote."
-                />
-                <ReceiptLine
-                  label="Estimated Stripe fee"
-                  value={formatMoneyFromCents(paymentPreview.stripeFeeCents)}
-                  note="Estimated processing cost for today's checkout."
-                />
-                <ReceiptLine
-                  label="Client pays today"
-                  value={todayClientPayment}
-                  total
-                />
-              </div>
-            </div>
+            </section>
+          )}
 
-            <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-black/25">
-              <div className="border-b border-white/10 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">
-                  Artist payout and shop balance
-                </p>
-              </div>
-              <div className="divide-y divide-white/10">
-                <ReceiptLine
-                  label="Total artist quote"
-                  value={formatMoneyFromCents(Math.round(offerPrice * 100))}
-                />
-                <ReceiptLine
-                  label="You receive from today's deposit"
-                  value={artistReceivesToday}
-                  emphasis
-                />
-                <ReceiptLine
-                  label="Remaining shop balance"
-                  value={formatMoneyFromCents(
-                    Math.round(remainingArtistBalance * 100)
-                  )}
-                  note={laterPaymentLabel}
-                />
-                <ReceiptLine
-                  label="Final payment terms"
-                  value={finalPaymentTermsLabel}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                <Layers size={19} />
-              </span>
-              <div>
-                <h4 className="text-lg! font-semibold! text-white">
-                  Project structure
-                </h4>
-                <p className="text-sm text-neutral-400">
-                  How this offer will be framed to the client.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <PreviewTile
-                label="Offer type"
-                value={
-                  isFlashRequest
-                    ? "Flash booking"
-                    : isMultiSessionProject
-                    ? "Multi-session project"
-                    : "Single session"
-                }
-              />
-              <PreviewTile
-                label="Estimated sessions"
-                value={isMultiSessionProject ? `${sessionCount}` : "1"}
-              />
-              <PreviewTile
-                label="Price per session"
-                value={
-                  !isFlashRequest
-                    ? formatMoneyFromCents(Math.round(sessionEstimate * 100))
-                    : formatMoneyFromCents(Math.round(offerPrice * 100))
-                }
-              />
-              <PreviewTile
-                label="Estimated session length"
-                value={
-                  !isFlashRequest && estimatedHoursPerSession
-                    ? `${estimatedHoursPerSession} ${
-                        estimatedHoursPerSession === 1 ? "hour" : "hours"
-                      }`
-                    : "Not provided"
-                }
-              />
-              <PreviewTile
-                label="Installments"
-                value={
-                  !isFlashRequest
-                    ? "After each completed session"
-                    : "Single balance"
-                }
-              />
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                <CalendarDays size={19} />
-              </span>
-              <div>
-                <h4 className="text-lg! font-semibold! text-white">
-                  Appointment options
-                </h4>
-                <p className="text-sm text-neutral-400">
-                  The client will choose one of these times.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-2">
+          {step === 1 && (
+            <section className="space-y-4 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+              <SectionHeading icon={<CalendarDays size={18} />} title="Appointment options" description="Give the client up to three clear times to choose from." />
               {dateOptions.map((option, index) => (
-                <div
-                  key={`${option.date}-${option.time}-${index}`}
-                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm"
-                >
-                  <span className="font-semibold text-neutral-500">
-                    Option {index + 1}
-                  </span>
-                  <span className="text-right font-medium text-white">
-                    {formatOfferPreviewAppointment(option)}
-                  </span>
+                <div key={index} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Option {index + 1}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-neutral-400">Date</span>
+                      <input type="date" min={today} value={option.date} onChange={(event) => updateAppointment(index, "date", event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-3 text-sm text-white outline-none focus:border-white/30" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-neutral-400">Time</span>
+                      <QuarterHourTimeSelect value={option.time} onChange={(value) => updateAppointment(index, "time", value)} placeholder="Select time" buttonClassName="rounded-lg" />
+                    </label>
+                  </div>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
+            </section>
+          )}
 
-        <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                <ImageIcon size={19} />
-              </span>
-              <div>
-                <h4 className="text-lg! font-semibold! text-white">
-                  Visual references
-                </h4>
-                <p className="text-sm text-neutral-400">
-                  Client reference and your offer sample.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <PreviewImage
-                label="Client reference"
-                imageUrl={requestImageUrl}
-                emptyLabel="No client image"
-              />
-              <PreviewImage
-                label={isFlashRequest ? "Flash image" : "Offer sample"}
-                imageUrl={sampleImageUrl}
-                emptyLabel={
-                  isFlashRequest ? "No flash image" : "No sample included"
-                }
-              />
-            </div>
-          </div>
+          {step === 2 && (
+            <section className="space-y-4 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+              <SectionHeading icon={<MessageSquareText size={18} />} title="Optional note" description="Share preparation details, arrival instructions, or anything the client should know." />
+              <label className="block">
+                <span className="sr-only">Offer note</span>
+                <textarea value={offerMessage} onChange={(event) => setOfferMessage(event.target.value)} maxLength={1200} placeholder="Add an optional note…" className="min-h-40 w-full resize-y rounded-xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-white outline-none placeholder:text-neutral-600 focus:border-white/30" />
+                <span className="mt-2 block text-right text-xs text-neutral-600">{offerMessage.length}/1200</span>
+              </label>
+            </section>
+          )}
 
-          <div className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10 text-white">
-                <MessageSquareText size={19} />
-              </span>
-              <div>
-                <h4 className="text-lg! font-semibold! text-white">
-                  Message to client
-                </h4>
-                <p className="text-sm text-neutral-400">
-                  This message is included with the offer.
-                </p>
+          {step === 3 && (
+            <section className="space-y-4 rounded-xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+              <SectionHeading icon={<Check size={18} />} title="Review offer" description="Confirm the deposit and appointment choices before sending." />
+              <FlashSummary imageUrl={imageUrl} title={selectedRequest.flashTitle || "Untitled flash"} price={listedPrice} />
+              <div className="grid gap-2 sm:grid-cols-3">
+                <ReviewTile label="Deposit" value={`$${depositAmount.toFixed(2)}`} />
+                <ReviewTile label="At shop" value={`$${shopBalance.toFixed(2)}`} />
+                <ReviewTile label="Options" value={String(completedDateOptions.length)} />
               </div>
-            </div>
-            <p className="min-h-24 whitespace-pre-line rounded-md border border-white/10 bg-black/25 p-3 text-sm leading-6 text-neutral-300">
-              {message || "No message included."}
-            </p>
-          </div>
-        </aside>
-      </div>
-    </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Appointment choices</p>
+                <div className="space-y-2">
+                  {completedDateOptions.map((option, index) => (
+                    <p key={`${option.date}-${option.time}`} className="flex items-center gap-2 text-sm text-neutral-300"><Clock size={14} className="text-neutral-500" />Option {index + 1}: {formatDate(option.date)} at {option.time}</p>
+                  ))}
+                </div>
+              </div>
+              {offerMessage.trim() && <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-neutral-300">{offerMessage.trim()}</div>}
+              <p className="flex items-center gap-2 text-xs text-neutral-500"><MapPin size={14} /> Remaining balance is paid directly at the shop.</p>
+            </section>
+          )}
+        </div>
+
+        <footer className="grid shrink-0 grid-cols-3 gap-2 border-t border-white/10 bg-[#151515] p-3 sm:flex sm:justify-end sm:px-6">
+          <button type="button" onClick={close} className="rounded-lg border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-neutral-300 hover:bg-white/10">Cancel</button>
+          <button type="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(current - 1, 0))} className="rounded-lg border border-white/10 bg-white/[0.03] px-4! py-2.5! text-xs! font-semibold text-neutral-300 disabled:opacity-35">Back</button>
+          {step < OFFER_STEPS.length - 1 ? (
+            <button type="button" onClick={continueToNextStep} className="rounded-lg bg-white px-4! py-2.5! text-xs! font-semibold text-black hover:bg-neutral-200">Continue</button>
+          ) : (
+            <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4! py-2.5! text-xs! font-semibold text-black hover:bg-neutral-200 disabled:opacity-60">{isSubmitting ? "Sending…" : "Send offer"}<Send size={15} /></button>
+          )}
+        </footer>
+      </form>
+    </div>,
+    document.body
   );
 };
 
-const FlashOfferSummaryCard = ({
-  request,
-  previewUrl,
-}: {
-  request: BookingRequest;
-  previewUrl: string;
-}) => (
-  <div className="relative isolate mx-auto w-full max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#151515] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,0.34)]">
-    <div
-      className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
-      aria-hidden="true"
-    />
-    <span
-      className="spotlight-border-glint spotlight-border-glint--left"
-      aria-hidden="true"
-    />
-    <span
-      className="spotlight-border-glint spotlight-border-glint--right"
-      aria-hidden="true"
-    />
-    <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black">
-      {previewUrl ? (
-        <Zoom>
-          <img
-            src={previewUrl}
-            alt={request.flashTitle || "Requested flash"}
-            className="h-full w-full object-cover"
-          />
-        </Zoom>
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-          <ImageIcon size={34} />
-          <span>No flash image</span>
-        </div>
-      )}
-      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/75 px-3! py-1.5! text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
-        Flash item
-      </span>
-    </div>
-    <div className="flex items-start justify-between gap-4 px-1 pt-4">
-      <h3 className="min-w-0 truncate text-lg! font-semibold! text-white">
-        {request.flashTitle || "Untitled flash"}
-      </h3>
-      <p className="shrink-0 text-base font-semibold text-white">
-        {typeof request.flashPrice === "number" && request.flashPrice > 0
-          ? formatMoneyFromCents(Math.round(request.flashPrice * 100))
-          : "No price"}
-      </p>
-    </div>
-    {request.flashDescription && (
-      <p className="px-1 pt-2 line-clamp-3 text-sm leading-6 text-neutral-400">
-        {request.flashDescription}
-      </p>
-    )}
+const SectionHeading = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <div className="flex items-start gap-3">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.07] text-[var(--color-primary)]">{icon}</span>
+    <div><h3 className="text-lg! font-semibold! text-white">{title}</h3><p className="mt-1 text-sm leading-6 text-neutral-400">{description}</p></div>
   </div>
 );
 
-const LockedPriceTile = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) => (
-  <div className="space-y-2">
-    <span className="text-sm font-medium text-neutral-200">{label}</span>
-    <div className="flex h-11 items-center rounded-md border border-white/10 bg-black/25 px-3 text-sm font-semibold text-white">
-      {value}
-    </div>
+const FlashSummary = ({ imageUrl, title, price }: { imageUrl: string; title: string; price: number }) => (
+  <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+    <div className="flex h-[72px] items-center justify-center overflow-hidden rounded-lg bg-black"><img src={imageUrl} alt="" className="h-full w-full object-contain" /></div>
+    <div className="min-w-0"><p className="truncate font-semibold text-white">{title}</p><p className="mt-1 text-sm text-neutral-400">Published price</p><p className="text-lg font-semibold text-white">${price.toFixed(2)}</p></div>
   </div>
 );
 
-const MoneyInput = ({
-  label,
-  value,
-  onChange,
-  required,
-  actionLabel,
-  onAction,
-}: {
-  label: string;
-  value: string | number;
-  onChange: (value: string) => void;
-  required?: boolean;
-  actionLabel?: string;
-  onAction?: () => void;
-}) => (
-  <div className="space-y-2">
-    <span className="text-sm font-medium text-neutral-200">{label}</span>
-    <div
-      className={
-        actionLabel
-          ? "grid grid-cols-[minmax(0,1fr)_auto] gap-2"
-          : undefined
-      }
-    >
-      <label className="relative min-w-0">
-        <span className="sr-only">{label}</span>
-        <DollarSign
-          size={16}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-        />
-        <input
-          type="number"
-          min="0"
-          required={required}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-11 w-full min-w-0 rounded-md border border-white/10 bg-[#101010] pl-9 pr-3 text-sm text-white outline-none transition focus:border-[var(--color-primary)]"
-          placeholder="0"
-        />
-      </label>
-      {actionLabel && onAction && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="h-11 shrink-0 rounded-md border border-white/15 bg-white/[0.055] px-3! text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-200 transition hover:border-white/30 hover:bg-white/[0.09] hover:text-white"
-        >
-          {actionLabel}
-        </button>
-      )}
-    </div>
-  </div>
+const ReviewTile = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{label}</p><p className="mt-1 font-semibold text-white">{value}</p></div>
 );
 
-const ClientRequestImageCard = ({
-  imageUrl,
-  emptyLabel,
-}: {
-  imageUrl: string;
-  emptyLabel: string;
-}) => (
-  <div className="overflow-hidden rounded-lg border border-white/10 bg-black">
-    {imageUrl ? (
-      <img
-        src={imageUrl}
-        alt="Client request reference"
-        className="h-64 w-full object-cover"
-      />
-    ) : (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-        <ImageIcon size={28} />
-        <span className="text-sm">{emptyLabel}</span>
-      </div>
-    )}
-  </div>
-);
-
-const ClientRequestSummaryCard = ({ request }: { request: BookingRequest }) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-    <div className="flex items-center gap-3">
-      <img
-        src={request.clientAvatar || "/default-avatar.png"}
-        alt={request.clientName}
-        className="h-11 w-11 rounded-full border border-white/10 object-cover"
-      />
-      <div>
-        <p className="font-semibold text-white">{request.clientName}</p>
-        <p className="text-sm text-neutral-500">Client request</p>
-      </div>
-    </div>
-
-    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-      <SummaryRow
-        icon={<MapPin size={15} />}
-        label="Placement"
-        value={request.bodyPlacement || "Not specified"}
-      />
-      <SummaryRow
-        icon={<Ruler size={15} />}
-        label="Size"
-        value={request.size || "Not specified"}
-      />
-    </div>
-
-    <p className="mt-4 line-clamp-5 text-sm leading-6 text-neutral-300">
-      {request.description || "No description provided."}
-    </p>
-  </div>
-);
-
-const ClientTimingWindowCard = ({ request }: { request: BookingRequest }) => {
-  const days = request.availableDays || [];
-
-  return (
-    <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.055] p-4 shadow-[0_18px_40px_rgba(16,185,129,0.08)]">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-300/10 text-emerald-100">
-          <CalendarDays size={18} />
-        </span>
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-emerald-100/60">
-            Client timing
-          </p>
-          <h3 className="mt-1 text-lg! font-semibold! text-white">
-            Ideal appointment window
-          </h3>
-          <p className="mt-1 text-sm leading-6 text-neutral-400">
-            Use these preferences when choosing the appointment options.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-2">
-        <TimingInfoTile
-          icon={<CalendarDays size={15} />}
-          label="Date window"
-          value={formatOfferDateRange(request.preferredDateRange || [])}
-        />
-        <TimingInfoTile
-          icon={<Clock size={15} />}
-          label="Preferred time"
-          value={formatOfferTimeWindow(request.availableTime)}
-        />
-      </div>
-
-      <div className="mt-4 rounded-md border border-white/10 bg-black/20 p-3">
-        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-          <CheckCircle2 size={15} />
-          Days that usually work
-        </div>
-        {days.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {getSortedAvailableDays(days).map((day) => (
-              <span
-                key={day}
-                className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-50"
-              >
-                {formatOfferDay(day)}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm font-medium text-white">Flexible days</p>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const TimingInfoTile = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <div className="rounded-md border border-white/10 bg-black/20 p-3">
-    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
-    </div>
-    <p className="text-sm font-semibold text-white">{value}</p>
-  </div>
-);
-
-const SummaryRow = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <div className="rounded-md border border-white/10 bg-black/25 p-3">
-    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
-    </div>
-    <p className="text-sm font-medium text-white">{value}</p>
-  </div>
-);
-
-const ReceiptLine = ({
-  label,
-  value,
-  note,
-  total,
-  emphasis,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-  total?: boolean;
-  emphasis?: boolean;
-}) => (
-  <div
-    className={`flex items-start justify-between gap-4 px-4 py-3 ${
-      total ? "bg-emerald-300/10" : ""
-    }`}
-  >
-    <div className="min-w-0">
-      <p
-        className={`text-sm ${
-          total || emphasis ? "font-semibold text-white" : "text-neutral-300"
-        }`}
-      >
-        {label}
-      </p>
-      {note && <p className="mt-1 text-xs leading-5 text-neutral-500">{note}</p>}
-    </div>
-    <p
-      className={`shrink-0 text-right ${
-        total
-          ? "text-lg font-semibold text-emerald-50"
-          : emphasis
-          ? "font-semibold text-white"
-          : "font-medium text-white"
-      }`}
-    >
-      {value}
-    </p>
-  </div>
-);
-
-const PreviewTile = ({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "strong";
-}) => (
-  <div
-    className={`min-w-0 rounded-md border p-3 ${
-      tone === "strong"
-        ? "border-emerald-300/25 bg-emerald-300/10"
-        : "border-white/10 bg-black/25"
-    }`}
-  >
-    <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-      {label}
-    </p>
-    <p className="mt-1 break-words text-lg font-semibold text-white">{value}</p>
-  </div>
-);
-
-const PreviewImage = ({
-  label,
-  imageUrl,
-  emptyLabel,
-}: {
-  label: string;
-  imageUrl: string;
-  emptyLabel: string;
-}) => (
-  <div className="overflow-hidden rounded-md border border-white/10 bg-black/25">
-    <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-      <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-        {label}
-      </p>
-    </div>
-    {imageUrl ? (
-      <img src={imageUrl} alt={label} className="h-48 w-full object-cover" />
-    ) : (
-      <div className="flex h-48 flex-col items-center justify-center gap-2 text-neutral-500">
-        <ImageIcon size={24} />
-        <span className="text-sm">{emptyLabel}</span>
-      </div>
-    )}
-  </div>
-);
-
-const formatOfferPreviewAppointment = (option: {
-  date: string;
-  time: string;
-}) => {
-  const [year, month, day] = option.date.split("-").map(Number);
-  const [hours, minutes] = option.time.split(":").map(Number);
-  const date = new Date(year, month - 1, day, hours, minutes);
-
-  if (Number.isNaN(date.getTime())) {
-    return `${option.date} at ${option.time}`;
-  }
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
-const PlanMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2.5">
-    <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-      {label}
-    </p>
-    <p className="mt-1 text-sm font-semibold text-white">{value}</p>
-  </div>
-);
-
-const formatOfferDateRange = (dates: string[]) => {
-  const [start, end] = dates;
-
-  if (start && end) {
-    return `${formatOfferDate(start)} - ${formatOfferDate(end)}`;
-  }
-
-  if (start) return `Starting ${formatOfferDate(start)}`;
-  if (end) return `By ${formatOfferDate(end)}`;
-  return "Flexible dates";
-};
-
-const formatOfferDate = (dateValue: string) => {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-
-  if (Number.isNaN(date.getTime())) return dateValue;
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-const formatOfferTimeWindow = (
-  availableTime?: BookingRequest["availableTime"]
-) => {
-  const from = availableTime?.from;
-  const to = availableTime?.to;
-
-  if (from && to) return `${formatOfferTime(from)} - ${formatOfferTime(to)}`;
-  if (from) return `${formatOfferTime(from)} - Any time`;
-  if (to) return `Any time - ${formatOfferTime(to)}`;
-  return "Flexible time";
-};
-
-const formatOfferTime = (time: string) => {
-  const [rawHour, rawMinute] = time.split(":").map(Number);
-
-  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return time;
-
-  const suffix = rawHour >= 12 ? "PM" : "AM";
-  const hour = rawHour % 12 || 12;
-  const minute = String(rawMinute).padStart(2, "0");
-  return `${hour}:${minute} ${suffix}`;
-};
-
-const getSortedAvailableDays = (days: string[]) => {
-  const dayOrder = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
-
-  return [...days].sort((a, b) => {
-    const aIndex = dayOrder.indexOf(a);
-    const bIndex = dayOrder.indexOf(b);
-
-    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
-  });
-};
-
-const formatOfferDay = (day: string) => {
-  const abbreviations: Record<string, string> = {
-    Sunday: "Sun",
-    Monday: "Mon",
-    Tuesday: "Tue",
-    Wednesday: "Wed",
-    Thursday: "Thu",
-    Friday: "Fri",
-    Saturday: "Sat",
-  };
-
-  return abbreviations[day] || day;
+const formatDate = (value: string) => {
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
 };
 
 export default MakeOfferModal;

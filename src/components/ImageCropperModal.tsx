@@ -11,6 +11,7 @@ type Props = {
   outputSize?: number;
   title?: string;
   description?: string;
+  saveLabel?: string;
   onCancel: () => void;
   onSave: (croppedFile: File) => void;
 };
@@ -71,6 +72,7 @@ const ImageCropperModal: React.FC<Props> = ({
   outputSize,
   title = "Position your photo",
   description = "Drag to frame the image, then zoom until it feels right.",
+  saveLabel = "Use photo",
   onCancel,
   onSave,
 }) => {
@@ -78,6 +80,7 @@ const ImageCropperModal: React.FC<Props> = ({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const isSquareCrop = Math.abs(aspect - 1) < 0.01;
+  const isPortraitCrop = aspect < 0.99;
 
   useEffect(() => {
     const { body } = document;
@@ -141,9 +144,18 @@ const ImageCropperModal: React.FC<Props> = ({
           <div className="shrink-0 bg-black">
             <div
               className={`relative mx-auto w-full ${
-                isSquareCrop ? "max-w-[34rem]" : "max-w-[45rem]"
+                isSquareCrop
+                  ? "max-w-[34rem]"
+                  : isPortraitCrop
+                    ? "max-w-[34rem]"
+                    : "max-w-[45rem]"
               }`}
-              style={{ aspectRatio: String(aspect) }}
+              style={{
+                aspectRatio: String(aspect),
+                ...(isPortraitCrop
+                  ? { maxWidth: "min(34rem, 55dvh)" }
+                  : {}),
+              }}
             >
               <Cropper
                 image={imageSrc}
@@ -190,7 +202,7 @@ const ImageCropperModal: React.FC<Props> = ({
                 className="modal-action-button inline-flex items-center justify-center gap-2 rounded-lg! bg-white px-3! py-2! text-xs! font-semibold text-[#0b0b0b]! transition hover:bg-white/85"
               >
                 <Check size={16} className="text-[#0b0b0b]!" aria-hidden="true" />
-                Use photo
+                {saveLabel}
               </button>
             </div>
           </div>

@@ -9,7 +9,7 @@ export async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<
     try {
       image = await createImage(imageSrc);
       break;
-    } catch (err) {
+    } catch {
       console.warn(`Retrying to load image... (${i + 1}/5)`);
       await new Promise((res) => setTimeout(res, 1000));
     }

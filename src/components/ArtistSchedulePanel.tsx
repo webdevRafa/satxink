@@ -101,15 +101,7 @@ const getDurationMinutes = (booking: Booking) => {
 
 const getAppointmentTitle = (booking: Booking) => {
   if (booking.flashTitle?.trim()) return booking.flashTitle.trim();
-  if (booking.sourceType === "flash") return "Flash appointment";
-  if (booking.projectType === "multi_session") {
-    const sessionNumber = booking.activeSessionNumber || 1;
-    const sessionCount = booking.estimatedSessionCount;
-    return sessionCount
-      ? `Project session ${sessionNumber} of ${sessionCount}`
-      : `Project session ${sessionNumber}`;
-  }
-  return "Custom appointment";
+  return "Flash appointment";
 };
 
 const getStatusPresentation = (booking: Booking) => {
@@ -441,7 +433,7 @@ const ArtistSchedulePanel = ({
                 Schedule
               </h1>
               <p className="mt-0.5 text-xs leading-5 text-neutral-400 sm:text-sm">
-                Weekly appointments and project sessions.
+                Weekly flash appointments at a glance.
               </p>
             </div>
           </div>

@@ -1,6 +1,5 @@
 import {
   type CSSProperties,
-  type FormEvent,
   type TouchEvent,
   useCallback,
   useEffect,
@@ -8,18 +7,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  addDoc,
   arrayRemove,
   arrayUnion,
   collection,
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   query,
-  serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -39,47 +37,40 @@ import {
   ImageOff,
   Layers,
   MapPin,
-  MessageCircle,
-  Send,
   X,
 } from "lucide-react";
 import type { GalleryItem } from "../types/GalleryItem";
 import type { FlashSheet } from "../types/FlashSheet";
+import {
+  getFlashSheetFullUrl,
+  getFlashSheetPreviewUrl,
+} from "../utils/flashSheetImage";
 import type { Flash } from "../types/Flash";
 import {
   isStripeConnectReady,
   type StripeConnectLike,
 } from "../utils/stripeConnect";
-import {
-  getFlashAvailabilityStatus,
-  getFlashRepeatability,
-  isFlashAvailableForClients,
-} from "../utils/flashAvailability";
+import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
   FlashPreviewImage,
   FlashPreviewMeta,
 } from "../components/FlashPreviewCard";
 import { flashPreviewCardClassName } from "../utils/flashPreview";
-import RequestTattooModal from "../components/RequestTattooModal";
-import CustomSelect from "../components/ui/CustomSelect";
-import QuarterHourTimeSelect from "../components/ui/QuarterHourTimeSelect";
-import { bodyPlacementOptions } from "../utils/tattooOptions";
-import {
-  getTodayDateInputValue,
-  hasPastDateInputValue,
-  isDateRangeBackwards,
-} from "../utils/dateInputGuards";
 import { getClientNameParts } from "../utils/clientDisplayName";
+import FlashRequestModal from "../components/FlashRequestModal";
 import {
   getBookingAvailabilityLabel,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
-
-const flashSizeOptions = [
-  { value: "Small", label: "Small" },
-  { value: "Medium", label: "Medium" },
-  { value: "Large", label: "Large" },
-];
+import {
+  getArtistProfilePath,
+  normalizeArtistSlug,
+} from "../utils/artistProfilePath";
+import {
+  GALLERY_PROFILE_CARD_SIZES,
+  getGalleryPreviewSrcSet,
+  getGalleryPreviewUrl,
+} from "../utils/galleryImage";
 
 const profileBackdropMediaQuery = "(min-width: 768px)";
 
@@ -87,6 +78,7 @@ interface Artist {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   email: string;
   bio: string;
   avatarUrl: string;
@@ -129,7 +121,12 @@ const PORTFOLIO_FADE_PHASE_GAP_MS = 40;
 const PORTFOLIO_FADE_SETTLE_BUFFER_MS = 48;
 
 export const ArtistProfilePage = () => {
-  const { id } = useParams();
+  const { id: routeArtistId, artistSlug } = useParams<{
+    id?: string;
+    artistSlug?: string;
+  }>();
+  const navigate = useNavigate();
+  const [artistId, setArtistId] = useState<string | null>(null);
   const [artist, setArtist] = useState<StripeReadyArtist | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
   const [client, setClient] = useState<ClientProfile | null>(null);
@@ -143,17 +140,13 @@ export const ArtistProfilePage = () => {
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<FlashSheet | null>(null);
   const [selectedFlash, setSelectedFlash] = useState<Flash | null>(null);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isFollowUpdating, setIsFollowUpdating] = useState(false);
   const [modalLoading, setModalLoading] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [isRequestTransitioning, setIsRequestTransitioning] = useState(false);
   const [showProfileBackdrop, setShowProfileBackdrop] = useState(() =>
     canShowProfileBackdrop()
   );
-  const requestFlowTopRef = useRef<HTMLDivElement | null>(null);
   const flashSectionRef = useRef<HTMLElement | null>(null);
-  const requestOpenTimerRef = useRef<number | null>(null);
   const [shouldPromptForFlash, setShouldPromptForFlash] = useState(false);
 
   useEffect(() => {
@@ -207,12 +200,38 @@ export const ArtistProfilePage = () => {
 
   useEffect(() => {
     const fetchArtist = async () => {
+      setLoading(true);
+      setArtist(null);
+      setArtistId(null);
+      setShop(null);
+
       try {
-        const ref = doc(db, "users", id as string);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
+        const snap = routeArtistId
+          ? await getDoc(doc(db, "users", routeArtistId))
+          : (
+              await getDocs(
+                query(
+                  collection(db, "users"),
+                  where("role", "==", "artist"),
+                  where("slug", "==", normalizeArtistSlug(artistSlug)),
+                  limit(2)
+                )
+              )
+            ).docs[0];
+
+        if (snap?.exists()) {
           const artistData = snap.data() as Omit<StripeReadyArtist, "id">;
-          setArtist({ id: snap.id, ...artistData });
+          const resolvedArtist = { id: snap.id, ...artistData };
+          setArtist(resolvedArtist);
+          setArtistId(snap.id);
+
+          const canonicalPath = getArtistProfilePath(resolvedArtist);
+          const currentRoutePath = routeArtistId
+            ? `/artists/${routeArtistId}`
+            : `/${normalizeArtistSlug(artistSlug)}`;
+          if (canonicalPath !== currentRoutePath) {
+            navigate(canonicalPath, { replace: true });
+          }
 
           if (artistData.shopId) {
             const shopRef = doc(db, "shops", artistData.shopId);
@@ -233,16 +252,13 @@ export const ArtistProfilePage = () => {
       }
     };
 
-    fetchArtist();
-  }, [id]);
+    void fetchArtist();
+  }, [artistSlug, navigate, routeArtistId]);
 
   useEffect(() => {
-    return () => {
-      if (requestOpenTimerRef.current !== null) {
-        window.clearTimeout(requestOpenTimerRef.current);
-      }
-    };
-  }, []);
+    if (!artist) return;
+    document.title = `${getArtistDisplayName(artist)} | SATX Ink`;
+  }, [artist]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(profileBackdropMediaQuery);
@@ -257,12 +273,12 @@ export const ArtistProfilePage = () => {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
+    if (!artistId) return;
 
     setGalleryLoading(true);
     const galleryQuery = query(
       collection(db, "gallery"),
-      where("artistId", "==", id)
+      where("artistId", "==", artistId)
     );
     const unsubscribe = onSnapshot(
       galleryQuery,
@@ -270,8 +286,7 @@ export const ArtistProfilePage = () => {
         const items = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() } as GalleryItem))
           .filter(
-            (item) =>
-              item.status !== "processing" && item.status !== "failed"
+            (item) => item.status !== "processing" && item.status !== "failed"
           )
           .sort((a, b) => getItemTime(b) - getItemTime(a));
 
@@ -285,17 +300,18 @@ export const ArtistProfilePage = () => {
     );
 
     return () => unsubscribe();
-  }, [id]);
+  }, [artistId]);
 
   useEffect(() => {
     const fetchFlashSheets = async () => {
-      if (!id) return;
+      if (!artistId) return;
 
       setFlashSheetsLoading(true);
       try {
         const sheetsQuery = query(
           collection(db, "flashSheets"),
-          where("artistId", "==", id)
+          where("artistId", "==", artistId),
+          where("marketplaceReady", "==", true)
         );
         const snapshot = await getDocs(sheetsQuery);
         const sheets = snapshot.docs
@@ -312,18 +328,19 @@ export const ArtistProfilePage = () => {
     };
 
     fetchFlashSheets();
-  }, [id, artist]);
+  }, [artistId, artist]);
 
   useEffect(() => {
     const fetchSheetFlashes = async () => {
-      if (!focusedSheet || !id) return;
+      if (!focusedSheet || !artistId) return;
 
       setSheetFlashesLoading(true);
       try {
         const flashesQuery = query(
           collection(db, "flashes"),
-          where("artistId", "==", id),
-          where("sheetId", "==", focusedSheet.id)
+          where("artistId", "==", artistId),
+          where("sheetId", "==", focusedSheet.id),
+          where("marketplaceReady", "==", true)
         );
         const snapshot = await getDocs(flashesQuery);
         const flashes = snapshot.docs
@@ -341,17 +358,13 @@ export const ArtistProfilePage = () => {
     };
 
     fetchSheetFlashes();
-  }, [focusedSheet, id, artist]);
+  }, [focusedSheet, artistId, artist]);
 
   const updateFlashCueVisibility = useCallback(() => {
     const section = flashSectionRef.current;
     const hasFlashSheets = !flashSheetsLoading && flashSheets.length > 0;
     const hasOverlayOpen = Boolean(
-      selectedItem ||
-        selectedSheet ||
-        selectedFlash ||
-        isRequestModalOpen ||
-        isRequestTransitioning
+      selectedItem || selectedSheet || selectedFlash
     );
     const isDesktop =
       typeof window !== "undefined" &&
@@ -370,8 +383,6 @@ export const ArtistProfilePage = () => {
   }, [
     flashSheets.length,
     flashSheetsLoading,
-    isRequestModalOpen,
-    isRequestTransitioning,
     selectedFlash,
     selectedItem,
     selectedSheet,
@@ -502,46 +513,6 @@ export const ArtistProfilePage = () => {
     });
   };
 
-  const handleRequestTattoo = () => {
-    if (!client) {
-      toast.error("Please sign in as a client before requesting a tattoo.");
-      return;
-    }
-
-    if (requestOpenTimerRef.current !== null) {
-      window.clearTimeout(requestOpenTimerRef.current);
-    }
-
-    const shouldOpenImmediately =
-      isCompactProfileViewport() || prefersReducedProfileMotion();
-
-    if (shouldOpenImmediately) {
-      setIsRequestTransitioning(false);
-      setIsRequestModalOpen(true);
-      scrollRequestFlowIntoView(requestFlowTopRef, "auto");
-      return;
-    }
-
-    setIsRequestTransitioning(true);
-    requestOpenTimerRef.current = window.setTimeout(() => {
-      setIsRequestModalOpen(true);
-      setIsRequestTransitioning(false);
-      requestOpenTimerRef.current = null;
-
-      scrollRequestFlowIntoView(requestFlowTopRef, "smooth");
-    }, 180);
-  };
-
-  const handleCloseRequestFlow = () => {
-    if (requestOpenTimerRef.current !== null) {
-      window.clearTimeout(requestOpenTimerRef.current);
-      requestOpenTimerRef.current = null;
-    }
-
-    setIsRequestTransitioning(false);
-    setIsRequestModalOpen(false);
-  };
-
   const handleToggleFollow = async () => {
     if (!artist) return;
 
@@ -627,16 +598,11 @@ export const ArtistProfilePage = () => {
   );
   const socialLinks = getArtistSocialLinks(artist);
   const profileBackdropUrl = getProfileBackdropUrl(galleryItems[0]);
-  const isRequestFlowActive = isRequestModalOpen || isRequestTransitioning;
   const flashSheetCountLabel = `${flashSheets.length} sheet${
     flashSheets.length === 1 ? "" : "s"
   }`;
   const shouldShowFlashCue =
-    shouldPromptForFlash &&
-    !isRequestFlowActive &&
-    !selectedItem &&
-    !selectedSheet &&
-    !selectedFlash;
+    shouldPromptForFlash && !selectedItem && !selectedSheet && !selectedFlash;
 
   return (
     <div className="relative isolate mx-auto mt-20 min-h-[80vh] max-w-6xl px-4 py-10">
@@ -653,7 +619,7 @@ export const ArtistProfilePage = () => {
       )}
 
       <div className="relative z-10">
-        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-md sm:p-5 lg:mb-10">
+        <div className="relative isolate mx-auto mb-8 w-full overflow-hidden rounded-lg  p-4 shadow-[0_24px_70px_rgba(0,0,0,0.34)]  sm:p-5 lg:mb-10">
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
           <div className="relative z-10 grid gap-5 lg:min-h-[152px] lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-center">
@@ -733,101 +699,73 @@ export const ArtistProfilePage = () => {
               </div>
             </div>
 
-            <div
-              className={`w-full transition-all duration-300 ease-out lg:justify-self-end ${
-                isRequestFlowActive
-                  ? "pointer-events-none -translate-y-2 opacity-0 sm:blur-sm"
-                  : "translate-y-0 opacity-100 blur-0"
-              }`}
-              aria-hidden={isRequestFlowActive}
-            >
+            <div className="w-full transition-all duration-300 ease-out lg:justify-self-end">
               <ArtistHeaderActionCard
                 isFollowingArtist={isFollowingArtist}
                 isFollowUpdating={isFollowUpdating}
-                isDisabled={isRequestFlowActive}
-                onRequestTattoo={handleRequestTattoo}
+                hasFlash={flashSheets.length > 0}
+                onBrowseFlash={handleViewFlashCue}
                 onToggleFollow={handleToggleFollow}
               />
             </div>
           </div>
         </div>
 
-        <div
-          ref={requestFlowTopRef}
-          className="mt-6 scroll-mt-24 pb-60 lg:mt-8"
-        >
-          {isRequestModalOpen && client ? (
-            <RequestTattooModal
-              isOpen={isRequestModalOpen}
-              onClose={handleCloseRequestFlow}
-              client={client}
-              artist={{
-                id: artist.id,
-                name: artistDisplayName,
-                avatarUrl: artist.avatarUrl,
-                studioName: artistShopName,
-              }}
-            />
-          ) : (
-            <div
-              className={`satx-profile-work-shell ${
-                isRequestTransitioning ? "satx-profile-work-shell--exiting" : ""
-              }`}
+        <div className="mt-6 scroll-mt-24 pb-60 lg:mt-8">
+          <div className="satx-profile-work-shell">
+            <section aria-label="Artist portfolio">
+              <PortfolioPanel
+                galleryItems={featuredGalleryItems}
+                galleryLoading={galleryLoading}
+                onOpenItem={openPortfolioItem}
+              />
+            </section>
+
+            <section
+              ref={flashSectionRef}
+              aria-labelledby="artist-flash-heading"
+              className="mt-10 border-t border-white/10 pt-8"
             >
-              <section aria-label="Artist portfolio">
-                <PortfolioPanel
-                  galleryItems={featuredGalleryItems}
-                  galleryLoading={galleryLoading}
-                  onOpenItem={openPortfolioItem}
-                />
-              </section>
-
-              <section
-                ref={flashSectionRef}
-                aria-labelledby="artist-flash-heading"
-                className="mt-10 border-t border-white/10 pt-8"
+              <div
+                data-aos="fade-up"
+                className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
               >
-                <div
-                  data-aos="fade-up"
-                  className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+                <h2
+                  id="artist-flash-heading"
+                  className="my-0! text-2xl! font-semibold! text-white"
                 >
-                  <h2
-                    id="artist-flash-heading"
-                    className="my-0! text-2xl! font-semibold! text-white"
-                  >
-                    Flash Sheets
-                  </h2>
-                  {!flashSheetsLoading && flashSheets.length > 0 && (
-                    <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
-                      <Layers size={15} />
-                      {flashSheets.length} sheet
-                      {flashSheets.length === 1 ? "" : "s"}
-                    </span>
-                  )}
-                </div>
-                <FlashSheetsPanel
-                  flashSheets={flashSheets}
-                  flashSheetsLoading={flashSheetsLoading}
-                  focusedSheetId={focusedSheet?.id}
-                  onOpenSheet={handleSelectSheet}
-                />
-              </section>
+                  Flash Sheets
+                </h2>
+                {!flashSheetsLoading && flashSheets.length > 0 && (
+                  <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-sm text-white/70 sm:self-auto">
+                    <Layers size={15} />
+                    {flashSheets.length} sheet
+                    {flashSheets.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <FlashSheetsPanel
+                flashSheets={flashSheets}
+                flashSheetsLoading={flashSheetsLoading}
+                focusedSheetId={focusedSheet?.id}
+                onOpenSheet={handleSelectSheet}
+              />
+            </section>
 
-              {focusedSheet && (
-                <FlashSheetItemsSection
-                  sheet={focusedSheet}
-                  flashes={sheetFlashes}
-                  loading={sheetFlashesLoading}
-                  onClose={() => {
-                    setFocusedSheet(null);
-                    setSheetFlashes([]);
-                  }}
-                  onPreviewSheet={() => setSelectedSheet(focusedSheet)}
-                  onSelectFlash={setSelectedFlash}
-                />
-              )}
-            </div>
-          )}
+            {focusedSheet && (
+              <FlashSheetItemsSection
+                sheet={focusedSheet}
+                flashes={sheetFlashes}
+                loading={sheetFlashesLoading}
+                onClose={() => {
+                  setFocusedSheet(null);
+                  setSheetFlashes([]);
+                }}
+                onPreviewSheet={() => setSelectedSheet(focusedSheet)}
+                onSelectFlash={setSelectedFlash}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -931,31 +869,35 @@ const ArtistProfilePageSkeleton = () => (
 const ArtistHeaderActionCard = ({
   isFollowingArtist,
   isFollowUpdating,
-  isDisabled = false,
-  onRequestTattoo,
+  hasFlash,
+  onBrowseFlash,
   onToggleFollow,
 }: {
   isFollowingArtist: boolean;
   isFollowUpdating: boolean;
-  isDisabled?: boolean;
-  onRequestTattoo: () => void;
+  hasFlash: boolean;
+  onBrowseFlash: () => void;
   onToggleFollow: () => void;
 }) => (
-  <div className="grid w-full grid-cols-2 gap-2 lg:w-[380px]">
-    <button
-      type="button"
-      onClick={onRequestTattoo}
-      disabled={isDisabled}
-      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.7rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
-    >
-      <MessageCircle size={16} />
-      <span className="sm:hidden">Send idea</span>
-      <span className="hidden sm:inline">Send your idea</span>
-    </button>
+  <div
+    className={`grid w-full gap-2 lg:w-[380px] ${
+      hasFlash ? "grid-cols-2" : "grid-cols-1"
+    }`}
+  >
+    {hasFlash && (
+      <button
+        type="button"
+        onClick={onBrowseFlash}
+        className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.075] px-2 py-2.5 text-[0.7rem]! font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-white/20 hover:bg-white/[0.12] sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm!"
+      >
+        <Layers size={16} />
+        Browse flash
+      </button>
+    )}
     <button
       type="button"
       onClick={onToggleFollow}
-      disabled={isDisabled || isFollowUpdating}
+      disabled={isFollowUpdating}
       className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border px-2 py-2.5 text-[0.7rem]! font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:gap-2 sm:px-4 sm:text-sm! ${
         isFollowingArtist
           ? "border-[#19d69b]/45 bg-[#19d69b]/12 text-white hover:bg-[#19d69b]/18"
@@ -1000,9 +942,6 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   return typeof timestamp === "number" ? timestamp : 0;
 };
 
-const getCardPreviewUrl = (item: GalleryItem) =>
-  item.thumbUrl || item.webp90Url || item.fullUrl || "";
-
 const getProfileBackdropUrl = (item?: GalleryItem) =>
   item?.thumbUrl || item?.webp90Url || "";
 
@@ -1010,25 +949,9 @@ const canShowProfileBackdrop = () =>
   typeof window !== "undefined" &&
   window.matchMedia(profileBackdropMediaQuery).matches;
 
-const isCompactProfileViewport = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(max-width: 767px)").matches;
-
 const prefersReducedProfileMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-const scrollRequestFlowIntoView = (
-  targetRef: { current: HTMLDivElement | null },
-  behavior: ScrollBehavior
-) => {
-  window.requestAnimationFrame(() => {
-    targetRef.current?.scrollIntoView({
-      behavior,
-      block: "start",
-    });
-  });
-};
 
 const getLightboxPreviewUrl = (item: GalleryItem) =>
   item.webp90Url ||
@@ -1038,7 +961,11 @@ const getLightboxPreviewUrl = (item: GalleryItem) =>
   "";
 
 const getPortfolioLightboxUrl = (item: GalleryItem) =>
-  item.originalWebp90Url || item.fullUrl || item.webp90Url || item.thumbUrl || "";
+  item.originalWebp90Url ||
+  item.fullUrl ||
+  item.webp90Url ||
+  item.thumbUrl ||
+  "";
 
 const MIN_LIGHTBOX_IMAGE_SCALE = 1;
 const MAX_LIGHTBOX_IMAGE_SCALE = 3.2;
@@ -1079,8 +1006,7 @@ const clampNumber = (value: number, min: number, max: number) =>
 const getTouchDistance = (
   first: LightboxTouchPoint,
   second: LightboxTouchPoint
-) =>
-  Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 
 const getTouchCenter = (
   first: LightboxTouchPoint,
@@ -1089,12 +1015,6 @@ const getTouchCenter = (
   x: (first.clientX + second.clientX) / 2,
   y: (first.clientY + second.clientY) / 2,
 });
-
-const getSheetPreviewUrl = (sheet: FlashSheet) =>
-  sheet.thumbUrl || sheet.imageUrl;
-
-const getFlashPreviewUrl = (flash: Flash) =>
-  flash.webp90Url || flash.thumbUrl || flash.fullUrl;
 
 const getArtistDisplayName = (artist: Artist) =>
   artist.displayName || artist.name || "Artist";
@@ -1199,7 +1119,9 @@ const PortfolioPanel = ({
   }, [pageCount]);
 
   useEffect(() => {
-    galleryItems.forEach((item) => preloadImage(getCardPreviewUrl(item)));
+    galleryItems.forEach((item) =>
+      preloadImage(item.thumbUrl || getGalleryPreviewUrl(item))
+    );
   }, [galleryItems]);
 
   const updateMobileActiveIndex = useCallback(() => {
@@ -1562,7 +1484,9 @@ const FlashSheetsPanel = ({
   }, [pageCount]);
 
   useEffect(() => {
-    flashSheets.forEach((sheet) => preloadImage(getSheetPreviewUrl(sheet)));
+    flashSheets.forEach((sheet) =>
+      preloadImage(getFlashSheetPreviewUrl(sheet))
+    );
   }, [flashSheets]);
 
   const updateActivePosition = useCallback(() => {
@@ -1878,7 +1802,9 @@ const PortfolioCard = ({
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
       <FadeInImage
-        src={getCardPreviewUrl(item)}
+        src={getGalleryPreviewUrl(item)}
+        srcSet={getGalleryPreviewSrcSet(item)}
+        sizes={GALLERY_PROFILE_CARD_SIZES}
         alt={item.caption || "Tattoo portfolio piece"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         loading={priority ? "eager" : "lazy"}
@@ -1936,7 +1862,7 @@ const FlashSheetCard = ({
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-black">
         <FadeInImage
-          src={getSheetPreviewUrl(sheet)}
+          src={getFlashSheetPreviewUrl(sheet)}
           alt={sheetTitle || "Flash sheet"}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           loading={priority ? "eager" : "lazy"}
@@ -1963,12 +1889,16 @@ const FadeInImage = ({
   className,
   loading = "lazy",
   disableFade = false,
+  srcSet,
+  sizes,
 }: {
   src: string;
   alt: string;
   className: string;
   loading?: "eager" | "lazy";
   disableFade?: boolean;
+  srcSet?: string;
+  sizes?: string;
 }) => {
   const [loaded, setLoaded] = useState(disableFade);
   const previousSrcRef = useRef(src);
@@ -1998,6 +1928,8 @@ const FadeInImage = ({
       )}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt={alt}
         className={`${className} ${isVisible ? "opacity-100" : "opacity-0"}`}
         loading={loading}
@@ -2036,7 +1968,7 @@ const FlashSheetItemsSection = ({
           className="group relative h-44 w-full overflow-hidden rounded-xl border border-white/10 bg-black p-0! sm:w-36"
         >
           <img
-            src={getSheetPreviewUrl(sheet)}
+            src={getFlashSheetPreviewUrl(sheet)}
             alt={sheet.title || "Selected flash sheet"}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
@@ -2200,7 +2132,7 @@ const FlashSheetLightbox = ({
 
       <img
         data-aos="zoom-out-up"
-        src={sheet.imageUrl}
+        src={getFlashSheetFullUrl(sheet)}
         alt={sheet.title || "Full flash sheet view"}
         className={`max-h-[72vh] max-w-full rounded-xl object-contain shadow-2xl transition-opacity duration-300 ${
           modalLoading ? "opacity-0" : "opacity-100"
@@ -2559,335 +2491,6 @@ const LightboxImageFrame = ({
           {loadingLabel}
         </div>
       )}
-    </div>
-  );
-};
-
-const FlashRequestModal = ({
-  flash,
-  artist,
-  client,
-  onClose,
-}: {
-  flash: Flash;
-  artist: Artist;
-  client: ClientProfile | null;
-  onClose: () => void;
-}) => {
-  const [description, setDescription] = useState(
-    `I would like to request this flash design: ${
-      flash.title || "Untitled flash"
-    }.`
-  );
-  const [bodyPlacement, setBodyPlacement] = useState("");
-  const [size, setSize] = useState("");
-  const [preferredDateRange, setPreferredDateRange] = useState(["", ""]);
-  const [availableTime, setAvailableTime] = useState({ from: "", to: "" });
-  const [availableDays, setAvailableDays] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const todayDateInput = getTodayDateInputValue();
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!client) {
-      toast.error("Please sign in as a client before requesting this flash.");
-      return;
-    }
-
-    if (!bodyPlacement || !size) {
-      toast.error("Please add placement and size.");
-      return;
-    }
-
-    if (hasPastDateInputValue(preferredDateRange, todayDateInput)) {
-      toast.error("Preferred dates must be today or later.");
-      return;
-    }
-
-    if (isDateRangeBackwards(preferredDateRange[0], preferredDateRange[1])) {
-      toast.error(
-        "Latest date must be the same day or after the earliest date."
-      );
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
-      const flashSnap = await getDoc(doc(db, "flashes", flash.id));
-      const latestFlash = flashSnap.exists()
-        ? ({ id: flashSnap.id, ...flashSnap.data() } as Flash)
-        : flash;
-
-      if (!isFlashAvailableForClients(latestFlash)) {
-        toast.error(
-          getFlashRepeatability(latestFlash) === "one_of_one"
-            ? "This one-of-one flash is no longer available."
-            : "This flash is no longer available."
-        );
-        return;
-      }
-
-      await addDoc(collection(db, "bookingRequests"), {
-        artistId: artist.id,
-        artistName: getArtistDisplayName(artist),
-        artistAvatar: artist.avatarUrl || "/default-avatar.png",
-        clientId: client.id,
-        clientFirstName: client.firstName || "",
-        clientLastName: client.lastName || "",
-        clientName: client.name,
-        clientAvatar: client.avatarUrl,
-        description,
-        bodyPlacement,
-        size,
-        preferredDateRange,
-        availableTime,
-        availableDays,
-        status: "pending",
-        createdAt: serverTimestamp(),
-
-        fullUrl:
-          latestFlash.fullUrl || latestFlash.webp90Url || latestFlash.thumbUrl,
-        thumbUrl:
-          latestFlash.thumbUrl || latestFlash.webp90Url || latestFlash.fullUrl,
-        sourceType: "flash",
-        flashId: latestFlash.id,
-        flashTitle: latestFlash.title || "Untitled flash",
-        flashDescription: latestFlash.description || null,
-        flashPrice: latestFlash.price ?? null,
-        flashSheetId: latestFlash.sheetId || null,
-        flashRepeatability: getFlashRepeatability(latestFlash),
-        flashAvailabilityStatus: getFlashAvailabilityStatus(latestFlash),
-        isFromSheet: latestFlash.isFromSheet,
-      });
-
-      toast.success("Flash request sent!");
-      onClose();
-    } catch (err) {
-      console.error("Failed to submit flash request:", err);
-      toast.error("Something went wrong while sending your request.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="request-modal-scrollbar max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/40">
-              Flash request
-            </p>
-            <h2 className="mt-1 text-xl! font-semibold! text-white">
-              {flash.title || "Untitled flash"}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 p-0! text-white transition hover:bg-white/20"
-            aria-label="Close flash request"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="grid grid-cols-1 gap-6 p-5 md:grid-cols-[0.9fr_1.1fr]"
-        >
-          <div>
-            <img
-              src={getFlashPreviewUrl(flash)}
-              alt={flash.title || "Selected flash"}
-              className="max-h-[420px] w-full rounded-xl border border-white/10 object-contain bg-black"
-            />
-            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex items-center gap-3">
-                <img
-                  src={artist.avatarUrl || "/default-avatar.png"}
-                  alt={getArtistDisplayName(artist)}
-                  className="h-10 w-10 rounded-full object-cover"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    {getArtistDisplayName(artist)}
-                  </p>
-                  {typeof flash.price === "number" && (
-                    <p className="text-sm text-white/55">
-                      Listed at ${flash.price}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {flash.description && (
-                <p className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3 text-sm leading-6 text-white/70">
-                  {flash.description}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {!client && (
-              <div className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
-                Sign in as a client to send this request.
-              </div>
-            )}
-
-            <label className="block">
-              <span className="mb-1 block text-sm text-white/70">Message</span>
-              <textarea
-                required
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="min-h-28 w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-              />
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  Body placement
-                </span>
-                <CustomSelect
-                  value={bodyPlacement}
-                  onChange={setBodyPlacement}
-                  options={bodyPlacementOptions}
-                  placeholder="Forearm, thigh, shoulder..."
-                  buttonClassName="rounded-xl"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">Size</span>
-                <CustomSelect
-                  value={size}
-                  onChange={setSize}
-                  options={flashSizeOptions}
-                  placeholder="Select size"
-                  buttonClassName="rounded-xl"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  Earliest date
-                </span>
-                <input
-                  type="date"
-                  min={todayDateInput}
-                  value={preferredDateRange[0]}
-                  onChange={(event) =>
-                    setPreferredDateRange([
-                      event.target.value,
-                      preferredDateRange[1],
-                    ])
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">
-                  Latest date
-                </span>
-                <input
-                  type="date"
-                  min={preferredDateRange[0] || todayDateInput}
-                  value={preferredDateRange[1]}
-                  onChange={(event) =>
-                    setPreferredDateRange([
-                      preferredDateRange[0],
-                      event.target.value,
-                    ])
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-white outline-none transition focus:border-white/35"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">From</span>
-                <QuarterHourTimeSelect
-                  value={availableTime.from}
-                  onChange={(value) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      from: value,
-                    }))
-                  }
-                  placeholder="Select time"
-                  buttonClassName="rounded-xl"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm text-white/70">To</span>
-                <QuarterHourTimeSelect
-                  value={availableTime.to}
-                  onChange={(value) =>
-                    setAvailableTime((prev) => ({
-                      ...prev,
-                      to: value,
-                    }))
-                  }
-                  placeholder="Select time"
-                  buttonClassName="rounded-xl"
-                />
-              </label>
-            </div>
-
-            <div>
-              <span className="mb-2 block text-sm text-white/70">
-                Available days
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                  "Sunday",
-                ].map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    className={`rounded-full border px-3! py-1! text-sm! transition ${
-                      availableDays.includes(day)
-                        ? "border-white/40 bg-white text-black"
-                        : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/10"
-                    }`}
-                    onClick={() =>
-                      setAvailableDays((prev) =>
-                        prev.includes(day)
-                          ? prev.filter((item) => item !== day)
-                          : [...prev, day]
-                      )
-                    }
-                  >
-                    {day.slice(0, 3)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !client}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#b6382d] px-4! py-3! text-sm! font-semibold text-white transition hover:bg-[#cf4639] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? "Sending..." : "Send flash request"}
-              <Send size={16} />
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 };

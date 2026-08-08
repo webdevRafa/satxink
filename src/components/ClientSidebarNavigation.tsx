@@ -3,9 +3,7 @@ import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarCheck,
   ChevronDown,
-  Heart,
   Inbox,
-  Layers,
   LayoutDashboard,
   ReceiptText,
   UserRound,
@@ -21,8 +19,7 @@ interface Props {
     | "requests"
     | "offers"
     | "bookings"
-    | "sessions"
-    | "projects";
+    | "sessions";
   onViewChange: (view: Props["activeView"]) => void;
   counts?: Partial<Record<Props["activeView"], number>>;
 }
@@ -34,13 +31,10 @@ const ClientSidebarNavigation: React.FC<Props> = ({
 }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const links = [
-    { key: "overview", label: "Overview", icon: LayoutDashboard },
-    { key: "following", label: "Following", icon: Heart },
     { key: "requests", label: "Requests", icon: Inbox },
     { key: "offers", label: "Offers", icon: ReceiptText },
     { key: "bookings", label: "Bookings", icon: CalendarCheck },
     { key: "sessions", label: "Sessions", icon: CalendarCheck },
-    { key: "projects", label: "Projects", icon: Layers },
     { key: "profile", label: "Profile", icon: UserRound },
   ];
   const activeLabel =

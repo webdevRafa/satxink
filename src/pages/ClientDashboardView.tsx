@@ -18,7 +18,6 @@ import {
   CalendarCheck,
   CalendarDays,
   Camera,
-  Check,
   Clock3,
   Compass,
   CreditCard,
@@ -26,7 +25,6 @@ import {
   Eye,
   Heart,
   Image as ImageIcon,
-  Layers,
   LoaderCircle,
   Mail,
   MapPin,
@@ -42,32 +40,26 @@ import ClientSidebarNavigation from "../components/ClientSidebarNavigation";
 import LikedArtistsList from "../components/LikedArtistsList";
 import ClientOffersList from "../components/ClientOffersList";
 import ClientBookingsList from "../components/ClientBookingsList";
-import RequestTattooModal from "../components/RequestTattooModal";
 import ClientRequestsList from "../components/ClientRequestsList";
 import ImageCropperModal from "../components/ImageCropperModal";
-import ProjectControlsPanel from "../components/ProjectControlsPanel";
-import ProjectPauseDialog from "../components/ProjectPauseDialog";
-import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
 import { syncGoogleAvatar } from "../utils/syncGoogleAvatar";
-import { db, auth, storage, functions } from "../firebase/firebaseConfig";
+import { db, auth, storage } from "../firebase/firebaseConfig";
 import {
   collection,
   doc,
   onSnapshot,
   query,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 import {
   deleteObject,
   getDownloadURL,
   ref,
   uploadBytes,
 } from "firebase/storage";
-import type { Booking, ProjectAmendment } from "../types/Booking";
+import type { Booking } from "../types/Booking";
 import type { Offer } from "../types/Offer";
 import { TATTOO_STYLES, getCanonicalTattooStyles } from "../types/TattooStyle";
 import {
@@ -111,12 +103,11 @@ const INTEREST_GROUPS = [
 ];
 
 const TATTOO_GOALS = [
-  "Custom piece",
-  "Flash drop",
-  "Cover-up",
   "First tattoo",
-  "Matching tattoo",
-  "Sleeve planning",
+  "Flash collector",
+  "One-of-one flash",
+  "Matching flash",
+  "Small piece",
 ];
 
 const BUDGET_RANGES = [
@@ -141,8 +132,7 @@ type ClientView =
   | "requests"
   | "offers"
   | "bookings"
-  | "sessions"
-  | "projects";
+  | "sessions";
 
 type ClientProfileFormState = {
   firstName: string;
@@ -169,6 +159,7 @@ type ClientProfile = ClientProfileFormState & {
 
 type ClientDashboardBooking = Booking & {
   artistName?: string;
+  flashTitle?: string;
   artistAvatar?: string;
 };
 
@@ -181,29 +172,19 @@ type ClientDashboardAction = {
   onClick: () => void;
 };
 
-type ClientProjectBooking = ClientDashboardBooking & {
-  projectType: "multi_session";
-};
-
 type ClientDashboardRequest = {
   id: string;
+  sourceType?: string;
   artistId?: string;
   artistName?: string;
+  flashTitle?: string;
   status?: string;
-  offerPreparationStatus?: string;
   bodyPlacement?: string;
   createdAt?: Booking["createdAt"];
 };
 
 type ClientDashboardOffer = Offer & {
   createdAt?: Booking["createdAt"];
-};
-
-type RequestArtist = {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-  studioName?: string;
 };
 
 const activeViewLabels: Record<ClientView, string> = {
@@ -214,28 +195,24 @@ const activeViewLabels: Record<ClientView, string> = {
   offers: "Offers",
   bookings: "Bookings",
   sessions: "Sessions",
-  projects: "Projects",
 };
 
 const CLIENT_VIEWS: ClientView[] = [
-  "overview",
-  "following",
   "requests",
   "offers",
   "bookings",
   "sessions",
-  "projects",
   "profile",
 ];
 
 const getClientDashboardView = (view: string | null): ClientView => {
-  if (view === "liked") return "following";
+  if (view === "projects") return "sessions";
   if (["pending", "confirmed", "paid", "cancelled"].includes(view || "")) {
     return "bookings";
   }
   return CLIENT_VIEWS.includes(view as ClientView)
     ? (view as ClientView)
-    : "overview";
+    : "requests";
 };
 
 const isClientDashboardView = (view: string | null): view is ClientView =>
@@ -270,20 +247,8 @@ const createProfileFormState = (
 const ClientDashboardView = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedArtist, setSelectedArtist] = useState<RequestArtist | null>(
-    null
-  );
   const [selectedSession, setSelectedSession] =
     useState<ClientDashboardBooking | null>(null);
-  const [sessionAmendments, setSessionAmendments] = useState<
-    ProjectAmendment[]
-  >([]);
-  const [scheduleProposalSession, setScheduleProposalSession] =
-    useState<ClientDashboardBooking | null>(null);
-  const [pauseSessionMode, setPauseSessionMode] = useState<
-    "pause" | "resume" | null
-  >(null);
   const [activeView, setActiveView] = useState<ClientView>(() =>
     getClientDashboardView(searchParams.get("tab"))
   );
@@ -311,7 +276,6 @@ const ClientDashboardView = () => {
     offers: 0,
     bookings: 0,
     sessions: 0,
-    projects: 0,
   });
 
   useEffect(() => {
@@ -320,12 +284,18 @@ const ClientDashboardView = () => {
     if (isClientDashboardView(nextView)) {
       setActiveView(nextView);
     }
-  }, [searchParams]);
+    if (viewParam && !isClientDashboardView(viewParam)) {
+      setSearchParams(
+        nextView === "requests" ? {} : { tab: nextView },
+        { replace: true }
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleViewChange = useCallback(
     (view: ClientView) => {
       setActiveView(view);
-      setSearchParams(view === "overview" ? {} : { tab: view });
+      setSearchParams(view === "requests" ? {} : { tab: view });
     },
     [setSearchParams]
   );
@@ -416,12 +386,14 @@ const ClientDashboardView = () => {
           where("status", "==", "pending")
         ),
         (snap) => {
-          const nextRequests = snap.docs.map((requestDoc) => ({
-            id: requestDoc.id,
-            ...requestDoc.data(),
-          })) as ClientDashboardRequest[];
+          const nextRequests = snap.docs
+            .filter((requestDoc) => requestDoc.data().sourceType === "flash")
+            .map((requestDoc) => ({
+              id: requestDoc.id,
+              ...requestDoc.data(),
+            })) as ClientDashboardRequest[];
           setDashboardRequests(nextRequests);
-          updateCount("requests", snap.size);
+          updateCount("requests", nextRequests.length);
         },
         (error) => console.error("Client request count listener failed:", error)
       ),
@@ -432,22 +404,26 @@ const ClientDashboardView = () => {
           where("status", "==", "pending")
         ),
         (snap) => {
-          const nextOffers = snap.docs.map((offerDoc) => ({
-            id: offerDoc.id,
-            ...offerDoc.data(),
-          })) as ClientDashboardOffer[];
+          const nextOffers = snap.docs
+            .filter((offerDoc) => offerDoc.data().sourceType === "flash")
+            .map((offerDoc) => ({
+              id: offerDoc.id,
+              ...offerDoc.data(),
+            })) as ClientDashboardOffer[];
           setDashboardOffers(nextOffers);
-          updateCount("offers", snap.size);
+          updateCount("offers", nextOffers.length);
         },
         (error) => console.error("Client offer count listener failed:", error)
       ),
       onSnapshot(
         query(collection(db, "bookings"), where("clientId", "==", client.id)),
         (snap) => {
-          const nextBookings = snap.docs.map((bookingDoc) => ({
-            id: bookingDoc.id,
-            ...bookingDoc.data(),
-          })) as ClientDashboardBooking[];
+          const nextBookings = snap.docs
+            .filter((bookingDoc) => bookingDoc.data().sourceType === "flash")
+            .map((bookingDoc) => ({
+              id: bookingDoc.id,
+              ...bookingDoc.data(),
+            })) as ClientDashboardBooking[];
           setBookings(nextBookings);
           updateCount("overview", nextBookings.length);
           updateCount("bookings", nextBookings.length);
@@ -455,12 +431,6 @@ const ClientDashboardView = () => {
             "sessions",
             nextBookings.filter((booking) =>
               isClientSessionLedgerBooking(booking)
-            ).length
-          );
-          updateCount(
-            "projects",
-            nextBookings.filter((booking) =>
-              isClientMultiSessionBooking(booking)
             ).length
           );
         },
@@ -472,34 +442,6 @@ const ClientDashboardView = () => {
       unsubs.forEach((unsub) => unsub());
     };
   }, [client?.id]);
-
-  useEffect(() => {
-    if (!selectedSession?.id) {
-      setSessionAmendments([]);
-      return;
-    }
-
-    const amendmentsQuery = query(
-      collection(db, "bookings", selectedSession.id, "amendments"),
-      where("status", "==", "proposed")
-    );
-
-    return onSnapshot(
-      amendmentsQuery,
-      (snap) => {
-        setSessionAmendments(
-          snap.docs.map((amendmentDoc) => ({
-            id: amendmentDoc.id,
-            ...amendmentDoc.data(),
-          })) as ProjectAmendment[]
-        );
-      },
-      (error) => {
-        console.error("Client session amendment listener failed:", error);
-        setSessionAmendments([]);
-      }
-    );
-  }, [selectedSession?.id]);
 
   const updateProfileForm = (
     updater:
@@ -685,336 +627,6 @@ const ClientDashboardView = () => {
     }
   };
 
-  const handleConfirmExternalPayment = async (
-    booking: ClientDashboardBooking
-  ) => {
-    if (booking.paymentModelVersion === 2) {
-      try {
-        const confirmExternalPayment = httpsCallable(
-          functions,
-          "attestExternalSessionPayment"
-        );
-        const response = await confirmExternalPayment({
-          bookingId: booking.id,
-          action: "confirm",
-        });
-        const { settled } = response.data as { settled: boolean };
-        toast.success(
-          settled
-            ? "Shop payment confirmed."
-            : "Your note was recorded. The artist will mark the shop payment complete."
-        );
-        setSelectedSession(null);
-      } catch (error) {
-        console.error("Direct payment confirmation failed:", error);
-        toast.error("Could not confirm the session payment.");
-      }
-      return;
-    }
-
-    const artistAlreadyConfirmed =
-      booking.remainingPaymentStatus === "artist_confirmed";
-    const confirmationSessionNumber = getPayableSessionNumber(booking);
-
-    if (!artistAlreadyConfirmed) {
-      try {
-        const confirmationUpdate = {
-          bookingId: booking.id,
-          artistId: booking.artistId,
-          clientId: booking.clientId,
-          sessionNumber: confirmationSessionNumber,
-          remainingPaymentStatus: "client_confirmed",
-          paymentStatus: "client_confirmed",
-          clientConfirmedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        await Promise.all([
-          setDoc(doc(db, "bookingSessions", booking.id), confirmationUpdate, {
-            merge: true,
-          }),
-          setDoc(
-            doc(
-              db,
-              "bookingSessions",
-              booking.id,
-              "sessions",
-              `session-${confirmationSessionNumber}`
-            ),
-            confirmationUpdate,
-            { merge: true }
-          ),
-          updateDoc(doc(db, "bookings", booking.id), {
-            remainingPaymentStatus: "client_confirmed",
-            externalRemainingClientConfirmedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }),
-        ]);
-        toast.success("Payment confirmation sent to the artist.");
-        setSelectedSession(null);
-      } catch (error) {
-        console.error("Direct payment confirmation failed:", error);
-        toast.error("Could not confirm the payment.");
-      }
-      return;
-    }
-
-    const remainingAmount = getRemainingBalance(booking);
-    const sessionInstallment = getClientSessionInstallmentAmount(booking);
-    const isMultiSession = isClientMultiSessionBooking(booking);
-    const amountToConfirm = isMultiSession
-      ? Math.min(sessionInstallment, remainingAmount)
-      : remainingAmount;
-    const currentPaid = Number(
-      booking.totalArtistPaidAmount ||
-        booking.depositPaidAmount ||
-        booking.depositAmount ||
-        0
-    );
-    const nextPaid = Math.min(
-      Number(booking.price || 0),
-      currentPaid + amountToConfirm
-    );
-    const nextRemaining = Math.max(Number(booking.price || 0) - nextPaid, 0);
-    const sessionNumber = Math.max(
-      Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
-      1
-    );
-    const sessionCount = Math.max(
-      Number(booking.estimatedSessionCount || 1),
-      1
-    );
-    const installmentTiming =
-      booking.sessionInstallmentTiming === "before_session"
-        ? "before_session"
-        : "after_session";
-    const hasMoreSessions =
-      isMultiSession &&
-      nextRemaining > 0 &&
-      (installmentTiming === "before_session"
-        ? Number(booking.completedSessionCount || 0) < sessionCount
-        : sessionNumber < sessionCount);
-    const nextActiveSessionNumber =
-      installmentTiming === "before_session"
-        ? sessionNumber
-        : hasMoreSessions
-        ? Math.min(sessionNumber + 1, sessionCount)
-        : sessionNumber;
-    const paymentUpdate = {
-      bookingId: booking.id,
-      artistId: booking.artistId,
-      clientId: booking.clientId,
-      remainingPaymentStatus: "confirmed",
-      paymentStatus: "confirmed",
-      sessionNumber,
-      paidAmount: amountToConfirm,
-      paidAmountCents: Math.round(amountToConfirm * 100),
-      clientConfirmedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      await Promise.all([
-        setDoc(doc(db, "bookingSessions", booking.id), paymentUpdate, {
-          merge: true,
-        }),
-        setDoc(
-          doc(
-            db,
-            "bookingSessions",
-            booking.id,
-            "sessions",
-            `session-${sessionNumber}`
-          ),
-          paymentUpdate,
-          { merge: true }
-        ),
-        updateDoc(doc(db, "bookings", booking.id), {
-          status: nextRemaining > 0 ? "deposit_paid" : "paid",
-          remainingPaymentStatus: nextRemaining > 0 ? "not_due" : "confirmed",
-          externalRemainingClientConfirmedAt: serverTimestamp(),
-          remainingPaidAt:
-            nextRemaining > 0
-              ? booking.remainingPaidAt ?? null
-              : serverTimestamp(),
-          paidAt:
-            nextRemaining > 0 ? booking.paidAt ?? null : serverTimestamp(),
-          remainingPaidAmount:
-            Number(booking.remainingPaidAmount || 0) + amountToConfirm,
-          remainingPaidAmountCents:
-            Number(booking.remainingPaidAmountCents || 0) +
-            Math.round(amountToConfirm * 100),
-          totalArtistPaidAmount: nextPaid,
-          totalArtistPaidCents: Math.round(nextPaid * 100),
-          remainingBalanceAmount: nextRemaining,
-          remainingBalanceCents: Math.round(nextRemaining * 100),
-          sessionStatus: hasMoreSessions
-            ? "awaiting_next_session"
-            : booking.sessionStatus,
-          activeSessionNumber: nextActiveSessionNumber,
-          pendingSessionPaymentAmount: 0,
-          pendingSessionPaymentAmountCents: 0,
-          pendingSessionNumber: null,
-          pendingSessionPaymentNote: null,
-          pendingSessionPaymentRequestedAt: null,
-          pendingSessionPaymentRequestedBy: null,
-          lastPaidSessionNumber: sessionNumber,
-          updatedAt: serverTimestamp(),
-        }),
-      ]);
-      toast.success("Direct payment confirmed.");
-      setSelectedSession(null);
-    } catch (error) {
-      console.error("Direct payment confirmation failed:", error);
-      toast.error("Could not confirm the payment.");
-    }
-  };
-
-  const handleDisputeExternalPayment = async (
-    booking: ClientDashboardBooking
-  ) => {
-    const reason =
-      window.prompt("Briefly describe the issue with this payment.")?.trim() ||
-      "Client reported an issue with the direct payment.";
-    if (booking.paymentModelVersion === 2) {
-      try {
-        const disputeExternalPayment = httpsCallable(
-          functions,
-          "attestExternalSessionPayment"
-        );
-        await disputeExternalPayment({
-          bookingId: booking.id,
-          action: "dispute",
-          reason,
-        });
-        toast.success("Issue reported.");
-        setSelectedSession(null);
-      } catch (error) {
-        console.error("Direct payment dispute failed:", error);
-        toast.error("Could not report the issue.");
-      }
-      return;
-    }
-
-    const sessionNumber = getPayableSessionNumber(booking);
-    const disputeUpdate = {
-      bookingId: booking.id,
-      artistId: booking.artistId,
-      clientId: booking.clientId,
-      sessionNumber,
-      remainingPaymentStatus: "disputed",
-      paymentStatus: "disputed",
-      disputeReason: reason,
-      disputedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      await Promise.all([
-        setDoc(doc(db, "bookingSessions", booking.id), disputeUpdate, {
-          merge: true,
-        }),
-        setDoc(
-          doc(
-            db,
-            "bookingSessions",
-            booking.id,
-            "sessions",
-            `session-${sessionNumber}`
-          ),
-          disputeUpdate,
-          { merge: true }
-        ),
-        updateDoc(doc(db, "bookings", booking.id), {
-          remainingPaymentStatus: "disputed",
-          externalRemainingDisputeReason: reason,
-          externalRemainingDisputedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }),
-      ]);
-      toast.success("Issue reported.");
-      setSelectedSession(null);
-    } catch (error) {
-      console.error("Direct payment dispute failed:", error);
-      toast.error("Could not report the issue.");
-    }
-  };
-
-  const handleRespondToSessionAmendment = async (
-    amendmentId: string,
-    response: "accepted" | "declined" | "cancelled"
-  ) => {
-    if (!selectedSession) return;
-
-    try {
-      const respondToAmendment = httpsCallable(
-        functions,
-        "respondToProjectAmendment"
-      );
-      await respondToAmendment({
-        bookingId: selectedSession.id,
-        amendmentId,
-        response,
-      });
-      toast.success(
-        response === "accepted"
-          ? "Project amendment accepted."
-          : response === "declined"
-          ? "Project amendment declined."
-          : "Project amendment cancelled."
-      );
-    } catch (error) {
-      console.error("Client session amendment response failed:", error);
-      toast.error("Could not update the amendment.");
-    }
-  };
-
-  const handleRequestSessionProposal = async (
-    booking: Booking,
-    input: { date: string; time: string; message: string }
-  ) => {
-    try {
-      const proposeAmendment = httpsCallable(
-        functions,
-        "proposeProjectAmendment"
-      );
-      await proposeAmendment({
-        bookingId: booking.id,
-        type: "schedule_next_session",
-        date: input.date,
-        time: input.time,
-        sessionNumber: Math.max(Number(booking.activeSessionNumber || 1), 1),
-        message: input.message,
-      });
-      toast.success("Next-session request sent to the artist.");
-    } catch (error) {
-      console.error("Client next-session request failed:", error);
-      toast.error("Could not send the session request.");
-      throw error;
-    }
-  };
-
-  const handleSetSessionProjectPaused = async (
-    booking: Booking,
-    input: { reason: string; pausedUntil: string }
-  ) => {
-    const paused = pauseSessionMode === "pause";
-
-    try {
-      const setPaused = httpsCallable(functions, "setProjectPaused");
-      await setPaused({
-        bookingId: booking.id,
-        paused,
-        reason: input.reason,
-        pausedUntil: input.pausedUntil,
-      });
-      toast.success(paused ? "Project paused." : "Project resumed.");
-    } catch (error) {
-      console.error("Client project pause update failed:", error);
-      toast.error("Could not update project status.");
-      throw error;
-    }
-  };
-
   const profileCompletionItems = [
     Boolean(profileForm.firstName.trim() && profileForm.lastName.trim()),
     Boolean(profileForm.email.trim()),
@@ -1050,15 +662,6 @@ const ClientDashboardView = () => {
         .sort(compareClientBookingSchedule),
     [bookings]
   );
-  const projects = useMemo(
-    () =>
-      bookings
-        .filter((booking): booking is ClientProjectBooking =>
-          isClientMultiSessionBooking(booking)
-        )
-        .sort(compareClientBookingSchedule),
-    [bookings]
-  );
   const upcomingAppointments = useMemo(
     () =>
       bookings
@@ -1071,14 +674,6 @@ const ClientDashboardView = () => {
     const actions: ClientDashboardAction[] = [];
     const pendingDeposit = bookings.find(
       (booking) => booking.status === "pending_payment"
-    );
-    const payableBooking = bookings.find(
-      (booking) =>
-        booking.status === "deposit_paid" &&
-        Number(booking.pendingPlatformFeeCents || 0) > 0
-    );
-    const directPaymentBooking = bookings.find((booking) =>
-      needsClientDirectPaymentAction(booking)
     );
     const pendingOffer = [...dashboardOffers].sort(
       (a, b) => getBookingCreatedTime(b) - getBookingCreatedTime(a)
@@ -1095,34 +690,6 @@ const ClientDashboardView = () => {
         tone: "amber",
         cta: "Pay deposit",
         onClick: () => navigate(`/payment/${pendingDeposit.id}`),
-      });
-    }
-
-    if (payableBooking) {
-      actions.push({
-        id: `balance-${payableBooking.id}`,
-        label: "Platform fee due",
-        description: `${formatMoney(
-          Number(payableBooking.pendingPlatformFeeCents || 0) / 100
-        )} is ready to pay for ${
-          payableBooking.artistName || "your artist"
-        }.`,
-        tone: "amber",
-        cta: "Pay now",
-        onClick: () => navigate(`/payment/${payableBooking.id}`),
-      });
-    }
-
-    if (directPaymentBooking) {
-      actions.push({
-        id: `direct-${directPaymentBooking.id}`,
-        label: "Shop payment",
-        description: `Review the shop payment status for ${
-          directPaymentBooking.artistName || "your artist"
-        }.`,
-        tone: "sky",
-        cta: "Open record",
-        onClick: () => setSelectedSession(directPaymentBooking),
       });
     }
 
@@ -1147,13 +714,8 @@ const ClientDashboardView = () => {
           nextAppointment.artistName || "your artist"
         }.`,
         tone: "neutral",
-        cta: isClientMultiSessionBooking(nextAppointment)
-          ? "Open project"
-          : "Open booking",
-        onClick: () =>
-          isClientMultiSessionBooking(nextAppointment)
-            ? handleViewChange("projects")
-            : handleViewChange("bookings"),
+        cta: "Open booking",
+        onClick: () => handleViewChange("bookings"),
       });
     }
 
@@ -1162,7 +724,7 @@ const ClientDashboardView = () => {
         id: "profile-completion",
         label: "Complete your client profile",
         description:
-          "A stronger profile gives artists better context when you request work.",
+          "A stronger profile gives artists better context when you request flash.",
         tone: "neutral",
         cta: "Finish profile",
         onClick: () => handleViewChange("profile"),
@@ -1210,12 +772,10 @@ const ClientDashboardView = () => {
             actions={overviewActions}
             bookings={bookings}
             offers={dashboardOffers}
-            projects={projects}
             requests={dashboardRequests}
             upcomingAppointments={upcomingAppointments}
             onOpenRecord={setSelectedSession}
             onOpenView={handleViewChange}
-            onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
           />
         )}
 
@@ -1241,13 +801,7 @@ const ClientDashboardView = () => {
         )}
 
         {client && activeView === "following" && (
-          <LikedArtistsList
-            client={client}
-            onRequest={(artist) => {
-              setSelectedArtist(artist);
-              setIsModalOpen(true);
-            }}
-          />
+          <LikedArtistsList client={client} />
         )}
         {client && activeView === "requests" && (
           <ClientRequestsList clientId={client.id} />
@@ -1275,65 +829,13 @@ const ClientDashboardView = () => {
             sessions={sessions}
             onOpenRecord={setSelectedSession}
             onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
-            onConfirmExternalPayment={handleConfirmExternalPayment}
-            onDisputeExternalPayment={handleDisputeExternalPayment}
-          />
-        )}
-        {client && activeView === "projects" && (
-          <ClientProjectsSection
-            projects={projects}
-            onOpenRecord={setSelectedSession}
-            onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
-            onRequestNextSession={setScheduleProposalSession}
-            onConfirmExternalPayment={handleConfirmExternalPayment}
-            onDisputeExternalPayment={handleDisputeExternalPayment}
           />
         )}
       </main>
 
-      {client && selectedArtist && (
-        <RequestTattooModal
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedArtist(null);
-          }}
-          client={client}
-          artist={selectedArtist}
-          onRequestSent={() => {
-            setNavCounts((current) => ({
-              ...current,
-              requests: current.requests + 1,
-            }));
-          }}
-        />
-      )}
-
       <ClientSessionRecordDialog
         booking={selectedSession}
-        clientId={client?.id || null}
-        amendments={sessionAmendments}
         onClose={() => setSelectedSession(null)}
-        onPay={(bookingId) => navigate(`/payment/${bookingId}`)}
-        onConfirmExternalPayment={handleConfirmExternalPayment}
-        onDisputeExternalPayment={handleDisputeExternalPayment}
-        onRespondToAmendment={handleRespondToSessionAmendment}
-        onRequestNextSession={(booking) => setScheduleProposalSession(booking)}
-        onPauseProject={() => setPauseSessionMode("pause")}
-        onResumeProject={() => setPauseSessionMode("resume")}
-      />
-      <ProjectScheduleProposalDialog
-        booking={scheduleProposalSession}
-        viewerRole="client"
-        onClose={() => setScheduleProposalSession(null)}
-        onSubmit={handleRequestSessionProposal}
-      />
-      <ProjectPauseDialog
-        booking={pauseSessionMode ? selectedSession : null}
-        mode={pauseSessionMode || "pause"}
-        viewerRole="client"
-        onClose={() => setPauseSessionMode(null)}
-        onSubmit={handleSetSessionProjectPaused}
       />
     </div>
   );
@@ -1887,22 +1389,18 @@ const ClientHero = ({
 const ClientOverviewSection = ({
   actions,
   offers,
-  projects,
   requests,
   upcomingAppointments,
   onOpenRecord,
   onOpenView,
-  onPay,
 }: {
   actions: ClientDashboardAction[];
   bookings: ClientDashboardBooking[];
   offers: ClientDashboardOffer[];
-  projects: ClientProjectBooking[];
   requests: ClientDashboardRequest[];
   upcomingAppointments: ClientDashboardBooking[];
   onOpenRecord: (booking: ClientDashboardBooking) => void;
   onOpenView: (view: ClientView) => void;
-  onPay: (bookingId: string) => void;
 }) => {
   const sortedOffers = [...offers].sort(
     (a, b) => getBookingCreatedTime(b) - getBookingCreatedTime(a)
@@ -1935,8 +1433,7 @@ const ClientOverviewSection = ({
                 Everything is caught up
               </p>
               <p className="mt-1 text-sm leading-6 text-emerald-50/75">
-                New offers, payment requests, and project updates will appear
-                here.
+                New flash offers, payment updates, and appointments will appear here.
               </p>
             </div>
           ) : (
@@ -2020,7 +1517,7 @@ const ClientOverviewSection = ({
         <OverviewList
           title="Upcoming appointments"
           emptyTitle="No appointments scheduled"
-          emptyDescription="Confirmed appointments and future project sessions will appear here."
+          emptyDescription="Confirmed flash appointments will appear here."
           onOpenAll={() => onOpenView("sessions")}
         >
           {upcomingAppointments.slice(0, 4).map((booking) => (
@@ -2029,28 +1526,6 @@ const ClientOverviewSection = ({
               booking={booking}
               actionLabel="Record"
               onAction={() => onOpenRecord(booking)}
-            />
-          ))}
-        </OverviewList>
-
-        <OverviewList
-          title="Active projects"
-          emptyTitle="No multi-session projects"
-          emptyDescription="When an offer is accepted as a project, it will get a dedicated record here."
-          onOpenAll={() => onOpenView("projects")}
-        >
-          {projects.slice(0, 4).map((booking) => (
-            <OverviewBookingRow
-              key={booking.id}
-              booking={booking}
-              actionLabel={
-                getClientPayableAmount(booking) > 0 ? "Pay" : "Project"
-              }
-              onAction={() =>
-                getClientPayableAmount(booking) > 0
-                  ? onPay(booking.id)
-                  : onOpenRecord(booking)
-              }
             />
           ))}
         </OverviewList>
@@ -2066,239 +1541,31 @@ const ClientOverviewSection = ({
               key={offer.id}
               title={offer.displayName || "Artist offer"}
               meta={formatMoney(offer.price)}
-              description={
-                offer.projectType === "multi_session"
-                  ? `${offer.estimatedSessionCount || 2} session project`
-                  : "Single appointment"
-              }
+              description="Single flash appointment"
               onAction={() => onOpenView("offers")}
             />
           ))}
         </OverviewList>
 
         <OverviewList
-          title="Recent shared ideas"
-          emptyTitle="No shared ideas yet"
-          emptyDescription="Ideas you share with artists will appear here while they prepare a response."
+          title="Recent flash requests"
+          emptyTitle="No flash requests yet"
+          emptyDescription="Flash designs you request will appear here while you wait for the artist."
           onOpenAll={() => onOpenView("requests")}
         >
           {sortedRequests.slice(0, 4).map((request) => (
             <OverviewTextRow
               key={request.id}
-              title={request.artistName || "Shared idea"}
+              title={request.flashTitle || request.artistName || "Flash request"}
               meta={request.status || "pending"}
               description={
-                request.offerPreparationStatus
-                  ? `Artist is ${request.offerPreparationStatus.replace(
-                      "_",
-                      " "
-                    )}`
-                  : request.bodyPlacement || "Custom tattoo request"
+                request.bodyPlacement || request.artistName || "Flash tattoo request"
               }
               onAction={() => onOpenView("requests")}
             />
           ))}
         </OverviewList>
       </div>
-    </section>
-  );
-};
-
-const ClientProjectsSection = ({
-  projects,
-  onOpenRecord,
-  onPay,
-  onRequestNextSession,
-  onConfirmExternalPayment,
-  onDisputeExternalPayment,
-}: {
-  projects: ClientProjectBooking[];
-  onOpenRecord: (booking: ClientDashboardBooking) => void;
-  onPay: (bookingId: string) => void;
-  onRequestNextSession: (booking: ClientDashboardBooking) => void;
-  onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
-  onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
-}) => {
-  const openBalance = projects.reduce(
-    (total, booking) => total + getRemainingBalance(booking),
-    0
-  );
-  const nextDue =
-    projects
-      .map((booking) => getClientPayableAmount(booking))
-      .find((amount) => amount > 0) || 0;
-  const pendingFollowUps = projects.filter(
-    (booking) =>
-      getClientPayableAmount(booking) > 0 ||
-      needsClientDirectPaymentAction(booking) ||
-      !hasClientAppointment(booking)
-  ).length;
-
-  return (
-    <section className="w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-            Client projects
-          </p>
-          <h1 className="mt-2 text-3xl! font-semibold text-white">
-            Multi-session projects
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-neutral-400">
-            Track project progress, installment status, schedule proposals, and
-            next-session planning from one record.
-          </p>
-        </div>
-        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[520px]">
-          <MetricCard label="Active projects" value={projects.length} />
-          <MetricCard label="Open balance" value={formatMoney(openBalance)} />
-          <MetricCard label="Next due" value={formatMoney(nextDue)} />
-        </div>
-      </div>
-
-      {projects.length === 0 ? (
-        <EmptyState
-          icon={<Layers size={22} />}
-          title="No projects yet"
-          description="Accepted multi-session bookings will appear here with schedule, payment, and amendment controls."
-        />
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-          <div className="request-modal-scrollbar overflow-x-auto">
-            <div className="min-w-[1120px]">
-              <div
-                className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
-                style={{
-                  gridTemplateColumns:
-                    "minmax(220px,1.1fr) minmax(170px,.8fr) minmax(185px,.9fr) minmax(185px,.9fr) minmax(155px,.7fr) minmax(230px,1fr)",
-                }}
-              >
-                <span>Artist / project</span>
-                <span>Progress</span>
-                <span>Next session</span>
-                <span>Payment</span>
-                <span>Status</span>
-                <span className="text-right">Actions</span>
-              </div>
-
-              <div className="divide-y divide-white/10">
-                {projects.map((booking) => {
-                  const payableAmount = getClientPayableAmount(booking);
-                  const directAction = needsClientDirectPaymentAction(booking);
-                  const canRequestNext = canClientRequestNextSession(booking);
-
-                  return (
-                    <div
-                      key={booking.id}
-                      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
-                      style={{
-                        gridTemplateColumns:
-                          "minmax(220px,1.1fr) minmax(170px,.8fr) minmax(185px,.9fr) minmax(185px,.9fr) minmax(155px,.7fr) minmax(230px,1fr)",
-                      }}
-                    >
-                      <div className="flex min-w-0 items-center gap-3 pr-3">
-                        <img
-                          src={booking.artistAvatar || "/default-avatar.png"}
-                          alt={booking.artistName || "Artist"}
-                          className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-white">
-                            {booking.artistName || "Artist"}
-                          </p>
-                          <p className="mt-0.5 truncate text-xs uppercase tracking-[0.12em] text-neutral-500">
-                            Booking {getShortBookingId(booking.id)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <ProjectProgressMini booking={booking} />
-
-                      <div className="pr-3 text-sm leading-5 text-neutral-300">
-                        <p>{formatAppointment(booking.selectedDate)}</p>
-                        <p className="mt-1 text-xs text-neutral-500">
-                          Session {getPayableSessionNumber(booking)} of{" "}
-                          {getEstimatedSessionCount(booking)}
-                        </p>
-                      </div>
-
-                      <div className="pr-3">
-                        <p className="text-sm font-semibold text-white">
-                          {formatMoney(payableAmount)}
-                        </p>
-                        <p className="mt-1 text-xs text-neutral-500">
-                          {getClientPaymentStatusLabel(booking)}
-                        </p>
-                      </div>
-
-                      <span className="w-fit rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium capitalize text-neutral-300">
-                        {(booking.projectStatus || "active").replace("_", " ")}
-                      </span>
-
-                      <div className="flex justify-end gap-2">
-                        {payableAmount > 0 &&
-                          booking.remainingPaymentMethod !== "external" && (
-                            <button
-                              type="button"
-                              onClick={() => onPay(booking.id)}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
-                            >
-                              <CreditCard size={14} />
-                              Pay
-                            </button>
-                          )}
-                        {directAction && (
-                          <button
-                            type="button"
-                            onClick={() => onConfirmExternalPayment(booking)}
-                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
-                          >
-                            <Check size={14} />
-                            Confirm
-                          </button>
-                        )}
-                        {directAction && (
-                          <button
-                            type="button"
-                            onClick={() => onDisputeExternalPayment(booking)}
-                            className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.035] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                          >
-                            Issue
-                          </button>
-                        )}
-                        {canRequestNext && (
-                          <button
-                            type="button"
-                            onClick={() => onRequestNextSession(booking)}
-                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                          >
-                            <CalendarDays size={14} />
-                            Next
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onOpenRecord(booking)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-black/25 px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                        >
-                          <Eye size={14} />
-                          Record
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          {pendingFollowUps > 0 && (
-            <div className="border-t border-white/10 px-4 py-3 text-sm text-amber-100/80">
-              {pendingFollowUps} project{pendingFollowUps === 1 ? "" : "s"} need
-              payment, date, or direct-payment follow-up.
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 };
@@ -2415,46 +1682,14 @@ const OverviewTextRow = ({
   </button>
 );
 
-const ProjectProgressMini = ({
-  booking,
-}: {
-  booking: ClientDashboardBooking;
-}) => {
-  const completed = Math.min(
-    Number(booking.completedSessionCount || 0),
-    getEstimatedSessionCount(booking)
-  );
-  const total = getEstimatedSessionCount(booking);
-  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  return (
-    <div className="pr-3">
-      <p className="text-sm font-semibold text-white">
-        {completed}/{total} sessions
-      </p>
-      <div className="mt-2 h-1.5 rounded-full bg-white/10">
-        <div
-          className="h-full rounded-full bg-emerald-400"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <p className="mt-1 text-xs text-neutral-500">{progress}% complete</p>
-    </div>
-  );
-};
-
 const ClientSessionsSection = ({
   sessions,
   onOpenRecord,
   onPay,
-  onConfirmExternalPayment,
-  onDisputeExternalPayment,
 }: {
   sessions: ClientDashboardBooking[];
   onOpenRecord: (booking: ClientDashboardBooking) => void;
   onPay: (bookingId: string) => void;
-  onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
-  onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
 }) => {
   const completedCount = sessions.filter(
     (booking) => booking.sessionStatus === "completed"
@@ -2486,15 +1721,13 @@ const ClientSessionsSection = ({
         <EmptyState
           icon={<CalendarDays size={22} />}
           title="No session records yet"
-          description="Confirmed appointments, project sessions, and completed session records will appear here."
+          description="Confirmed flash appointments and completed session records will appear here."
         />
       ) : (
         <ClientSessionsTable
           sessions={sessions}
           onOpenRecord={onOpenRecord}
           onPay={onPay}
-          onConfirmExternalPayment={onConfirmExternalPayment}
-          onDisputeExternalPayment={onDisputeExternalPayment}
         />
       )}
     </section>
@@ -2505,14 +1738,10 @@ const ClientSessionsTable = ({
   sessions,
   onOpenRecord,
   onPay,
-  onConfirmExternalPayment,
-  onDisputeExternalPayment,
 }: {
   sessions: ClientDashboardBooking[];
   onOpenRecord: (booking: ClientDashboardBooking) => void;
   onPay: (bookingId: string) => void;
-  onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
-  onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
 }) => {
   const columns =
     "minmax(180px,1.15fr) 72px minmax(165px,.95fr) minmax(190px,1fr) minmax(128px,.75fr) minmax(165px,1fr) minmax(155px,.82fr)";
@@ -2527,7 +1756,7 @@ const ClientSessionsTable = ({
           >
             <span>Artist</span>
             <span>Created</span>
-            <span>Session</span>
+            <span>Flash</span>
             <span>Payment</span>
             <span>Scheduled</span>
             <span>Location</span>
@@ -2539,25 +1768,12 @@ const ClientSessionsTable = ({
               const sessionStatus = booking.sessionStatus || "in_progress";
               const remainingPaymentStatus =
                 booking.remainingPaymentStatus || "not_due";
-              const isMultiSession = isClientMultiSessionBooking(booking);
-              const activeSessionNumber = getPayableSessionNumber(booking);
-              const sessionCount = Math.max(
-                Number(booking.estimatedSessionCount || 1),
-                1
-              );
               const remainingBalance = getRemainingBalance(booking);
-              const payableAmount = getClientPayableAmount(booking);
-              const dueThisSession =
+              const dueAtShop =
                 remainingPaymentStatus === "confirmed" ||
                 remainingPaymentStatus === "not_due"
                   ? 0
-                  : getClientSessionInstallmentAmount(booking);
-              const canConfirm =
-                needsClientDirectPaymentAction(booking) &&
-                ["due", "artist_confirmed"].includes(remainingPaymentStatus);
-              const alreadyConfirmed =
-                remainingPaymentStatus === "client_confirmed" ||
-                remainingPaymentStatus === "confirmed";
+                  : getRemainingBalance(booking);
 
               return (
                 <div
@@ -2592,15 +1808,13 @@ const ClientSessionsTable = ({
                       viewer="client"
                     />
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
-                      Session {activeSessionNumber} of {sessionCount}
+                      Flash appointment
                     </span>
                   </div>
 
                   <SessionPaymentSummary
-                    primaryLabel={
-                      isMultiSession ? "Due this session" : "Balance due"
-                    }
-                    primaryAmount={dueThisSession}
+                    primaryLabel="Shop balance"
+                    primaryAmount={dueAtShop}
                     remainingBalance={remainingBalance}
                     depositAmount={booking.depositAmount}
                     totalAmount={booking.price}
@@ -2620,37 +1834,16 @@ const ClientSessionsTable = ({
                   </div>
 
                   <div className="flex flex-col items-stretch justify-end gap-2">
-                    {payableAmount > 0 &&
-                      booking.remainingPaymentMethod !== "external" && (
+                    {booking.status === "pending_payment" && (
                         <button
                           type="button"
                           onClick={() => onPay(booking.id)}
                           className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85"
                         >
                           <CreditCard size={14} />
-                          Pay
+                          Pay deposit
                         </button>
                       )}
-                    <button
-                      type="button"
-                      disabled={!canConfirm}
-                      onClick={() => onConfirmExternalPayment(booking)}
-                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-white px-2.5! py-2! text-xs! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      <DollarSign size={14} />
-                      {alreadyConfirmed ? "Confirmed" : "Confirm"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        booking.remainingPaymentMethod !== "external" ||
-                        remainingPaymentStatus === "confirmed"
-                      }
-                      onClick={() => onDisputeExternalPayment(booking)}
-                      className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.035] px-2.5! py-2! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      Issue
-                    </button>
                     <button
                       type="button"
                       onClick={() => onOpenRecord(booking)}
@@ -2672,49 +1865,12 @@ const ClientSessionsTable = ({
 
 const ClientSessionRecordDialog = ({
   booking,
-  clientId,
-  amendments,
   onClose,
-  onPay,
-  onConfirmExternalPayment,
-  onDisputeExternalPayment,
-  onRespondToAmendment,
-  onRequestNextSession,
-  onPauseProject,
-  onResumeProject,
 }: {
   booking: ClientDashboardBooking | null;
-  clientId: string | null;
-  amendments: ProjectAmendment[];
   onClose: () => void;
-  onPay: (bookingId: string) => void;
-  onConfirmExternalPayment: (booking: ClientDashboardBooking) => void;
-  onDisputeExternalPayment: (booking: ClientDashboardBooking) => void;
-  onRespondToAmendment: (
-    amendmentId: string,
-    response: "accepted" | "declined" | "cancelled"
-  ) => void;
-  onRequestNextSession: (booking: ClientDashboardBooking) => void;
-  onPauseProject: () => void;
-  onResumeProject: () => void;
 }) => {
   const remainingBalance = booking ? getRemainingBalance(booking) : 0;
-  const protectedBalanceDue =
-    booking?.paymentModelVersion === 2 &&
-    booking.status === "deposit_paid" &&
-    booking.sessionStatus === "completed" &&
-    ["due", "artist_confirmed", "client_confirmed"].includes(
-      booking.remainingPaymentStatus || "due"
-    );
-  const showExternalConfirmation =
-    (protectedBalanceDue ||
-      (booking?.remainingPaymentMethod === "external" &&
-        booking.status === "deposit_paid")) &&
-    ["due", "artist_confirmed", "client_confirmed"].includes(
-      booking?.remainingPaymentStatus || "due"
-    );
-  const clientAlreadyConfirmed =
-    booking?.remainingPaymentStatus === "client_confirmed";
 
   return (
     <Transition appear show={!!booking} as={Fragment}>
@@ -2855,20 +2011,6 @@ const ClientSessionRecordDialog = ({
                           </a>
                         )}
 
-                        <ProjectControlsPanel
-                          booking={booking}
-                          viewerRole="client"
-                          currentUserId={clientId}
-                          amendments={amendments}
-                          onRespondToAmendment={onRespondToAmendment}
-                          onPlanNextSession={() =>
-                            onRequestNextSession(booking)
-                          }
-                          onPauseProject={onPauseProject}
-                          onResumeProject={onResumeProject}
-                          onPayPlatformFee={() => onPay(booking.id)}
-                        />
-
                         <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
@@ -2887,33 +2029,6 @@ const ClientSessionRecordDialog = ({
                               viewer="client"
                             />
                           </div>
-
-                          {showExternalConfirmation && (
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                              <button
-                                type="button"
-                                disabled={clientAlreadyConfirmed}
-                                onClick={() =>
-                                  onConfirmExternalPayment(booking)
-                                }
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-5! py-3! text-sm! font-semibold text-black transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <Check size={16} />
-                                {clientAlreadyConfirmed
-                                  ? "Confirmed"
-                                  : "Confirm paid"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onDisputeExternalPayment(booking)
-                                }
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-black/25 px-5! py-3! text-sm! font-semibold text-white transition hover:bg-white/10"
-                              >
-                                Report issue
-                              </button>
-                            </div>
-                          )}
 
                         </div>
 
@@ -3236,36 +2351,6 @@ const getRemainingBalance = (booking: Partial<Booking>) =>
         0
       );
 
-const isClientMultiSessionBooking = (booking: Partial<Booking>) =>
-  booking.projectType === "multi_session" ||
-  Number(booking.estimatedSessionCount || 1) > 1;
-
-const getEstimatedSessionCount = (booking: Partial<Booking>) =>
-  Math.max(Number(booking.estimatedSessionCount || 1), 1);
-
-const getClientPayableAmount = (booking: Partial<Booking>) => {
-  if (booking.status === "pending_payment") {
-    return Math.max(Number(booking.depositAmount || 0), 0);
-  }
-
-  if (booking.status !== "deposit_paid") return 0;
-  if (booking.remainingPaymentStatus === "confirmed") return 0;
-  if (booking.remainingPaymentStatus === "not_due") return 0;
-  if (booking.remainingPaymentMethod === "external") return 0;
-
-  const pending = Number(booking.pendingSessionPaymentAmount || 0);
-  if (pending > 0) return Math.min(pending, getRemainingBalance(booking));
-
-  return getRemainingBalance(booking);
-};
-
-const needsClientDirectPaymentAction = (booking: Partial<Booking>) =>
-  booking.remainingPaymentMethod === "external" &&
-  booking.status === "deposit_paid" &&
-  ["due", "artist_confirmed", "client_confirmed", "disputed"].includes(
-    booking.remainingPaymentStatus || "not_due"
-  );
-
 const getClientPaymentStatusLabel = (booking: Partial<Booking>) => {
   if (booking.status === "pending_payment") return "Deposit due";
   if (booking.status === "cancelled") return "Cancelled";
@@ -3276,99 +2361,35 @@ const getClientPaymentStatusLabel = (booking: Partial<Booking>) => {
     return "Paid";
   }
   if (booking.remainingPaymentStatus === "not_due") return "Not due yet";
-  if (booking.remainingPaymentStatus === "artist_confirmed") {
-    return "Shop payment recorded";
-  }
-  if (booking.remainingPaymentStatus === "client_confirmed") {
-    return "Awaiting artist confirmation";
-  }
-  if (booking.remainingPaymentStatus === "disputed") return "Payment disputed";
-  if (Number(booking.pendingSessionPaymentAmount || 0) > 0) {
-    return "Session payment requested";
-  }
-  return booking.remainingPaymentMethod === "external"
-    ? "Shop payment due"
-    : "Shop balance due";
+  return "Shop balance due";
 };
 
 const isClientSessionLedgerBooking = (booking: Partial<Booking>) =>
+  booking.sourceType === "flash" &&
   ["confirmed", "deposit_paid", "paid"].includes(String(booking.status)) &&
   (hasClientAppointment(booking) ||
-    ["in_progress", "completed", "awaiting_next_session"].includes(
+    ["in_progress", "completed"].includes(
       String(booking.sessionStatus || "")
-    ) ||
-    Number(booking.pendingSessionPaymentAmount || 0) > 0 ||
-    isClientMultiSessionBooking(booking));
-
-const canClientRequestNextSession = (booking: Partial<Booking>) =>
-  isClientMultiSessionBooking(booking) &&
-  booking.projectStatus !== "paused" &&
-  booking.projectStatus !== "completed" &&
-  booking.status !== "pending_payment" &&
-  booking.status !== "cancelled" &&
-  booking.sessionStatus !== "in_progress" &&
-  getRemainingBalance(booking) >= 0 &&
-  getPayableSessionNumber(booking) <= getEstimatedSessionCount(booking);
-
-const getClientSessionInstallmentAmount = (booking: Partial<Booking>) => {
-  const remaining = getRemainingBalance(booking);
-  const pending = Number(booking.pendingSessionPaymentAmount || 0);
-  if (pending > 0) return Math.min(pending, remaining);
-
-  const sessionsLeft = isClientMultiSessionBooking(booking)
-    ? getRemainingInstallmentCount(booking)
-    : Math.max(
-        Number(booking.estimatedSessionCount || 1) -
-          Number(booking.completedSessionCount || 0),
-        1
-      );
-  return Math.ceil(remaining / sessionsLeft);
-};
-
-const getRemainingInstallmentCount = (booking: Partial<Booking>) => {
-  const totalLaterInstallments = Math.max(
-    Number(booking.estimatedSessionCount || 1) - 1,
-    1
-  );
-  const lastPaidSessionNumber = Math.max(
-    Number(booking.lastPaidSessionNumber || 0),
-    0
-  );
-  const paidLaterInstallments =
-    booking.sessionInstallmentTiming === "before_session"
-      ? Math.max(lastPaidSessionNumber - 1, 0)
-      : lastPaidSessionNumber;
-
-  return Math.max(totalLaterInstallments - paidLaterInstallments, 1);
-};
-
-const getPayableSessionNumber = (booking: Partial<Booking>) =>
-  Math.max(
-    Number(booking.pendingSessionNumber || booking.activeSessionNumber || 1),
-    1
-  );
+    ));
 
 const getClientViewDescription = (view: ClientView, clientName: string) => {
   if (view === "overview") {
-    return `Welcome back, ${clientName}. Review payments, offers, projects, and upcoming appointments from one place.`;
+    return `Welcome back, ${clientName}. Review flash requests, offers, payments, and upcoming appointments from one place.`;
   }
   if (view === "following") {
     return "Followed artists, recent flash drops, sheets, and gallery updates live here.";
   }
   if (view === "requests") {
-    return "Track tattoo requests you have sent and see when artists are preparing a response.";
+    return "Track the flash requests you have sent and see when artists respond.";
   }
   if (view === "offers") {
-    return "Review artist offers, appointment options, deposits, and project terms.";
+    return "Review flash offers, appointment options, deposits, and shop balances.";
   }
   if (view === "bookings") {
     return "Manage accepted bookings, deposits, appointment details, and payment state.";
   }
   if (view === "sessions") {
     return "Follow session records, payments, studio details, and completed appointment history.";
-  }
-  if (view === "projects") {
-    return "Manage multi-session progress, scheduling, amendments, and project payments.";
   }
   return "Keep your public profile and booking preferences ready for artists.";
 };

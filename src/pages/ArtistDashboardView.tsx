@@ -14,6 +14,10 @@ import { useSearchParams } from "react-router-dom";
 import CalendarSyncPanel from "../components/CalendarSyncPanel";
 import { toast } from "react-hot-toast";
 import slugify from "slugify";
+import {
+  getArtistProfilePath,
+  isReservedArtistSlug,
+} from "../utils/artistProfilePath";
 import { RiInstagramFill } from "react-icons/ri";
 import {
   CalendarDays,
@@ -71,12 +75,7 @@ import GalleryManager from "../components/GalleryManager";
 import StripeConnectPanel from "../components/StripeConnectPanel";
 import ArtistSchedulePanel from "../components/ArtistSchedulePanel";
 import AnimatedTagInput from "../components/ui/AnimatedTagInput";
-import AddSessionsAmendmentDialog from "../components/AddSessionsAmendmentDialog";
-import ProjectControlsPanel from "../components/ProjectControlsPanel";
-import ProjectPauseDialog from "../components/ProjectPauseDialog";
-import ProjectScheduleProposalDialog from "../components/ProjectScheduleProposalDialog";
-import SessionPaymentRequestDialog from "../components/SessionPaymentRequestDialog";
-import type { Booking, ProjectAmendment } from "../types/Booking";
+import type { Booking } from "../types/Booking";
 import type { Artist } from "../types/Artist";
 import type { FinalPaymentDeadlineHours } from "../types/PaymentPreferences";
 import {
@@ -126,7 +125,6 @@ type ArtistDashboardTab =
   | "bookings"
   | "sessions"
   | "schedule"
-  | "projects"
   | "pending"
   | "confirmed"
   | "paid"
@@ -233,13 +231,6 @@ const getAccountProviderCopy = (providerId: string) => {
   };
 };
 
-const PROJECT_PAYMENT_FOLLOW_UP_STATUSES = [
-  "due",
-  "disputed",
-  "artist_confirmed",
-  "client_confirmed",
-];
-
 const isBookingRouteFilter = (
   tab: string | null
 ): tab is Exclude<BookingStatusFilter, "all"> =>
@@ -311,13 +302,22 @@ type DashboardBookingRequest = {
   clientLastName?: string;
   clientName: string;
   clientAvatar: string;
-  description: string;
+  description?: string;
   preferredDateRange?: string[];
   bodyPlacement: string;
   size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
   fullUrl?: string;
   thumbUrl?: string;
   budget?: string | number;
+  sourceType?: string;
+  flashId?: string;
+  flashTitle?: string;
+  flashDescription?: string | null;
+  flashPrice?: number | null;
+  flashSheetId?: string | null;
+  flashRepeatability?: "repeatable" | "one_of_one";
+  flashAvailabilityStatus?: "available" | "held" | "sold";
+  isFromSheet?: boolean;
 };
 
 const normalizeUrl = (value: string) => {
@@ -439,6 +439,9 @@ const waitForStorageUrl = async (
 };
 
 const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
+  tab === "projects"
+    ? "sessions"
+    :
   [
     "requests",
     "profile",
@@ -446,7 +449,6 @@ const getArtistDashboardTab = (tab: string | null): ArtistDashboardTab =>
     "bookings",
     "sessions",
     "schedule",
-    "projects",
     "pending",
     "confirmed",
     "paid",
@@ -467,7 +469,6 @@ const isArtistDashboardTab = (tab: string | null): tab is ArtistDashboardTab =>
     "bookings",
     "sessions",
     "schedule",
-    "projects",
     "pending",
     "confirmed",
     "paid",
@@ -591,7 +592,6 @@ const ArtistDashboardView = () => {
     bookings: 0,
     sessions: 0,
     schedule: 0,
-    projects: 0,
     pending: 0,
     confirmed: 0,
     paid: 0,
@@ -612,10 +612,6 @@ const ArtistDashboardView = () => {
   const [bookingToStart, setBookingToStart] = useState<DashboardBooking | null>(
     null
   );
-  const [addSessionsBooking, setAddSessionsBooking] =
-    useState<DashboardBooking | null>(null);
-  const [sessionPaymentBooking, setSessionPaymentBooking] =
-    useState<DashboardBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
@@ -809,6 +805,7 @@ const ArtistDashboardView = () => {
 
       const slug = slugify(displayName, { lower: true, strict: true });
       if (!slug || slug === currentSlug) return "idle" as DisplayNameStatus;
+      if (isReservedArtistSlug(slug)) return "taken" as DisplayNameStatus;
 
       const nameQuery = query(
         collection(db, "users"),
@@ -1081,7 +1078,14 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    const profileUrl = `${window.location.origin}/artists/${uid}`;
+    const profilePath = getArtistProfilePath({
+      id: uid,
+      slug: currentSlug || artist?.slug,
+      displayName:
+        artist?.displayName || profileForm.displayName.trim(),
+      name: artist?.name,
+    });
+    const profileUrl = `${window.location.origin}${profilePath}`;
     const artistName =
       artist?.displayName ||
       artist?.name ||
@@ -1141,7 +1145,7 @@ const ArtistDashboardView = () => {
       console.error("Artist profile sharing failed:", error);
       toast.error("Could not share your profile.");
     }
-  }, [artist, profileForm.displayName, uid]);
+  }, [artist, currentSlug, profileForm.displayName, uid]);
 
   const handleSaveProfile = async () => {
     if (!uid) return;
@@ -1257,10 +1261,12 @@ const ArtistDashboardView = () => {
       q,
       (snapshot) => {
         setBookingRequests(
-          snapshot.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          })) as DashboardBookingRequest[]
+          snapshot.docs
+            .filter((requestDoc) => requestDoc.data().sourceType === "flash")
+            .map((d) => ({
+              id: d.id,
+              ...d.data(),
+            })) as DashboardBookingRequest[]
         );
       },
       (error) => {
@@ -1281,7 +1287,6 @@ const ArtistDashboardView = () => {
       paid: 0,
       cancelled: 0,
       sessions: 0,
-      projects: 0,
     };
 
     const updateCount = (key: string, value: number) => {
@@ -1301,7 +1306,6 @@ const ArtistDashboardView = () => {
           bookingCountParts.paid +
           bookingCountParts.cancelled;
         next.sessions = bookingCountParts.sessions;
-        next.projects = bookingCountParts.projects;
         return next;
       });
     };
@@ -1313,7 +1317,11 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "pending")
         ),
-        (snap) => updateCount("requests", snap.size),
+        (snap) =>
+          updateCount(
+            "requests",
+            snap.docs.filter((item) => item.data().sourceType === "flash").length
+          ),
         (error) => console.error("Artist request count listener failed:", error)
       ),
       onSnapshot(
@@ -1324,6 +1332,7 @@ const ArtistDashboardView = () => {
             snap.docs
               .filter(
                 (offerDoc) =>
+                  offerDoc.data().sourceType === "flash" &&
                   !["accepted", "revised"].includes(
                     String(offerDoc.data().status)
                   )
@@ -1338,7 +1347,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "pending_payment")
         ),
-        (snap) => updateCount("pending", snap.size),
+        (snap) => updateCount("pending", snap.docs.filter((item) => item.data().sourceType === "flash").length),
         (error) =>
           console.error("Artist pending booking count listener failed:", error)
       ),
@@ -1348,7 +1357,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "confirmed")
         ),
-        (snap) => updateCount("confirmed", snap.size),
+        (snap) => updateCount("confirmed", snap.docs.filter((item) => item.data().sourceType === "flash").length),
         (error) =>
           console.error(
             "Artist confirmed booking count listener failed:",
@@ -1361,7 +1370,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "deposit_paid")
         ),
-        (snap) => updateCount("deposit_paid", snap.size),
+        (snap) => updateCount("deposit_paid", snap.docs.filter((item) => item.data().sourceType === "flash").length),
         (error) =>
           console.error(
             "Artist deposit-paid booking count listener failed:",
@@ -1374,7 +1383,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "paid")
         ),
-        (snap) => updateCount("paid", snap.size),
+        (snap) => updateCount("paid", snap.docs.filter((item) => item.data().sourceType === "flash").length),
         (error) =>
           console.error("Artist paid booking count listener failed:", error)
       ),
@@ -1384,7 +1393,7 @@ const ArtistDashboardView = () => {
           where("artistId", "==", uid),
           where("status", "==", "cancelled")
         ),
-        (snap) => updateCount("cancelled", snap.size),
+        (snap) => updateCount("cancelled", snap.docs.filter((item) => item.data().sourceType === "flash").length),
         (error) =>
           console.error(
             "Artist cancelled booking count listener failed:",
@@ -1394,9 +1403,9 @@ const ArtistDashboardView = () => {
       onSnapshot(
         query(collection(db, "bookings"), where("artistId", "==", uid)),
         (snap) => {
-          const bookingDocs = snap.docs.map(
-            (bookingDoc) => bookingDoc.data() as Partial<Booking>
-          );
+          const bookingDocs = snap.docs
+            .filter((bookingDoc) => bookingDoc.data().sourceType === "flash")
+            .map((bookingDoc) => bookingDoc.data() as Partial<Booking>);
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
 
@@ -1420,17 +1429,6 @@ const ArtistDashboardView = () => {
         },
         (error) => console.error("Artist session count listener failed:", error)
       ),
-      onSnapshot(
-        query(collection(db, "bookings"), where("artistId", "==", uid)),
-        (snap) =>
-          updateCount(
-            "projects",
-            snap.docs.filter((bookingDoc) =>
-              isOngoingProjectBooking(bookingDoc.data())
-            ).length
-          ),
-        (error) => console.error("Artist project count listener failed:", error)
-      ),
     ];
 
     return () => {
@@ -1442,26 +1440,24 @@ const ArtistDashboardView = () => {
   useEffect(() => {
     if (
       !uid ||
-      !["bookings", "sessions", "schedule", "projects"].includes(activeTab)
+      !["bookings", "sessions", "schedule"].includes(activeTab)
     )
       return;
 
     setBookings([]);
 
     const q =
-      activeTab === "sessions"
-        ? query(collection(db, "bookings"), where("artistId", "==", uid))
-        : activeTab === "projects"
-        ? query(collection(db, "bookings"), where("artistId", "==", uid))
-        : query(collection(db, "bookings"), where("artistId", "==", uid));
+      query(collection(db, "bookings"), where("artistId", "==", uid));
 
     const unsubscribe = onSnapshot(
       q,
       async (snapshot) => {
-        const rawBookings = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as Booking[];
+        const rawBookings = snapshot.docs
+          .filter((bookingDoc) => bookingDoc.data().sourceType === "flash")
+          .map((d) => ({
+            id: d.id,
+            ...d.data(),
+          })) as Booking[];
         const scopedBookings =
           activeTab === "sessions"
             ? rawBookings.filter((booking) =>
@@ -1469,8 +1465,6 @@ const ArtistDashboardView = () => {
               )
             : activeTab === "schedule"
             ? rawBookings.filter((booking) => booking.status !== "cancelled")
-            : activeTab === "projects"
-            ? rawBookings.filter((booking) => isOngoingProjectBooking(booking))
             : rawBookings.filter(
                 (booking) => getBookingStatusFilterValue(booking) !== "all"
               );
@@ -1640,7 +1634,7 @@ const ArtistDashboardView = () => {
     try {
       const completeSession = httpsCallable(
         functions,
-        "completeProjectSession"
+        "completeFlashAppointment"
       );
       await completeSession({ bookingId: booking.id });
       toast.success("Session completed.");
@@ -1652,7 +1646,7 @@ const ArtistDashboardView = () => {
 
   const handleStartSessionFromRow = async (booking: DashboardBooking) => {
     try {
-      const startSession = httpsCallable(functions, "startProjectSession");
+      const startSession = httpsCallable(functions, "startFlashAppointment");
       await startSession({ bookingId: booking.id });
       toast.success("Session started.");
     } catch (error) {
@@ -1673,7 +1667,7 @@ const ArtistDashboardView = () => {
       try {
         const confirmExternalPayment = httpsCallable(
           functions,
-          "attestExternalSessionPayment"
+          "recordFlashBalancePaidAtShop"
         );
         await confirmExternalPayment({
           bookingId: booking.id,
@@ -1687,7 +1681,7 @@ const ArtistDashboardView = () => {
       return;
     }
 
-    const amountPaid = getDashboardSessionInstallmentAmount(booking);
+    const amountPaid = getDashboardShopBalanceAmount(booking);
     const completion = buildExternalPaymentCompletionUpdates(
       booking,
       amountPaid
@@ -1699,61 +1693,6 @@ const ArtistDashboardView = () => {
       completion.bookingUpdate
     );
     toast.success("Shop payment marked complete.");
-  };
-
-  const handleOpenAddedSessionsModal = (booking: DashboardBooking) => {
-    setAddSessionsBooking(booking);
-  };
-
-  const handleSubmitAddedSessions = async (
-    booking: Booking,
-    input: {
-      additionalSessionCount: number;
-      addedArtistAmountCents: number;
-      message: string;
-    }
-  ) => {
-    try {
-      const proposeAmendment = httpsCallable(
-        functions,
-        "proposeProjectAmendment"
-      );
-      await proposeAmendment({
-        bookingId: booking.id,
-        type: "add_sessions",
-        additionalSessionCount: input.additionalSessionCount,
-        addedArtistAmountCents: input.addedArtistAmountCents,
-        message: input.message,
-      });
-      toast.success("Added-session amendment sent to the client.");
-    } catch (error) {
-      console.error("Project amendment proposal failed:", error);
-      toast.error("Could not send the amendment.");
-      throw error;
-    }
-  };
-
-  const handleSubmitSessionPaymentRequest = async (
-    booking: Booking,
-    input: { amountCents: number; note: string }
-  ) => {
-    try {
-      const preparePayment = httpsCallable(
-        functions,
-        "prepareProjectSessionPayment"
-      );
-      await preparePayment({
-        bookingId: booking.id,
-        sessionNumber: getActiveSessionNumber(booking),
-        amountCents: input.amountCents,
-        note: input.note,
-      });
-      toast.success("Session payment request sent.");
-    } catch (error) {
-      console.error("Session payment request failed:", error);
-      toast.error("Could not request this session payment.");
-      throw error;
-    }
   };
 
   const bookingStatusMetrics = [
@@ -1804,23 +1743,6 @@ const ArtistDashboardView = () => {
           onSave={handleAvatarCropSave}
         />
       )}
-
-      <AddSessionsAmendmentDialog
-        booking={addSessionsBooking}
-        onClose={() => setAddSessionsBooking(null)}
-        onSubmit={handleSubmitAddedSessions}
-      />
-
-      <SessionPaymentRequestDialog
-        booking={sessionPaymentBooking}
-        suggestedAmount={
-          sessionPaymentBooking
-            ? getDashboardSessionInstallmentAmount(sessionPaymentBooking)
-            : 0
-        }
-        onClose={() => setSessionPaymentBooking(null)}
-        onSubmit={handleSubmitSessionPaymentRequest}
-      />
 
       <SidebarNavigation
         activeTab={activeTab}
@@ -2554,7 +2476,7 @@ const ArtistDashboardView = () => {
         )}
 
         {/* Booking cards */}
-        {["bookings", "sessions", "projects"].includes(activeTab) && (
+        {["bookings", "sessions"].includes(activeTab) && (
           <section className="mt-6 w-full max-w-7xl space-y-6">
             <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -2563,8 +2485,6 @@ const ArtistDashboardView = () => {
                     ? "Bookings"
                     : activeTab === "sessions"
                     ? "Sessions"
-                    : activeTab === "projects"
-                    ? "Ongoing projects"
                     : "Bookings"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-neutral-400">
@@ -2572,9 +2492,7 @@ const ArtistDashboardView = () => {
                     ? "Track accepted offers by payment stage, appointment status, and client readiness."
                     : activeTab === "sessions"
                     ? "Start upcoming appointments, manage the active session, and close out work cleanly."
-                    : activeTab === "projects"
-                    ? "Track multi-session progress, scheduling needs, and project health."
-                    : "Review client appointments, payment status, studio details, and selected tattoo references."}
+                    : "Review flash appointments, payment status, and studio details."}
                 </p>
               </div>
 
@@ -2612,8 +2530,6 @@ const ArtistDashboardView = () => {
                     ? "No bookings yet"
                     : activeTab === "sessions"
                     ? "No sessions ready"
-                    : activeTab === "projects"
-                    ? "No ongoing projects yet"
                     : "No bookings yet"}
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
@@ -2621,8 +2537,6 @@ const ArtistDashboardView = () => {
                     ? "Once clients accept offers, their bookings will collect here by payment and appointment stage."
                     : activeTab === "sessions"
                     ? "Upcoming and active session work will appear here once a booking is paid or confirmed."
-                    : activeTab === "projects"
-                    ? "When an accepted booking is marked as a multi-session project, it will appear here for progress and scheduling follow-up."
                     : "When a client reaches this booking stage, their appointment details will appear here."}
                 </p>
               </div>
@@ -2865,8 +2779,6 @@ const ArtistDashboardView = () => {
                           : `${activeBookingFilterLabel.toLowerCase()} bookings`
                         : activeTab === "sessions"
                         ? "active session records"
-                        : activeTab === "projects"
-                        ? "projects"
                         : "bookings"}
                       .
                     </p>
@@ -2877,30 +2789,9 @@ const ArtistDashboardView = () => {
                     onOpenRecord={(booking) =>
                       setSelectedBookingRecord(booking)
                     }
-                    onOpenProject={(booking) => {
-                      setActiveTab("projects");
-                      setBookingStatusFilter("all");
-                      setSessionReadinessFilter("all");
-                      setSelectedBookingRecord(booking);
-                    }}
                     onStart={(booking) => setBookingToStart(booking)}
                     onComplete={handleCompleteSessionFromRow}
-                    onRequestPayment={(booking) =>
-                      setSessionPaymentBooking(booking)
-                    }
                     hasActiveSession={hasActiveSessionInProgress}
-                  />
-                ) : activeTab === "projects" ? (
-                  <ProjectsTable
-                    projects={visibleBookings as DashboardBooking[]}
-                    onOpenRecord={(booking) =>
-                      setSelectedBookingRecord(booking)
-                    }
-                    onBalancePaid={handleBalancePaidFromRow}
-                    onRequestPayment={(booking) =>
-                      setSessionPaymentBooking(booking)
-                    }
-                    onAddSessions={handleOpenAddedSessionsModal}
                   />
                 ) : (
                   <ArtistBookingsTable
@@ -2908,12 +2799,6 @@ const ArtistDashboardView = () => {
                     onOpenRecord={(booking) =>
                       setSelectedBookingRecord(booking)
                     }
-                    onOpenProjectRecord={(booking) => {
-                      setActiveTab("projects");
-                      setBookingStatusFilter("all");
-                      setSessionReadinessFilter("all");
-                      setSelectedBookingRecord(booking);
-                    }}
                     onViewInSessions={() => {
                       setActiveTab("sessions");
                       setBookingStatusFilter("all");
@@ -2994,9 +2879,6 @@ const ArtistDashboardView = () => {
           booking={selectedBookingRecord}
           onClose={() => setSelectedBookingRecord(null)}
           isSessionView={activeTab === "sessions"}
-          showProjectControls={activeTab === "projects"}
-          currentUserId={uid}
-          onAddSessions={handleOpenAddedSessionsModal}
           onSessionStarted={() => {
             setSelectedBookingRecord(null);
             setActiveTab("sessions");
@@ -3048,14 +2930,12 @@ const BookingMetricCard = ({
 const ArtistBookingsTable = ({
   bookings,
   onOpenRecord,
-  onOpenProjectRecord,
   onViewInSessions,
   onBalancePaid,
   hasActiveSession,
 }: {
   bookings: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
-  onOpenProjectRecord: (booking: DashboardBooking) => void;
   onViewInSessions: (booking: DashboardBooking) => void;
   onBalancePaid: (booking: DashboardBooking) => void;
   hasActiveSession: boolean;
@@ -3086,7 +2966,6 @@ const ArtistBookingsTable = ({
                 booking={booking}
                 columns={columns}
                 onOpenRecord={() => onOpenRecord(booking)}
-                onOpenProjectRecord={() => onOpenProjectRecord(booking)}
                 onViewInSessions={() => onViewInSessions(booking)}
                 onBalancePaid={() => onBalancePaid(booking)}
                 hasActiveSession={hasActiveSession}
@@ -3103,7 +2982,6 @@ const ArtistBookingRow = ({
   booking,
   columns,
   onOpenRecord,
-  onOpenProjectRecord,
   onViewInSessions,
   onBalancePaid,
   hasActiveSession,
@@ -3111,7 +2989,6 @@ const ArtistBookingRow = ({
   booking: DashboardBooking;
   columns: string;
   onOpenRecord: () => void;
-  onOpenProjectRecord: () => void;
   onViewInSessions: () => void;
   onBalancePaid: () => void;
   hasActiveSession: boolean;
@@ -3122,7 +2999,6 @@ const ArtistBookingRow = ({
       : "No date set";
   const canViewInSessions = canStartBookingSession(booking);
   const canConfirmInShopPayment = canConfirmBookingInShopPayment(booking);
-  const canOpenInProjects = isOngoingProjectBooking(booking);
   const clientName = getDashboardClientName(booking);
   const clientTableName = getDashboardClientFirstName(booking);
   const clientTitle = getFullClientNameTitle(clientName, clientTableName);
@@ -3158,10 +3034,10 @@ const ArtistBookingRow = ({
         className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
         aria-label="View booking sample"
       >
-        {booking.sampleImageUrl ? (
+        {getDashboardBookingImageUrl(booking) ? (
           <img
-            src={booking.sampleImageUrl}
-            alt="Booking sample"
+            src={getDashboardBookingImageUrl(booking)}
+            alt={booking.flashTitle || "Flash tattoo"}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -3220,16 +3096,6 @@ const ArtistBookingRow = ({
             Mark paid
           </button>
         )}
-        {canOpenInProjects && (
-          <button
-            type="button"
-            onClick={onOpenProjectRecord}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-          >
-            <CalendarDays size={14} />
-            Projects
-          </button>
-        )}
         <button
           type="button"
           onClick={onOpenRecord}
@@ -3259,7 +3125,7 @@ const PaymentPreferencesPanel = ({
             Payments
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-400">
-            Stripe securely collects required session deposits and sends them
+            Stripe securely collects required booking deposits and sends them
             to your Stripe Connect account. Remaining balances are settled
             directly at the shop.
           </p>
@@ -3302,12 +3168,12 @@ const PaymentPreferencesPanel = ({
               After-session shop balance
             </h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
-              Remaining session balances are settled directly at the shop
+              Remaining appointment balances are settled directly at the shop
               after the appointment. This avoids a second card-processing fee
               for the client.
             </p>
             <p className="mt-2 text-xs leading-5 text-sky-100/65">
-              Complete the session, collect the balance at the shop, then mark
+              Complete the appointment, collect the balance at the shop, then mark
               it paid from your Sessions workspace.
             </p>
           </div>
@@ -3462,18 +3328,14 @@ const getArtistDashboardSocialLinks = (artist: DashboardArtist) =>
 const SessionsTable = ({
   sessions,
   onOpenRecord,
-  onOpenProject,
   onStart,
   onComplete,
-  onRequestPayment,
   hasActiveSession,
 }: {
   sessions: DashboardBooking[];
   onOpenRecord: (booking: DashboardBooking) => void;
-  onOpenProject: (booking: DashboardBooking) => void;
   onStart: (booking: DashboardBooking) => void;
   onComplete: (booking: DashboardBooking) => void;
-  onRequestPayment: (booking: DashboardBooking) => void;
   hasActiveSession: boolean;
 }) => {
   const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(
@@ -3546,7 +3408,7 @@ const SessionsTable = ({
                   style={{ gridTemplateColumns: activeColumns }}
                 >
                   <span>Client / Reference</span>
-                  <span>Session</span>
+                  <span>Flash</span>
                   <span>Appointment</span>
                   <span className="text-right">Actions</span>
                 </div>
@@ -3555,9 +3417,6 @@ const SessionsTable = ({
                   {activeSessions.map((booking) => {
                     const clientName = getDashboardClientName(booking);
                     const clientAvatar = getDashboardClientAvatar(booking);
-                    const activeSessionNumber = getActiveSessionNumber(booking);
-                    const sessionCount = getEstimatedSessionCount(booking);
-                    const sessionLabel = `${activeSessionNumber} / ${sessionCount}`;
                     const isUploadingPhoto = uploadingBookingId === booking.id;
 
                     return (
@@ -3575,7 +3434,7 @@ const SessionsTable = ({
 
                         <div className="min-w-0 pr-4">
                           <p className="truncate text-sm font-semibold text-white">
-                            {sessionLabel}
+                            {booking.flashTitle || "Flash appointment"}
                           </p>
                           <div className="mt-1">
                             <SessionStatusBadge status="in_progress" />
@@ -3633,8 +3492,7 @@ const SessionsTable = ({
               Upcoming Sessions
             </h2>
             <p className="mt-1 text-sm text-neutral-400">
-              Start ready appointments, or open records that need a date or
-              project follow-up.
+              Start ready flash appointments or open a record for more detail.
             </p>
           </div>
           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-neutral-300">
@@ -3655,7 +3513,7 @@ const SessionsTable = ({
                   style={{ gridTemplateColumns: upcomingColumns }}
                 >
                   <span>Client / Reference</span>
-                  <span>Session</span>
+                  <span>Flash</span>
                   <span>Appointment</span>
                   <span>State</span>
                   <span className="text-right">Actions</span>
@@ -3667,18 +3525,9 @@ const SessionsTable = ({
                     const clientAvatar = getDashboardClientAvatar(booking);
                     const sessionStatus =
                       booking.sessionStatus || "not_started";
-                    const activeSessionNumber = getActiveSessionNumber(booking);
-                    const sessionCount = getEstimatedSessionCount(booking);
-                    const sessionLabel = `${activeSessionNumber} / ${sessionCount}`;
-                    const readiness = getSessionReadinessFilterValue(booking);
                     const startBlockReason =
                       getSessionStartBlockReason(booking);
                     const canStart = !startBlockReason;
-                    const shouldPlanNext = readiness === "needs_schedule";
-                    const shouldOpenProject =
-                      shouldPlanNext || readiness === "follow_up";
-                    const canRequestPayment =
-                      canRequestProjectSessionPayment(booking);
 
                     return (
                       <div
@@ -3695,7 +3544,7 @@ const SessionsTable = ({
 
                         <div className="min-w-0 pr-4">
                           <p className="truncate text-sm font-semibold text-white">
-                            {sessionLabel}
+                            {booking.flashTitle || "Flash appointment"}
                           </p>
                           <div className="mt-1">
                             <SessionStatusBadge status={sessionStatus} />
@@ -3706,16 +3555,6 @@ const SessionsTable = ({
                         <SessionStateCell booking={booking} />
 
                         <div className="flex flex-nowrap items-center justify-end gap-2">
-                          {canRequestPayment && (
-                            <button
-                              type="button"
-                              onClick={() => onRequestPayment(booking)}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! py-2! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
-                            >
-                              <DollarSign size={14} />
-                              Request payment
-                            </button>
-                          )}
                           {(canStart || startBlockReason) && (
                             <button
                               type="button"
@@ -3733,26 +3572,6 @@ const SessionsTable = ({
                             >
                               <CalendarDays size={14} />
                               Start session
-                            </button>
-                          )}
-                          {shouldPlanNext && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenProject(booking)}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-3! py-2! text-xs! font-semibold text-amber-100 transition hover:bg-amber-300/15"
-                            >
-                              <CalendarDays size={14} />
-                              Plan next
-                            </button>
-                          )}
-                          {!shouldPlanNext && shouldOpenProject && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenProject(booking)}
-                              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"
-                            >
-                              <CalendarDays size={14} />
-                              Projects
                             </button>
                           )}
                           <button
@@ -3816,10 +3635,10 @@ const SessionClientCell = ({
         </span>
       </span>
       <span className="ml-auto hidden h-14 w-16 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] sm:block">
-        {booking.sampleImageUrl ? (
+        {getDashboardBookingImageUrl(booking) ? (
           <img
-            src={booking.sampleImageUrl}
-            alt="Session reference"
+            src={getDashboardBookingImageUrl(booking)}
+            alt={booking.flashTitle || "Flash tattoo"}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -3862,252 +3681,6 @@ const SessionStateCell = ({ booking }: { booking: DashboardBooking }) => {
       </span>
       <p className="mt-1 truncate text-xs text-neutral-500">
         {readiness.description}
-      </p>
-    </div>
-  );
-};
-
-const ProjectsTable = ({
-  projects,
-  onOpenRecord,
-  onBalancePaid,
-  onRequestPayment,
-  onAddSessions,
-}: {
-  projects: DashboardBooking[];
-  onOpenRecord: (booking: DashboardBooking) => void;
-  onBalancePaid: (booking: DashboardBooking) => void;
-  onRequestPayment: (booking: DashboardBooking) => void;
-  onAddSessions: (booking: DashboardBooking) => void;
-}) => {
-  const columns =
-    "minmax(260px,1.1fr) minmax(230px,.9fr) minmax(230px,.9fr) minmax(170px,.62fr) minmax(380px,1.25fr)";
-  const totalOpenBalance = projects.reduce(
-    (total, booking) => total + getDashboardRemainingBalance(booking),
-    0
-  );
-  const projectedNextInstallmentTotal = projects.reduce(
-    (total, booking) => total + getDashboardSessionInstallmentAmount(booking),
-    0
-  );
-  const paymentFollowUpCount = projects.filter(
-    hasProjectPaymentFollowUp
-  ).length;
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-4">
-        <div className="grid gap-4 md:grid-cols-3 md:divide-x md:divide-white/10">
-          <ProjectBalanceStat
-            label="Open artist balance"
-            value={formatDashboardMoney(totalOpenBalance)}
-          />
-          <ProjectBalanceStat
-            label="Projected next due"
-            value={formatDashboardMoney(projectedNextInstallmentTotal)}
-          />
-          <ProjectBalanceStat
-            label="Payment follow-up"
-            value={paymentFollowUpCount}
-          />
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg">
-        <div className="request-modal-scrollbar overflow-x-auto">
-          <div className="min-w-[1270px]">
-            <div
-              className="grid items-center border-b border-white/10 bg-white/[0.035] px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500"
-              style={{ gridTemplateColumns: columns }}
-            >
-              <span>Client</span>
-              <span>Progress</span>
-              <span>Schedule</span>
-              <span>Status</span>
-              <span className="text-right">Actions</span>
-            </div>
-
-            <div className="divide-y divide-white/10">
-              {projects.map((booking) => {
-                const clientName = getDashboardClientName(booking);
-                const clientTableName = getDashboardClientFirstName(booking);
-                const clientTitle = getFullClientNameTitle(
-                  clientName,
-                  clientTableName
-                );
-                const clientAvatar = getDashboardClientAvatar(booking);
-                const completedCount = Number(
-                  booking.completedSessionCount || 0
-                );
-                const sessionCount = getEstimatedSessionCount(booking);
-                const activeSessionNumber = getActiveSessionNumber(booking);
-                const progress = Math.min(
-                  (completedCount / sessionCount) * 100,
-                  100
-                );
-                const canConfirmInShopPayment =
-                  canConfirmBookingInShopPayment(booking);
-                const canRequestPayment =
-                  canRequestProjectSessionPayment(booking);
-                const canAddSessions = canProposeProjectScopeChange(booking);
-                const projectQuickAction = getProjectQuickAction(booking);
-
-                return (
-                  <div
-                    key={booking.id}
-                    className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
-                    style={{ gridTemplateColumns: columns }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onOpenRecord(booking)}
-                      className="flex min-w-0 items-center gap-3 p-0! pr-4 text-left"
-                    >
-                      <img
-                        src={clientAvatar}
-                        alt={clientName}
-                        className="h-11 w-11 rounded-full border border-white/10 object-cover"
-                      />
-                      <span className="min-w-0">
-                        <span
-                          className="block truncate font-semibold text-white"
-                          title={clientTitle}
-                        >
-                          {clientTableName}
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-neutral-500">
-                          {getProjectStartLabel(booking)}
-                        </span>
-                      </span>
-                    </button>
-
-                    <div className="min-w-0 pr-4">
-                      <div className="mb-2 flex items-center justify-between gap-3 text-xs text-neutral-500">
-                        <span>
-                          {completedCount}/{sessionCount} sessions
-                        </span>
-                        <span className="font-medium text-white">
-                          {Math.round(progress)}%
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-emerald-300"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 pr-4">
-                      <p className="truncate text-sm font-semibold text-white">
-                        Session {activeSessionNumber}/{sessionCount}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-neutral-500">
-                        {hasScheduledAppointment(booking)
-                          ? formatBookingAppointment(booking.selectedDate)
-                          : "Needs scheduling"}
-                      </p>
-                    </div>
-
-                    <ProjectLedgerStatusBadge booking={booking} />
-
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      {canRequestPayment ? (
-                        <button
-                          type="button"
-                          onClick={() => onRequestPayment(booking)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
-                        >
-                          <DollarSign size={14} />
-                          Request payment
-                        </button>
-                      ) : canConfirmInShopPayment ? (
-                        <button
-                          type="button"
-                          onClick={() => onBalancePaid(booking)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-3! text-xs! font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
-                        >
-                          <DollarSign size={14} />
-                          Mark paid
-                        </button>
-                      ) : projectQuickAction ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenRecord(booking)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-3! text-xs! font-semibold text-amber-100 transition hover:bg-amber-300/15"
-                        >
-                          <CalendarDays size={14} />
-                          {projectQuickAction}
-                        </button>
-                      ) : null}
-
-                      {canAddSessions && (
-                        <button
-                          type="button"
-                          onClick={() => onAddSessions(booking)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-                        >
-                          <CalendarDays size={14} />
-                          Add sessions
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onOpenRecord(booking)}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-                      >
-                        <Eye size={14} />
-                        Open project record
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ProjectBalanceStat = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) => (
-  <div className="min-w-0 md:px-4 md:first:pl-0 md:last:pr-0">
-    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-      {label}
-    </p>
-    <p className="mt-1 truncate text-xl! font-semibold text-white">{value}</p>
-  </div>
-);
-
-const ProjectLedgerStatusBadge = ({
-  booking,
-}: {
-  booking: DashboardBooking;
-}) => {
-  const status = booking.projectStatus || "active";
-  const className =
-    status === "paused"
-      ? "border-amber-300/20 bg-amber-300/10 text-amber-100"
-      : status === "completed"
-      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-      : "border-sky-300/20 bg-sky-300/10 text-sky-100";
-
-  return (
-    <div className="pr-4">
-      <span
-        className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${className}`}
-      >
-        {status}
-      </span>
-      <p className="mt-1 truncate text-xs capitalize text-neutral-500">
-        {(booking.sessionStatus || "not_started").replace(/_/g, " ")}
       </p>
     </div>
   );
@@ -4211,17 +3784,11 @@ const BookingRecordDialog = ({
   booking,
   onClose,
   isSessionView,
-  showProjectControls,
-  currentUserId,
-  onAddSessions,
   onSessionStarted,
 }: {
   booking: DashboardBooking | null;
   onClose: () => void;
   isSessionView: boolean;
-  showProjectControls: boolean;
-  currentUserId: string | null;
-  onAddSessions: (booking: DashboardBooking) => void;
   onSessionStarted: () => void;
 }) => {
   const [sessionStatus, setSessionStatus] =
@@ -4229,47 +3796,11 @@ const BookingRecordDialog = ({
   const [sessionPhotoUrls, setSessionPhotoUrls] = useState<string[]>([]);
   const [isUpdatingSession, setIsUpdatingSession] = useState(false);
   const [isUploadingSessionPhoto, setIsUploadingSessionPhoto] = useState(false);
-  const [pendingAmendments, setPendingAmendments] = useState<
-    ProjectAmendment[]
-  >([]);
-  const [scheduleProposalBooking, setScheduleProposalBooking] =
-    useState<DashboardBooking | null>(null);
-  const [pauseDialogMode, setPauseDialogMode] = useState<
-    "pause" | "resume" | null
-  >(null);
 
   useEffect(() => {
     setSessionStatus(booking?.sessionStatus || "not_started");
     setSessionPhotoUrls(booking?.sessionPhotoUrls || []);
   }, [booking]);
-
-  useEffect(() => {
-    if (!booking?.id) {
-      setPendingAmendments([]);
-      return;
-    }
-
-    const amendmentsQuery = query(
-      collection(db, "bookings", booking.id, "amendments"),
-      where("status", "==", "proposed")
-    );
-
-    return onSnapshot(
-      amendmentsQuery,
-      (snap) => {
-        setPendingAmendments(
-          snap.docs.map((amendmentDoc) => ({
-            id: amendmentDoc.id,
-            ...amendmentDoc.data(),
-          })) as ProjectAmendment[]
-        );
-      },
-      (error) => {
-        console.error("Artist project amendment listener failed:", error);
-        setPendingAmendments([]);
-      }
-    );
-  }, [booking?.id]);
 
   const clientName = booking ? getDashboardClientName(booking) : "Client";
   const clientAvatar =
@@ -4284,14 +3815,6 @@ const BookingRecordDialog = ({
             ),
           0
         );
-  const isMultiSession = booking
-    ? isDashboardMultiSessionBooking(booking)
-    : false;
-  const activeSessionNumber = booking ? getActiveSessionNumber(booking) : 1;
-  const sessionCount = booking ? getEstimatedSessionCount(booking) : 1;
-  const sessionInstallment = booking
-    ? getDashboardSessionInstallmentAmount(booking)
-    : 0;
   const sessionStartBlockReason = booking
     ? getSessionStartBlockReason(booking)
     : null;
@@ -4303,7 +3826,7 @@ const BookingRecordDialog = ({
 
     setIsUpdatingSession(true);
     try {
-      const startSession = httpsCallable(functions, "startProjectSession");
+      const startSession = httpsCallable(functions, "startFlashAppointment");
       await startSession({ bookingId: booking.id });
       setSessionStatus("in_progress");
       onSessionStarted();
@@ -4323,7 +3846,7 @@ const BookingRecordDialog = ({
     try {
       const completeSession = httpsCallable(
         functions,
-        "completeProjectSession"
+        "completeFlashAppointment"
       );
       await completeSession({
         bookingId: booking.id,
@@ -4364,97 +3887,8 @@ const BookingRecordDialog = ({
     }
   };
 
-  const handleRespondToAmendment = async (
-    amendmentId: string,
-    response: "accepted" | "declined" | "cancelled"
-  ) => {
-    if (!booking) return;
-
-    try {
-      const respondToAmendment = httpsCallable(
-        functions,
-        "respondToProjectAmendment"
-      );
-      await respondToAmendment({
-        bookingId: booking.id,
-        amendmentId,
-        response,
-      });
-      toast.success(
-        response === "accepted"
-          ? "Project amendment accepted."
-          : response === "declined"
-          ? "Project amendment declined."
-          : "Project amendment cancelled."
-      );
-    } catch (error) {
-      console.error("Artist project amendment response failed:", error);
-      toast.error("Could not update the amendment.");
-    }
-  };
-
-  const handleProposeNextSession = async (
-    targetBooking: Booking,
-    input: { date: string; time: string; message: string }
-  ) => {
-    try {
-      const proposeAmendment = httpsCallable(
-        functions,
-        "proposeProjectAmendment"
-      );
-      await proposeAmendment({
-        bookingId: targetBooking.id,
-        type: "schedule_next_session",
-        date: input.date,
-        time: input.time,
-        sessionNumber: getActiveSessionNumber(targetBooking),
-        message: input.message,
-      });
-      toast.success("Next-session proposal sent to the client.");
-    } catch (error) {
-      console.error("Next-session proposal failed:", error);
-      toast.error("Could not send the schedule proposal.");
-      throw error;
-    }
-  };
-
-  const handleSetProjectPaused = async (
-    targetBooking: Booking,
-    input: { reason: string; pausedUntil: string }
-  ) => {
-    const paused = pauseDialogMode === "pause";
-
-    try {
-      const setPaused = httpsCallable(functions, "setProjectPaused");
-      await setPaused({
-        bookingId: targetBooking.id,
-        paused,
-        reason: input.reason,
-        pausedUntil: input.pausedUntil,
-      });
-      toast.success(paused ? "Project paused." : "Project resumed.");
-    } catch (error) {
-      console.error("Project pause update failed:", error);
-      toast.error("Could not update project status.");
-      throw error;
-    }
-  };
-
   return (
     <>
-      <ProjectScheduleProposalDialog
-        booking={scheduleProposalBooking}
-        viewerRole="artist"
-        onClose={() => setScheduleProposalBooking(null)}
-        onSubmit={handleProposeNextSession}
-      />
-      <ProjectPauseDialog
-        booking={pauseDialogMode ? booking : null}
-        mode={pauseDialogMode || "pause"}
-        viewerRole="artist"
-        onClose={() => setPauseDialogMode(null)}
-        onSubmit={handleSetProjectPaused}
-      />
       <Transition appear show={!!booking} as={Fragment}>
         <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
           <Transition.Child
@@ -4504,16 +3938,16 @@ const BookingRecordDialog = ({
 
                       <div className="grid min-h-0 gap-0 overflow-y-auto overscroll-contain request-modal-scrollbar lg:grid-cols-[1fr_0.95fr]">
                         <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                          {booking.sampleImageUrl ? (
+                          {getDashboardBookingImageUrl(booking) ? (
                             <img
-                              src={booking.sampleImageUrl}
-                              alt="Booking sample"
+                              src={getDashboardBookingImageUrl(booking)}
+                              alt={booking.flashTitle || "Flash tattoo"}
                               className="h-full max-h-[72vh] min-h-[420px] w-full object-contain"
                             />
                           ) : (
                             <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
                               <ImageIcon size={34} />
-                              <span>No sample image uploaded</span>
+                              <span>Flash image unavailable</span>
                             </div>
                           )}
                         </div>
@@ -4576,22 +4010,6 @@ const BookingRecordDialog = ({
                                   }`}
                                 />
                               )}
-                            {isMultiSession && (
-                              <>
-                                <BookingDetailTile
-                                  icon={<CalendarDays size={17} />}
-                                  label="Session"
-                                  value={`${activeSessionNumber}/${sessionCount}`}
-                                />
-                                <BookingDetailTile
-                                  icon={<DollarSign size={17} />}
-                                  label="Session estimate"
-                                  value={formatDashboardMoney(
-                                    sessionInstallment
-                                  )}
-                                />
-                              </>
-                            )}
                             <BookingDetailTile
                               icon={<CalendarDays size={17} />}
                               label="Appointment"
@@ -4654,38 +4072,18 @@ const BookingRecordDialog = ({
                             </p>
                           </div>
 
-                          {showProjectControls && (
-                            <ProjectControlsPanel
-                              booking={booking}
-                              viewerRole="artist"
-                              currentUserId={currentUserId}
-                              amendments={pendingAmendments}
-                              onRespondToAmendment={handleRespondToAmendment}
-                              onAddSessions={() => onAddSessions(booking)}
-                              onPlanNextSession={() =>
-                                setScheduleProposalBooking(booking)
-                              }
-                              onPauseProject={() => setPauseDialogMode("pause")}
-                              onResumeProject={() =>
-                                setPauseDialogMode("resume")
-                              }
-                            />
-                          )}
-
                           {showSessionWorkspace && (
                             <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold text-white">
                                     {isSessionView
-                                      ? isMultiSession
-                                        ? `Session ${activeSessionNumber} of ${sessionCount}`
-                                        : "Sessions workspace"
-                                      : "Ready to start session"}
+                                      ? "Flash appointment"
+                                      : "Ready to start appointment"}
                                   </p>
                                   <p className="mt-1 text-sm leading-6 text-emerald-50/75">
                                     {isSessionView
-                                      ? "Attach a photo if needed, then complete this active session. Any payment follow-up returns to Bookings or Projects."
+                                      ? "Attach a photo if needed, then complete this flash appointment. Record the remaining balance after it is paid at the shop."
                                       : "The booking is confirmed. Start this appointment when the client arrives, then close it out from the Sessions workspace."}
                                   </p>
                                 </div>
@@ -4812,7 +4210,7 @@ const uploadBookingSessionPhoto = async (
   await uploadBytes(photoRef, file);
   const url = await getDownloadURL(photoRef);
   if (booking.paymentModelVersion === 2) {
-    const saveSessionPhoto = httpsCallable(functions, "addProjectSessionPhoto");
+    const saveSessionPhoto = httpsCallable(functions, "addFlashAppointmentPhoto");
     await saveSessionPhoto({
       bookingId: booking.id,
       photoUrl: url,
@@ -4914,23 +4312,6 @@ const formatDashboardMoney = (amount?: number) =>
     currency: "USD",
   }).format(Number(amount || 0));
 
-const getProjectStartLabel = (booking: Partial<Booking>) => {
-  const createdAt = booking.createdAt;
-  const date =
-    createdAt && typeof createdAt.toDate === "function"
-      ? createdAt.toDate()
-      : createdAt && typeof createdAt.seconds === "number"
-      ? new Date(createdAt.seconds * 1000)
-      : null;
-
-  if (!date || Number.isNaN(date.getTime())) return "Started recently";
-
-  return `Started ${date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  })}`;
-};
-
 const getBookingStatusFilterValue = (
   booking: Partial<Booking>
 ): BookingStatusFilter => {
@@ -4973,74 +4354,20 @@ const getDashboardRemainingBalance = (booking: Partial<Booking>) =>
         0
       );
 
-const getDashboardSessionInstallmentTiming = (booking: Partial<Booking>) =>
-  booking.sessionInstallmentTiming === "before_session"
-    ? "before_session"
-    : "after_session";
+const getDashboardBookingImageUrl = (booking: Partial<Booking>) =>
+  booking.thumbUrl ||
+  booking.flashImageUrl ||
+  booking.fullUrl ||
+  booking.sampleImageUrl ||
+  "";
 
-const isDashboardMultiSessionBooking = (booking: Partial<Booking>) =>
-  booking.projectType === "multi_session" ||
-  Number(booking.estimatedSessionCount || 1) > 1;
-
-const getEstimatedSessionCount = (booking: Partial<Booking>) =>
-  Math.max(Number(booking.estimatedSessionCount || 1), 1);
-
-const getActiveSessionNumber = (booking: Partial<Booking>) =>
-  Math.max(Number(booking.activeSessionNumber || 1), 1);
-
-const getCompletedSessionCount = (booking: Partial<Booking>) =>
-  Math.max(Number(booking.completedSessionCount || 0), 0);
-
-const getLastPaidSessionNumber = (booking: Partial<Booking>) =>
-  Math.max(Number(booking.lastPaidSessionNumber || 0), 0);
-
-const getRemainingInstallmentCount = (booking: Partial<Booking>) => {
-  const totalLaterInstallments = Math.max(
-    getEstimatedSessionCount(booking) - 1,
-    1
-  );
-  const lastPaidSessionNumber = getLastPaidSessionNumber(booking);
-  const paidLaterInstallments =
-    getDashboardSessionInstallmentTiming(booking) === "before_session"
-      ? Math.max(lastPaidSessionNumber - 1, 0)
-      : lastPaidSessionNumber;
-
-  return Math.max(totalLaterInstallments - paidLaterInstallments, 1);
-};
-
-const isBookingFullyCompleted = (booking: Partial<Booking>) => {
-  if (booking.paymentModelVersion === 2) {
-    return booking.projectStatus === "completed" || booking.status === "paid";
-  }
-  const sessionCount = getEstimatedSessionCount(booking);
-  const completedCount = getCompletedSessionCount(booking);
-
-  return (
-    completedCount >= sessionCount ||
-    (!isDashboardMultiSessionBooking(booking) &&
-      booking.sessionStatus === "completed")
-  );
-};
-
-const getDisplaySessionNumber = (booking: Partial<Booking>) => {
-  const sessionCount = getEstimatedSessionCount(booking);
-  const completedCount = Math.min(
-    getCompletedSessionCount(booking),
-    sessionCount
-  );
-
-  if (isBookingFullyCompleted(booking)) return sessionCount;
-  if (booking.sessionStatus === "awaiting_next_session") {
-    return Math.min(completedCount + 1, sessionCount);
-  }
-
-  return Math.min(getActiveSessionNumber(booking), sessionCount);
-};
+const isBookingFullyCompleted = (booking: Partial<Booking>) =>
+  booking.appointmentStatus === "completed" ||
+  booking.sessionStatus === "completed" ||
+  booking.status === "paid";
 
 const getBookingSessionDisplay = (booking: Partial<Booking>) => {
-  const primary = `Session ${getDisplaySessionNumber(
-    booking
-  )} of ${getEstimatedSessionCount(booking)}`;
+  const primary = "Flash appointment";
   const remainingBalance = getDashboardRemainingBalance(booking);
   const paymentStatus = booking.remainingPaymentStatus || "not_due";
 
@@ -5056,47 +4383,12 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
     return { primary, secondary: "In progress", tone: "sky" as const };
   }
 
-  if (needsSessionPaymentRequest(booking)) {
-    return {
-      primary,
-      secondary: "Payment needed",
-      tone: "amber" as const,
-    };
-  }
-
-  if (Number(booking.pendingSessionPaymentAmount || 0) > 0) {
-    return {
-      primary,
-      secondary:
-        booking.remainingPaymentMethod === "external"
-          ? "Shop payment pending"
-          : "Payment pending",
-      tone: "amber" as const,
-    };
-  }
-
   if (
     booking.sessionStatus === "completed" &&
     remainingBalance > 0 &&
     paymentStatus !== "confirmed"
   ) {
     if (booking.remainingPaymentMethod === "external") {
-      if (paymentStatus === "artist_confirmed") {
-        return {
-          primary,
-          secondary: "Shop payment recorded",
-          tone: "amber" as const,
-        };
-      }
-
-      if (paymentStatus === "client_confirmed") {
-        return {
-          primary,
-          secondary: "Mark shop payment paid",
-          tone: "amber" as const,
-        };
-      }
-
       return {
         primary,
         secondary: "Shop payment pending",
@@ -5114,15 +4406,7 @@ const getBookingSessionDisplay = (booking: Partial<Booking>) => {
   if (isBookingFullyCompleted(booking)) {
     return {
       primary,
-      secondary: "All sessions complete",
-      tone: "emerald" as const,
-    };
-  }
-
-  if (booking.sessionStatus === "awaiting_next_session") {
-    return {
-      primary,
-      secondary: "Next session ready",
+      secondary: "Appointment complete",
       tone: "emerald" as const,
     };
   }
@@ -5134,34 +4418,9 @@ const canStartBookingSession = (booking: Partial<Booking>) => {
   return !getSessionStartBlockReason(booking);
 };
 
-const needsSessionPaymentRequest = (booking: Partial<Booking>) =>
-  isDashboardMultiSessionBooking(booking) &&
-  getDashboardSessionInstallmentTiming(booking) === "before_session" &&
-  getActiveSessionNumber(booking) > 1 &&
-  getDashboardRemainingBalance(booking) > 0 &&
-  Number(booking.pendingSessionPaymentAmount || 0) <= 0 &&
-  getLastPaidSessionNumber(booking) < getActiveSessionNumber(booking) &&
-  !isBookingFullyCompleted(booking);
-
-const canRequestProjectSessionPayment = (booking: Partial<Booking>) =>
-  needsSessionPaymentRequest(booking) &&
-  !["cancelled", "pending_payment"].includes(String(booking.status)) &&
-  booking.projectStatus !== "paused" &&
-  booking.projectStatus !== "completed" &&
-  booking.sessionStatus !== "in_progress" &&
-  hasScheduledAppointment(booking);
-
 const getSessionStartBlockReason = (booking: Partial<Booking>) => {
   if (!["confirmed", "deposit_paid", "paid"].includes(String(booking.status))) {
     return "Deposit must be paid before starting.";
-  }
-
-  if (booking.projectStatus === "paused") {
-    return "Resume project before starting.";
-  }
-
-  if (Number(booking.pendingPlatformFeeCents || 0) > 0) {
-    return "Collect the pending SATX Ink platform fee first.";
   }
 
   if (booking.sessionStatus === "in_progress") {
@@ -5169,23 +4428,15 @@ const getSessionStartBlockReason = (booking: Partial<Booking>) => {
   }
 
   if (isBookingFullyCompleted(booking)) {
-    return "All sessions are complete.";
+    return "This appointment is complete.";
   }
 
   if (!hasScheduledAppointment(booking)) {
-    return "Plan a session date before starting.";
-  }
-
-  if (Number(booking.pendingSessionPaymentAmount || 0) > 0) {
-    return "Settle the requested session payment first.";
-  }
-
-  if (needsSessionPaymentRequest(booking)) {
-    return "Request and collect this session installment first.";
+    return "An appointment date is required before starting.";
   }
 
   if (
-    !["not_started", "awaiting_next_session", undefined].includes(
+    !["not_started", undefined].includes(
       booking.sessionStatus
     )
   ) {
@@ -5202,39 +4453,19 @@ const hasScheduledAppointment = (booking: Partial<Booking>) =>
       booking.selectedDate.date !== "TBD"
   );
 
-const hasUpcomingSessionAppointment = (booking: Partial<Booking>) => {
-  const start = getBookingStartTime(booking);
-  return start !== Number.MAX_SAFE_INTEGER && start >= Date.now();
-};
-
 const needsSessionScheduling = (booking: Partial<Booking>) => {
-  if (!hasScheduledAppointment(booking)) return true;
-
-  return (
-    isDashboardMultiSessionBooking(booking) &&
-    !isBookingFullyCompleted(booking) &&
-    ["awaiting_next_session", "completed"].includes(
-      String(booking.sessionStatus)
-    ) &&
-    !hasUpcomingSessionAppointment(booking)
-  );
+  return !hasScheduledAppointment(booking);
 };
 
 const hasSessionBalanceFollowUp = (booking: Partial<Booking>) =>
   getDashboardRemainingBalance(booking) > 0 &&
-  PROJECT_PAYMENT_FOLLOW_UP_STATUSES.includes(
-    booking.remainingPaymentStatus || ""
-  );
+  booking.sessionStatus === "completed" &&
+  booking.shopBalanceStatus !== "paid";
 
 const getSessionReadinessFilterValue = (
   booking: Partial<Booking>
 ): SessionReadinessFilter => {
-  if (booking.projectStatus === "paused") return "paused";
-
-  if (
-    booking.status === "pending_payment" ||
-    Number(booking.pendingPlatformFeeCents || 0) > 0
-  ) {
+  if (booking.status === "pending_payment") {
     return "follow_up";
   }
 
@@ -5243,7 +4474,6 @@ const getSessionReadinessFilterValue = (
   }
 
   if (
-    needsSessionPaymentRequest(booking) ||
     hasSessionBalanceFollowUp(booking)
   ) {
     return "follow_up";
@@ -5255,51 +4485,25 @@ const getSessionReadinessFilterValue = (
 const getSessionReadinessDisplay = (booking: Partial<Booking>) => {
   const readiness = getSessionReadinessFilterValue(booking);
 
-  if (readiness === "paused") {
-    return {
-      label: "Paused",
-      description: "Resume project first",
-      className: "border-amber-300/20 bg-amber-300/10 text-amber-100",
-    };
-  }
-
   if (readiness === "follow_up") {
-    const balanceDue = getDashboardSessionInstallmentAmount(booking);
-    const pendingPayment = Number(booking.pendingSessionPaymentAmount || 0);
-    const paymentStatus = booking.remainingPaymentStatus || "not_due";
+    const balanceDue = getDashboardShopBalanceAmount(booking);
     const label =
       booking.status === "pending_payment"
         ? "Deposit pending"
-        : Number(booking.pendingPlatformFeeCents || 0) > 0
-        ? "Platform fee needed"
-        : needsSessionPaymentRequest(booking)
-        ? "Payment needed"
-        : paymentStatus === "artist_confirmed"
-        ? "Shop payment recorded"
-        : paymentStatus === "client_confirmed"
-        ? "Mark shop payment paid"
-        : pendingPayment > 0
-        ? "Payment pending"
-        : "Balance follow-up";
+        : "Shop balance due";
 
     return {
       label,
       description:
-        Number(booking.pendingPlatformFeeCents || 0) > 0
-          ? "Collect fee before start"
-          : needsSessionPaymentRequest(booking)
-          ? `Request ${formatDashboardMoney(balanceDue)}`
-          : pendingPayment > 0
-          ? `${formatDashboardMoney(pendingPayment)} requested`
-          : balanceDue > 0
+        balanceDue > 0
           ? `${formatDashboardMoney(balanceDue)} due`
-          : "Open project follow-up",
+          : "Open appointment record",
       className: "border-amber-300/20 bg-amber-300/10 text-amber-100",
     };
   }
 
   if (readiness === "needs_schedule") {
-    const balanceDue = getDashboardSessionInstallmentAmount(booking);
+    const balanceDue = getDashboardShopBalanceAmount(booking);
 
     return {
       label: "Needs date",
@@ -5318,13 +4522,6 @@ const getSessionReadinessDisplay = (booking: Partial<Booking>) => {
   };
 };
 
-const hasProjectPaymentFollowUp = (booking: Partial<Booking>) =>
-  Number(booking.pendingPlatformFeeCents || 0) > 0 ||
-  (getDashboardRemainingBalance(booking) > 0 &&
-    PROJECT_PAYMENT_FOLLOW_UP_STATUSES.includes(
-      booking.remainingPaymentStatus || ""
-    ));
-
 const getDashboardFinalPaymentTermsLabel = () => "At shop after session";
 
 const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
@@ -5338,32 +4535,11 @@ const canConfirmBookingInShopPayment = (booking: Partial<Booking>) => {
   );
 };
 
-const canProposeProjectScopeChange = (booking: Partial<Booking>) =>
-  booking.projectStatus !== "paused" &&
-  booking.projectStatus !== "completed" &&
-  !["cancelled", "pending_payment"].includes(String(booking.status));
-
-const getProjectQuickAction = (booking: Partial<Booking>) => {
-  if (booking.projectStatus === "paused") return "Resume";
-  if (getSessionReadinessFilterValue(booking) === "needs_schedule") {
-    return "Plan next";
-  }
-  return null;
-};
-
-const getDashboardSessionInstallmentAmount = (booking: Partial<Booking>) => {
+const getDashboardShopBalanceAmount = (booking: Partial<Booking>) => {
   const remaining = getDashboardRemainingBalance(booking);
   const pending = Number(booking.pendingSessionPaymentAmount || 0);
   if (pending > 0) return Math.min(pending, remaining);
-
-  const sessionsLeft = isDashboardMultiSessionBooking(booking)
-    ? getRemainingInstallmentCount(booking)
-    : Math.max(
-        getEstimatedSessionCount(booking) -
-          Number(booking.completedSessionCount || 0),
-        1
-      );
-  return Math.ceil(remaining / sessionsLeft);
+  return remaining;
 };
 
 const buildExternalPaymentCompletionUpdates = (
@@ -5377,25 +4553,9 @@ const buildExternalPaymentCompletionUpdates = (
       booking.depositAmount ||
       0
   );
-  const sessionNumber = Math.max(
-    Number(booking.pendingSessionNumber || getActiveSessionNumber(booking)),
-    1
-  );
-  const sessionCount = getEstimatedSessionCount(booking);
-  const installmentTiming = getDashboardSessionInstallmentTiming(booking);
+  const sessionNumber = 1;
   const nextPaid = Math.min(price, currentPaid + amountPaid);
   const nextRemaining = Math.max(price - nextPaid, 0);
-  const hasMoreSessions =
-    isDashboardMultiSessionBooking(booking) &&
-    (installmentTiming === "before_session"
-      ? getCompletedSessionCount(booking) < sessionCount
-      : sessionNumber < sessionCount);
-  const nextActiveSessionNumber =
-    installmentTiming === "before_session"
-      ? sessionNumber
-      : hasMoreSessions
-      ? Math.min(sessionNumber + 1, sessionCount)
-      : sessionNumber;
 
   return {
     sessionUpdate: {
@@ -5421,8 +4581,8 @@ const buildExternalPaymentCompletionUpdates = (
       totalArtistPaidCents: Math.round(nextPaid * 100),
       remainingBalanceAmount: nextRemaining,
       remainingBalanceCents: Math.round(nextRemaining * 100),
-      sessionStatus: hasMoreSessions ? "awaiting_next_session" : "completed",
-      activeSessionNumber: nextActiveSessionNumber,
+      sessionStatus: "completed",
+      activeSessionNumber: 1,
       pendingSessionPaymentAmount: 0,
       pendingSessionPaymentAmountCents: 0,
       pendingSessionNumber: null,
@@ -5478,7 +4638,7 @@ const getSessionAppointmentDisplay = (booking: Partial<Booking>) => {
     return {
       primary: "Next date needed",
       secondary: booking.shopName || "Private Studio",
-      detail: "Plan in Projects",
+      detail: "Appointment date required",
       className: "text-amber-100",
     };
   }
@@ -5551,7 +4711,6 @@ const isSessionWorkspaceBooking = (
   const partialBooking = booking as Partial<Booking>;
 
   if (partialBooking.status === "cancelled") return false;
-  if (partialBooking.projectStatus === "completed") return false;
   if (isActiveSessionBooking(booking)) return true;
   if (
     !["confirmed", "deposit_paid", "paid"].includes(
@@ -5563,13 +4722,5 @@ const isSessionWorkspaceBooking = (
 
   return !isBookingFullyCompleted(partialBooking);
 };
-
-const isOngoingProjectBooking = (
-  booking: Partial<Booking> | Record<string, unknown>
-) =>
-  isDashboardMultiSessionBooking(booking as Partial<Booking>) &&
-  booking.status !== "cancelled" &&
-  (booking as Partial<Booking>).projectStatus !== "completed" &&
-  !isBookingFullyCompleted(booking as Partial<Booking>);
 
 export default ArtistDashboardView;

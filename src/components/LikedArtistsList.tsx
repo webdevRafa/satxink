@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Heart,
   Layers,
-  MessageCircle,
   Plus,
   Store,
   UserRound,
@@ -28,11 +27,13 @@ import {
   type BookingAvailability,
 } from "../utils/bookingAvailability";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 interface Artist {
   id: string;
   name: string;
   displayName?: string;
+  slug?: string;
   avatarUrl: string;
   studioName?: string;
   shopName?: string;
@@ -62,12 +63,11 @@ interface Props {
   client: {
     likedArtists: string[];
   };
-  onRequest: (artist: Artist) => void;
 }
 
 const FOLLOWED_ARTISTS_PER_PAGE = 5;
 
-const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
+const LikedArtistsList: React.FC<Props> = ({ client }) => {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -216,7 +216,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
         <DashboardHeader
           eyebrow="Client discovery"
           title="Following"
-          description="Keep up with the artists you follow and quickly start a new idea when their books line up with yours."
+          description="Keep up with the artists you follow and quickly explore their available flash."
         />
         <span className="w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-neutral-300">
           {artists.length} following
@@ -233,7 +233,7 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
             Followed artists will appear here with their shop, booking months,
-            and a fast path to share your next idea.
+            and a fast path to browse their flash.
           </p>
           <div className="mt-6 flex justify-center">
             <Link
@@ -254,7 +254,6 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
                   <FollowedArtistRow
                     key={artist.id}
                     artist={artist}
-                    onRequest={() => onRequest(artist)}
                   />
                 ))}
               </div>
@@ -281,7 +280,6 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
                 >
                   <FollowedArtistRow
                     artist={artist}
-                    onRequest={() => onRequest(artist)}
                   />
                 </div>
               ))}
@@ -295,10 +293,8 @@ const LikedArtistsList: React.FC<Props> = ({ client, onRequest }) => {
 
 const FollowedArtistRow = ({
   artist,
-  onRequest,
 }: {
   artist: Artist;
-  onRequest: () => void;
 }) => {
   const availabilityDisplay = getCompactBookingAvailabilityDisplay(
     artist.bookingAvailability
@@ -323,29 +319,21 @@ const FollowedArtistRow = ({
         </div>
       </div>
 
-      <LatestSheetCell sheet={artist.latestSheet} artistId={artist.id} />
+      <LatestSheetCell sheet={artist.latestSheet} artist={artist} />
 
       <BookingAvailabilityCell
         artistId={artist.id}
         availabilityDisplay={availabilityDisplay}
       />
 
-      <div className="grid gap-2 sm:grid-cols-2 md:min-w-[260px]">
+      <div className="grid gap-2 md:min-w-[150px]">
         <Link
-          to={`/artists/${artist.id}`}
+          to={getArtistProfilePath(artist)}
           className="inline-flex items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           <UserRound size={16} />
           View profile
         </Link>
-        <button
-          type="button"
-          onClick={onRequest}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-3! py-2.5! text-sm! font-semibold text-black transition hover:bg-white/85"
-        >
-          <MessageCircle size={16} />
-          Send idea
-        </button>
       </div>
     </article>
   );
@@ -556,13 +544,13 @@ const FollowingPagination = ({
 };
 
 const LatestSheetCell = ({
-  artistId,
+  artist,
   sheet,
 }: {
-  artistId: string;
+  artist: Artist;
   sheet?: LatestSheetPreview;
 }) => {
-  const href = sheet?.href || `/artists/${artistId}`;
+  const href = sheet?.href || getArtistProfilePath(artist);
 
   return (
     <Link

@@ -1,33 +1,17 @@
-import {
-  Fragment,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  DollarSign,
+  Clock3,
   Eye,
-  ImageIcon,
+  ImageOff,
+  Layers,
   MapPin,
-  MessageSquareText,
   Ruler,
+  Store,
   X,
 } from "lucide-react";
-import {
-  collection,
-  documentId,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase/firebaseConfig";
 
 type FirestoreTimestampLike = {
@@ -35,64 +19,34 @@ type FirestoreTimestampLike = {
   toDate?: () => Date;
 };
 
-type BookingRequest = {
+type FlashRequest = {
   id: string;
+  sourceType?: string;
+  flashId?: string;
+  flashTitle?: string;
+  flashDescription?: string | null;
+  flashPrice?: number | null;
+  flashRepeatability?: string;
   artistId?: string;
   artistName?: string;
   artistAvatar?: string;
-  artistAvatarUrl?: string;
-  displayName?: string;
   clientId: string;
-  clientName: string;
-  clientAvatar: string;
-  description: string;
+  bodyPlacement?: string;
+  size?: string;
   preferredDateRange?: string[];
   availableDays?: string[];
-  availableTime?: {
-    from: string;
-    to: string;
-  };
-  bodyPlacement: string;
-  size: "small" | "medium" | "large" | "Small" | "Medium" | "Large" | string;
+  availableTime?: { from?: string; to?: string };
+  description?: string;
   fullUrl?: string;
   thumbUrl?: string;
-  referenceImages?: Array<{
-    fileName?: string;
-    fullUrl?: string;
-    thumbUrl?: string;
-    fullPath?: string;
-    thumbPath?: string;
-  }>;
-  budget?: string | number;
   status?: string;
-  offerPreparationStatus?: string;
-  offerPreparationEta?: string;
-  offerPreparationUpdatedAt?: Date | FirestoreTimestampLike | null;
   createdAt?: Date | FirestoreTimestampLike | null;
 };
 
-type RequestArtist = {
-  id: string;
-  name?: string;
-  displayName?: string;
-  avatarUrl?: string;
-};
+type RequestFilter = "all" | "waiting" | "closed";
 
-interface Props {
-  clientId: string;
-}
-
-const REQUESTS_PER_PAGE = 6;
-const REQUEST_STATUS_FILTERS = [
-  { value: "all", label: "All" },
-  { value: "waiting", label: "Waiting" },
-  { value: "preparing", label: "Preparing" },
-  { value: "closed", label: "Closed" },
-] as const;
-type RequestStatusFilter = (typeof REQUEST_STATUS_FILTERS)[number]["value"];
-type RequestStatusCategory = Exclude<RequestStatusFilter, "all">;
-
-const CLOSED_REQUEST_STATUSES = new Set([
+const PAGE_SIZE = 6;
+const CLOSED_STATUSES = new Set([
   "cancelled",
   "canceled",
   "closed",
@@ -101,1321 +55,405 @@ const CLOSED_REQUEST_STATUSES = new Set([
   "rejected",
   "withdrawn",
 ]);
+const OFFER_SENT_STATUSES = new Set([
+  "offer_sent",
+  "offered",
+  "accepted",
+  "completed",
+]);
 
-const ClientRequestsList: React.FC<Props> = ({ clientId }) => {
-  const [requests, setRequests] = useState<BookingRequest[]>([]);
-  const [requestArtists, setRequestArtists] = useState<
-    Record<string, RequestArtist>
-  >({});
-  const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(
-    null
-  );
+const ClientRequestsList = ({ clientId }: { clientId: string }) => {
+  const [requests, setRequests] = useState<FlashRequest[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<FlashRequest | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>("all");
+  const [filter, setFilter] = useState<RequestFilter>("all");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (!clientId) return;
 
-    let isMounted = true;
     setLoading(true);
-    const requestsQuery = query(
-      collection(db, "bookingRequests"),
-      where("clientId", "==", clientId)
-    );
-
-    const unsubscribe = onSnapshot(
-      requestsQuery,
-      (snap) => {
-        const data = snap.docs.map((requestDoc) => ({
-          id: requestDoc.id,
-          ...requestDoc.data(),
-        })) as BookingRequest[];
-        if (!isMounted) return;
-        setRequests(data);
-        void loadRequestArtists(data, (artists) => {
-          if (!isMounted) return;
-          setRequestArtists((current) => ({ ...current, ...artists }));
-        });
+    return onSnapshot(
+      query(collection(db, "bookingRequests"), where("clientId", "==", clientId)),
+      (snapshot) => {
+        const next = snapshot.docs
+          .filter((requestDoc) => requestDoc.data().sourceType === "flash")
+          .map((requestDoc) => ({
+            id: requestDoc.id,
+            ...requestDoc.data(),
+          })) as FlashRequest[];
+        setRequests(next.sort((a, b) => getCreatedTime(b) - getCreatedTime(a)));
         setLoading(false);
       },
       (error) => {
-        console.error("Error listening to client requests:", error);
-        if (isMounted) setLoading(false);
+        console.error("Flash request listener failed:", error);
+        setLoading(false);
       }
     );
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
   }, [clientId]);
 
-  const sortedRequests = useMemo(
-    () => [...requests].sort((a, b) => getItemTime(b) - getItemTime(a)),
+  const counts = useMemo(
+    () => ({
+      total: requests.length,
+      waiting: requests.filter((request) => getStatusCategory(request) === "waiting").length,
+      closed: requests.filter((request) => getStatusCategory(request) === "closed").length,
+    }),
     [requests]
   );
-  const filteredRequests = useMemo(
+  const filtered = useMemo(
     () =>
-      sortedRequests.filter((request) => {
-        if (statusFilter === "all") return true;
-        return getRequestStatusCategory(request) === statusFilter;
-      }),
-    [sortedRequests, statusFilter]
+      filter === "all"
+        ? requests
+        : requests.filter((request) => getStatusCategory(request) === filter),
+    [filter, requests]
   );
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE)
-  );
-  const activePage = Math.min(currentPage, totalPages);
-  const pageStartIndex = (activePage - 1) * REQUESTS_PER_PAGE;
-  const pageEndIndex = Math.min(
-    pageStartIndex + REQUESTS_PER_PAGE,
-    filteredRequests.length
-  );
-  const visibleRequests = useMemo(
-    () => filteredRequests.slice(pageStartIndex, pageEndIndex),
-    [filteredRequests, pageEndIndex, pageStartIndex]
-  );
-  const requestStatusCounts = requests.reduce<Record<RequestStatusCategory, number>>(
-    (counts, request) => {
-      counts[getRequestStatusCategory(request)] += 1;
-      return counts;
-    },
-    { waiting: 0, preparing: 0, closed: 0 }
-  );
+  const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1);
+  const currentPage = Math.min(page, totalPages);
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
-  }, [totalPages]);
+  useEffect(() => setPage(1), [clientId, filter]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [clientId, statusFilter]);
-
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-  };
-
-  if (loading) {
-    return <RequestsSkeleton />;
-  }
+  if (loading) return <RequestSkeleton />;
 
   return (
-    <section className="mt-6 w-full max-w-7xl space-y-6">
-      <div className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <DashboardHeader
-          eyebrow="Client inbox"
-          title="My requests"
-          description="Review the tattoo ideas you have sent and track whether an artist has responded."
-        />
-        <div className="grid w-full grid-cols-3 gap-2 lg:w-auto lg:min-w-[420px]">
-          <MetricCard label="Total" value={requests.length} />
-          <MetricCard label="Waiting" value={requestStatusCounts.waiting} />
-          <MetricCard label="Preparing" value={requestStatusCounts.preparing} />
+    <section className="mt-6 w-full max-w-7xl space-y-5">
+      <header className="flex flex-col gap-5 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Client inbox</p>
+          <h2 className="mt-1 text-2xl! font-semibold! text-white">Flash requests</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+            Track the flash designs you requested and see when an artist responds.
+          </p>
         </div>
-      </div>
+        <div className="grid grid-cols-3 gap-3 lg:min-w-[390px]">
+          <Metric label="Total" value={counts.total} />
+          <Metric label="Waiting" value={counts.waiting} />
+          <Metric label="Closed" value={counts.closed} />
+        </div>
+      </header>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-        {REQUEST_STATUS_FILTERS.map((filter) => (
+        {(["all", "waiting", "closed"] as RequestFilter[]).map((value) => (
           <button
-            key={filter.value}
+            key={value}
             type="button"
-            onClick={() => setStatusFilter(filter.value)}
-            aria-pressed={statusFilter === filter.value}
-            className={`rounded-md px-4! py-2! text-xs! font-semibold transition ${
-              statusFilter === filter.value
+            onClick={() => setFilter(value)}
+            aria-pressed={filter === value}
+            className={`rounded-md px-4! py-2! text-xs! font-semibold capitalize transition ${
+              filter === value
                 ? "bg-white text-black"
                 : "border border-white/10 bg-black/25 text-neutral-300 hover:bg-white/10 hover:text-white"
             }`}
           >
-            {filter.label}
+            {value}
           </button>
         ))}
-        <span className="ml-auto text-sm text-neutral-500">
-          Showing {filteredRequests.length} of {requests.length}
+        <span className="ml-auto text-xs text-neutral-500">
+          Showing {filtered.length} of {requests.length}
         </span>
       </div>
 
       {requests.length === 0 ? (
         <EmptyState
-          icon={<MessageSquareText size={22} />}
-          title="No requests yet"
-          description="Requests you send from artist profiles will appear here with references, dates, and status."
+          title="No flash requests yet"
+          description="Choose an available design in the flash marketplace to start a request."
         />
-      ) : filteredRequests.length === 0 ? (
-        <EmptyState
-          icon={<MessageSquareText size={22} />}
-          title="No matching requests"
-          description="Try another request filter to see more of your request history."
-        />
+      ) : visible.length === 0 ? (
+        <EmptyState title="No matching requests" description="Choose another filter to see more request history." />
       ) : (
-        <div className="space-y-3">
-          <RequestTable
-            requests={visibleRequests}
-            requestArtists={requestArtists}
-            onOpen={setSelectedRequest}
-          />
-          {totalPages > 1 && (
-            <RequestPagination
-              currentPage={activePage}
-              totalPages={totalPages}
-              totalItems={filteredRequests.length}
-              pageStart={pageStartIndex + 1}
-              pageEnd={pageEndIndex}
-              onPageChange={goToPage}
-            />
-          )}
+        <>
+          <div className="hidden overflow-hidden rounded-lg border border-white/10 lg:block">
+            <div className="grid grid-cols-[1.25fr_1fr_1fr_.85fr_auto] gap-4 border-b border-white/10 bg-white/[0.035] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40">
+              <span>Flash</span><span>Artist</span><span>Requested timing</span><span>Status</span><span>Action</span>
+            </div>
+            {visible.map((request) => (
+              <RequestRow key={request.id} request={request} onOpen={() => setSelectedRequest(request)} />
+            ))}
+          </div>
+
+          <div className="space-y-3 lg:hidden">
+            {visible.map((request) => (
+              <RequestCard key={request.id} request={request} onOpen={() => setSelectedRequest(request)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.025] p-3">
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setPage((value) => Math.max(value - 1, 1))}
+            className="rounded-md border border-white/10 px-3! py-2! text-xs! font-semibold text-white disabled:opacity-35"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-neutral-500">Page {currentPage} of {totalPages}</span>
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setPage((value) => Math.min(value + 1, totalPages))}
+            className="rounded-md border border-white/10 px-3! py-2! text-xs! font-semibold text-white disabled:opacity-35"
+          >
+            Next
+          </button>
         </div>
       )}
 
-      <RequestDetailsDialog
-        request={selectedRequest}
-        onClose={() => setSelectedRequest(null)}
-      />
+      <RequestDetails request={selectedRequest} onClose={() => setSelectedRequest(null)} />
     </section>
   );
 };
 
-const RequestTable = ({
-  requests,
-  requestArtists,
-  onOpen,
-}: {
-  requests: BookingRequest[];
-  requestArtists: Record<string, RequestArtist>;
-  onOpen: (request: BookingRequest) => void;
-}) => {
-  const columns =
-    "minmax(110px,.52fr) minmax(155px,.72fr) minmax(240px,1.06fr) 88px minmax(215px,.82fr) minmax(165px,.62fr) minmax(110px,.48fr)";
-
+const RequestRow = ({ request, onOpen }: { request: FlashRequest; onOpen: () => void }) => {
+  const status = getStatusPresentation(request);
   return (
-    <>
-      <div className="space-y-3 md:hidden">
-        {requests.map((request) => (
-          <RequestMobileCard
-            key={request.id}
-            request={request}
-            artist={
-              request.artistId ? requestArtists[request.artistId] : undefined
-            }
-            onOpen={() => onOpen(request)}
-          />
-        ))}
+    <div className="grid grid-cols-[1.25fr_1fr_1fr_.85fr_auto] items-center gap-4 border-b border-white/10 bg-[#111111] px-4 py-4 last:border-b-0">
+      <FlashIdentity request={request} />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">{request.artistName || "Artist"}</p>
+        <p className="mt-1 text-xs text-neutral-500">{formatDate(request.createdAt)}</p>
       </div>
-
-      <div className="hidden rounded-lg border border-white/10 bg-[#111111] shadow-lg md:block">
-        <div className="request-modal-scrollbar overflow-x-auto rounded-lg 2xl:overflow-visible">
-          <div className="min-w-[1160px]">
-            <div
-              className="grid items-center border-b border-white/10 bg-[#171717]/95 px-3 py-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 backdrop-blur 2xl:sticky 2xl:top-20 2xl:z-40 2xl:shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
-              style={{ gridTemplateColumns: columns }}
-            >
-              <span>Created</span>
-              <span>Artist</span>
-              <span>Availability</span>
-              <span>Reference</span>
-              <span>Idea</span>
-              <span>Status</span>
-              <span className="text-right">Actions</span>
-            </div>
-            <div className="divide-y divide-white/10">
-              {requests.map((request) => (
-                <RequestRow
-                  key={request.id}
-                  request={request}
-                  artist={
-                    request.artistId
-                      ? requestArtists[request.artistId]
-                      : undefined
-                  }
-                  columns={columns}
-                  onOpen={() => onOpen(request)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+      <div className="text-xs leading-5 text-neutral-400">
+        <p>{formatDateRange(request.preferredDateRange)}</p>
+        <p>{formatTimeWindow(request.availableTime)}</p>
       </div>
-    </>
-  );
-};
-
-const RequestPagination = ({
-  currentPage,
-  totalPages,
-  totalItems,
-  pageStart,
-  pageEnd,
-  onPageChange,
-}: {
-  currentPage: number;
-  totalPages: number;
-  totalItems: number;
-  pageStart: number;
-  pageEnd: number;
-  onPageChange: (page: number) => void;
-}) => {
-  const pageItems = getPaginationItems(currentPage, totalPages);
-
-  return (
-    <nav
-      aria-label="My requests pagination"
-      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.025] px-3! py-3! sm:flex-row sm:items-center sm:justify-between"
-    >
-      <p className="text-sm text-neutral-500">
-        Showing{" "}
-        <span className="font-semibold text-neutral-300">
-          {pageStart}-{pageEnd}
-        </span>{" "}
-        of <span className="font-semibold text-neutral-300">{totalItems}</span>{" "}
-        requests
-      </p>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <ChevronLeft size={14} aria-hidden="true" />
-          Previous
-        </button>
-
-        <div className="flex items-center gap-1">
-          {pageItems.map((item) =>
-            typeof item === "number" ? (
-              <button
-                key={item}
-                type="button"
-                onClick={() => onPageChange(item)}
-                aria-current={item === currentPage ? "page" : undefined}
-                className={`h-9 min-w-9 rounded-md px-3! text-xs! font-semibold transition ${
-                  item === currentPage
-                    ? "bg-white text-black"
-                    : "border border-white/10 bg-white/[0.03] text-white hover:bg-white/10"
-                }`}
-              >
-                {item}
-              </button>
-            ) : (
-              <span
-                key={item}
-                className="flex h-9 min-w-8 items-center justify-center text-xs font-semibold text-neutral-600"
-              >
-                ...
-              </span>
-            )
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Next
-          <ChevronRight size={14} aria-hidden="true" />
-        </button>
-      </div>
-    </nav>
-  );
-};
-
-const RequestRow = ({
-  request,
-  artist,
-  columns,
-  onOpen,
-}: {
-  request: BookingRequest;
-  artist?: RequestArtist;
-  columns: string;
-  onOpen: () => void;
-}) => {
-  const requestArtist = getRequestArtist(request, artist);
-  const imageSources = getRequestImageSources(request);
-
-  return (
-    <div
-      className="grid items-center gap-0 px-3 py-4 transition hover:bg-white/[0.025]"
-      style={{ gridTemplateColumns: columns }}
-    >
-      <button type="button" onClick={onOpen} className="min-w-0 p-0! text-left">
-        <p className="truncate text-sm font-semibold text-white">
-          {formatShortDate(request.createdAt)}
-        </p>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex min-w-0 items-center gap-3 p-0! pr-4! text-left"
-      >
-        <img
-          src={requestArtist.avatarUrl}
-          alt={requestArtist.name}
-          className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
-        />
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-white">
-            {requestArtist.name}
-          </span>
-          <span className="block truncate text-xs text-neutral-500">
-            Artist
-          </span>
-        </span>
-      </button>
-
-      <PreviewMetaRows
-        labelWidth="3.75rem"
-        rows={[
-          {
-            label: "Dates",
-            value: formatCompactDateRange(request.preferredDateRange || []),
-          },
-          {
-            label: "Days",
-            value: formatAvailableDaysSummary(request),
-          },
-          {
-            label: "Time",
-            value: formatAvailableTimeWindow(request),
-          },
-        ]}
-      />
-
-      <button
-        type="button"
-        onClick={onOpen}
-        className="relative h-14 w-16 overflow-hidden rounded-md border border-white/10 bg-white/[0.035] p-0!"
-        aria-label="View request reference"
-      >
-        {imageSources.length ? (
-          <RequestPreviewImage
-            sources={imageSources}
-            alt="Tattoo request reference"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-neutral-500">
-            <ImageIcon size={18} />
-          </span>
-        )}
-      </button>
-
-      <PreviewMetaRows
-        rows={[
-          {
-            label: "Placement",
-            value: request.bodyPlacement || "Placement open",
-          },
-          {
-            label: "Size",
-            value: request.size || "Size open",
-          },
-          {
-            label: "Budget",
-            value: formatBudget(request.budget),
-          },
-        ]}
-      />
-
-      <div className="min-w-0 pr-3">
-        <RequestStatusCell request={request} />
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3! text-xs! font-semibold text-white transition hover:bg-white/10"
-        >
-          <Eye size={14} />
-          Details
-        </button>
-      </div>
+      <StatusBadge label={status.label} tone={status.tone} />
+      <DetailsButton onClick={onOpen} />
     </div>
   );
 };
 
-const RequestMobileCard = ({
-  request,
-  artist,
-  onOpen,
-}: {
-  request: BookingRequest;
-  artist?: RequestArtist;
-  onOpen: () => void;
-}) => {
-  const requestArtist = getRequestArtist(request, artist);
-  const imageSources = getRequestImageSources(request);
-
+const RequestCard = ({ request, onOpen }: { request: FlashRequest; onOpen: () => void }) => {
+  const status = getStatusPresentation(request);
   return (
-    <article className="overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-[0_14px_38px_rgba(0,0,0,0.22)]">
-      <div className="flex items-start justify-between gap-3 border-b border-white/8 px-3.5 py-3">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-w-0 items-center gap-3 p-0! text-left"
-        >
-          <img
-            src={requestArtist.avatarUrl}
-            alt=""
-            className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"
-          />
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold text-white">
-              {requestArtist.name}
-            </span>
-            <span className="mt-0.5 block text-xs text-neutral-500">
-              Sent {formatShortDate(request.createdAt)}
-            </span>
-          </span>
-        </button>
-        <div className="min-w-0 shrink-0">
-          <RequestStatusCell request={request} compact />
+    <article className="overflow-hidden rounded-lg border border-white/10 bg-[#111111]">
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 p-3">
+        <RequestImage request={request} className="h-24 w-21 rounded-md" />
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-white">{request.flashTitle || "Flash design"}</p>
+              <p className="mt-1 truncate text-xs text-neutral-400">{request.artistName || "Artist"}</p>
+            </div>
+            <StatusBadge label={status.compactLabel} tone={status.tone} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-neutral-500">
+            <span>{request.bodyPlacement || "Placement pending"}</span>
+            <span>{request.size || "Size pending"}</span>
+            <span className="col-span-2 truncate">{formatDateRange(request.preferredDateRange)}</span>
+          </div>
         </div>
       </div>
-
       <button
         type="button"
         onClick={onOpen}
-        className="grid w-full grid-cols-[88px_minmax(0,1fr)] gap-3 p-3.5! text-left"
-        aria-label={`View request to ${requestArtist.name}`}
+        className="inline-flex w-full items-center justify-center gap-2 border-t border-white/10 bg-white/[0.025] px-4! py-3! text-xs! font-semibold text-white transition hover:bg-white/[0.06]"
       >
-        <span className="relative h-[88px] w-[88px] overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]">
-          {imageSources.length ? (
-            <RequestPreviewImage
-              sources={imageSources}
-              alt="Tattoo request reference"
-            />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-neutral-500">
-              <ImageIcon size={20} />
-            </span>
-          )}
-        </span>
-
-        <span className="min-w-0">
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-            Tattoo idea
-          </span>
-          <span className="mt-1 block truncate text-base font-semibold text-white">
-            {request.bodyPlacement || "Placement open"}
-          </span>
-          <span className="mt-2 grid grid-cols-2 gap-2">
-            <MobileRequestFact
-              label="Size"
-              value={request.size || "Flexible"}
-            />
-            <MobileRequestFact
-              label="Budget"
-              value={formatBudget(request.budget)}
-            />
-          </span>
-        </span>
+        <Eye size={15} /> View request
       </button>
-
-      <div className="grid gap-2 border-t border-white/8 px-3.5 py-3 text-xs text-neutral-300">
-        <span className="flex min-w-0 items-center gap-2">
-          <CalendarDays
-            size={14}
-            className="shrink-0 text-neutral-500"
-            aria-hidden="true"
-          />
-          <span className="truncate">
-            {formatCompactDateRange(request.preferredDateRange || [])}
-          </span>
-        </span>
-        <span className="flex min-w-0 items-center gap-2">
-          <Clock
-            size={14}
-            className="shrink-0 text-neutral-500"
-            aria-hidden="true"
-          />
-          <span className="truncate">
-            {formatAvailableTimeWindow(request)}
-          </span>
-        </span>
-      </div>
-
-      <div className="border-t border-white/8 p-2.5">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex min-h-10! w-full items-center justify-center gap-2 rounded-lg! border border-white/10 bg-white/[0.04] px-3! py-2! text-sm! font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
-        >
-          <Eye size={15} aria-hidden="true" />
-          View request details
-        </button>
-      </div>
     </article>
   );
 };
 
-const MobileRequestFact = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) => (
-  <span className="min-w-0">
-    <span className="block text-[9px] uppercase tracking-[0.12em] text-neutral-600">
-      {label}
-    </span>
-    <span className="mt-0.5 block truncate text-xs font-medium text-neutral-200">
-      {value}
-    </span>
-  </span>
-);
-
-const RequestDetailsDialog = ({
-  request,
-  onClose,
-}: {
-  request: BookingRequest | null;
-  onClose: () => void;
-}) => (
-  <Transition appear show={!!request} as={Fragment}>
-    <Dialog as="div" className="relative z-[120] sm:z-50" onClose={onClose}>
-      <Transition.Child
-        as={Fragment}
-        enter="ease-out duration-300"
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        leave="ease-in duration-150"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-      >
-        <div className="fixed inset-0 h-dvh bg-black/80 backdrop-blur-md" />
-      </Transition.Child>
-      <div className="fixed inset-0 h-dvh overflow-y-auto overscroll-contain request-modal-scrollbar">
-        <div className="flex min-h-full items-start justify-center px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:items-center sm:p-4">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="scale-95 opacity-0"
-            enterTo="scale-100 opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="scale-100 opacity-100"
-            leaveTo="scale-95 opacity-0"
-          >
-            <Dialog.Panel className="w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
-              {request && (
-                <>
-                  <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 sm:px-6">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                        Request details
-                      </p>
-                      <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">
-                        Your tattoo request
-                      </Dialog.Title>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white transition hover:bg-white/10"
-                      aria-label="Close request details"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <div className="grid gap-0 lg:grid-cols-[1fr_0.95fr]">
-                    <div className="border-b border-white/10 bg-black lg:border-b-0 lg:border-r">
-                      {getRequestImageSources(request, true).length ? (
-                        <RequestModalImage
-                          sources={getRequestImageSources(request, true)}
-                          alt="Tattoo request reference"
-                        />
-                      ) : (
-                        <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 bg-gradient-to-br from-white/[0.07] to-black text-neutral-500">
-                          <ImageIcon size={34} />
-                          <span>No reference image uploaded</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-5 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-white">
-                            Request sent
-                          </p>
-                          <p className="text-sm text-neutral-500">
-                            {formatShortDate(request.createdAt)}
-                          </p>
-                        </div>
-                        <RequestStatusCell request={request} />
-                      </div>
-                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <DetailTile
-                          icon={<MapPin size={17} />}
-                          label="Placement"
-                          value={request.bodyPlacement || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<Ruler size={17} />}
-                          label="Size"
-                          value={request.size || "Not specified"}
-                        />
-                        <DetailTile
-                          icon={<DollarSign size={17} />}
-                          label="Budget"
-                          value={formatBudget(request.budget)}
-                        />
-                        <DetailTile
-                          icon={<CalendarDays size={17} />}
-                          label="Dates"
-                          value={
-                            request.preferredDateRange?.length === 2
-                              ? formatDateRange(request.preferredDateRange)
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<Clock size={17} />}
-                          label="Time"
-                          value={
-                            request.availableTime?.from &&
-                            request.availableTime?.to
-                              ? `${formatTime(
-                                  request.availableTime.from
-                                )} - ${formatTime(request.availableTime.to)}`
-                              : "Flexible"
-                          }
-                        />
-                        <DetailTile
-                          icon={<CalendarDays size={17} />}
-                          label="Days"
-                          value={
-                            request.availableDays?.length
-                              ? getFormattedAvailableDays(request.availableDays)
-                              : "Flexible"
-                          }
-                        />
-                      </div>
-                      <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                          <MessageSquareText size={17} />
-                          Your message
-                        </div>
-                        <p className="whitespace-pre-line text-sm leading-6 text-neutral-300">
-                          {request.description || "No description provided."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </Dialog.Panel>
-          </Transition.Child>
-        </div>
-      </div>
-    </Dialog>
-  </Transition>
-);
-
-const RequestPreviewImage = ({
-  sources,
-  alt,
-}: {
-  sources: string[];
-  alt: string;
-}) => {
-  const { currentSrc, failed, handleError, handleLoad, imageKey, loaded } =
-    useReliableRequestImage(sources);
-
-  return (
-    <span className="relative flex h-full w-full items-center justify-center overflow-hidden bg-white/[0.035]">
-      {!loaded && !failed && (
-        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
-      )}
-      {failed ? (
-        <span className="flex h-full w-full items-center justify-center text-neutral-500">
-          <ImageIcon size={18} aria-hidden="true" />
-        </span>
-      ) : (
-        currentSrc && (
-          <img
-            key={imageKey}
-            src={currentSrc}
-            alt={alt}
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            onLoad={handleLoad}
-            onError={handleError}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        )
-      )}
-    </span>
-  );
-};
-
-const RequestModalImage = ({
-  sources,
-  alt,
-}: {
-  sources: string[];
-  alt: string;
-}) => {
-  const { currentSrc, failed, handleError, handleLoad, imageKey, loaded } =
-    useReliableRequestImage(sources);
-
-  return (
-    <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-hidden bg-black sm:min-h-[420px]">
-      {!loaded && !failed && (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent" />
-      )}
-      {failed ? (
-        <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-neutral-500 sm:min-h-[420px]">
-          <ImageIcon size={30} aria-hidden="true" />
-          <span className="text-sm">Reference image unavailable</span>
-        </div>
-      ) : (
-        currentSrc && (
-          <img
-            key={imageKey}
-            src={currentSrc}
-            alt={alt}
-            loading="eager"
-            decoding="async"
-            onLoad={handleLoad}
-            onError={handleError}
-            className="relative z-[1] h-auto max-h-[58dvh] w-full max-w-full object-contain sm:max-h-[calc(100dvh-5.75rem-10rem)]"
-          />
-        )
-      )}
+const FlashIdentity = ({ request }: { request: FlashRequest }) => (
+  <div className="flex min-w-0 items-center gap-3">
+    <RequestImage request={request} className="h-14 w-14 rounded-md" />
+    <div className="min-w-0">
+      <p className="truncate text-sm font-semibold text-white">{request.flashTitle || "Flash design"}</p>
+      <p className="mt-1 text-xs text-neutral-500">
+        {formatMoney(request.flashPrice)} · {formatRepeatability(request.flashRepeatability)}
+      </p>
     </div>
-  );
-};
-
-const useReliableRequestImage = (sources: string[]) => {
-  const candidates = Array.from(
-    new Set(sources.map((source) => source.trim()).filter(Boolean))
-  );
-  const sourcesKey = candidates.join("\n");
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
-  const [retryToken, setRetryToken] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(candidates.length === 0);
-  const retryTimerRef = useRef<number | null>(null);
-  const retryScheduledRef = useRef(false);
-
-  useEffect(() => {
-    if (retryTimerRef.current !== null) {
-      window.clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-    retryScheduledRef.current = false;
-    setSourceIndex(0);
-    setRetryCount(0);
-    setRetryToken(0);
-    setLoaded(false);
-    setFailed(candidates.length === 0);
-
-    return () => {
-      if (retryTimerRef.current !== null) {
-        window.clearTimeout(retryTimerRef.current);
-      }
-    };
-  }, [candidates.length, sourcesKey]);
-
-  const activeSource = candidates[sourceIndex] || "";
-  const currentSrc = activeSource;
-  const imageKey = `${activeSource}:${retryToken}`;
-
-  const handleLoad = () => {
-    retryScheduledRef.current = false;
-    setLoaded(true);
-    setFailed(false);
-  };
-
-  const handleError = () => {
-    setLoaded(false);
-
-    if (sourceIndex < candidates.length - 1) {
-      setSourceIndex((index) => index + 1);
-      return;
-    }
-
-    if (retryCount >= 2) {
-      setFailed(true);
-      return;
-    }
-
-    if (retryScheduledRef.current) return;
-    retryScheduledRef.current = true;
-    retryTimerRef.current = window.setTimeout(() => {
-      retryScheduledRef.current = false;
-      retryTimerRef.current = null;
-      setRetryCount((count) => count + 1);
-      setRetryToken(Date.now());
-      setSourceIndex(0);
-    }, 600 * (retryCount + 1));
-  };
-
-  return { currentSrc, failed, handleError, handleLoad, imageKey, loaded };
-};
-
-const DashboardHeader = ({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) => (
-  <div>
-    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-primary)]">
-      {eyebrow}
-    </p>
-    <h1 className="mt-2 text-3xl! font-semibold text-white">{title}</h1>
-    <p className="mt-2 max-w-2xl text-sm text-neutral-400">{description}</p>
   </div>
 );
 
-const MetricCard = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) => (
-  <div className="min-w-0 px-2.5! py-1! sm:px-3!">
-    <p className="truncate text-[9px]! uppercase tracking-[0.1em] text-neutral-500 sm:text-[10px]! sm:tracking-[0.14em]">
-      {label}
-    </p>
-    <p className="mt-1 truncate text-base! font-semibold leading-none text-white sm:text-lg!">
-      {value}
-    </p>
-  </div>
-);
-
-const RequestStatusCell = ({
-  request,
-  compact = false,
-}: {
-  request: BookingRequest;
-  compact?: boolean;
-}) => {
-  const presentation = getRequestStatusPresentation(request);
-
-  return (
-    <div className="flex min-w-0 flex-col items-start gap-1">
-      <StatusBadge
-        status={presentation.status}
-        label={compact ? presentation.compactLabel : presentation.label}
-      />
-      {!compact && presentation.category === "preparing" && (
-        <span className="truncate text-xs text-neutral-500">
-          Artist is preparing your offer
-        </span>
-      )}
-    </div>
-  );
-};
-
-const StatusBadge = ({ status, label }: { status: string; label?: string }) => {
-  const className =
-    status === "preparing"
-      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
-    : status === "declined" || status === "rejected"
-      ? "border-white/10 bg-white/[0.045] text-neutral-300"
-      : status === "cancelled" ||
-        status === "canceled" ||
-        status === "expired" ||
-        status === "withdrawn" ||
-        status === "closed"
-      ? "border-white/10 bg-white/[0.045] text-neutral-300"
-      : "border-amber-300/20 bg-amber-300/10 text-amber-100";
-  const display =
-    label ||
-    (status === "pending" ? "Waiting for artist" : status.replace("_", " "));
-  return (
-    <span
-      className={`inline-flex w-fit justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}
-    >
-      {display}
-    </span>
-  );
-};
-
-const PreviewMetaRows = ({
-  labelWidth = "5.25rem",
-  rows,
-}: {
-  labelWidth?: string;
-  rows: { label: string; value: string }[];
-}) => (
-  <dl className="grid min-w-0 gap-1 pr-3 text-xs leading-5">
-    {rows.map((row) => (
-      <div
-        key={row.label}
-        className="grid min-w-0 items-baseline gap-2"
-        style={{ gridTemplateColumns: `${labelWidth} minmax(0, 1fr)` }}
-      >
-        <dt className="truncate uppercase tracking-[0.12em] text-neutral-500">
-          {row.label}
-        </dt>
-        <dd className="truncate font-medium text-neutral-200">{row.value}</dd>
+const RequestImage = ({ request, className }: { request: FlashRequest; className: string }) => {
+  const [failed, setFailed] = useState(false);
+  const src = request.thumbUrl || request.fullUrl || "";
+  if (!src || failed) {
+    return (
+      <div className={`flex shrink-0 items-center justify-center border border-white/10 bg-white/[0.04] text-neutral-600 ${className}`}>
+        <ImageOff size={18} />
       </div>
-    ))}
-  </dl>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={request.flashTitle || "Requested flash"}
+      className={`shrink-0 border border-white/10 bg-black object-cover ${className}`}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
+const RequestDetails = ({ request, onClose }: { request: FlashRequest | null; onClose: () => void }) => {
+  const status = request ? getStatusPresentation(request) : null;
+  return (
+    <Transition appear show={!!request} as={Fragment}>
+      <Dialog as="div" className="relative z-[80]" onClose={onClose}>
+        <Transition.Child as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
+        </Transition.Child>
+        <div className="fixed inset-0 overflow-y-auto request-modal-scrollbar">
+          <div className="flex min-h-full items-start justify-center p-3 pt-20 sm:items-center sm:p-6">
+            <Transition.Child as={Fragment} enter="ease-out duration-200" enterFrom="scale-95 opacity-0" enterTo="scale-100 opacity-100" leave="ease-in duration-150" leaveFrom="scale-100 opacity-100" leaveTo="scale-95 opacity-0">
+              <Dialog.Panel className="w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-[#111111] text-white shadow-2xl">
+                {request && status && (
+                  <>
+                    <header className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Flash request</p>
+                        <Dialog.Title className="mt-1 text-xl! font-semibold! text-white">{request.flashTitle || "Flash design"}</Dialog.Title>
+                      </div>
+                      <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] p-0! text-white" aria-label="Close request details"><X size={18} /></button>
+                    </header>
+                    <div className="grid lg:grid-cols-[1fr_.95fr]">
+                      <div className="flex min-h-72 items-center justify-center bg-black p-3 lg:min-h-[560px]">
+                        <RequestImage request={request} className="max-h-[70vh] h-auto w-full rounded-md object-contain!" />
+                      </div>
+                      <div className="space-y-5 border-t border-white/10 p-5 lg:border-l lg:border-t-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">{request.artistName || "Artist"}</p>
+                            <p className="mt-1 text-xs text-neutral-500">Sent {formatDate(request.createdAt)}</p>
+                          </div>
+                          <StatusBadge label={status.label} tone={status.tone} />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Detail icon={<MapPin size={16} />} label="Placement" value={request.bodyPlacement || "Not selected"} />
+                          <Detail icon={<Ruler size={16} />} label="Size" value={request.size || "Not selected"} />
+                          <Detail icon={<CalendarDays size={16} />} label="Preferred dates" value={formatDateRange(request.preferredDateRange)} />
+                          <Detail icon={<Clock3 size={16} />} label="Preferred time" value={formatTimeWindow(request.availableTime)} />
+                          <Detail icon={<Store size={16} />} label="Listed price" value={formatMoney(request.flashPrice)} />
+                          <Detail icon={<Layers size={16} />} label="Availability" value={formatRepeatability(request.flashRepeatability)} />
+                        </div>
+                        {request.availableDays && request.availableDays.length > 0 && (
+                          <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
+                            <p className="text-xs uppercase tracking-[0.15em] text-white/40">Days that work</p>
+                            <p className="mt-2 text-sm text-neutral-300">{request.availableDays.join(", ")}</p>
+                          </div>
+                        )}
+                        {request.description && (
+                          <div className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
+                            <p className="text-xs uppercase tracking-[0.15em] text-white/40">Note</p>
+                            <p className="mt-2 text-sm leading-6 text-neutral-300">{request.description}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+const DetailsButton = ({ onClick }: { onClick: () => void }) => (
+  <button type="button" onClick={onClick} className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-3! py-2! text-xs! font-semibold text-white transition hover:bg-white/10"><Eye size={14} />Details</button>
 );
 
-const DetailTile = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) => (
-  <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-neutral-500">
-      {icon}
-      {label}
-    </div>
+const Detail = ({ icon, label, value }: { icon: ReactNode; label: string; value: string }) => (
+  <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+    <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-white/40">{icon}{label}</p>
     <p className="mt-2 text-sm font-medium text-white">{value}</p>
   </div>
 );
 
-const EmptyState = ({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) => (
-  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-10 text-center">
-    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-white/5 text-[var(--color-primary)]">
-      {icon}
-    </div>
-    <h2 className="mt-4 text-xl! font-semibold! text-white">{title}</h2>
-    <p className="mx-auto mt-2 max-w-md text-sm text-neutral-400">
-      {description}
-    </p>
+const Metric = ({ label, value }: { label: string; value: number }) => (
+  <div className="min-w-0 border-l border-white/10 pl-3 first:border-l-0 first:pl-0 sm:pl-5">
+    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">{label}</p>
+    <p className="mt-1 text-lg font-semibold text-white">{value}</p>
   </div>
 );
 
-const RequestsSkeleton = () => (
-  <section className="mt-6 w-full max-w-7xl space-y-6">
-    <div className="h-36 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]" />
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {[0, 1, 2].map((item) => (
-        <div
-          key={item}
-          className="h-80 animate-pulse rounded-lg border border-white/10 bg-white/[0.03]"
-        />
-      ))}
-    </div>
-  </section>
+const StatusBadge = ({ label, tone }: { label: string; tone: "waiting" | "offer" | "closed" }) => (
+  <span className={`inline-flex max-w-full shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+    tone === "offer"
+      ? "border-sky-300/25 bg-sky-300/10 text-sky-100"
+      : tone === "closed"
+      ? "border-white/10 bg-white/[0.04] text-neutral-400"
+      : "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+  }`}>{label}</span>
 );
 
-const getPaginationItems = (
-  currentPage: number,
-  totalPages: number
-): Array<number | "start-ellipsis" | "end-ellipsis"> => {
-  if (totalPages <= 5) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1);
+const EmptyState = ({ title, description }: { title: string; description: string }) => (
+  <div className="rounded-lg border border-white/10 bg-[#111111] px-5 py-14 text-center">
+    <Layers className="mx-auto text-[var(--color-primary)]" size={24} />
+    <h3 className="mt-4 text-lg! font-semibold! text-white">{title}</h3>
+    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-neutral-400">{description}</p>
+    <a href="/flash" className="mt-5 inline-flex rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black">Browse flash</a>
+  </div>
+);
+
+const RequestSkeleton = () => (
+  <div className="mt-6 w-full max-w-7xl animate-pulse space-y-5">
+    <div className="h-24 rounded-lg bg-white/[0.04]" />
+    <div className="h-14 rounded-lg bg-white/[0.04]" />
+    <div className="h-56 rounded-lg bg-white/[0.04]" />
+  </div>
+);
+
+const getStatusCategory = (request: FlashRequest): Exclude<RequestFilter, "all"> =>
+  CLOSED_STATUSES.has(String(request.status || "").toLowerCase()) ? "closed" : "waiting";
+
+const getStatusPresentation = (request: FlashRequest) => {
+  const status = String(request.status || "pending").toLowerCase();
+  if (CLOSED_STATUSES.has(status)) {
+    return { label: status === "declined" || status === "rejected" ? "Artist unavailable" : "Request closed", compactLabel: "Closed", tone: "closed" as const };
   }
-
-  const items: Array<number | "start-ellipsis" | "end-ellipsis"> = [1];
-  const start = Math.max(2, currentPage - 1);
-  const end = Math.min(totalPages - 1, currentPage + 1);
-
-  if (start > 2) items.push("start-ellipsis");
-  for (let page = start; page <= end; page += 1) {
-    items.push(page);
+  if (OFFER_SENT_STATUSES.has(status)) {
+    return { label: "Offer sent", compactLabel: "Offer sent", tone: "offer" as const };
   }
-  if (end < totalPages - 1) items.push("end-ellipsis");
-  items.push(totalPages);
-
-  return items;
+  return { label: "Awaiting artist", compactLabel: "Waiting", tone: "waiting" as const };
 };
 
-const formatBudget = (budget?: string | number) => {
-  if (typeof budget === "number") return `$${budget}`;
-  if (!budget) return "Flexible";
-  if (budget.endsWith("+")) return `$${budget}`;
-  if (budget.includes("-")) {
-    const [min, max] = budget.split("-");
-    const minAmount = min.trim().replace(/^\$/, "");
-    const maxAmount = max.trim().replace(/^\$/, "");
-    return `$${minAmount} - $${maxAmount}`;
-  }
-  return budget;
-};
-
-const formatAvailableDaysSummary = (request: BookingRequest) =>
-  request.availableDays?.length
-    ? getFormattedAvailableDays(request.availableDays)
-    : "Days flexible";
-
-const formatAvailableTimeWindow = (request: BookingRequest) => {
-  const from = request.availableTime?.from;
-  const to = request.availableTime?.to;
-
-  if (from && to) return `${formatTime(from)} - ${formatTime(to)}`;
-  if (from) return `${formatTime(from)} - Any time`;
-  if (to) return `Any time - ${formatTime(to)}`;
-  return "Any time";
-};
-
-const getFormattedAvailableDays = (days: string[]): string => {
-  const dayOrder = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
-  const abbreviations: Record<string, string> = {
-    Sunday: "Sun",
-    Monday: "Mon",
-    Tuesday: "Tue",
-    Wednesday: "Wed",
-    Thursday: "Thu",
-    Friday: "Fri",
-    Saturday: "Sat",
-  };
-
-  return [...days]
-    .sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b))
-    .map((day) => abbreviations[day] || day.slice(0, 3))
-    .join(", ");
-};
-
-const isArtistPreparingOffer = (request: BookingRequest) =>
-  request.offerPreparationStatus === "preparing";
-
-const getNormalizedRequestStatus = (request: BookingRequest) =>
-  String(request.status || "pending").trim().toLowerCase();
-
-const getRequestStatusCategory = (
-  request: BookingRequest
-): RequestStatusCategory => {
-  const status = getNormalizedRequestStatus(request);
-
-  if (CLOSED_REQUEST_STATUSES.has(status)) return "closed";
-  if (isArtistPreparingOffer(request)) return "preparing";
-  return "waiting";
-};
-
-const getRequestStatusPresentation = (request: BookingRequest) => {
-  const status = getNormalizedRequestStatus(request);
-  const category = getRequestStatusCategory(request);
-
-  if (category === "preparing") {
-    const eta = request.offerPreparationEta?.trim();
-    return {
-      category,
-      status: "preparing",
-      label: eta ? `Offer ETA: ${eta}` : "Artist is preparing your offer",
-      compactLabel: eta ? `ETA: ${eta}` : "Preparing",
-    };
-  }
-
-  if (category === "waiting") {
-    return {
-      category,
-      status: "pending",
-      label: "Waiting for artist",
-      compactLabel: "Waiting",
-    };
-  }
-
-  if (status === "declined" || status === "rejected") {
-    return {
-      category,
-      status,
-      label: "Artist passed on this request",
-      compactLabel: "Artist passed",
-    };
-  }
-
-  const closedLabels: Record<string, string> = {
-    canceled: "Cancelled",
-    cancelled: "Cancelled",
-    closed: "Closed",
-    expired: "Expired",
-    withdrawn: "Withdrawn",
-  };
-  const label = closedLabels[status] || "Closed";
-
-  return { category, status, label, compactLabel: label };
-};
-
-const getRequestImageSources = (
-  request: BookingRequest,
-  preferFullSize = false
-) => {
-  const referenceSources = [...(request.referenceImages || [])]
-    .sort((a, b) => getRequestReferenceOrder(a) - getRequestReferenceOrder(b))
-    .flatMap((reference) =>
-      preferFullSize
-        ? [reference.fullUrl, reference.thumbUrl]
-        : [reference.thumbUrl, reference.fullUrl]
-    );
-  const primarySources = preferFullSize
-    ? [request.fullUrl, request.thumbUrl]
-    : [request.thumbUrl, request.fullUrl];
-
-  return Array.from(
-    new Set(
-      [...referenceSources, ...primarySources].filter(
-        (source): source is string =>
-          typeof source === "string" && source.trim().length > 0
-      )
-    )
-  );
-};
-
-const getRequestReferenceOrder = (
-  reference: NonNullable<BookingRequest["referenceImages"]>[number]
-) => {
-  const order = Number(reference.fileName?.split("-")[0]);
-  return Number.isFinite(order) && order > 0 ? order : Number.MAX_SAFE_INTEGER;
-};
-
-const formatDateRange = (dates: string[]) => {
-  const [start, end] = dates;
-  return `${formatDate(start, {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  })} - ${formatDate(end, { month: "long", day: "numeric", year: "numeric" })}`;
-};
-
-const formatCompactDateRange = (dates: string[]) => {
-  const [start, end] = dates;
-  if (!start || !end) return "Flexible";
-  return `${formatDate(start, {
-    month: "short",
-    day: "numeric",
-  })} - ${formatDate(end, { month: "short", day: "numeric" })}`;
-};
-
-const formatDate = (dateStr: string, options: Intl.DateTimeFormatOptions) => {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("en-US", options);
-};
-
-const formatTime = (time: string) => {
-  const [hourStr, minute] = time.split(":");
-  let hour = parseInt(hourStr, 10);
-  const ampm = hour >= 12 ? "pm" : "am";
-  hour = hour % 12 || 12;
-  return `${hour}:${minute}${ampm}`;
-};
-
-const getItemTime = (item: BookingRequest) => {
-  const createdAt = item.createdAt;
-  if (!createdAt) return 0;
-  if (createdAt instanceof Date) return createdAt.getTime();
-  if (typeof createdAt.toDate === "function")
-    return createdAt.toDate().getTime();
-  if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
+const getCreatedTime = (request: FlashRequest) => {
+  const value = request.createdAt;
+  if (value instanceof Date) return value.getTime();
+  if (value && typeof value.toDate === "function") return value.toDate().getTime();
+  if (value && typeof value.seconds === "number") return value.seconds * 1000;
   return 0;
 };
 
-const formatShortDate = (createdAt?: BookingRequest["createdAt"]) => {
-  if (!createdAt) return "New";
-  const date =
-    createdAt instanceof Date
-      ? createdAt
-      : typeof createdAt.toDate === "function"
-      ? createdAt.toDate()
-      : typeof createdAt.seconds === "number"
-      ? new Date(createdAt.seconds * 1000)
-      : null;
-  return date
-    ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    : "New";
+const formatDate = (value?: Date | FirestoreTimestampLike | null) => {
+  const time = value instanceof Date
+    ? value
+    : value && typeof value.toDate === "function"
+    ? value.toDate()
+    : value && typeof value.seconds === "number"
+    ? new Date(value.seconds * 1000)
+    : null;
+  return time ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(time) : "Recently";
 };
 
-const getRequestArtist = (request: BookingRequest, artist?: RequestArtist) => ({
-  name:
-    artist?.displayName ||
-    request.artistName ||
-    artist?.name ||
-    request.displayName ||
-    "Artist",
-  avatarUrl:
-    artist?.avatarUrl ||
-    request.artistAvatar ||
-    request.artistAvatarUrl ||
-    "/default-avatar.png",
-});
-
-const loadRequestArtists = async (
-  requests: BookingRequest[],
-  onLoaded: (artists: Record<string, RequestArtist>) => void
-) => {
-  const artistIds = Array.from(
-    new Set(
-      requests
-        .map((request) => request.artistId)
-        .filter((artistId): artistId is string => Boolean(artistId))
-    )
-  );
-
-  if (artistIds.length === 0) return;
-
-  try {
-    const artistChunks = chunkArray(artistIds, 10);
-    const snapshots = await Promise.all(
-      artistChunks.map((artistChunk) =>
-        getDocs(
-          query(
-            collection(db, "users"),
-            where("role", "==", "artist"),
-            where(documentId(), "in", artistChunk)
-          )
-        )
-      )
-    );
-
-    const artists = snapshots.reduce<Record<string, RequestArtist>>(
-      (acc, snapshot) => {
-        snapshot.docs.forEach((artistDoc) => {
-          const data = artistDoc.data() as Omit<RequestArtist, "id">;
-          acc[artistDoc.id] = {
-            id: artistDoc.id,
-            name: data.name,
-            displayName: data.displayName,
-            avatarUrl: data.avatarUrl,
-          };
-        });
-        return acc;
-      },
-      {}
-    );
-
-    onLoaded(artists);
-  } catch (error) {
-    console.error("Error loading request artists:", error);
-  }
+const formatDateRange = (range?: string[]) => {
+  if (!range?.[0] && !range?.[1]) return "Flexible dates";
+  const format = (value: string) => {
+    const date = new Date(`${value}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+  };
+  if (range[0] && range[1]) return `${format(range[0])} – ${format(range[1])}`;
+  return format(range[0] || range[1]);
 };
 
-const chunkArray = <T,>(items: T[], size: number) => {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-};
+const formatTimeWindow = (window?: FlashRequest["availableTime"]) =>
+  window?.from && window?.to ? `${window.from} – ${window.to}` : "Flexible time";
+
+const formatMoney = (value?: number | null) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value)
+    : "See flash listing";
+
+const formatRepeatability = (value?: string) =>
+  value === "one_of_one" ? "One of one" : "Repeatable";
 
 export default ClientRequestsList;

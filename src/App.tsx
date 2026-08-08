@@ -1,5 +1,5 @@
 import "./index.css";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
@@ -13,18 +13,14 @@ import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
 import LiveBookingToasts from "./components/LiveBookingToasts";
 import AgeGate from "./components/AgeGate";
+import RouteDocumentTitle from "./components/RouteDocumentTitle";
 // pages
 import { HomePage } from "./pages/HomePage";
 import { ArtistsPage } from "./pages/ArtistsPage";
-import { ClientPostsPage } from "./pages/ClientPostsPage";
 import { AboutPage } from "./pages/AboutPage";
 import DevAddDocs from "./pages/DevAddDocs";
 import LoginPage from "./pages/LoginPage";
 import { ArtistProfilePage } from "./pages/ArtistProfilePage";
-import Clients from "./pages/Clients";
-import ArtistDashboard from "./pages/ArtistDashboard";
-import FlashSheetEditor from "./pages/FlashSheetEditor";
-import ClientDashboard from "./pages/ClientDashboard";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ClientProfileSetupPage from "./pages/ClientProfileSetupPage";
@@ -64,24 +60,25 @@ function App() {
   return (
     <>
       <Navbar />
+      <RouteDocumentTitle />
       <Toaster position="top-center" reverseOrder={false} />
       <AgeGate />
       <LiveBookingToasts />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/clients" element={<Clients />} />
+        <Route path="/clients" element={<Navigate to="/flash" replace />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/artist-dashboard" element={<ArtistDashboard />} />
-        <Route path="/client-dashboard" element={<ClientDashboard />} />
+        <Route path="/artist-dashboard" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/client-dashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="/artists" element={<ArtistsPage />} />
         <Route path="/flash" element={<FlashMarketplacePage />} />
         <Route
           path="/flash/sheets/:sheetId"
           element={<PublicFlashSheetPage />}
         />
-        <Route path="/client-posts" element={<ClientPostsPage />} />
+        <Route path="/client-posts" element={<Navigate to="/flash" replace />} />
         <Route path="/signup" element={<SignupSelection />} />
         <Route
           path="/signup/client"
@@ -105,8 +102,8 @@ function App() {
         <Route path="/login-page" element={<LoginPage />} />
         <Route path="/artists/:id" element={<ArtistProfilePage />} />
         <Route path="/flash-sheet/:id" element={<FlashSheetDetailPage />} />
+        <Route path="/:artistSlug" element={<ArtistProfilePage />} />
 
-        <Route path="/flash-sheet/:sheetId" element={<FlashSheetEditor />} />
       </Routes>
 
       <Footer />

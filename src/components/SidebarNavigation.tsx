@@ -10,7 +10,6 @@ type ViewTab =
   | "bookings"
   | "sessions"
   | "schedule"
-  | "projects"
   | "pending" // represents pending_payment
   | "confirmed"
   | "paid"
@@ -39,7 +38,6 @@ const SidebarNavigation: FC<SidebarProps> = ({
     { key: "bookings", label: "Bookings" },
     { key: "sessions", label: "Sessions" },
     { key: "schedule", label: "Schedule" },
-    { key: "projects", label: "Projects" },
     { key: "flashes", label: "Flash Studio" },
     { key: "gallery", label: "Gallery" },
     { key: "payments", label: "Payments" },

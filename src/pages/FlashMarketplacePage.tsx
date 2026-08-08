@@ -9,8 +9,10 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
+  CircleAlert,
   Filter,
   Loader2,
+  RefreshCw,
   Search,
   SlidersHorizontal,
   Tag,
@@ -38,6 +40,7 @@ import FlashRequestModal, {
 } from "../components/FlashRequestModal";
 import type { Flash } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
 import { getClientNameParts } from "../utils/clientDisplayName";
 import {
   flashPreviewCardClassName,
@@ -49,6 +52,7 @@ import {
   FlashArtistAvatar,
   FlashPreviewImage,
 } from "../components/FlashPreviewCard";
+import { getArtistProfilePath } from "../utils/artistProfilePath";
 
 type MarketplaceTab = "flashes" | "sheets";
 type PriceSort = "newest" | "price_asc" | "price_desc";
@@ -58,6 +62,7 @@ type PublicArtist = {
   id: string;
   name?: string;
   displayName?: string;
+  slug?: string;
   avatarUrl?: string;
   studioName?: string;
 };
@@ -93,6 +98,8 @@ const FlashMarketplacePage = () => {
   const [sheets, setSheets] = useState<MarketFlashSheet[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [hasMoreFlashes, setHasMoreFlashes] = useState(false);
   const [hasMoreSheets, setHasMoreSheets] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,6 +114,7 @@ const FlashMarketplacePage = () => {
   const sheetCursorRef = useRef<MarketplaceCursor>(null);
   const flashCardRefs = useRef<Array<HTMLElement | null>>([]);
   const pendingFlashScrollIndexRef = useRef<number | null>(null);
+  const hasCheckedInitialSheetFallbackRef = useRef(false);
 
   const searchTokens = useMemo(() => getSearchTokens(searchTerm), [searchTerm]);
   const minPrice = useMemo(() => parseBudgetValue(minBudget), [minBudget]);
@@ -139,6 +147,7 @@ const FlashMarketplacePage = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setClient(null);
+        setAuthResolved(true);
         return;
       }
 
@@ -174,6 +183,8 @@ const FlashMarketplacePage = () => {
           lastName: clientNameParts.lastName,
           avatarUrl: user.photoURL || "/default-avatar.png",
         });
+      } finally {
+        setAuthResolved(true);
       }
     });
 
@@ -201,6 +212,7 @@ const FlashMarketplacePage = () => {
         setLoadingMore(true);
       } else {
         setLoading(true);
+        setMarketplaceError(null);
         setSelectedFlash(null);
         if (tab === "flashes") {
           setFlashes([]);
@@ -264,6 +276,38 @@ const FlashMarketplacePage = () => {
           fetchRounds < CLIENT_FILTER_MAX_FETCH_ROUNDS
         );
 
+        const shouldCheckInitialSheetFallback =
+          !isAppend &&
+          tab === "flashes" &&
+          collected.length === 0 &&
+          !hasCheckedInitialSheetFallbackRef.current &&
+          !searchParams.has("tab") &&
+          searchTokens.length === 0 &&
+          priceSort === "newest" &&
+          minPrice === null &&
+          maxPrice === null;
+
+        if (shouldCheckInitialSheetFallback) {
+          hasCheckedInitialSheetFallbackRef.current = true;
+          const availableSheets = await getDocs(
+            buildMarketplaceQuery({
+              tab: "sheets",
+              cursor: null,
+              searchTokens: [],
+              priceSort: "newest",
+              minPrice: null,
+              maxPrice: null,
+              batchSize: 1,
+            })
+          );
+
+          if (!availableSheets.empty) {
+            if (sequence !== fetchSequenceRef.current) return;
+            handleTabChange("sheets");
+            return;
+          }
+        }
+
         if (sequence !== fetchSequenceRef.current) return;
 
         if (tab === "flashes") {
@@ -286,6 +330,7 @@ const FlashMarketplacePage = () => {
       } catch (err) {
         console.error("Failed to fetch flash marketplace:", err);
         if (sequence === fetchSequenceRef.current && !isAppend) {
+          setMarketplaceError(getMarketplaceErrorMessage(err));
           if (tab === "flashes") setFlashes([]);
           else setSheets([]);
         }
@@ -296,7 +341,15 @@ const FlashMarketplacePage = () => {
         }
       }
     },
-    [activeTab, maxPrice, minPrice, priceSort, searchTokens]
+    [
+      activeTab,
+      handleTabChange,
+      maxPrice,
+      minPrice,
+      priceSort,
+      searchParams,
+      searchTokens,
+    ]
   );
 
   const scrollToLoadedFlashBatch = useCallback((targetIndex: number) => {
@@ -320,15 +373,21 @@ const FlashMarketplacePage = () => {
   }, [fetchMarketplacePage, flashes.length]);
 
   useEffect(() => {
+    if (!authResolved) return;
     void fetchMarketplacePage("replace");
   }, [
     activeTab,
+    authResolved,
     maxPrice,
     minPrice,
     priceSort,
     searchTokens,
     fetchMarketplacePage,
   ]);
+
+  const handleRetryMarketplace = useCallback(() => {
+    void fetchMarketplacePage("replace");
+  }, [fetchMarketplacePage]);
 
   useEffect(() => {
     const pendingIndex = pendingFlashScrollIndexRef.current;
@@ -502,6 +561,11 @@ const FlashMarketplacePage = () => {
 
         {loading ? (
           <MarketplaceSkeleton activeTab={activeTab} />
+        ) : marketplaceError ? (
+          <MarketplaceErrorState
+            message={marketplaceError}
+            onRetry={handleRetryMarketplace}
+          />
         ) : activeTab === "flashes" ? (
           flashes.length > 0 ? (
             <>
@@ -674,7 +738,9 @@ const FlashCardActions = ({
 }: FlashCardProps & { className: string }) => (
   <div className={className}>
     <Link
-      to={`/artists/${flash.artistId}`}
+      to={getArtistProfilePath(
+        flash.artist || { id: flash.artistId }
+      )}
       className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-white/[0.18] bg-[#111]/90 px-2 text-[11px] font-semibold text-white/[0.88] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur-md transition hover:border-white/[0.30] hover:bg-[#191919] hover:text-white"
     >
       View artist
@@ -698,7 +764,7 @@ const FlashSheetMarketCard = ({ sheet }: { sheet: MarketFlashSheet }) => {
       <Link to={`/flash/sheets/${sheet.id}`} className="block">
         <div className="relative aspect-[4/5] bg-black/30">
           <img
-            src={sheet.thumbUrl || sheet.imageUrl}
+            src={getFlashSheetPreviewUrl(sheet)}
             alt={sheet.title || "Flash sheet"}
             className="h-full w-full object-cover"
             loading="lazy"
@@ -814,6 +880,35 @@ const EmptyMarketplaceState = () => (
   </div>
 );
 
+const MarketplaceErrorState = ({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) => (
+  <div
+    role="alert"
+    className="mt-5 rounded-2xl border border-amber-300/15 bg-amber-300/[0.045] p-8 text-center sm:p-10"
+  >
+    <CircleAlert className="mx-auto mb-4 text-amber-200/70" size={36} />
+    <h3 className="text-xl! font-semibold text-white sm:text-2xl!">
+      Flash is taking a moment
+    </h3>
+    <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/55">
+      {message}
+    </p>
+    <button
+      type="button"
+      onClick={onRetry}
+      className="mx-auto mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.07] px-5 py-2 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/[0.12]"
+    >
+      <RefreshCw size={15} />
+      Try again
+    </button>
+  </div>
+);
+
 const buildMarketplaceQuery = ({
   tab,
   cursor,
@@ -821,6 +916,7 @@ const buildMarketplaceQuery = ({
   priceSort,
   minPrice,
   maxPrice,
+  batchSize,
 }: {
   tab: MarketplaceTab;
   cursor: MarketplaceCursor;
@@ -828,6 +924,7 @@ const buildMarketplaceQuery = ({
   priceSort: PriceSort;
   minPrice: number | null;
   maxPrice: number | null;
+  batchSize?: number;
 }) => {
   const collectionName = tab === "flashes" ? "flashes" : "flashSheets";
   const constraints: QueryConstraint[] = [
@@ -850,7 +947,7 @@ const buildMarketplaceQuery = ({
   }
 
   if (cursor) constraints.push(startAfter(cursor));
-  constraints.push(firestoreLimit(getMarketplaceBatchSize(tab)));
+  constraints.push(firestoreLimit(batchSize || getMarketplaceBatchSize(tab)));
 
   return query(collection(db, collectionName), ...constraints);
 };
@@ -943,6 +1040,7 @@ const toPublicArtist = (value: unknown): PublicArtist | null => {
     name: typeof data.name === "string" ? data.name : undefined,
     displayName:
       typeof data.displayName === "string" ? data.displayName : undefined,
+    slug: typeof data.slug === "string" ? data.slug : undefined,
     avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : undefined,
     studioName:
       typeof data.studioName === "string" ? data.studioName : undefined,
@@ -967,6 +1065,25 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+const getMarketplaceErrorMessage = (error: unknown) => {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code || "")
+      : "";
+
+  if (code.includes("not-found")) {
+    return "The flash catalog could not be found. Please refresh and try again.";
+  }
+  if (code.includes("permission-denied")) {
+    return "We couldn't access the public flash catalog. Please refresh and try again.";
+  }
+  if (code.includes("failed-precondition")) {
+    return "The flash catalog is temporarily unavailable. Please try again shortly.";
+  }
+
+  return "We couldn't load the flash catalog right now. Please check your connection and try again.";
+};
 
 const parseBudgetValue = (value: string) => {
   const trimmedValue = value.trim();

@@ -1,9 +1,10 @@
 import { initializeApp, cert } from 'firebase-admin/app';
+import type { ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as serviceAccount from './serviceAccountKey.json';
 
 initializeApp({
-  credential: cert(serviceAccount as any),
+  credential: cert(serviceAccount as unknown as ServiceAccount),
 });
 
 const db = getFirestore();
@@ -22,7 +23,7 @@ async function extendArtistDocs() {
     const userRef = db.collection('users').doc(doc.id);
     const data = doc.data();
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       paymentType: data.paymentType ?? 'external',
       finalPaymentTiming: data.finalPaymentTiming ?? 'before',
       depositPolicy: data.depositPolicy ?? {

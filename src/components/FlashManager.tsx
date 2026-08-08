@@ -28,6 +28,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import type { FlashSheet } from "../types/FlashSheet";
+import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
 import type { Flash, FlashRepeatability } from "../types/Flash";
 import {
   isStripeConnectReady,
@@ -228,10 +229,12 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
       await wait(1200);
 
       const thumbRef = ref(storage, `${storageBase}_thumb.webp`);
+      const previewRef = ref(storage, `${storageBase}_webp90.webp`);
       const fullRef = ref(storage, `${storageBase}_full.jpg`);
 
-      const [thumbUrl, imageUrl] = await Promise.all([
+      const [thumbUrl, webp90Url, imageUrl] = await Promise.all([
         waitForFile(thumbRef),
+        waitForFile(previewRef),
         waitForFile(fullRef),
       ]);
 
@@ -245,6 +248,10 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
         fileName: baseName,
         imageUrl,
         thumbUrl,
+        webp90Url,
+        fullUrl: imageUrl,
+        thumbPath: `${storageBase}_thumb.webp`,
+        previewPath: `${storageBase}_webp90.webp`,
         fullPath: `${storageBase}_full.jpg`,
         sourceWidth: sheetSourceMetadata?.width || null,
         sourceHeight: sheetSourceMetadata?.height || null,
@@ -600,7 +607,7 @@ const FlashManager = ({ uid, artist, onOpenPayments }: FlashManagerProps) => {
               const tags = Array.isArray(sheet.tags)
                 ? sheet.tags.slice(0, 3)
                 : [];
-              const sheetPreviewUrl = sheet.thumbUrl || sheet.imageUrl;
+              const sheetPreviewUrl = getFlashSheetPreviewUrl(sheet);
 
               return (
                 <button
