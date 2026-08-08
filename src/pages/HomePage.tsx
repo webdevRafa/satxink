@@ -34,19 +34,15 @@ import FlashRequestModal, {
   type FlashRequestArtist,
   type FlashRequestClient,
 } from "../components/FlashRequestModal";
-import type { Flash } from "../types/Flash";
+import type { Flash, MarketplaceArtistPublic } from "../types/Flash";
 import type { FlashSheet } from "../types/FlashSheet";
 import { FEATURED_TATTOO_STYLES } from "../types/TattooStyle";
-import {
-  isStripeConnectReady,
-  type StripeConnectLike,
-} from "../utils/stripeConnect";
+import type { StripeConnectLike } from "../utils/stripeConnect";
 import {
   getBookingAvailabilityMonthKeys,
   getRollingBookingMonthOptions,
   type BookingAvailability,
 } from "../utils/bookingAvailability";
-import { isFlashAvailableForClients } from "../utils/flashAvailability";
 import {
   FlashArtistAvatar,
   FlashPreviewImage,
@@ -58,6 +54,7 @@ import {
   getFlashVisualTitle,
 } from "../utils/flashPreview";
 import { getClientNameParts } from "../utils/clientDisplayName";
+import { getFlashSheetPreviewUrl } from "../utils/flashSheetImage";
 
 type PublicArtist = {
   id: string;
@@ -383,7 +380,6 @@ export const HomePage: FC = () => {
             const typedFlash = flash as Flash;
             return Boolean(
               typedFlash.artistId &&
-                isFlashAvailableForClients(typedFlash) &&
                 (typedFlash.thumbUrl ||
                   typedFlash.webp90Url ||
                   typedFlash.fullUrl)
@@ -397,22 +393,15 @@ export const HomePage: FC = () => {
           }))
           .filter((sheet): sheet is FlashSheet => {
             const typedSheet = sheet as FlashSheet;
-            return Boolean(typedSheet.artistId && typedSheet.imageUrl);
+            return Boolean(
+              typedSheet.artistId && getFlashSheetPreviewUrl(typedSheet)
+            );
           });
 
-        const artistIds = Array.from(
-          new Set(
-            [...rawFlashes, ...rawSheets]
-              .map((item) => item.artistId)
-              .concat(
-                HOME_SECTION_VISIBILITY.heroArtistSpotlight &&
-                  featuredArtistId
-                  ? [featuredArtistId]
-                  : []
-              )
-              .filter(Boolean)
-          )
-        );
+        const artistIds =
+          HOME_SECTION_VISIBILITY.heroArtistSpotlight && featuredArtistId
+            ? [featuredArtistId]
+            : [];
 
         const artistsById = await fetchArtistsById(artistIds);
         const readyBookingArtists = HOME_SECTION_VISIBILITY.localArtists
@@ -431,22 +420,29 @@ export const HomePage: FC = () => {
 
         if (!isMounted) return;
 
+        // marketplaceReady and artistPublic are maintained together by the
+        // server projection. Cards should consume that public projection
+        // directly instead of re-reading private user records and applying a
+        // second, potentially contradictory Stripe eligibility check.
+        const marketplaceFlashes: HomeFlash[] = rawFlashes.map((flash) => ({
+          ...flash,
+          artist:
+            toHomeMarketplaceArtist(flash.artistPublic) ||
+            artistsById[flash.artistId],
+        }));
+        const marketplaceSheets: HomeFlashSheet[] = rawSheets.map((sheet) => ({
+          ...sheet,
+          artist:
+            toHomeMarketplaceArtist(sheet.artistPublic) ||
+            artistsById[sheet.artistId],
+        }));
+
         const readyFlashes = shuffleItems(
-          rawFlashes
-            .map((flash) => ({
-              ...flash,
-              artist: artistsById[flash.artistId],
-            }))
-            .filter(isMarketplaceReady)
+          marketplaceFlashes
         ).slice(0, 5);
 
         const readySheets = shuffleItems(
-          rawSheets
-            .map((sheet) => ({
-              ...sheet,
-              artist: artistsById[sheet.artistId],
-            }))
-            .filter(isMarketplaceReady)
+          marketplaceSheets
         ).slice(0, 5);
 
         const selectedFeaturedArtist = featuredArtistId
@@ -454,18 +450,8 @@ export const HomePage: FC = () => {
           : null;
         const featuredPreviews = selectedFeaturedArtist
           ? getFeaturedPreviewItems(
-              rawFlashes
-                .map((flash) => ({
-                  ...flash,
-                  artist: artistsById[flash.artistId],
-                }))
-                .filter(isMarketplaceReady),
-              rawSheets
-                .map((sheet) => ({
-                  ...sheet,
-                  artist: artistsById[sheet.artistId],
-                }))
-                .filter(isMarketplaceReady),
+              marketplaceFlashes,
+              marketplaceSheets,
               selectedFeaturedArtist.id
             )
           : [];
@@ -2093,6 +2079,7 @@ const FeaturedSheetPanel = ({
 }) => {
   const artistName = getArtistName(sheet.artist);
   const sheetHref = `/flash/sheets/${sheet.id}`;
+  const sheetPreviewUrl = getFlashSheetPreviewUrl(sheet);
   const railDelay = 700 + railIndex * 280;
 
   return (
@@ -2144,9 +2131,9 @@ const FeaturedSheetPanel = ({
           className="relative block h-[18rem] select-none overflow-hidden bg-[#171717] sm:h-[20rem] lg:h-auto lg:min-h-[21rem]"
           aria-label={`Open ${sheet.title || "flash sheet"}`}
         >
-          {sheet.thumbUrl || sheet.imageUrl ? (
+          {sheetPreviewUrl ? (
             <img
-              src={sheet.thumbUrl || sheet.imageUrl}
+              src={sheetPreviewUrl}
               alt={sheet.title || "Flash sheet"}
               className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.025]"
               loading="lazy"
@@ -2465,7 +2452,7 @@ const getFeaturedPreviewItems = (
     .map((sheet) => ({
       id: sheet.id,
       href: `/flash/sheets/${sheet.id}`,
-      imageUrl: sheet.thumbUrl || sheet.imageUrl,
+      imageUrl: getFlashSheetPreviewUrl(sheet),
       label: sheet.title || "Featured flash sheet",
       type: "sheet",
     }));
@@ -2567,10 +2554,18 @@ const chunkArray = <T,>(items: T[], size: number) => {
 const shuffleItems = <T,>(items: T[]) =>
   [...items].sort(() => Math.random() - 0.5);
 
-const isMarketplaceReady = (item: HomeFlash | HomeFlashSheet) => {
-  if (item.marketplaceVisible === false) return false;
-  if (item.artistStripeConnectReady === true) return true;
-  return isStripeConnectReady(item.artist);
+const toHomeMarketplaceArtist = (
+  artist: MarketplaceArtistPublic | null | undefined
+): PublicArtist | undefined => {
+  if (!artist?.id) return undefined;
+
+  return {
+    id: artist.id,
+    name: artist.name || undefined,
+    displayName: artist.displayName || undefined,
+    avatarUrl: artist.avatarUrl || undefined,
+    studioName: artist.studioName || undefined,
+  };
 };
 
 const getArtistName = (artist?: PublicArtist) =>
