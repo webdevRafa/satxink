@@ -142,9 +142,9 @@ const FlashRequestModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="flash-request-title"
-        className="request-modal-scrollbar max-h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl md:max-h-[92vh]"
+        className="isolate flex h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] max-h-[calc(100dvh-4.75rem-1.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#121212] text-white shadow-2xl md:h-auto md:max-h-[92vh]"
       >
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#121212]/95 px-4 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
+        <div className="relative z-20 flex shrink-0 items-center justify-between border-b border-white/10 bg-[#121212] px-4 py-3 sm:px-5 sm:py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-white/40">
               Flash request
@@ -168,7 +168,7 @@ const FlashRequestModal = ({
 
         <form
           onSubmit={handleSubmit}
-          className="grid grid-cols-1 gap-5 p-4 sm:p-5 md:grid-cols-[0.9fr_1.1fr] md:gap-6"
+          className="request-modal-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-y-auto overscroll-contain p-4 sm:p-5 md:grid-cols-[0.9fr_1.1fr] md:gap-6"
         >
           <div>
             <img
