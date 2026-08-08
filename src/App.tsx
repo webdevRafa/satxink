@@ -13,6 +13,7 @@ import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
 import LiveBookingToasts from "./components/LiveBookingToasts";
 import AgeGate from "./components/AgeGate";
+import RouteDocumentTitle from "./components/RouteDocumentTitle";
 // pages
 import { HomePage } from "./pages/HomePage";
 import { ArtistsPage } from "./pages/ArtistsPage";
@@ -59,6 +60,7 @@ function App() {
   return (
     <>
       <Navbar />
+      <RouteDocumentTitle />
       <Toaster position="top-center" reverseOrder={false} />
       <AgeGate />
       <LiveBookingToasts />

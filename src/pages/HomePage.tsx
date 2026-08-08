@@ -129,6 +129,14 @@ const HOME_BOOKING_ARTIST_DISPLAY_LIMIT = 3;
 const HERO_FEATURED_ARTIST_SLIDE_DELAY_MS = 5200;
 const loadedFeaturedArtistSlideUrls = new Set<string>();
 
+// Keep these sections available for a future launch phase without loading or
+// rendering them in the flash-marketplace-first experience.
+const HOME_SECTION_VISIBILITY = {
+  heroArtistSpotlight: false,
+  browseByStyle: false,
+  localArtists: false,
+} as const;
+
 function useViewportEntry<T extends Element>() {
   const targetRef = useRef<T | null>(null);
   const hasEnteredRef = useRef(false);
@@ -333,8 +341,10 @@ export const HomePage: FC = () => {
               limit(HOME_SHEET_FETCH_LIMIT)
             )
           ),
-          getDoc(doc(db, "siteSettings", "homepage")),
-          currentBookingMonthKey
+          HOME_SECTION_VISIBILITY.heroArtistSpotlight
+            ? getDoc(doc(db, "siteSettings", "homepage"))
+            : Promise.resolve(null),
+          HOME_SECTION_VISIBILITY.localArtists && currentBookingMonthKey
             ? getDocs(
                 query(
                   collection(db, "users"),
@@ -348,15 +358,17 @@ export const HomePage: FC = () => {
                 )
               )
             : Promise.resolve(null),
-          getDocs(
-            query(
-              collection(db, "users"),
-              where("role", "==", "artist"),
-              limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
-            )
-          ),
+          HOME_SECTION_VISIBILITY.localArtists
+            ? getDocs(
+                query(
+                  collection(db, "users"),
+                  where("role", "==", "artist"),
+                  limit(HOME_BOOKING_ARTIST_FETCH_LIMIT)
+                )
+              )
+            : Promise.resolve(null),
         ]);
-        const homepageSettings = homepageSettingsSnap.data();
+        const homepageSettings = homepageSettingsSnap?.data();
         const featuredArtistId =
           typeof homepageSettings?.featuredArtistId === "string"
             ? homepageSettings.featuredArtistId
@@ -392,23 +404,30 @@ export const HomePage: FC = () => {
           new Set(
             [...rawFlashes, ...rawSheets]
               .map((item) => item.artistId)
-              .concat(featuredArtistId ? [featuredArtistId] : [])
+              .concat(
+                HOME_SECTION_VISIBILITY.heroArtistSpotlight &&
+                  featuredArtistId
+                  ? [featuredArtistId]
+                  : []
+              )
               .filter(Boolean)
           )
         );
 
         const artistsById = await fetchArtistsById(artistIds);
-        const readyBookingArtists = await getHomepageBookingArtists(
-          getUniqueDocsById([
-            ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
-            ...fallbackBookingArtistsSnapshot.docs,
-          ])
-            .map((artistDoc) => ({
-              id: artistDoc.id,
-              ...artistDoc.data(),
-            }))
-            .filter(isVisiblePublicArtist)
-        );
+        const readyBookingArtists = HOME_SECTION_VISIBILITY.localArtists
+          ? await getHomepageBookingArtists(
+              getUniqueDocsById([
+                ...(currentMonthBookingArtistsSnapshot?.docs ?? []),
+                ...(fallbackBookingArtistsSnapshot?.docs ?? []),
+              ])
+                .map((artistDoc) => ({
+                  id: artistDoc.id,
+                  ...artistDoc.data(),
+                }))
+                .filter(isVisiblePublicArtist)
+            )
+          : [];
 
         if (!isMounted) return;
 
@@ -478,6 +497,8 @@ export const HomePage: FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!HOME_SECTION_VISIBILITY.heroArtistSpotlight) return;
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
@@ -1017,35 +1038,41 @@ export const HomePage: FC = () => {
         <div className="absolute inset-x-0 top-0 z-[2] h-32 bg-gradient-to-b from-black/70 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 z-[2] h-40 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)] lg:gap-12 lg:pb-20 lg:pt-32">
+        <div
+          className={`relative z-10 mx-auto grid min-h-[calc(100svh-72px)] max-w-7xl items-center gap-10 px-5 pb-12 pt-28 mt-10 md:mt-10 md:px-8 md:pb-16 lg:gap-12 lg:pb-20 lg:pt-32 ${
+            HOME_SECTION_VISIBILITY.heroArtistSpotlight
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)]"
+              : "lg:grid-cols-1"
+          }`}
+        >
           <div
             ref={heroCopyRef}
             className="satx-home-hero-copy max-w-3xl"
             data-revealed={isHeroCopyRevealed}
           >
-            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-3xl text-2xl! font-bold leading-[0.98] text-white md:text-4xl!">
-              Find the right San Antonio tattoo artist for your next piece.
+            <h1 className="satx-home-copy-motion satx-home-copy-motion--headline max-w-4xl text-3xl! font-bold leading-[0.98] text-white md:text-5xl!">
+              Find your next tattoo in San Antonio&apos;s flash marketplace.
             </h1>
             <p className="satx-home-copy-motion satx-home-copy-motion--body mt-5 max-w-2xl text-base leading-7 text-white/70 md:text-lg">
-              Browse verified San Antonio artists, explore available flash,
-              and request the design that fits you.
+              Browse ready-to-book designs from local artists, explore full
+              flash sheets, and request the piece that fits you.
             </p>
             <div className="satx-home-copy-motion satx-home-copy-motion--actions mt-8 flex flex-wrap gap-3">
               <Link
-                to="/artists"
-                className="inline-flex min-h-10 select-none group items-center gap-2 rounded-md border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80!  transition hover:border-white/30 "
+                to="/flash"
+                className="inline-flex min-h-11 select-none group items-center gap-2 rounded-md border border-white bg-white px-5 py-2.5 text-sm font-semibold text-black! transition hover:bg-white/85"
               >
-                Browse artists
+                Browse flash
                 <ChevronRight
                   size={17}
-                  className="text-white transition group-hover:translate-x-1"
+                  className="text-black transition group-hover:translate-x-1"
                 />
               </Link>
               <Link
-                to="/flash"
+                to="/artists"
                 className="inline-flex min-h-10 select-none items-center gap-2 rounded-md group border border-white/15 bg-white/[0.04] px-4 py-2 text-sm  text-white/80! backdrop-blur transition hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
               >
-                Explore flash
+                Meet the artists
                 <ChevronRight
                   size={17}
                   className="text-white transition group-hover:translate-x-1"
@@ -1054,16 +1081,19 @@ export const HomePage: FC = () => {
             </div>
           </div>
 
-          <HeroFeaturedArtistPanel
-            artist={featuredArtist}
-            previewItems={featuredPreviewItems}
-            loading={loading}
-            isRevealed={isFeaturedArtistPanelRevealed}
-          />
+          {HOME_SECTION_VISIBILITY.heroArtistSpotlight && (
+            <HeroFeaturedArtistPanel
+              artist={featuredArtist}
+              previewItems={featuredPreviewItems}
+              loading={loading}
+              isRevealed={isFeaturedArtistPanelRevealed}
+            />
+          )}
         </div>
       </section>
 
-      <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
+      {HOME_SECTION_VISIBILITY.browseByStyle && (
+        <section className="px-5 py-18 md:px-8 bg-[#0d0d0d] z-50 relative">
         <div
           ref={styleSectionRef}
           className="satx-style-section mx-auto max-w-7xl"
@@ -1100,7 +1130,8 @@ export const HomePage: FC = () => {
             ))}
           </div>
         </div>
-      </section>
+        </section>
+      )}
 
       <section
         ref={marketplaceSectionRef}
@@ -1156,7 +1187,8 @@ export const HomePage: FC = () => {
         </div>
       </section>
 
-      <section className="relative z-50 border-t border-white/5 bg-[#171717] px-5 py-18 md:px-8">
+      {HOME_SECTION_VISIBILITY.localArtists && (
+        <section className="relative z-50 border-t border-white/5 bg-[#171717] px-5 py-18 md:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div className="max-w-3xl">
@@ -1236,7 +1268,8 @@ export const HomePage: FC = () => {
             </div>
           )}
         </div>
-      </section>
+        </section>
+      )}
 
       {selectedFlash && (
         <FlashRequestModal
