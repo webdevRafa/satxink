@@ -66,6 +66,11 @@ import {
   getArtistProfilePath,
   normalizeArtistSlug,
 } from "../utils/artistProfilePath";
+import {
+  GALLERY_PROFILE_CARD_SIZES,
+  getGalleryPreviewSrcSet,
+  getGalleryPreviewUrl,
+} from "../utils/galleryImage";
 
 const profileBackdropMediaQuery = "(min-width: 768px)";
 
@@ -937,9 +942,6 @@ const getItemTime = (item: GalleryItem | FlashSheet | Flash) => {
   return typeof timestamp === "number" ? timestamp : 0;
 };
 
-const getCardPreviewUrl = (item: GalleryItem) =>
-  item.thumbUrl || item.webp90Url || item.fullUrl || "";
-
 const getProfileBackdropUrl = (item?: GalleryItem) =>
   item?.thumbUrl || item?.webp90Url || "";
 
@@ -1117,7 +1119,9 @@ const PortfolioPanel = ({
   }, [pageCount]);
 
   useEffect(() => {
-    galleryItems.forEach((item) => preloadImage(getCardPreviewUrl(item)));
+    galleryItems.forEach((item) =>
+      preloadImage(item.thumbUrl || getGalleryPreviewUrl(item))
+    );
   }, [galleryItems]);
 
   const updateMobileActiveIndex = useCallback(() => {
@@ -1798,7 +1802,9 @@ const PortfolioCard = ({
   >
     <div className="relative aspect-[4/5] overflow-hidden bg-black">
       <FadeInImage
-        src={getCardPreviewUrl(item)}
+        src={getGalleryPreviewUrl(item)}
+        srcSet={getGalleryPreviewSrcSet(item)}
+        sizes={GALLERY_PROFILE_CARD_SIZES}
         alt={item.caption || "Tattoo portfolio piece"}
         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         loading={priority ? "eager" : "lazy"}
@@ -1883,12 +1889,16 @@ const FadeInImage = ({
   className,
   loading = "lazy",
   disableFade = false,
+  srcSet,
+  sizes,
 }: {
   src: string;
   alt: string;
   className: string;
   loading?: "eager" | "lazy";
   disableFade?: boolean;
+  srcSet?: string;
+  sizes?: string;
 }) => {
   const [loaded, setLoaded] = useState(disableFade);
   const previousSrcRef = useRef(src);
@@ -1918,6 +1928,8 @@ const FadeInImage = ({
       )}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt={alt}
         className={`${className} ${isVisible ? "opacity-100" : "opacity-0"}`}
         loading={loading}
