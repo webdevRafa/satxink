@@ -240,15 +240,15 @@ section[id] {
   height: 100%;
   object-fit: cover;
 }
+.studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+}
 .studio-caption {
-  position: absolute;
-  left: 24px;
-  bottom: 20px;
-  background: rgba(15, 15, 15, 0.76);
-  border: 1px solid var(--line);
-  padding: 0.6rem 0.8rem;
-  border-radius: 5px;
-  backdrop-filter: blur(8px);
   font-size: 0.75rem;
   color: #ddd;
 }
@@ -374,10 +374,7 @@ section[id] {
     gap: 20px;
   }
   .studio-caption {
-    left: 12px;
-    bottom: 12px;
     font-size: 0.75rem;
-    max-width: calc(100% - 24px);
   }
 }
 @media (max-width: 599px) {
@@ -480,12 +477,9 @@ section[id] {
   touch-action: pan-y;
 }
 .studio-controls {
-  position: absolute;
-  right: 20px;
-  top: 20px;
   display: flex;
   gap: 8px;
-  z-index: 2;
+  flex-wrap: wrap;
 }
 .studio-controls button,
 .static-badge {
@@ -738,11 +732,13 @@ section[id] {
   overflow: hidden;
   background: #121212;
 }
-.owner-visual > img {
+.owner-visual picture,
+.owner-visual img {
+  display: block;
   height: 100%;
   width: 100%;
   object-fit: cover;
-  object-position: 44% center;
+  object-position: center;
 }
 .owner-visual figcaption {
   position: absolute;
@@ -1042,9 +1038,6 @@ section[id] {
   .split-section {
     gap: 5%;
   }
-  .owner-visual {
-    aspect-ratio: 3/5;
-  }
   .setup-card {
     padding: 26px;
   }
@@ -1163,12 +1156,7 @@ section[id] {
     font-size: 0.8125rem;
   }
   .studio-controls {
-    right: 12px;
-    top: 12px;
     gap: 6px;
-  }
-  .studio-caption {
-    max-width: calc(100% - 24px);
   }
   .studio-controls button {
     min-height: 44px;

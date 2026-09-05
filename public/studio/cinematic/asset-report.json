@@ -1,0 +1,466 @@
+{
+  "asset": "satx-ink-studio.glb",
+  "asset_sha256": "c0389152d7d2c1b56e32e8b34e7858d49e312209832cbfe4ced86e1c7801de0a",
+  "source": "satx-ink-studio.blend",
+  "source_sha256": "c68c68c19ccc930e5229ce4e892690ce0628a1cd5ce56911bd44c3fe07e10ef5",
+  "blender_version": "5.2.1 LTS",
+  "bytes": 3385708,
+  "megabytes_decimal": 3.386,
+  "triangles": 87718,
+  "source_static_objects": 359,
+  "meshes": 53,
+  "primitives_approximate_geometry_draw_calls": 53,
+  "materials": 23,
+  "embedded_images": 6,
+  "image_names": [
+    "Embedded • concrete",
+    "Embedded • plaster",
+    "Embedded • wood",
+    "flash-01",
+    "flash-02",
+    "flash-03"
+  ],
+  "nodes": 75,
+  "cameras": [
+    "Hero_Copy_Right",
+    "Hero_Desktop",
+    "Hero_Mobile",
+    "Studio_Detail"
+  ],
+  "camera_optics_source": {
+    "Hero_Desktop": {
+      "lens_mm": 32.0,
+      "sensor_width_mm": 36.0,
+      "sensor_fit": "AUTO"
+    },
+    "Hero_Mobile": {
+      "lens_mm": 36.0,
+      "sensor_width_mm": 36.0,
+      "sensor_fit": "AUTO"
+    },
+    "Hero_Copy_Right": {
+      "lens_mm": 32.0,
+      "sensor_width_mm": 36.0,
+      "sensor_fit": "AUTO"
+    },
+    "Studio_Detail": {
+      "lens_mm": 44.0,
+      "sensor_width_mm": 36.0,
+      "sensor_fit": "AUTO"
+    }
+  },
+  "camera_perspectives_gltf": {
+    "Hero_Copy_Right": {
+      "aspectRatio": 2.3333333333333335,
+      "yfov": 0.4731156412226994,
+      "zfar": 100,
+      "znear": 0.07999999821186066
+    },
+    "Hero_Desktop": {
+      "aspectRatio": 2.3333333333333335,
+      "yfov": 0.4731156412226994,
+      "zfar": 100,
+      "znear": 0.07999999821186066
+    },
+    "Hero_Mobile": {
+      "aspectRatio": 2.3333333333333335,
+      "yfov": 0.4221866613110867,
+      "zfar": 100,
+      "znear": 0.07999999821186066
+    },
+    "Studio_Detail": {
+      "aspectRatio": 2.3333333333333335,
+      "yfov": 0.3471213526870587,
+      "zfar": 100,
+      "znear": 0.10000000149011612
+    }
+  },
+  "punctual_lights": [
+    {
+      "name": "WEB • cool fill spot",
+      "type": "spot",
+      "intensity": 17392.452181082324
+    },
+    {
+      "name": "WEB • gallery practical",
+      "type": "point",
+      "intensity": 2826.273479425877
+    },
+    {
+      "name": "WEB • key soft spot",
+      "type": "spot",
+      "intensity": 22827.593487670547
+    },
+    {
+      "name": "WEB • lounge pendant",
+      "type": "point",
+      "intensity": 2174.0565226352905
+    },
+    {
+      "name": "WEB • sign halo",
+      "type": "point",
+      "intensity": 978.3254351858807
+    },
+    {
+      "name": "WEB • sign white spill",
+      "type": "point",
+      "intensity": 1358.7853266470563
+    },
+    {
+      "name": "WEB • task lamp",
+      "type": "spot",
+      "intensity": 1956.6508703717614
+    },
+    {
+      "name": "WEB • warm cabinet wash",
+      "type": "point",
+      "intensity": 4348.113045270581
+    }
+  ],
+  "animation_clips": [
+    {
+      "name": "Hero_Cinematic_18s",
+      "start_seconds": 0.0,
+      "duration_seconds": 18.0,
+      "channels": [
+        {
+          "node": "Hero_Copy_Right",
+          "path": "translation",
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0,
+          "maximum_displacement_metres": 6.490177562419326,
+          "maximum_displacement_time_seconds": 8.875,
+          "total_path_length_metres": 13.50744454491688,
+          "maximum_speed_metres_per_second": 1.133227529272215,
+          "maximum_sample_to_sample_translation_metres": 0.04721763359801074,
+          "opening_and_closing_speed_metres_per_second": [
+            0.20439296606118856,
+            0.2006646436869153
+          ],
+          "loop_sampled_velocity_difference_metres_per_second": 0.016456544817936094
+        },
+        {
+          "node": "Hero_Copy_Right",
+          "path": "rotation",
+          "maximum_rotation_degrees": 9.176724333946783,
+          "maximum_sample_to_sample_rotation_degrees": 0.13464506629489956,
+          "opening_and_closing_angular_speed_degrees_per_second": [
+            1.2566489685121773,
+            1.260654456822365
+          ],
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0
+        },
+        {
+          "node": "Hero_Desktop",
+          "path": "translation",
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0,
+          "maximum_displacement_metres": 6.490177562419326,
+          "maximum_displacement_time_seconds": 8.875,
+          "total_path_length_metres": 13.50744454491688,
+          "maximum_speed_metres_per_second": 1.133227529272215,
+          "maximum_sample_to_sample_translation_metres": 0.04721763359801074,
+          "opening_and_closing_speed_metres_per_second": [
+            0.20439296606118856,
+            0.2006646436869153
+          ],
+          "loop_sampled_velocity_difference_metres_per_second": 0.016456544817936094
+        },
+        {
+          "node": "Hero_Desktop",
+          "path": "rotation",
+          "maximum_rotation_degrees": 9.176724333946783,
+          "maximum_sample_to_sample_rotation_degrees": 0.13464506629489956,
+          "opening_and_closing_angular_speed_degrees_per_second": [
+            1.2566489685121773,
+            1.260654456822365
+          ],
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0
+        },
+        {
+          "node": "Hero_Mobile",
+          "path": "translation",
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0,
+          "maximum_displacement_metres": 5.452592382626576,
+          "maximum_displacement_time_seconds": 9.041666984558105,
+          "total_path_length_metres": 11.101614429723465,
+          "maximum_speed_metres_per_second": 0.9517631921492106,
+          "maximum_sample_to_sample_translation_metres": 0.03965619455814267,
+          "opening_and_closing_speed_metres_per_second": [
+            0.10248123151686118,
+            0.10497014416962289
+          ],
+          "loop_sampled_velocity_difference_metres_per_second": 0.013821731711792228
+        },
+        {
+          "node": "Hero_Mobile",
+          "path": "rotation",
+          "maximum_rotation_degrees": 5.34083731962127,
+          "maximum_sample_to_sample_rotation_degrees": 0.06116416614678657,
+          "opening_and_closing_angular_speed_degrees_per_second": [
+            0.5768939935928039,
+            0.5815498154744286
+          ],
+          "sample_count": 433,
+          "interpolation": "LINEAR",
+          "loop_endpoint_max_error": 0.0
+        }
+      ]
+    }
+  ],
+  "animation_source_comparison": {
+    "Hero_Copy_Right": {
+      "sampled_frames_compared": 433,
+      "world_matrix_max_error": 3.8743019104003906e-07,
+      "source_active_action": "Hero_Cinematic_18s__Hero_Copy_Right"
+    },
+    "Hero_Desktop": {
+      "sampled_frames_compared": 433,
+      "world_matrix_max_error": 3.8743019104003906e-07,
+      "source_active_action": "Hero_Cinematic_18s__Hero_Desktop"
+    },
+    "Hero_Mobile": {
+      "sampled_frames_compared": 433,
+      "world_matrix_max_error": 3.762543201446533e-07,
+      "source_active_action": "Hero_Cinematic_18s__Hero_Mobile"
+    }
+  },
+  "integration_contract": {
+    "clip": "Hero_Cinematic_18s",
+    "duration_seconds": 18.0,
+    "animated_cameras": [
+      "Hero_Copy_Right",
+      "Hero_Desktop",
+      "Hero_Mobile"
+    ],
+    "static_camera": "Studio_Detail",
+    "pose_transfer": "Use selected camera absolute world position and quaternion after mixer.update; never add Hero_Desktop deltas.",
+    "camera_selection": "Hero_Copy_Right for wide desktop, Hero_Mobile for portrait, Hero_Desktop for standard 16:9.",
+    "fov": "Camera lenses are fixed; preserve the existing poster-aspect/cover FOV calculation for each responsive view.",
+    "loop": "Use one repeating clip; first and final poses match on all three animated cameras."
+  },
+  "caption_revision": {
+    "sign_caption": "TATTOO STUDIO SOFTWARE",
+    "source_text_body": "T A T T O O   S T U D I O   S O F T W A R E",
+    "gallery_caption": null,
+    "removed_gallery_caption": "ORIGINAL FLASH / SATX",
+    "source_caption_object": "Sign • studio descriptor",
+    "evaluated_sign_caption_triangles": 1288
+  },
+  "semantic_groups": {
+    "01 • Architecture": {
+      "objects": 59,
+      "triangles": 9508
+    },
+    "02 • SATX INK sign": {
+      "objects": 13,
+      "triangles": 23007
+    },
+    "03 • Client chair": {
+      "objects": 35,
+      "triangles": 7065
+    },
+    "04 • Workstation": {
+      "objects": 46,
+      "triangles": 9276
+    },
+    "05 • Artist stool and task lamp": {
+      "objects": 23,
+      "triangles": 5228
+    },
+    "06 • Cabinetry and supplies": {
+      "objects": 117,
+      "triangles": 21244
+    },
+    "07 • Flash gallery": {
+      "objects": 18,
+      "triangles": 3114
+    },
+    "08 • Lounge": {
+      "objects": 40,
+      "triangles": 6300
+    },
+    "09 • Practical fixtures": {
+      "objects": 8,
+      "triangles": 2976
+    }
+  },
+  "excluded_objects": [
+    "RENDER ONLY • broad window",
+    "RENDER ONLY • ceiling bounce"
+  ],
+  "degenerate_triangles_removed": 1184,
+  "dimensions_metres_blender_xyz": [
+    8.44,
+    7.07,
+    4.9
+  ],
+  "bounds_blender_xyz": {
+    "min": [
+      -4.22,
+      -3.85,
+      -0.2
+    ],
+    "max": [
+      4.22,
+      3.22,
+      4.7
+    ]
+  },
+  "normal_length_range": [
+    0.9999998807907104,
+    1.0000001192092896
+  ],
+  "extensions_used": [
+    "KHR_materials_emissive_strength",
+    "KHR_lights_punctual"
+  ],
+  "extensions_required": [
+    "KHR_lights_punctual"
+  ],
+  "decoder_dependencies": "No Draco, meshopt or KTX2 decoder required; PNG/JPEG embedded.",
+  "source_only_procedural_detail": [
+    {
+      "material": "CHAIR • SATX",
+      "nodes": [
+        "ShaderNodeBump"
+      ]
+    }
+  ],
+  "checks": {
+    "glb_chunk_and_buffer_lengths": true,
+    "finite_json_and_accessor_values": true,
+    "unit_normals": true,
+    "applied_scales": true,
+    "world_bounds_match_source": true,
+    "triangle_count_matches_evaluated_source": true,
+    "all_textures_embedded": true,
+    "four_named_cameras": true,
+    "single_eighteen_second_cinematic_clip": true,
+    "all_three_responsive_camera_paths": true,
+    "camera_animation_loops_and_exceeds_one_metre_displacement": true,
+    "camera_animation_matches_source_world_poses": true,
+    "no_old_twelve_second_clip": true,
+    "software_caption_geometry_included": true,
+    "gallery_caption_removed": true,
+    "fresh_reimport_geometry_materials_cameras_lights": true,
+    "fresh_reimport_camera_animation_plays_and_loops": true,
+    "reimport_preview_rendered": true,
+    "editable_blend_source_unchanged": true
+  },
+  "targets": {
+    "under_8_MB": true,
+    "under_120k_triangles": true
+  },
+  "lighting_caveat": "Source .blend includes World and two supplemental area lights for offline renders. Only the named WEB punctual lights and emissive materials export. Browser environment, shadows, tone mapping, exposure and optional bloom must be configured during later integration. Asset validation does not constitute device/browser performance testing.",
+  "reimport_validation": {
+    "fresh_scene": true,
+    "meshes": 53,
+    "triangles": 87718,
+    "used_materials": 23,
+    "cameras": [
+      "Hero_Copy_Right",
+      "Hero_Desktop",
+      "Hero_Mobile",
+      "Studio_Detail"
+    ],
+    "lights": 8,
+    "decoded_images": [
+      {
+        "name": "Embedded • concrete",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "Embedded • plaster",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "Embedded • wood",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "flash-01",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      },
+      {
+        "name": "flash-02",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      },
+      {
+        "name": "flash-03",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      }
+    ],
+    "primary_camera_matrix_max_error": 2.9802322387695312e-08,
+    "camera_animation_validation": {
+      "Hero_Copy_Right": {
+        "sampled_frames": 433,
+        "maximum_displacement_metres": 6.490177562419326,
+        "loop_world_matrix_max_error": 0.0,
+        "source_world_matrix_max_error": 5.364418029785156e-07
+      },
+      "Hero_Desktop": {
+        "sampled_frames": 433,
+        "maximum_displacement_metres": 6.490177562419326,
+        "loop_world_matrix_max_error": 0.0,
+        "source_world_matrix_max_error": 5.364418029785156e-07
+      },
+      "Hero_Mobile": {
+        "sampled_frames": 433,
+        "maximum_displacement_metres": 5.452592382626576,
+        "loop_world_matrix_max_error": 0.0,
+        "source_world_matrix_max_error": 5.252659320831299e-07
+      }
+    },
+    "preview": "glb-cinematic-validation.png (internal QA preview)",
+    "render": "Cycles CPU, 24 samples, denoised, 1120 x 630",
+    "supplemental_world": {
+      "linear_rgb": [
+        0.16,
+        0.19,
+        0.24
+      ],
+      "strength": 0.6,
+      "included_in_glb": false,
+      "supplemental_area_lights": false
+    }
+  }
+}

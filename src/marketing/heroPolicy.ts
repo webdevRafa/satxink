@@ -33,7 +33,8 @@ export function posterMatchedFieldOfView(
   canvasAspect: number,
 ): number {
   // Blender AUTO sensor fit uses the larger image dimension. The GLB cameras
-  // were exported at 16:9, while the posters were rendered at 21:9 and 4:5.
+  // carry their export aspect; posters are rendered at 21:9 and 4:5. Derive
+  // the optics from that metadata instead of assuming an export resolution.
   const halfTangent =
     Math.tan((exportedFov * Math.PI) / 360) * Math.max(exportedAspect, 1);
   const posterHalfTangent = halfTangent / Math.max(posterAspect, 1);

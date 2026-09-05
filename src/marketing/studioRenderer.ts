@@ -9,12 +9,10 @@ import {
   PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
-  Quaternion,
   Scene,
   SpotLight,
   SRGBColorSpace,
   Texture,
-  Vector3,
   WebGLRenderer,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -92,16 +90,10 @@ export async function createStudioRenderer(
   let measuredFrames = 0;
   let warmupStart = 0;
   const camera = new PerspectiveCamera();
-  const cameraPosition = new Vector3();
-  const cameraRotation = new Quaternion();
-  const initialHeroPosition = new Vector3();
-  const initialHeroRotation = new Quaternion();
-  const animatedPosition = new Vector3();
-  const animatedRotation = new Quaternion();
-  let animatedCamera: Object3D | undefined;
-  const poses = new Map<
+  let animatedCamera: PerspectiveCamera | undefined;
+  const cameras = new Map<
     string,
-    { position: Vector3; rotation: Quaternion; fov: number; aspect: number }
+    { source: PerspectiveCamera; fov: number; aspect: number }
   >();
 
   function releaseGPU() {
@@ -148,17 +140,11 @@ export async function createStudioRenderer(
   function renderPose(delta: number) {
     mixer?.update(delta);
     scene.updateMatrixWorld(true);
-    camera.position.copy(cameraPosition);
-    camera.quaternion.copy(cameraRotation);
-    // Apply the supplied 12-second clip's relative drift to each authored view.
-    // Animating only Hero_Desktop would leave the wide/mobile hero motionless.
+    // Follow the selected camera's complete authored path. Each responsive
+    // camera has its own synchronized 18s animation, not a transferred drift.
     if (animatedCamera) {
-      animatedCamera.getWorldPosition(animatedPosition);
-      animatedCamera.getWorldQuaternion(animatedRotation);
-      camera.position.add(animatedPosition.sub(initialHeroPosition));
-      camera.quaternion.premultiply(
-        animatedRotation.multiply(initialHeroRotation.clone().invert()),
-      );
+      animatedCamera.getWorldPosition(camera.position);
+      animatedCamera.getWorldQuaternion(camera.quaternion);
     }
     renderer.render(scene, camera);
   }
@@ -206,10 +192,9 @@ export async function createStudioRenderer(
     const height = host.clientHeight;
     if (!width || !height) return;
     const view = heroViewForWidth(window.innerWidth);
-    const pose = poses.get(view.camera);
+    const pose = cameras.get(view.camera);
     if (!pose) throw new Error("Missing authored hero camera");
-    cameraPosition.copy(pose.position);
-    cameraRotation.copy(pose.rotation);
+    animatedCamera = pose.source;
     camera.fov = posterMatchedFieldOfView(
       pose.fov,
       pose.aspect,
@@ -231,11 +216,11 @@ export async function createStudioRenderer(
   }
 
   try {
-    const response = await fetch("/studio/satx-ink-studio.glb", { signal });
+    const response = await fetch("/studio/cinematic/satx-ink-studio.glb", { signal });
     if (!response.ok) throw new Error("Studio model unavailable");
     const data = await response.arrayBuffer();
     signal.throwIfAborted();
-    const gltf = await new GLTFLoader().parseAsync(data, "/studio/");
+    const gltf = await new GLTFLoader().parseAsync(data, "/studio/cinematic/");
     if (disposed || signal.aborted) {
       disposeModel(gltf.scene);
       throw new Error("Studio load cancelled");
@@ -245,21 +230,17 @@ export async function createStudioRenderer(
     scene.updateMatrixWorld(true);
     for (const source of gltf.cameras) {
       if (!(source instanceof PerspectiveCamera)) continue;
-      poses.set(source.name, {
-        position: source.getWorldPosition(new Vector3()),
-        rotation: source.getWorldQuaternion(new Quaternion()),
+      cameras.set(source.name, {
+        source,
         fov: source.fov,
         aspect: source.aspect,
       });
     }
-    animatedCamera = root.getObjectByName("Hero_Desktop");
-    if (!animatedCamera) throw new Error("Missing animated camera");
-    animatedCamera.getWorldPosition(initialHeroPosition);
-    animatedCamera.getWorldQuaternion(initialHeroRotation);
     const clip = gltf.animations.find(
-      (animation) => animation.name === "Hero_Ambient_Drift_12s",
+      (animation) => animation.name === "Hero_Cinematic_18s",
     );
-    if (!clip) throw new Error("Missing studio animation");
+    if (!clip || Math.abs(clip.duration - 18) > 0.01)
+      throw new Error("Missing 18-second studio animation");
     mixer = new AnimationMixer(root);
     mixer.clipAction(clip).play();
     root.traverse((object) => {

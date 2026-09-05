@@ -380,13 +380,19 @@ function HomePage() {
             </div>
           </div>
           <figure className="owner-visual">
-            <img
-              src="/studio/satx-ink-studio-detail.webp"
-              alt="Close-up of the SATX INK illustrative studio, showing the workstation and framed flash art"
-              width="1600"
-              height="1200"
-              loading="lazy"
-            />
+            <picture>
+              <source
+                media="(max-width: 760px)"
+                srcSet="/studio/cinematic/satx-ink-studio-detail.webp"
+              />
+              <img
+                src="/studio/cinematic/satx-ink-studio-owner.webp"
+                alt="Close-up of the SATX INK illustrative studio, showing the workstation and framed flash art"
+                width="1000"
+                height="1250"
+                loading="lazy"
+              />
+            </picture>
             <figcaption>
               <span>
                 Your brand.

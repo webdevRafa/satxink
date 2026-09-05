@@ -151,66 +151,70 @@ export function StudioHero() {
   }
 
   return (
-    <div ref={stage} className="studio-stage" data-studio-mode={mode}>
-      <picture>
-        <source
-          media="(max-width: 599px)"
-          srcSet="/studio/satx-ink-hero-mobile.webp"
+    <div className="studio-viewer">
+      <div ref={stage} className="studio-stage" data-studio-mode={mode}>
+        <picture>
+          <source
+            media="(max-width: 599px)"
+            srcSet="/studio/cinematic/satx-ink-hero-mobile.webp"
+          />
+          <img
+            src="/studio/cinematic/satx-ink-hero-wide.webp"
+            alt="An illustrative tattoo studio with SATX INK tattoo studio software branding, framed flash artwork, and a red client chair."
+            width="2100"
+            height="900"
+            fetchPriority="high"
+          />
+        </picture>
+        <div
+          ref={host}
+          className={`studio-canvas ${mode === "ready" ? "is-ready" : ""}`}
+          aria-hidden="true"
         />
-        <img
-          src="/studio/satx-ink-hero-wide.webp"
-          alt="An illustrative tattoo studio with SATX INK tattoo studio software branding, framed flash artwork, and a red client chair."
-          width="2100"
-          height="900"
-          fetchPriority="high"
-        />
-      </picture>
-      <div
-        ref={host}
-        className={`studio-canvas ${mode === "ready" ? "is-ready" : ""}`}
-        aria-hidden="true"
-      />
-      <div className="studio-caption">
-        Your shop’s identity. One connected system.
       </div>
-      <div className="studio-controls">
-        {mode === "ready" ? (
-          <>
+      <div className="studio-toolbar">
+        <div className="studio-caption">
+          Your shop’s identity. One connected system.
+        </div>
+        <div className="studio-controls">
+          {mode === "ready" ? (
+            <>
+              <button
+                type="button"
+                onClick={togglePause}
+                aria-label={
+                  paused ? "Resume studio motion" : "Pause studio motion"
+                }
+              >
+                {paused ? <Play size={14} /> : <Pause size={14} />}{" "}
+                {paused ? "Resume" : "Pause motion"}
+              </button>
+              <button type="button" onClick={usePoster}>
+                <Image size={14} /> Static view
+              </button>
+            </>
+          ) : mode === "loading" ? (
+            <button type="button" onClick={usePoster}>
+              Loading 3D · Cancel
+            </button>
+          ) : !reducedMotion && mode !== "unavailable" ? (
             <button
               type="button"
-              onClick={togglePause}
-              aria-label={
-                paused ? "Resume studio motion" : "Pause studio motion"
-              }
+              onClick={() => {
+                clearTimeout(autoStartTimer.current);
+                optedOut.current = true;
+                setRequested(true);
+              }}
             >
-              {paused ? <Play size={14} /> : <Pause size={14} />}{" "}
-              {paused ? "Resume" : "Pause motion"}
+              <Box size={15} /> Explore in 3D{" "}
+              <span className="download-size">3.4 MB</span>
             </button>
-            <button type="button" onClick={usePoster}>
+          ) : (
+            <span className="static-badge">
               <Image size={14} /> Static view
-            </button>
-          </>
-        ) : mode === "loading" ? (
-          <button type="button" onClick={usePoster}>
-            Loading 3D · Cancel
-          </button>
-        ) : !reducedMotion && mode !== "unavailable" ? (
-          <button
-            type="button"
-            onClick={() => {
-              clearTimeout(autoStartTimer.current);
-              optedOut.current = true;
-              setRequested(true);
-            }}
-          >
-            <Box size={15} /> Explore in 3D{" "}
-            <span className="download-size">3.4 MB</span>
-          </button>
-        ) : (
-          <span className="static-badge">
-            <Image size={14} /> Static view
-          </span>
-        )}
+            </span>
+          )}
+        </div>
       </div>
       <span className="sr-only" role="status">
         {mode === "unavailable"

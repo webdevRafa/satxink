@@ -25,9 +25,9 @@ Run the production build before `test:marketing`: the tests also verify the buil
 
 ## Animated hero
 
-The corrected Blender export and responsive WebP posters live in `public/studio/`. The wall descriptor reads **TATTOO STUDIO SOFTWARE**; the old gallery caption was removed. Illustrative flash artwork is identified as such, not presented as a real customer's work or a product screenshot.
+The current Blender export and responsive WebP posters live in `public/studio/cinematic/`. The wall descriptor reads **TATTOO STUDIO SOFTWARE**; the old gallery caption was removed. Illustrative flash artwork is identified as such, not presented as a real customer's work or a product screenshot.
 
-`StudioHero.tsx` immediately displays the poster and loads the Three.js renderer only when appropriate. `studioRenderer.ts` plays the supplied 12-second ambient camera drift with authored wide/mobile framing. It caps rendering at 30 fps and pixel ratio at 1.25, pauses offscreen or in hidden tabs, and provides pause/static controls.
+`StudioHero.tsx` immediately displays the poster and loads the Three.js renderer only when appropriate. `studioRenderer.ts` follows the selected camera's authored 18-second room-to-logo journey with a smooth arcing return and responsive wide/mobile paths. It caps rendering at 30 fps and pixel ratio at 1.25, pauses offscreen or in hidden tabs, and provides pause/static controls outside the image. The owner section uses dedicated portrait/landscape renders to keep branding uncropped. See `docs/cinematic-hero-handoff.md` for the revision and verification details.
 
 Small screens, reduced motion, data saving, slow connections, and exposed low-memory/low-core hints default to static images. Device signals are best-effort, not a guarantee of hardware performance; explicit 3D opt-in is available except with reduced motion. WebGL failure, model errors, an 18-second load timeout, and sustained rendering below 20 fps retain or restore the poster. The GLB is self-contained and approximately 3.4 MB; no `.blend` or large source PNG files ship.
 
