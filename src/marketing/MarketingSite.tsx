@@ -19,6 +19,7 @@ import {
 import logo from "../assets/satx-short-sep.svg";
 import { StudioHero } from "./StudioHero";
 import { InformationPage } from "./InformationPage";
+import { PricingSection } from "./PricingSection";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
@@ -27,6 +28,7 @@ const navigation = [
   ["For owners", "for-owners"],
   ["For artists", "for-artists"],
   ["Your setup", "your-setup"],
+  ["Pricing & Support", "pricing-support"],
 ];
 const steps = [
   [
@@ -499,6 +501,8 @@ function HomePage() {
         </p>
       </section>
 
+      <PricingSection />
+
       <section className="audience-section">
         <div className="shell audience-layout">
           <div>
@@ -732,6 +736,7 @@ export function MarketingSite() {
           </p>
         </div>
         <nav aria-label="Footer navigation">
+          <a href="/#pricing-support">Pricing & Support</a>
           <a href="/#contact">Contact</a>
           <Link to="/privacy">Privacy</Link>
           <Link to="/terms">Website information</Link>

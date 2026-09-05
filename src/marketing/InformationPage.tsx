@@ -60,8 +60,10 @@ export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
           </p>
           <h2>Your installation</h2>
           <p>
-            Pricing, installation scope, third-party services, and any ongoing
-            services are discussed and agreed separately. Payment and email
+            SATX INK setup and support fees are published in our{" "}
+            <a className="inline-link" href="/#pricing-support">Pricing & Support</a>
+            {" "}section. Installation details and third-party services are
+            confirmed before setup. Payment and email
             features require the relevant providers to be configured for the
             shop. A companion portal is a configured website connected by links,
             not an embedded plugin.
