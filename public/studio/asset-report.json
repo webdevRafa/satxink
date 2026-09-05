@@ -1,0 +1,286 @@
+{
+  "asset": "satx-ink-studio.glb",
+  "source": "satx-ink-studio.blend",
+  "source_sha256": "143bf7219c16a13ce584bd3bff208240bf528667c3a72bab9c2a6fcf0786dc8f",
+  "blender_version": "5.2.1 LTS",
+  "bytes": 3368020,
+  "megabytes_decimal": 3.368,
+  "triangles": 87718,
+  "source_static_objects": 359,
+  "meshes": 53,
+  "primitives_approximate_geometry_draw_calls": 53,
+  "materials": 23,
+  "embedded_images": 6,
+  "image_names": [
+    "Embedded • concrete",
+    "Embedded • plaster",
+    "Embedded • wood",
+    "flash-01",
+    "flash-02",
+    "flash-03"
+  ],
+  "nodes": 75,
+  "cameras": [
+    "Hero_Copy_Right",
+    "Hero_Desktop",
+    "Hero_Mobile",
+    "Studio_Detail"
+  ],
+  "punctual_lights": [
+    {
+      "name": "WEB • cool fill spot",
+      "type": "spot",
+      "intensity": 17392.452181082324
+    },
+    {
+      "name": "WEB • gallery practical",
+      "type": "point",
+      "intensity": 2826.273479425877
+    },
+    {
+      "name": "WEB • key soft spot",
+      "type": "spot",
+      "intensity": 22827.593487670547
+    },
+    {
+      "name": "WEB • lounge pendant",
+      "type": "point",
+      "intensity": 2174.0565226352905
+    },
+    {
+      "name": "WEB • sign halo",
+      "type": "point",
+      "intensity": 978.3254351858807
+    },
+    {
+      "name": "WEB • sign white spill",
+      "type": "point",
+      "intensity": 1358.7853266470563
+    },
+    {
+      "name": "WEB • task lamp",
+      "type": "spot",
+      "intensity": 1956.6508703717614
+    },
+    {
+      "name": "WEB • warm cabinet wash",
+      "type": "point",
+      "intensity": 4348.113045270581
+    }
+  ],
+  "animation_clips": [
+    {
+      "name": "Hero_Ambient_Drift_12s",
+      "start_seconds": 0.0,
+      "duration_seconds": 12.0,
+      "channels": [
+        {
+          "node": "Hero_Desktop",
+          "path": "translation",
+          "loop_endpoint_max_error": 0.0,
+          "maximum_displacement_metres": 0.07968045771121979
+        },
+        {
+          "node": "Hero_Desktop",
+          "path": "rotation",
+          "loop_endpoint_max_error": 0.0
+        }
+      ]
+    }
+  ],
+  "caption_revision": {
+    "sign_caption": "TATTOO STUDIO SOFTWARE",
+    "source_text_body": "T A T T O O   S T U D I O   S O F T W A R E",
+    "gallery_caption": null,
+    "removed_gallery_caption": "ORIGINAL FLASH / SATX",
+    "source_caption_object": "Sign • studio descriptor",
+    "evaluated_sign_caption_triangles": 1288
+  },
+  "semantic_groups": {
+    "01 • Architecture": {
+      "objects": 59,
+      "triangles": 9508
+    },
+    "02 • SATX INK sign": {
+      "objects": 13,
+      "triangles": 23007
+    },
+    "03 • Client chair": {
+      "objects": 35,
+      "triangles": 7065
+    },
+    "04 • Workstation": {
+      "objects": 46,
+      "triangles": 9276
+    },
+    "05 • Artist stool and task lamp": {
+      "objects": 23,
+      "triangles": 5228
+    },
+    "06 • Cabinetry and supplies": {
+      "objects": 117,
+      "triangles": 21244
+    },
+    "07 • Flash gallery": {
+      "objects": 18,
+      "triangles": 3114
+    },
+    "08 • Lounge": {
+      "objects": 40,
+      "triangles": 6300
+    },
+    "09 • Practical fixtures": {
+      "objects": 8,
+      "triangles": 2976
+    }
+  },
+  "excluded_objects": [
+    "RENDER ONLY • broad window",
+    "RENDER ONLY • ceiling bounce"
+  ],
+  "degenerate_triangles_removed": 1184,
+  "dimensions_metres_blender_xyz": [
+    8.44,
+    7.07,
+    4.9
+  ],
+  "bounds_blender_xyz": {
+    "min": [
+      -4.22,
+      -3.85,
+      -0.2
+    ],
+    "max": [
+      4.22,
+      3.22,
+      4.7
+    ]
+  },
+  "normal_length_range": [
+    0.9999998807907104,
+    1.0000001192092896
+  ],
+  "extensions_used": [
+    "KHR_materials_emissive_strength",
+    "KHR_lights_punctual"
+  ],
+  "extensions_required": [
+    "KHR_lights_punctual"
+  ],
+  "decoder_dependencies": "No Draco, meshopt or KTX2 decoder required; PNG/JPEG embedded.",
+  "source_only_procedural_detail": [
+    {
+      "material": "CHAIR • SATX",
+      "nodes": [
+        "ShaderNodeBump"
+      ]
+    }
+  ],
+  "checks": {
+    "glb_chunk_and_buffer_lengths": true,
+    "finite_json_and_accessor_values": true,
+    "unit_normals": true,
+    "applied_scales": true,
+    "world_bounds_match_source": true,
+    "triangle_count_matches_evaluated_source": true,
+    "all_textures_embedded": true,
+    "four_named_cameras": true,
+    "twelve_second_camera_clip": true,
+    "camera_animation_loop_and_subtle_displacement": true,
+    "software_caption_geometry_included": true,
+    "gallery_caption_removed": true,
+    "fresh_reimport_geometry_materials_cameras_lights": true,
+    "fresh_reimport_camera_animation_plays_and_loops": true,
+    "reimport_preview_rendered": true,
+    "editable_blend_source_unchanged": true
+  },
+  "targets": {
+    "under_8_MB": true,
+    "under_120k_triangles": true
+  },
+  "lighting_caveat": "Source .blend includes World and two supplemental area lights for offline renders. Only the named WEB punctual lights and emissive materials export. Browser environment, shadows, tone mapping, exposure and optional bloom must be configured during later integration. Asset validation does not constitute device/browser performance testing.",
+  "reimport_validation": {
+    "fresh_scene": true,
+    "meshes": 53,
+    "triangles": 87718,
+    "used_materials": 23,
+    "cameras": [
+      "Hero_Copy_Right",
+      "Hero_Desktop",
+      "Hero_Mobile",
+      "Studio_Detail"
+    ],
+    "lights": 8,
+    "decoded_images": [
+      {
+        "name": "Embedded • concrete",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "Embedded • plaster",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "Embedded • wood",
+        "dimensions": [
+          384,
+          384
+        ],
+        "pixel_values": 589824,
+        "has_data": true
+      },
+      {
+        "name": "flash-01",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      },
+      {
+        "name": "flash-02",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      },
+      {
+        "name": "flash-03",
+        "dimensions": [
+          700,
+          1000
+        ],
+        "pixel_values": 2800000,
+        "has_data": true
+      }
+    ],
+    "primary_camera_matrix_max_error": 1.341104507446289e-07,
+    "camera_animation_midpoint_displacement_metres": 0.07968045771121979,
+    "camera_animation_loop_matrix_max_error": 0.0,
+    "preview": "glb-validation.png (internal QA preview)",
+    "render": "Cycles CPU, 24 samples, denoised, 1120 x 630",
+    "supplemental_world": {
+      "linear_rgb": [
+        0.16,
+        0.19,
+        0.24
+      ],
+      "strength": 0.6,
+      "included_in_glb": false,
+      "supplemental_area_lights": false
+    }
+  }
+}

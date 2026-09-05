@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="1000" viewBox="0 0 700 1000">
+  <rect width="700" height="1000" fill="#eee2c8"/>
+  <g stroke="#b89b68" fill="none"><rect x="35" y="35" width="630" height="930" stroke-width="1.6"/><rect x="45" y="45" width="610" height="910" stroke-width=".6"/><path d="M60 110H220M480 110H640M60 895H220M480 895H640"/></g>
+  <g fill="#302926" font-family="Georgia,serif" text-anchor="middle"><text x="350" y="115" font-size="36" letter-spacing="12">SATX</text><text x="350" y="150" font-size="10" letter-spacing="6">ORIGINAL STUDIES</text><text x="350" y="896" font-size="24" letter-spacing="7">HOMEWARD</text><text x="350" y="926" font-size="10" letter-spacing="4">FLASH   /   No. 02</text></g>
+  <g fill="none" stroke="#aa834e" stroke-width="1.5"><circle cx="342" cy="455" r="188"/><circle cx="342" cy="455" r="197" stroke-dasharray="1 12"/><path d="M342 236V215M342 691V669M120 455H98M586 455H564M188 301L173 286M510 625L525 640M510 286L525 271"/></g>
+  <g fill="#302926" stroke="#302926" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M342 456Q292 403 254 335L223 203Q249 209 272 239L341 341Q370 381 387 423Z"/>
+    <path d="M245 247Q259 284 293 323Q274 278 245 247Z" fill="#b79866" stroke="none"/>
+    <path d="M257 302L320 383M270 338L328 404M282 375L330 426" fill="none" stroke="#eee2c8" stroke-width="3"/>
+    <path d="M363 419Q422 348 499 306L587 277Q583 306 550 338L477 399L576 351Q578 380 548 410L486 450L556 433Q549 465 509 483L449 502L516 510Q499 536 455 538L411 537L451 555Q418 578 388 560L352 524Z"/>
+    <path d="M386 428Q462 354 554 311M396 451L534 379M403 477L516 452M405 502L478 519" fill="none" stroke="#eee2c8" stroke-width="3"/>
+    <path d="M261 507Q208 532 164 586L115 650Q169 629 219 588L156 691Q214 671 255 611L299 552Z"/>
+    <path d="M193 589L261 536M213 616L273 549" fill="none" stroke="#b79866" stroke-width="3"/>
+    <path d="M241 510Q279 480 300 443Q330 405 371 421Q407 433 414 474Q415 516 386 542Q351 571 302 552L269 538Z" fill="#eee2c8"/>
+    <path d="M241 510Q279 480 300 443Q330 405 371 421Q381 430 379 448Q336 442 321 470Q290 510 269 538Z"/>
+    <path d="M367 423Q396 420 418 397Q442 377 465 392Q487 407 470 431Q454 453 421 453L406 475Q382 458 367 423Z"/>
+    <path d="M466 393L503 396L475 409Z" fill="#aa834e"/>
+    <path d="M408 445Q431 448 450 438Q435 468 412 478Z" fill="#8a3d34"/>
+    <circle cx="453" cy="406" r="4" fill="#eee2c8" stroke="none"/>
+    <path d="M398 491Q385 534 343 540M289 515Q309 530 330 529" fill="none" stroke-width="2"/>
+    <path d="M341 551L345 567L359 570M363 550L368 563L382 566" fill="none" stroke-width="2.8"/>
+  </g>
+  <g stroke="#302926" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M236 790Q332 730 462 746Q505 738 530 702" fill="none"/>
+    <path d="M286 768Q258 718 283 689Q319 725 286 768Z" fill="#aa834e"/>
+    <path d="M299 761Q342 762 355 795Q320 814 299 761Z" fill="#aa834e"/>
+    <path d="M388 745Q372 708 396 682Q425 716 388 745Z" fill="#aa834e"/>
+    <path d="M434 747Q466 756 467 786Q431 790 418 748Z" fill="#aa834e"/>
+    <path d="M488 735Q478 698 502 682Q521 714 488 735Z" fill="#aa834e"/>
+    <path d="M284 704L286 751M313 769L342 790M394 696L390 732M433 757L455 778M503 694L492 722" fill="none" stroke="#eee2c8" stroke-width="1.4"/>
+    <path d="M327 703Q303 685 311 663Q320 646 340 657Q336 630 357 628Q380 628 380 653Q398 637 414 653Q430 674 404 691Q426 703 414 723Q401 742 379 722Q379 748 355 744Q333 739 341 718Q316 731 306 716Q299 704 327 703Z" fill="#793c33"/>
+    <path d="M337 679Q350 663 371 668Q394 676 385 699Q376 719 353 710Q335 703 340 688Q349 674 363 682Q374 690 366 701" fill="none" stroke="#dbb589" stroke-width="2.3"/>
+    <path d="M318 670Q325 689 339 689M357 640L359 665M403 660L385 679M407 708L388 703M360 733L362 716" fill="none" stroke="#b87959" stroke-width="1.5"/>
+  </g>
+  <g stroke="#aa834e" stroke-width="2"><path d="M154 359V383M142 371H166M548 568V592M536 580H560M192 740V756M184 748H200M350 843V861M341 852H359"/><circle cx="431" cy="248" r="3" fill="#aa834e"/><circle cx="117" cy="535" r="3" fill="#aa834e"/><circle cx="565" cy="665" r="3" fill="#aa834e"/></g>
+</svg>
