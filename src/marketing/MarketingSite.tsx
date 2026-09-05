@@ -167,9 +167,9 @@ function HomePage() {
           </div>
           <div className="hero-intro">
             <p>
-              Your website, a dedicated flash marketplace, and dashboards for
-              shop owners and artists—all connected in one complete system,
-              set up independently for your shop.
+              Level up your website with a dedicated flash marketplace,
+              including dashboards for shop owners and artists—all connected
+              in one complete system, set up independently for your shop.
             </p>
             <a className="text-link" href="#how-it-works">
               See how it works <ArrowDown size={16} />

@@ -467,8 +467,22 @@ section[id] {
   background: rgba(15, 15, 15, 0.82);
   backdrop-filter: blur(8px);
 }
-.studio-controls button:hover {
+.studio-controls button {
+  color: #a5a5a5;
+  border-color: rgba(255, 255, 255, 0.12);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.studio-controls button:is(:focus-visible, :active) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
   background: #2b2b2b;
+}
+@media (hover: hover) {
+  .studio-controls button:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: #2b2b2b;
+  }
 }
 .download-size {
   color: #aaa;
