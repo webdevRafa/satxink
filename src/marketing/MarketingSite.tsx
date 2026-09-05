@@ -475,7 +475,13 @@ function HomePage() {
               </li>
               <li>
                 <Check />
-                Usually hosted on a subdomain, linked from your website.
+                <span className="portal-hosting-copy">
+                  Hosted on a subdomain, linked to your website.
+                  <span className="portal-address-example">
+                    <span>Example address</span>
+                    <code>https://portal.shopname.com</code>
+                  </span>
+                </span>
               </li>
               <li>
                 <Check />

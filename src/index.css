@@ -832,6 +832,27 @@ section[id] {
 .setup-card > a:hover {
   color: #f09387;
 }
+.portal-hosting-copy {
+  min-width: 0;
+}
+.portal-address-example {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid #d57a6e;
+}
+.portal-address-example > span {
+  color: #adadad;
+  font-size: 0.75rem;
+}
+.portal-address-example code {
+  color: #e48274;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
 .setup-note {
   font-size: 0.875rem;
   color: #999;
