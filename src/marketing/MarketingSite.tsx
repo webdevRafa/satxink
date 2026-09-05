@@ -20,6 +20,7 @@ import logo from "../assets/satx-short-sep.svg";
 import { StudioHero } from "./StudioHero";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
+import { createHeaderCtaReveal } from "./headerCta";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
@@ -161,7 +162,7 @@ function HomePage() {
               <span /> A complete system for tattoo shops
             </p>
             <h1 id="hero-title">
-              Your tattoo shop’s <em>own flash marketplace.</em>
+              Give your <em>shop</em> its very own <em>marketplace</em>, and much more.
             </h1>
           </div>
           <div className="hero-intro">
@@ -170,20 +171,12 @@ function HomePage() {
               shop owners and artists—all connected in one complete system,
               set up independently for your shop.
             </p>
-            <a className="button" href="#contact">
-              Request a demo <ArrowUpRight size={18} />
-            </a>
             <a className="text-link" href="#how-it-works">
               See how it works <ArrowDown size={16} />
             </a>
           </div>
         </div>
         <StudioHero />
-        <div className="hero-notes">
-          <span>A dedicated setup for your shop</span>
-          <span>Unlimited artists & locations</span>
-          <span>Full website or companion portal</span>
-        </div>
       </section>
 
       <section className="section shell connection-section">
@@ -595,8 +588,18 @@ function RetiredPage() {
 export function MarketingSite() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [headerCtaVisible, setHeaderCtaVisible] = useState(false);
+  const headerCtaReveal = useRef<ReturnType<typeof createHeaderCtaReveal> | null>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const previousPath = useRef(location.pathname);
+  useEffect(() => {
+    const reveal = createHeaderCtaReveal(() => setHeaderCtaVisible(true));
+    headerCtaReveal.current = reveal;
+    return () => {
+      reveal.dispose();
+      headerCtaReveal.current = null;
+    };
+  }, []);
   useEffect(() => {
     const path = location.pathname.toLowerCase().replace(/\/+$/, "") || "/";
     const home = path === "/";
@@ -672,7 +675,14 @@ export function MarketingSite() {
               </a>
             ))}
           </nav>
-          <a className="button button-small header-cta" href="/#contact">
+          <a
+            className="button button-small header-cta"
+            href="/#contact"
+            data-visible={headerCtaVisible}
+            aria-hidden={!headerCtaVisible}
+            tabIndex={headerCtaVisible ? undefined : -1}
+            onClick={() => setMenuOpen(false)}
+          >
             Let’s talk <ArrowUpRight size={16} />
           </a>
           <button
@@ -682,7 +692,10 @@ export function MarketingSite() {
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
             aria-controls="mobile-navigation"
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => {
+              if (!menuOpen) headerCtaReveal.current?.engage();
+              setMenuOpen(!menuOpen);
+            }}
           >
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>

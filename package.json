@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:marketing": "node --test tests/hero-policy.test.mjs"
+    "test:marketing": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",
