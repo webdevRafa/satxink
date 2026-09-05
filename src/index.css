@@ -194,7 +194,7 @@ section[id] {
   margin-bottom: 44px;
 }
 .hero h1 {
-  font-size: clamp(2.35rem, 4.25vw, 4.25rem);
+  font-size: clamp(2.2rem, 4vw, 4rem);
   line-height: 1.12;
   font-weight: 600;
   margin: 0;
@@ -293,7 +293,7 @@ section[id] {
     gap: 4%;
   }
   .hero h1 {
-    font-size: 3rem;
+    font-size: 2.8rem;
   }
 }
 @media (max-width: 767px) {
@@ -321,7 +321,7 @@ section[id] {
     margin-bottom: 28px;
   }
   .hero h1 {
-    font-size: clamp(2rem, 7.7vw, 3rem);
+    font-size: clamp(1.875rem, 7.2vw, 2.8rem);
     max-width: 620px;
   }
   .hero-intro {
