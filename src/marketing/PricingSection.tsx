@@ -11,22 +11,22 @@ export function PricingSection() {
         <div>
           <p className="eyebrow">Pricing & Support</p>
           <h2 id="pricing-title">
-            Clear pricing.
+            Your complete shop system.
             <br />
-            Real support.
+            Set up for $500.
           </h2>
         </div>
         <p className="section-intro">
-          The same SATX INK rates for every shop. Whether you choose a full
-          website or a branded portal, your setup fee and monthly support
-          stay the same.
+          Launch your own flash marketplace with booking tools, owner and artist
+          dashboards, and connected payments and email. Your one-time setup
+          covers the full deployment—then $100/month keeps you supported.
         </p>
       </div>
       <div className="setup-grid">
         <article className="setup-card pricing-card">
           <h3>Complete deployment</h3>
           <p className="price-amount"><strong>$500</strong> <span>one time</span></p>
-          <p>One setup payment to get your shop’s system up and running.</p>
+          <p>Your complete system, deployed and connected for one setup fee.</p>
           <ul className="check-list">
             <li><Check aria-hidden="true" />Full website or branded portal deployment.</li>
             <li><Check aria-hidden="true" />Your own database, powered by Google Firebase.</li>
@@ -44,6 +44,10 @@ export function PricingSection() {
           </ul>
         </article>
       </div>
+      <p className="pricing-plan-note">
+        Full website or branded portal. The same setup fee and monthly support
+        for every shop.
+      </p>
       <div className="pricing-support-note">
         <div>
           <h3>You’re supported beyond launch.</h3>

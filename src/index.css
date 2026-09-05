@@ -869,7 +869,7 @@ section[id] {
   margin: 8px 0 18px;
 }
 .price-amount strong {
-  color: #e48274;
+  color: #fff;
   font-family: "Space Grotesk", sans-serif;
   font-size: clamp(3rem, 5vw, 4.5rem);
   font-weight: 600;
@@ -885,6 +885,11 @@ section[id] {
 }
 .pricing-card .check-list li {
   font-size: 1rem;
+}
+.pricing-plan-note {
+  color: #b7b7b7;
+  font-size: 0.9375rem;
+  margin: 24px 0 0;
 }
 .pricing-support-note {
   display: flex;
