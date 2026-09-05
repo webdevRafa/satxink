@@ -16,11 +16,13 @@ const policy = await import(`data:text/javascript;base64,${Buffer.from(outputTex
 const desktop = { reducedMotion: false, saveData: false, effectiveType: '4g', memory: 8, cores: 8, width: 1440 };
 
 test('capable desktop can automatically load 3D', () => assert.equal(policy.shouldAutoLoad3D(desktop), true));
+test('capable phone automatically loads 3D without a play-button requirement', () => assert.equal(policy.shouldAutoLoad3D({...desktop, width:390}), true));
+test('phone with unavailable hardware hints can autoplay with runtime safeguards', () => assert.equal(policy.shouldAutoLoad3D({reducedMotion:false, width:390}), true));
 for (const [name, override] of [
   ['reduced motion', { reducedMotion: true }], ['data saver', { saveData: true }],
   ['slow 2G', { effectiveType: 'slow-2g' }], ['2G', { effectiveType: '2g' }],
   ['3G', { effectiveType: '3g' }], ['4 GB memory', { memory: 4 }],
-  ['four cores', { cores: 4 }], ['phone', { width: 390 }],
+  ['four cores', { cores: 4 }],
 ]) test(`${name} defaults to a poster`, () => assert.equal(policy.shouldAutoLoad3D({ ...desktop, ...override }), false));
 test('missing hardware hints are safe to evaluate', () => assert.equal(policy.shouldAutoLoad3D({ reducedMotion: false, width: 1200 }), true));
 test('camera selection follows the exact picture breakpoint', () => {

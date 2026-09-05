@@ -33,6 +33,7 @@ function disposeModel(root: Object3D) {
   const materials = new Set<Material>();
   const textures = new Set<Texture>();
   root.traverse((object) => {
+    if (object instanceof SpotLight) object.shadow.dispose();
     if (!(object instanceof Mesh)) return;
     object.geometry.dispose();
     (Array.isArray(object.material)
@@ -105,6 +106,13 @@ export async function createStudioRenderer(
       disposeModel(root);
     }
     environmentTarget?.dispose();
+    scene.environment = null;
+    scene.clear();
+    cameras.clear();
+    animatedCamera = undefined;
+    root = undefined;
+    mixer = undefined;
+    environmentTarget = undefined;
     renderer.dispose();
     renderer.forceContextLoss();
   }

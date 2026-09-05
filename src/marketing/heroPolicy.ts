@@ -15,8 +15,7 @@ export function shouldAutoLoad3D(hints: DeviceHints): boolean {
     !hints.saveData &&
     !["slow-2g", "2g", "3g"].includes(hints.effectiveType ?? "") &&
     (hints.memory === undefined || hints.memory > 4) &&
-    (hints.cores === undefined || hints.cores > 4) &&
-    hints.width >= 768
+    (hints.cores === undefined || hints.cores > 4)
   );
 }
 

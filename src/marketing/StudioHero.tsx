@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, Image, Pause, Play } from "lucide-react";
+import { Image, Pause, Play } from "lucide-react";
 import { shouldAutoLoad3D } from "./heroPolicy";
 import type { StudioController } from "./studioRenderer";
 
@@ -14,6 +14,10 @@ export function StudioHero() {
   const host = useRef<HTMLDivElement>(null);
   const controller = useRef<StudioController | null>(null);
   const visible = useRef(false);
+  const [inViewport, setInViewport] = useState(false);
+  const [pageVisible, setPageVisible] = useState(false);
+  const [autoEligible, setAutoEligible] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [requested, setRequested] = useState(false);
   const [mode, setMode] = useState<
     "poster" | "loading" | "ready" | "unavailable"
@@ -31,6 +35,16 @@ export function StudioHero() {
     const device = navigator as DeviceNavigator;
     function policyChanged() {
       setReducedMotion(media.matches);
+      setAutoEligible(
+        shouldAutoLoad3D({
+          reducedMotion: media.matches,
+          saveData: device.connection?.saveData,
+          effectiveType: device.connection?.effectiveType,
+          memory: device.deviceMemory,
+          cores: device.hardwareConcurrency,
+          width: window.innerWidth,
+        }),
+      );
       if (media.matches || device.connection?.saveData) setRequested(false);
     }
     policyChanged();
@@ -39,40 +53,13 @@ export function StudioHero() {
     const observer = new IntersectionObserver(
       ([entry]) => {
         visible.current = entry.isIntersecting;
-        controller.current?.setPlaying(
-          entry.isIntersecting && !document.hidden && !pausedRef.current,
-        );
-        if (
-          entry.isIntersecting &&
-          !optedOut.current &&
-          shouldAutoLoad3D({
-            reducedMotion: media.matches,
-            saveData: device.connection?.saveData,
-            effectiveType: device.connection?.effectiveType,
-            memory: device.deviceMemory,
-            cores: device.hardwareConcurrency,
-            width: window.innerWidth,
-          })
-        ) {
-          optedOut.current = true;
-          // Keep text and the high-priority poster ahead of the optional 3D chunk.
-          autoStartTimer.current = setTimeout(() => {
-            if (
-              visible.current &&
-              !media.matches &&
-              !device.connection?.saveData
-            )
-              setRequested(true);
-          }, 900);
-        }
+        setInViewport(visible.current);
       },
-      { threshold: 0.08 },
+      { threshold: 0 },
     );
     if (stage.current) observer.observe(stage.current);
-    const visibilityChanged = () =>
-      controller.current?.setPlaying(
-        visible.current && !document.hidden && !pausedRef.current,
-      );
+    const visibilityChanged = () => setPageVisible(!document.hidden);
+    visibilityChanged();
     document.addEventListener("visibilitychange", visibilityChanged);
     return () => {
       clearTimeout(autoStartTimer.current);
@@ -84,8 +71,26 @@ export function StudioHero() {
   }, []);
 
   useEffect(() => {
-    if (!requested || reducedMotion || !host.current) {
-      setMode("poster");
+    if (
+      !inViewport || !pageVisible || !autoEligible || requested ||
+      optedOut.current || failed
+    ) return;
+    // Delay optional 3D behind the high-priority poster, on phones and desktop.
+    // Exiting before this fires cancels it without consuming future autoplay.
+    const timer = setTimeout(() => setRequested(true), 900);
+    autoStartTimer.current = timer;
+    return () => clearTimeout(timer);
+  }, [inViewport, pageVisible, autoEligible, requested, failed]);
+
+  useEffect(() => {
+    // Visibility owns the renderer lifetime, independently of the user's choice
+    // to play, pause, or use a static image. Cleanup aborts loads and frees GPU
+    // resources; returning to view can create a fresh renderer automatically.
+    if (
+      !requested || reducedMotion || !inViewport || !pageVisible ||
+      failed || !host.current
+    ) {
+      setMode(failed ? "unavailable" : "poster");
       return;
     }
     const target = host.current;
@@ -96,7 +101,7 @@ export function StudioHero() {
       if (cancelled) return;
       clearTimeout(timeout);
       setMode("unavailable");
-      optedOut.current = true;
+      setFailed(true);
       current?.dispose();
       controller.current = null;
       abort.abort();
@@ -135,7 +140,7 @@ export function StudioHero() {
       current?.dispose();
       controller.current = null;
     };
-  }, [requested, reducedMotion]);
+  }, [requested, reducedMotion, inViewport, pageVisible, failed]);
 
   function togglePause() {
     pausedRef.current = !paused;
@@ -203,10 +208,12 @@ export function StudioHero() {
               onClick={() => {
                 clearTimeout(autoStartTimer.current);
                 optedOut.current = true;
+                pausedRef.current = false;
+                setPaused(false);
                 setRequested(true);
               }}
             >
-              <Box size={15} /> Explore in 3D{" "}
+              <Play size={15} /> Play animation{" "}
               <span className="download-size">3.4 MB</span>
             </button>
           ) : (

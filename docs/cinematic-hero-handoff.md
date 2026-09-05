@@ -24,4 +24,14 @@ The pre-cinematic package and previously open unsaved scene are backed up under 
 - Browser checks: desktop camera motion, pause/resume controls, mobile static default and optional 3D, offscreen pause, desktop portrait and mobile landscape owner images without horizontal overflow.
 - Browser regression fixtures: reduced-motion static default, live reduced-motion change disposes the canvas, model HTTP failure, unavailable WebGL, and sustained low frame rate all preserve a working poster.
 
-Three.js stays dynamically loaded. DPR remains capped at 1.25, playback at 30 rendered frames/sec. Phones, reduced-motion/data-saving users, slow networks, and lower-spec devices default to static images. No background video, extra rendering dependency, backend, payment flow, or marketing claims were added.
+Three.js stays dynamically loaded. DPR remains capped at 1.25, playback at 30 rendered frames/sec. Reduced-motion/data-saving users, slow networks, and lower-spec devices default to static images. No background video, extra rendering dependency, backend, payment flow, or marketing claims were added.
+
+## Mobile autoplay and renderer lifetime follow-up
+
+Screen width no longer blocks autoplay. Capable phones start the camera animation automatically when the hero is visible. The performance and accessibility safeguards remain in place.
+
+The previous implementation only paused offscreen and retained GPU resources. It now aborts pending loading and disposes the canvas, renderer, model geometries/materials/textures, shadow resources, environment map, and WebGL context whenever the hero leaves the viewport or the document becomes hidden. Re-entry creates a fresh renderer from the opening pose. The lightweight poster and wrapper remain mounted to preserve layout. Browser HTTP caching may retain downloaded bytes; no live scene or GPU context is cached by the application.
+
+Autoplay scheduling is separate from user intent. Exiting before the startup delay does not consume autoplay; Pause and Static choices survive scrolling. Load/WebGL/performance failures remain on the poster without repeated automatic attempts.
+
+The `lifecycle` and `slow-load` fixtures mount the production component and expose DOM telemetry for actual WebGL context loss, draw calls, canvases and cancelled loads. These test-only instruments are not shipped. Browser checks confirm automatic phone-size playback, zero live contexts/canvases with unchanged draw-call counts offscreen, automatic recreation on return, preserved Pause/Static choices, hidden-document cleanup, and cancellation/recovery during delayed model loading.
