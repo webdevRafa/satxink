@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import {
   ArrowDown,
@@ -21,6 +21,8 @@ import { StudioHero } from "./StudioHero";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
+import { createViewportMotion, pageMotionTargets } from "./viewportMotion";
+import { MobileNavigation } from "./MobileNavigation";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
@@ -592,6 +594,11 @@ export function MarketingSite() {
   const headerCtaReveal = useRef<ReturnType<typeof createHeaderCtaReveal> | null>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const previousPath = useRef(location.pathname);
+  const page = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (location.pathname !== "/" || !page.current) return;
+    return createViewportMotion(page.current, pageMotionTargets(page.current));
+  }, [location.pathname]);
   useEffect(() => {
     const reveal = createHeaderCtaReveal(() => setHeaderCtaVisible(true));
     headerCtaReveal.current = reveal;
@@ -639,6 +646,10 @@ export function MarketingSite() {
   }, [location.pathname, location.hash]);
   useEffect(() => {
     if (!menuOpen) return;
+    const desktop = window.matchMedia("(min-width: 1001px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMenuOpen(false);
+    };
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMenuOpen(false);
@@ -646,10 +657,15 @@ export function MarketingSite() {
       }
     };
     document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
+    desktop.addEventListener("change", closeOnDesktop);
+    closeOnDesktop();
+    return () => {
+      document.removeEventListener("keydown", escape);
+      desktop.removeEventListener("change", closeOnDesktop);
+    };
   }, [menuOpen]);
   return (
-    <div className="marketing">
+    <div ref={page} className="marketing">
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -700,19 +716,7 @@ export function MarketingSite() {
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-        <nav
-          id="mobile-navigation"
-          className="mobile-nav"
-          aria-label="Mobile navigation"
-          hidden={!menuOpen}
-        >
-          {navigation.map(([label, id]) => (
-            <a key={id} href={`/#${id}`} onClick={() => setMenuOpen(false)}>
-              {label}
-              <ArrowUpRight size={16} />
-            </a>
-          ))}
-        </nav>
+        {menuOpen && <MobileNavigation items={navigation} onNavigate={() => setMenuOpen(false)} />}
       </header>
       <main id="main" tabIndex={-1}>
         <Routes>
