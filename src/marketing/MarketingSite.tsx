@@ -156,16 +156,17 @@ function HomePage() {
         <div className="hero-copy">
           <div>
             <p className="eyebrow">
-              <span /> Websites & booking tools for tattoo shops
+              <span /> A complete system for tattoo shops
             </p>
             <h1 id="hero-title">
-              Give your work a better way to <em>get booked.</em>
+              Your tattoo shop’s <em>own flash marketplace.</em>
             </h1>
           </div>
           <div className="hero-intro">
             <p>
-              Your artists, available flash, client requests, and deposits.
-              Connected in a website that feels like your shop.
+              Your website, a dedicated flash marketplace, and dashboards for
+              shop owners and artists—all connected in one complete system,
+              set up independently for your shop.
             </p>
             <a className="button" href="#contact">
               Request a demo <ArrowUpRight size={18} />
@@ -177,7 +178,7 @@ function HomePage() {
         </div>
         <StudioHero />
         <div className="hero-notes">
-          <span>Your own shop installation</span>
+          <span>A dedicated setup for your shop</span>
           <span>Unlimited artists & locations</span>
           <span>Full website or companion portal</span>
         </div>

@@ -179,7 +179,7 @@ export function StudioHero() {
       </div>
       <div className="studio-toolbar">
         <div className="studio-caption">
-          Your shop’s identity. One connected system.
+          Your shop’s brand. One connected system.
         </div>
         <div className="studio-controls">
           {mode === "ready" ? (
