@@ -51,7 +51,7 @@ export function PricingSection() {
             Need help or want to change how your public-facing website looks?
             Work directly with the developer who built your setup. That support
             and customization are included in your $100 monthly fee—not a
-            separate bill every time you want to make it more yours.
+            separate bill every time you want to make a change.
           </p>
         </div>
         <a className="button" href="#contact">
