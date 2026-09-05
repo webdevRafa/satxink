@@ -424,42 +424,39 @@ function HomePage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Two ways to make it yours</p>
-            <h2>
-              A fresh start.
-              <br />
-              Or a better next step.
-            </h2>
+            <h2>Options for every studio.</h2>
           </div>
           <p className="section-intro">
-            Replacing your website isn’t the only way forward. Choose the setup
-            that fits where your shop is today.
+            Whether you’re starting fresh or keeping a website you already
+            love, we offer two setup options—each installed and configured
+            for your shop.
           </p>
         </div>
         <div className="setup-grid">
           <article className="setup-card">
             <div className="setup-card-top">
-              <span>01 / THE FULL EXPERIENCE</span>
+              <span>01 / THE COMPLETE SETUP</span>
               <Globe2 size={24} />
             </div>
-            <h3>A full shop website.</h3>
+            <h3>A new shop website + SATX INK tools.</h3>
             <p>
-              Your homepage, artists, flash, and booking experience together
-              under your shop’s domain.
+              Start fresh with a website for your shop, with your marketplace,
+              booking tools, and dashboards connected in one complete setup.
             </p>
             <ul className="check-list">
               <li>
-                <Check />A connected public home for the shop.
+                <Check />Your website, artist profiles, and flash under your domain.
               </li>
               <li>
                 <Check />
-                Owner, artist, and client workspaces.
+                Owner, artist, and client dashboards included.
               </li>
               <li>
-                <Check />A fit for a new site or a connected replacement.
+                <Check />Manage website content and branding from your admin dashboard.
               </li>
             </ul>
             <a href="#contact">
-              Talk about a full website <ArrowUpRight size={18} />
+              Talk about the complete setup <ArrowUpRight size={18} />
             </a>
           </article>
           <article className="setup-card">
@@ -467,26 +464,26 @@ function HomePage() {
               <span>02 / ALONGSIDE YOUR WEBSITE</span>
               <ArrowUpRight size={24} />
             </div>
-            <h3>A branded companion portal.</h3>
+            <h3>Your existing website + a branded SATX INK portal.</h3>
             <p>
-              Keep the website you already like. Link to your own portal for
-              artists, flash, requests, and booking tools.
+              Keep your current website. Add SATX INK tools through a separate
+              portal branded for your shop and linked from your site.
             </p>
             <ul className="check-list">
               <li>
-                <Check />A configured companion site, usually on a subdomain.
+                <Check />Your marketplace, booking tools, and dashboards in one portal.
               </li>
               <li>
                 <Check />
-                Connected through ordinary website links.
+                Usually hosted on a subdomain, linked from your website.
               </li>
               <li>
                 <Check />
-                Your current website can stay in place.
+                Keep your existing website’s design and content management.
               </li>
             </ul>
             <a href="#contact">
-              Talk about a companion portal <ArrowUpRight size={18} />
+              Talk about a branded portal <ArrowUpRight size={18} />
             </a>
           </article>
         </div>
