@@ -30,28 +30,28 @@ const navigation = [
 ];
 const steps = [
   [
-    "Find the work",
-    "Clients explore your artists, flash sheets, and available designs.",
+    "Show your work",
+    "Publish the designs you want to tattoo. Clients discover your available flash on your shop’s marketplace.",
   ],
   [
-    "Send a request",
-    "The chosen design travels with placement, size, and timing preferences.",
+    "Client sends a request",
+    "A client requests a published design and shares their preferred placement, size, and timing for you to review.",
   ],
   [
-    "Review & offer",
-    "The artist reviews the details, sets a deposit, and offers appointment options.",
+    "You set the terms",
+    "Review the request and create your offer, including the deposit. If it’s not a fit, you can decline.",
   ],
   [
-    "Choose a time",
-    "The client accepts an option. Acceptance and payment are separate steps.",
+    "You offer the times",
+    "Give the client a few appointment options that work for you. You decide what goes on your schedule.",
   ],
   [
-    "Pay the deposit",
-    "The client completes Stripe checkout and can see the remaining tattoo balance.",
+    "Client chooses a time",
+    "The client accepts one of the appointment options you offered—not any open slot on your calendar.",
   ],
   [
-    "Follow through",
-    "The artist manages the appointment and records the balance paid at the shop.",
+    "Client pays the deposit",
+    "After accepting, the client pays your deposit through Stripe and sees the remaining balance to pay at the shop.",
   ],
 ];
 const faqs = [
@@ -304,16 +304,17 @@ function HomePage() {
       <section id="how-it-works" className="section shell workflow-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">The connected flash journey</p>
+            <p className="eyebrow">Booking on your terms</p>
             <h2>
-              From “I love this design”
+              Your business.
               <br />
-              to knowing what’s next.
+              You call the shots.
             </h2>
           </div>
           <p className="section-intro">
-            The artist sets the pace. The system keeps the design, decisions,
-            and appointment together.
+            Clients request the work. You control the schedule. Choose the
+            requests you take on, set your offer, and give clients appointment
+            options that work for you.
           </p>
         </div>
         <ol className="workflow">
@@ -331,8 +332,8 @@ function HomePage() {
           ))}
         </ol>
         <p className="workflow-note">
-          <Check size={16} /> Artist approval first. Choosing a time and paying
-          the deposit are separate steps.
+          <Check size={16} /> A request is not an automatic booking. Your
+          approval comes first; the client chooses a time, then pays the deposit.
         </p>
       </section>
 
