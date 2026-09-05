@@ -342,42 +342,54 @@ function HomePage() {
           <div>
             <p className="eyebrow">For the shop owners</p>
             <h2>
-              Your shop’s identity.
+              Run your shop.
               <br />
-              Room for your whole team.
+              Grow your audience.
             </h2>
             <p className="section-intro">
-              A separate installation for your business, with its own connected
-              database and payment integrations. Your artists and locations,
-              brought together under your brand.
+              Your brand, backed by tools you can manage yourself. Update your
+              website, keep your shop’s details current, and build an audience
+              that wants to hear from you—all from your admin dashboard.
             </p>
-            <div className="owner-feature">
-              <Users />
-              <div>
-                <h3>No artist or location limit.</h3>
-                <p>
-                  Invite your team, assign studio locations, and choose when
-                  completed artist profiles go public.
-                </p>
-              </div>
-            </div>
             <div className="owner-feature">
               <Globe2 />
               <div>
-                <h3>Make the shop feel like yours.</h3>
+                <h3>Keep your website yours.</h3>
                 <p>
-                  Manage branding, contact details, hours, and studio
-                  information from Shop Admin.
+                  Change your logo, background image, and website text whenever
+                  you need to. Your public-facing website stays in your hands.
                 </p>
               </div>
             </div>
             <div className="owner-feature">
-              <Layers3 />
+              <Users />
               <div>
-                <h3>See what’s moving across the shop.</h3>
+                <h3>Manage the everyday details.</h3>
                 <p>
-                  Review requests, offers, bookings, and session records, with
-                  location filters in supported views.
+                  Update store hours, manage team members, and keep your shop’s
+                  information current in one place.
+                </p>
+              </div>
+            </div>
+            <div className="owner-feature">
+              <CalendarDays />
+              <div>
+                <h3>Give your news a place to land.</h3>
+                <p>
+                  Publish events and announcements on your website so clients
+                  know what’s coming up at your shop.
+                </p>
+              </div>
+            </div>
+            <div className="owner-feature">
+              <Mail />
+              <div>
+                <h3>Grow your list with every opt-in.</h3>
+                <p>
+                  Clients can sign up with Google and choose to receive your
+                  emails. Those who opt in are automatically added to your
+                  mailing list, ready for promotional campaigns you send from
+                  your dashboard. No manual list-building.
                 </p>
               </div>
             </div>
@@ -400,7 +412,7 @@ function HomePage() {
               <span>
                 Your brand.
                 <br />
-                Your connected workspace.
+                Your tools to grow.
               </span>
               <MoveUpRight size={32} />
             </figcaption>
