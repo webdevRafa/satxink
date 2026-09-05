@@ -187,42 +187,43 @@ function HomePage() {
       <section className="section shell connection-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Made for the way a studio works</p>
+            <p className="eyebrow">Your shop, connected</p>
             <h2>
-              The booking should stay
+              A complete setup
               <br />
-              connected to the work.
+              for your whole shop.
             </h2>
           </div>
           <p className="section-intro">
-            A client finds a design they love. Then come the questions: is it
-            available, who made it, what dates work? Give those questions a
-            clear place to go.
+            Give your artists a direct path from flash sheet to your shop’s
+            live marketplace—with room for every artist and every location.
           </p>
         </div>
         <div className="feature-columns">
           <article>
-            <span className="feature-number">01 / DISCOVERY</span>
-            <h3>Show the work beautifully.</h3>
+            <span className="feature-number">01 / YOUR MARKETPLACE</span>
+            <h3>Upload. Publish. Go live.</h3>
             <p>
-              Give your artists and their available flash a home under your
-              shop’s brand. Profiles, portfolios, and designs belong together.
+              Artists upload flash sheets and publish individual designs
+              straight to your shop’s own marketplace, where clients can
+              discover the work and request a design.
             </p>
           </article>
           <article>
-            <span className="feature-number">02 / ARTIST CONTROL</span>
-            <h3>Every request has context.</h3>
+            <span className="feature-number">02 / YOUR ARTISTS</span>
+            <h3>Unlimited artists.</h3>
             <p>
-              The design and the client’s preferences arrive together. Artists
-              decide which requests to accept and which dates to offer.
+              Invite your entire team. Every artist gets their own profile
+              and dashboard, with no limit on how many artists you can add.
             </p>
           </article>
           <article>
-            <span className="feature-number">03 / A CLEAR NEXT STEP</span>
-            <h3>Keep the booking understandable.</h3>
+            <span className="feature-number">03 / YOUR LOCATIONS</span>
+            <h3>Unlimited locations.</h3>
             <p>
-              From the offer to deposit checkout, clients can follow what
-              happens next—and see what remains to be paid at the shop.
+              One studio or several, your setup has room for them all.
+              Add as many locations as you need and assign your artists
+              to the studios where they work.
             </p>
           </article>
         </div>
@@ -233,7 +234,7 @@ function HomePage() {
           <div className="flash-visual">
             <div className="visual-topline">
               <Layers3 size={17} />
-              <span>From the sheet to the shop’s marketplace</span>
+              <span>Your artists. Your next flash drop.</span>
             </div>
             <div className="flash-art">
               <img
@@ -260,41 +261,41 @@ function HomePage() {
             </div>
             <div className="visual-bottomline">
               <span>Example flash artwork</span>
-              <span>Artist-led. Always.</span>
+              <span>Made to be shared.</span>
             </div>
           </div>
           <div>
             <p className="eyebrow">For the artists</p>
-            <h2>
-              Your work gets
-              <br />
-              the spotlight.
-            </h2>
+            <h2>Your team.</h2>
             <p className="section-intro">
-              Upload a flash sheet. Turn its pieces into individual designs
-              clients can request. Keep your portfolio, available work, and
-              booking requests connected.
+              Every artist gets a public profile on your shop’s website,
+              with a unique link to share on Instagram. Their portfolio
+              and available flash are just one tap away.
             </p>
-            <ul className="check-list">
-              <li>
-                <Check />
-                Publish individual flash or itemize a complete sheet.
-              </li>
-              <li>
-                <Check />
-                Distinguish repeatable work from one-of-one designs.
-              </li>
-              <li>
-                <Check />
-                Review requests, offer dates, and follow appointments.
-              </li>
-            </ul>
             <div className="profile-link-example">
               <p>One link for your Instagram bio.</p>
               <code>
                 tattooshop.com/<strong>artistname</strong>
               </code>
               <span>Example profile address on your shop’s domain.</span>
+            </div>
+            <div className="artist-highlights">
+              <article>
+                <h3>Plan the drop. Share the link.</h3>
+                <p>
+                  Schedule a flash sheet to go live at a time you choose.
+                  Each sheet gets its own link, ready to promote on Instagram
+                  and bring clients straight to the drop.
+                </p>
+              </article>
+              <article>
+                <h3>Make one-of-one work stand out.</h3>
+                <p>
+                  Offer non-repeatable designs meant to be tattooed only once.
+                  That exclusivity gives clients a reason to act when a
+                  design they love goes live.
+                </p>
+              </article>
             </div>
           </div>
         </div>
