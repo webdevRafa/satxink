@@ -164,7 +164,7 @@ function HomePage() {
               <span /> Software for tattoo shops
             </p>
             <h1 id="hero-title">
-              Your <em>shop</em>. Your <em>marketplace</em>. Your way.
+              Your shop <em>+</em> its very own marketplace
             </h1>
           </div>
           <div className="hero-intro">
