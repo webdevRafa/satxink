@@ -248,10 +248,33 @@ section[id] {
   position: relative;
   aspect-ratio: 21/9;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #171717;
+  background: var(--color-bg-base);
   isolation: isolate;
+}
+/* One static scrim covers both the live scene and its fallback poster.
+   Page-colored edges dissolve the frame without filtering the WebGL canvas. */
+.studio-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      var(--color-bg-base),
+      transparent 18%,
+      transparent 76%,
+      var(--color-bg-base)
+    ),
+    linear-gradient(
+      to right,
+      var(--color-bg-base),
+      transparent 12%,
+      transparent 88%,
+      var(--color-bg-base)
+    ),
+    color-mix(in srgb, var(--color-bg-base) 72%, transparent);
 }
 .studio-stage picture,
 .studio-stage img {
