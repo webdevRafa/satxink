@@ -21,6 +21,23 @@
 body {
   margin: 0;
 }
+/* Added only after motion support is verified. Layout and reading order remain
+   intact; the controller removes this state on focus, finish, exit, or teardown. */
+[data-motion-pending] {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-pending] {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+}
+@media print {
+  [data-motion-pending] {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+}
 button,
 a,
 input,

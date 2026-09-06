@@ -25,6 +25,10 @@ class Events {
 }
 class Element extends Events {
   animations = [];
+  attributes = new Map();
+  setAttribute(name, value) { this.attributes.set(name, value); }
+  removeAttribute(name) { this.attributes.delete(name); }
+  hasAttribute(name) { return this.attributes.has(name); }
   rect = { top: 1000, bottom: 1100, left: 40, right: 240, width: 200, height: 100 };
   getBoundingClientRect() { return this.rect; }
   parentElement = null;
@@ -81,23 +85,25 @@ function fixture(count = 3, settings = {}) {
     unobserve(element) { this.observed.delete(element); }
     disconnect() { this.observed.clear(); }
     entries(entries) { this.callback(entries); }
-    enter(...nodes) { this.entries(nodes.map(target => ({ target, isIntersecting: true, boundingClientRect: target.rect }))); }
-    leave(...nodes) { this.entries(nodes.map(target => ({ target, isIntersecting: false, boundingClientRect: target.rect }))); }
+    enter(...nodes) { this.entries(nodes.map(target => ({ target, isIntersecting: true, intersectionRatio: 0.5 }))); }
+    leave(...nodes) { this.entries(nodes.map(target => ({ target, isIntersecting: false, intersectionRatio: 0 }))); }
   }
-  const targets = elements.map(element => ({ element, group: root, style: 'rise' }));
+  const targets = elements.map(element => ({ element, group: root, style: settings.menu ? 'blur' : 'fade' }));
   const environment = { document: doc, window: win, Observer };
   const dispose = createViewportMotion(root, targets, settings.menu ? { mobileMenu: true } : {}, environment);
   return { root, elements, targets, doc, reduced, mobile, win, environment, observers, observer: observers[0], dispose };
 }
 
-test('nothing animates until individual content enters the viewport', () => {
+test('unseen content is pre-armed before paint without running offscreen animations', () => {
   const f = fixture();
   assert.equal(f.observer.observed.size, 3);
   assert.ok(f.elements.every(element => element.animations.length === 0));
+  assert.ok(f.elements.every(element => element.hasAttribute('data-motion-pending')));
   f.observer.enter(f.elements[0]);
   assert.equal(f.elements[0].animations.length, 1);
   assert.equal(f.elements[1].animations.length, 0);
   f.dispose();
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
 });
 
 test('initially visible hero or menu content starts synchronously without a visible flash', () => {
@@ -110,37 +116,45 @@ test('initially visible hero or menu content starts synchronously without a visi
   }
 });
 
-test('entry translations move inward so animation cannot trigger its own viewport exit', () => {
+test('viewport edge contact does not start motion but positive-area entry starts exactly once', () => {
   const f = fixture(2);
-  f.elements[0].rect = { top: 795, bottom: 895, left: 40, right: 240, width: 200, height: 100 };
-  f.elements[1].rect = { top: -95, bottom: 5, left: 40, right: 240, width: 200, height: 100 };
+  assert.deepEqual(f.observer.options.threshold, [0, 0.01]);
+  f.observer.entries(f.elements.map(target => ({ target, isIntersecting: true, intersectionRatio: 0 })));
+  assert.ok(f.elements.every(element => element.animations.length === 0));
+  assert.ok(f.elements.every(element => element.hasAttribute('data-motion-pending')));
   f.observer.enter(...f.elements);
-  assert.equal(f.elements[0].animations[0].keyframes[0].transform, 'translate3d(0, -20px, 0)');
-  assert.equal(f.elements[1].animations[0].keyframes[0].transform, 'translate3d(0, 20px, 0)');
-  // Visuals grow slightly outward instead of shrinking the intersecting edge away.
-  assert.match(motionKeyframes('scale', { x: 1, y: -1 })[0].transform, /scale\(1\.02\)/);
+  f.observer.enter(...f.elements);
+  assert.ok(f.elements.every(element => element.animations.length === 1));
   f.dispose();
 });
 
-test('horizontal edge entries and viewport-spanning visuals keep intersecting', () => {
-  const f = fixture(3);
-  f.targets[0].style = 'slide';
-  f.targets[1].style = 'slide';
-  f.targets[2].style = 'scale';
-  f.elements[0].rect = { top: 100, bottom: 200, left: -195, right: 5, width: 200, height: 100 };
-  f.elements[1].rect = { top: 100, bottom: 200, left: 1195, right: 1395, width: 200, height: 100 };
-  f.elements[2].rect = { top: -300, bottom: 1300, left: 40, right: 240, width: 200, height: 1600 };
-  f.observer.enter(...f.elements);
-  assert.equal(f.elements[0].animations[0].keyframes[0].transform, 'translate3d(14px, 0, 0)');
-  assert.equal(f.elements[1].animations[0].keyframes[0].transform, 'translate3d(-14px, 0, 0)');
-  assert.equal(f.elements[2].animations[0].keyframes[0].transform, 'translate3d(0, -12px, 0) scale(1.02)');
+test('an active item reaching zero-area edge contact immediately releases its animation', () => {
+  const f = fixture(2);
+  f.observer.enter(f.elements[0]);
+  f.observer.entries(f.elements.map(target => ({ target, isIntersecting: true, intersectionRatio: 0 })));
+  assert.equal(f.elements[0].animations[0].cancelled, true);
+  assert.equal(f.elements[0].hasAttribute('data-motion-pending'), false);
+  assert.equal(f.elements[1].animations.length, 0);
+  assert.equal(f.elements[1].hasAttribute('data-motion-pending'), true);
   f.dispose();
+});
+
+test('initial rect measurement excludes edge contact and admits a viewport-spanning target', () => {
+  const f = fixture(4);
+  f.dispose();
+  f.elements[0].rect = { top: 800, bottom: 900, left: 40, right: 240, width: 200, height: 100 };
+  f.elements[1].rect = { top: -100, bottom: 0, left: 40, right: 240, width: 200, height: 100 };
+  f.elements[2].rect = { top: 100, bottom: 200, left: 1200, right: 1400, width: 200, height: 100 };
+  f.elements[3].rect = { top: -300, bottom: 1300, left: 40, right: 240, width: 200, height: 1600 };
+  const cleanup = createViewportMotion(f.root, f.targets, {}, f.environment);
+  assert.deepEqual(f.elements.map(element => element.animations.length), [0, 0, 0, 1]);
+  cleanup();
 });
 
 test('entry order is stable with a bounded stagger and no delay for later isolated entries', () => {
   const f = fixture(8);
   f.observer.enter(...f.elements.slice(0, 7).reverse());
-  assert.deepEqual(f.elements.slice(0, 7).map(e => e.animations[0].options.delay), [0, 75, 150, 225, 300, 300, 300]);
+  assert.deepEqual(f.elements.slice(0, 7).map(e => e.animations[0].options.delay), [0, 60, 120, 180, 180, 180, 180]);
   f.observer.enter(f.elements[7]);
   assert.equal(f.elements[7].animations[0].options.delay, 0);
   f.dispose();
@@ -151,6 +165,7 @@ test('leaving cancels active and delayed animations, unobserves, and does not re
   f.observer.enter(...f.elements);
   f.observer.leave(f.elements[1]);
   assert.equal(f.elements[1].animations[0].cancelled, true);
+  assert.equal(f.elements[1].hasAttribute('data-motion-pending'), false);
   assert.equal(f.observer.observed.has(f.elements[1]), false);
   f.observer.enter(f.elements[1]);
   assert.equal(f.elements[1].animations.length, 1);
@@ -162,6 +177,7 @@ test('completed animations release their effects and all listeners after the las
   f.observer.enter(...f.elements);
   f.elements.forEach(element => element.animations[0].finish());
   assert.ok(f.elements.every(element => element.animations[0].cancelled));
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
   assert.equal(f.observer.observed.size, 0);
   for (const eventTarget of [f.root, f.doc, f.win, f.reduced]) assert.equal(eventTarget.listenerCount(), 0);
   f.dispose();
@@ -173,6 +189,7 @@ test('hidden tabs cancel active work and resume observing only unseen content', 
   f.doc.hidden = true;
   f.doc.emit('visibilitychange');
   assert.equal(f.elements[0].animations[0].cancelled, true);
+  assert.equal(f.elements[0].hasAttribute('data-motion-pending'), false);
   assert.equal(f.observer.observed.size, 0);
   f.observer.enter(f.elements[1]);
   assert.equal(f.elements[1].animations.length, 0);
@@ -186,6 +203,7 @@ test('hidden tabs cancel active work and resume observing only unseen content', 
 test('initial reduced motion stays static and a runtime preference change cancels everything', () => {
   const staticPage = fixture(3, { reduced: true });
   assert.equal(staticPage.observer.observed.size, 0);
+  assert.ok(staticPage.elements.every(element => !element.hasAttribute('data-motion-pending')));
   staticPage.observer.enter(...staticPage.elements);
   assert.ok(staticPage.elements.every(element => element.animations.length === 0));
   const f = fixture();
@@ -193,6 +211,7 @@ test('initial reduced motion stays static and a runtime preference change cancel
   f.reduced.matches = true;
   f.reduced.emit('change');
   assert.ok(f.elements.every(element => element.animations[0].cancelled));
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
   assert.equal(f.observer.observed.size, 0);
   assert.equal(f.reduced.listenerCount(), 0);
 });
@@ -204,12 +223,14 @@ test('keyboard focus immediately settles active or unseen content', () => {
   f.observer.enter(f.elements[0]);
   f.root.emit('focusin', link);
   assert.equal(f.elements[0].animations[0].cancelled, true);
+  assert.equal(f.elements[0].hasAttribute('data-motion-pending'), false);
   f.doc.activeElement = f.elements[1];
   f.observer.enter(f.elements[1]);
   assert.equal(f.elements[1].animations.length, 0);
   f.root.emit('focusin', f.elements[2]);
   f.observer.enter(f.elements[2]);
   assert.equal(f.elements[2].animations.length, 0);
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
 });
 
 test('missing observers or animation support leave readable static content', () => {
@@ -222,14 +243,52 @@ test('missing observers or animation support leave readable static content', () 
   fallback.elements[1].animate = () => { throw new Error('unsupported'); };
   fallback.observer.enter(...fallback.elements);
   assert.equal(fallback.observer.observed.size, 1);
+  assert.ok(fallback.elements.slice(0, 2).every(element => !element.hasAttribute('data-motion-pending')));
   fallback.dispose();
+});
+
+test('partial observer setup failure restores all armed content', () => {
+  const f = fixture();
+  f.dispose();
+  class BrokenObserver {
+    observe() { throw new Error('observer setup failed'); }
+    disconnect() {}
+    unobserve() {}
+  }
+  const cleanup = createViewportMotion(f.root, f.targets, {}, { ...f.environment, Observer: BrokenObserver });
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
+  for (const target of [f.root, f.doc, f.win, f.reduced]) assert.equal(target.listenerCount(), 0);
+  cleanup();
+});
+
+test('older media-query APIs fall back to static content without throwing during cleanup', () => {
+  const f = fixture();
+  f.dispose();
+  const legacyWindow = { ...f.win, matchMedia: () => ({ matches: false }) };
+  const cleanup = createViewportMotion(f.root, f.targets, {}, { ...f.environment, window: legacyWindow });
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
+  cleanup();
+});
+
+test('completion removes pending opacity before cancelling the held final frame', () => {
+  const f = fixture(1);
+  f.observer.enter(...f.elements);
+  const element = f.elements[0];
+  const animation = element.animations[0];
+  assert.equal(animation.options.fill, 'both');
+  animation.cancel = () => {
+    assert.equal(element.hasAttribute('data-motion-pending'), false);
+    animation.cancelled = true;
+  };
+  animation.finish();
+  assert.equal(animation.cancelled, true);
 });
 
 test('mobile menu is faster, staggered, and cancels on desktop resizing', () => {
   const f = fixture(5, { menu: true });
   f.observer.enter(...f.elements);
-  assert.deepEqual(f.elements.map(e => e.animations[0].options.delay), [0, 65, 130, 195, 260]);
-  assert.equal(f.elements[0].animations[0].options.duration, 380);
+  assert.deepEqual(f.elements.map(e => e.animations[0].options.delay), [0, 55, 110, 165, 220]);
+  assert.equal(f.elements[0].animations[0].options.duration, 360);
   f.mobile.matches = false;
   f.mobile.emit('change');
   assert.ok(f.elements.every(element => element.animations[0].cancelled));
@@ -245,7 +304,7 @@ test('menu close/unmount cleans up and reopening starts a fresh stagger', () => 
   assert.equal(f.observer.observed.size, 0);
   const closeAgain = createViewportMotion(f.root, f.targets, { mobileMenu: true }, f.environment);
   f.observers[1].enter(...f.elements);
-  assert.deepEqual(f.elements.map(e => e.animations[1].options.delay), [0, 65, 130, 195, 260]);
+  assert.deepEqual(f.elements.map(e => e.animations[1].options.delay), [0, 55, 110, 165, 220]);
   closeAgain();
   for (const target of [f.root, f.doc, f.win, f.reduced, f.mobile]) assert.equal(target.listenerCount(), 0);
 });
@@ -257,20 +316,25 @@ test('printing and effect cleanup remove all animation effects and stale callbac
   f.dispose();
   f.observer.enter(...f.elements);
   assert.ok(f.elements.every(element => element.animations.length === 1 && element.animations[0].cancelled));
+  assert.ok(f.elements.every(element => !element.hasAttribute('data-motion-pending')));
   assert.equal(f.doc.listenerCount(), 0);
 });
 
-test('styles only animate opacity and transform and finish at the unstyled position', () => {
-  for (const style of ['rise', 'slide', 'scale']) {
+test('effects never alter geometry, and selected blur resolves fully to crisp text', () => {
+  for (const style of ['fade', 'blur']) {
     const frames = motionKeyframes(style);
-    assert.deepEqual(Object.keys(frames[0]).sort(), ['opacity', 'transform']);
-    assert.deepEqual(frames[1], { opacity: 1, transform: 'none' });
+    assert.ok(frames.every(frame => !('transform' in frame) && !('translate' in frame) && !('scale' in frame)));
+    assert.equal(frames.at(-1).opacity, 1);
   }
+  assert.equal(motionKeyframes('blur')[0].filter, 'blur(3px)');
+  assert.equal(motionKeyframes('blur').at(-1).filter, 'blur(0px)');
+  assert.ok(motionKeyframes('fade').every(frame => !('filter' in frame)));
 });
 
 test('target discovery excludes 3D, live regions, their ancestors, and nested reveal units', () => {
   const root = new Element();
   const heading = new Element();
+  heading.selectors.add('h2');
   const viewer = new Element(); viewer.selectors.add('.studio-viewer');
   const caption = new Element(); caption.parentElement = viewer;
   const containingViewer = new Element(); containingViewer.descendants = [viewer];
@@ -286,5 +350,5 @@ test('target discovery excludes 3D, live regions, their ancestors, and nested re
   };
   const targets = pageMotionTargets(root);
   assert.deepEqual(targets.map(target => target.element), [heading, list, visual]);
-  assert.deepEqual(targets.map(target => target.style), ['rise', 'slide', 'scale']);
+  assert.deepEqual(targets.map(target => target.style), ['blur', 'fade', 'fade']);
 });

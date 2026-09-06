@@ -1,4 +1,4 @@
-export type MotionStyle = "rise" | "slide" | "scale";
+export type MotionStyle = "fade" | "blur";
 export type MotionTarget = {
   element: HTMLElement;
   group: Element;
@@ -34,9 +34,7 @@ export function pageMotionTargets(root: HTMLElement): MotionTarget[] {
   }).map(element => ({
     element,
     group: element.closest(groupSelector) ?? root,
-    style: element.matches(".flash-visual, .owner-visual") ? "scale"
-      : element.matches("li, details, .profile-link-example, .setup-card-top") ? "slide"
-        : "rise",
+    style: element.matches("h1, h2, h3, .section-intro, .hero-intro > p") ? "blur" : "fade",
   }));
 }
 
@@ -46,16 +44,19 @@ type MotionEnvironment = {
   Observer: typeof IntersectionObserver | undefined;
 };
 
-export function motionKeyframes(style: MotionStyle, inward = { x: -1, y: 1 }): Keyframe[] {
-  const transform = style === "slide" ? `translate3d(${inward.x * 14}px, 0, 0)`
-    : style === "scale" ? `translate3d(0, ${inward.y * 12}px, 0) scale(1.02)`
-      : `translate3d(0, ${inward.y * 20}px, 0)`;
-  return [{ opacity: 0, transform }, { opacity: 1, transform: "none" }];
+export function motionKeyframes(style: MotionStyle): Keyframe[] {
+  // Neither effect changes the observed box, so an entrance cannot move an item
+  // across the viewport boundary or generate its own exit notification.
+  return style === "blur" ? [
+    { opacity: 0, filter: "blur(3px)", offset: 0 },
+    { opacity: 1, filter: "blur(0px)", offset: 0.8 },
+    { opacity: 1, filter: "blur(0px)", offset: 1 },
+  ] : [{ opacity: 0 }, { opacity: 1 }];
 }
 
 /**
- * Content stays mounted and visible by default. Only transient animation instances
- * are created on entry; exit, completion, focus, and teardown all release them.
+ * Content is visible without JS. Eligible unseen targets are pre-armed with a
+ * static opacity state; only in-viewport items receive animation instances.
  */
 export function createViewportMotion(
   root: HTMLElement,
@@ -68,6 +69,10 @@ export function createViewportMotion(
 
   const reducedMotion = win.matchMedia("(prefers-reduced-motion: reduce)");
   const mobile = options.mobileMenu ? win.matchMedia("(max-width: 1000px)") : null;
+  if ([reducedMotion, mobile].some(media => media &&
+    (typeof media.addEventListener !== "function" || typeof media.removeEventListener !== "function"))) {
+    return () => {};
+  }
   const pending = new Map(targets.map(target => [target.element, target]));
   const active = new Map<HTMLElement, Animation>();
   const order = new Map(targets.map((target, index) => [target.element, index]));
@@ -75,6 +80,7 @@ export function createViewportMotion(
   let disposed = false;
 
   function settle(element: HTMLElement) {
+    element.removeAttribute("data-motion-pending");
     const animation = active.get(element);
     if (animation) {
       animation.onfinish = null;
@@ -91,7 +97,7 @@ export function createViewportMotion(
     return !disposed && !doc.hidden && !reducedMotion.matches && (!mobile || mobile.matches);
   }
 
-  function entered(entries: Pick<IntersectionObserverEntry, "target" | "isIntersecting" | "boundingClientRect">[]) {
+  function entered(entries: Pick<IntersectionObserverEntry, "target" | "isIntersecting" | "intersectionRatio">[]) {
     if (!canRun()) return;
     const stagger = new Map<Element, number>();
     // Layout visibility is individual, so long mobile sections never pre-run.
@@ -100,7 +106,7 @@ export function createViewportMotion(
       const element = entry.target as HTMLElement;
       const target = pending.get(element);
       if (!target) continue;
-      if (!entry.isIntersecting) {
+      if (!entry.isIntersecting || entry.intersectionRatio <= 0) {
         if (active.has(element)) settle(element);
         continue;
       }
@@ -112,18 +118,12 @@ export function createViewportMotion(
       const index = stagger.get(target.group) ?? 0;
       stagger.set(target.group, index + 1);
       try {
-        // Move toward the viewport, never out across the entry boundary. This
-        // prevents a transform from generating its own false exit notification.
-        const rect = entry.boundingClientRect;
-        const inward = {
-          x: rect.left + rect.width / 2 < win.innerWidth / 2 ? 1 : -1,
-          y: rect.top + rect.height / 2 < win.innerHeight / 2 ? 1 : -1,
-        };
-        const animation = element.animate(motionKeyframes(target.style, inward), {
-          duration: options.mobileMenu ? 380 : target.style === "scale" ? 700 : 560,
-          delay: Math.min(index * (options.mobileMenu ? 65 : 75), 300),
-          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-          fill: "backwards",
+        const animation = element.animate(motionKeyframes(target.style), {
+          duration: options.mobileMenu ? 360 : target.style === "blur" ? 600 : 460,
+          delay: Math.min(index * (options.mobileMenu ? 55 : 60), options.mobileMenu ? 220 : 180),
+          easing: "cubic-bezier(0.2, 0.65, 0.3, 1)",
+          // Hold the final frame until settle removes the pending opacity state.
+          fill: "both",
           iterations: 1,
         });
         active.set(element, animation);
@@ -149,14 +149,23 @@ export function createViewportMotion(
     if (canRun()) {
       // Collect layout reads first, then animate. Called from a layout effect so
       // the hero/menu cannot flash visible before their first entry animation.
-      const visibleEntries = Array.from(pending.keys()).map(element => ({
-        target: element,
-        boundingClientRect: element.getBoundingClientRect(),
-        isIntersecting: true,
-      })).filter(({ boundingClientRect: rect }) => rect.width > 0 && rect.height > 0
-        && rect.bottom > 0 && rect.top < win.innerHeight
-        && rect.right > 0 && rect.left < win.innerWidth);
-      for (const element of pending.keys()) observer?.observe(element);
+      const visibleEntries = Array.from(pending.keys()).map(element => {
+        const rect = element.getBoundingClientRect();
+        const width = Math.max(0, Math.min(rect.right, win.innerWidth) - Math.max(rect.left, 0));
+        const height = Math.max(0, Math.min(rect.bottom, win.innerHeight) - Math.max(rect.top, 0));
+        return { target: element, isIntersecting: width > 0 && height > 0,
+          intersectionRatio: rect.width * rect.height > 0 ? width * height / (rect.width * rect.height) : 0 };
+      }).filter(entry => entry.isIntersecting);
+      for (const element of pending.keys()) {
+        if (typeof element.animate !== "function" || element.contains(doc.activeElement)) {
+          settle(element);
+          continue;
+        }
+        // Pre-arm even far-below-fold content before paint, without animations,
+        // timers, blur, or compositor hints running while it is offscreen.
+        element.setAttribute("data-motion-pending", "");
+        observer?.observe(element);
+      }
       entered(visibleEntries);
     }
   }
@@ -172,6 +181,7 @@ export function createViewportMotion(
     disposed = true;
     observer?.disconnect();
     observer = null;
+    for (const element of pending.keys()) element.removeAttribute("data-motion-pending");
     for (const animation of active.values()) {
       animation.onfinish = null;
       animation.oncancel = null;
@@ -187,12 +197,18 @@ export function createViewportMotion(
     mobile?.removeEventListener("change", syncVisibility);
   }
 
-  observer = new Observer(entered, { threshold: 0, rootMargin: "0px" });
-  root.addEventListener("focusin", focusContent);
-  doc.addEventListener("visibilitychange", syncVisibility);
-  win.addEventListener("beforeprint", dispose);
-  reducedMotion.addEventListener("change", syncVisibility);
-  mobile?.addEventListener("change", syncVisibility);
-  syncVisibility();
+  try {
+    // Edge contact is not visible area; 1% ensures another callback after touch.
+    observer = new Observer(entered, { threshold: [0, 0.01], rootMargin: "0px" });
+    root.addEventListener("focusin", focusContent);
+    doc.addEventListener("visibilitychange", syncVisibility);
+    win.addEventListener("beforeprint", dispose);
+    reducedMotion.addEventListener("change", syncVisibility);
+    mobile?.addEventListener("change", syncVisibility);
+    syncVisibility();
+  } catch {
+    // Even partial observer setup failure must restore every pre-armed target.
+    dispose();
+  }
   return dispose;
 }

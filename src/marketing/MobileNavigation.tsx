@@ -11,7 +11,7 @@ export function MobileNavigation({ items, onNavigate }: {
     const root = menu.current;
     if (!root) return;
     return createViewportMotion(root, Array.from(root.querySelectorAll("a")).map(element => ({
-      element, group: root, style: "slide",
+      element, group: root, style: "blur",
     })), { mobileMenu: true });
   }, []);
 
