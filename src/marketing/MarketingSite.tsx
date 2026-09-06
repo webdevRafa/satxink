@@ -184,43 +184,41 @@ function HomePage() {
       <section className="section shell connection-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Your shop, connected</p>
+            <p className="eyebrow">Start with your artists</p>
             <h2>
-              Connected tools
+              A flash marketplace.
               <br />
-              for your whole shop.
+              Just for your shop.
             </h2>
           </div>
           <p className="section-intro">
-            Give your artists a direct path from flash sheet to your shop’s
-            live marketplace—with room for every artist and every location.
+            SATX INK gives your shop a dedicated flash marketplace, exclusively
+            for you and your artists. Getting your team’s work online is simple.
           </p>
         </div>
         <div className="feature-columns">
           <article>
-            <span className="feature-number">01 / YOUR MARKETPLACE</span>
-            <h3>Upload. Publish. Go live.</h3>
+            <span className="feature-number">01 / INVITE</span>
+            <h3>Bring your artists on board.</h3>
             <p>
-              Artists upload flash sheets and publish individual designs
-              straight to your shop’s own marketplace, where clients can
-              discover the work and request a design.
+              Send your artists an invite. After a quick onboarding,
+              they’re ready to start adding their work.
             </p>
           </article>
           <article>
-            <span className="feature-number">02 / YOUR ARTISTS</span>
-            <h3>Unlimited artists.</h3>
+            <span className="feature-number">02 / PUBLISH</span>
+            <h3>Put their flash out there.</h3>
             <p>
-              Invite your entire team. Every artist gets their own profile
-              and dashboard, with no limit on how many artists you can add.
+              Artists upload their flash sheets and publish their designs
+              to your shop’s live marketplace, where clients can browse the work.
             </p>
           </article>
           <article>
-            <span className="feature-number">03 / YOUR LOCATIONS</span>
-            <h3>Unlimited locations.</h3>
+            <span className="feature-number">03 / SHARE</span>
+            <h3>A profile they can share.</h3>
             <p>
-              One studio or several, your setup has room for them all.
-              Add as many locations as you need and assign your artists
-              to the studios where they work.
+              Every artist gets their own public profile and a unique link
+              they can share on Instagram or anywhere else they post their work.
             </p>
           </article>
         </div>
