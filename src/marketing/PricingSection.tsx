@@ -11,7 +11,7 @@ export function PricingSection() {
         <div>
           <p className="eyebrow">Pricing & Support</p>
           <h2 id="pricing-title">
-            Your complete shop system.
+            Your marketplace & shop tools.
             <br />
             Set up for $500.
           </h2>
@@ -24,9 +24,9 @@ export function PricingSection() {
       </div>
       <div className="setup-grid">
         <article className="setup-card pricing-card">
-          <h3>Complete deployment</h3>
+          <h3>Setup & deployment</h3>
           <p className="price-amount"><strong>$500</strong> <span>one time</span></p>
-          <p>Your complete system, deployed and connected for one setup fee.</p>
+          <p>Your website or portal, database, and integrations—connected for one setup fee.</p>
           <ul className="check-list">
             <li><Check aria-hidden="true" />Full website or branded portal deployment.</li>
             <li><Check aria-hidden="true" />Your own database, powered by Google Firebase.</li>

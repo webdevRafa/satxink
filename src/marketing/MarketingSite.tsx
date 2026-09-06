@@ -161,17 +161,17 @@ function HomePage() {
         <div className="hero-copy">
           <div>
             <p className="eyebrow">
-              <span /> A complete system for tattoo shops
+              <span /> Software for tattoo shops
             </p>
             <h1 id="hero-title">
-              Give your <em>shop</em> its very own <em>marketplace</em>, and much more.
+              Your <em>shop</em>. Your <em>marketplace</em>. Your way.
             </h1>
           </div>
           <div className="hero-intro">
             <p>
               Level up your website with a dedicated flash marketplace,
-              including dashboards for shop owners and artists—all connected
-              in one complete system, set up independently for your shop.
+              including dashboards for shop owners and artists—all brought
+              together in one connected setup, installed independently for your shop.
             </p>
             <a className="text-link" href="#how-it-works">
               See how it works <ArrowDown size={16} />
@@ -186,7 +186,7 @@ function HomePage() {
           <div>
             <p className="eyebrow">Your shop, connected</p>
             <h2>
-              A complete setup
+              Connected tools
               <br />
               for your whole shop.
             </h2>
@@ -432,13 +432,13 @@ function HomePage() {
         <div className="setup-grid">
           <article className="setup-card">
             <div className="setup-card-top">
-              <span>01 / THE COMPLETE SETUP</span>
+              <span>01 / A NEW WEBSITE + TOOLS</span>
               <Globe2 size={24} />
             </div>
             <h3>A new shop website + SATX INK tools.</h3>
             <p>
               Start fresh with a website for your shop, with your marketplace,
-              booking tools, and dashboards connected in one complete setup.
+              booking tools, and dashboards connected under your brand.
             </p>
             <ul className="check-list">
               <li>
@@ -453,7 +453,7 @@ function HomePage() {
               </li>
             </ul>
             <a href="#contact">
-              Talk about the complete setup <ArrowUpRight size={18} />
+              Talk about a new website <ArrowUpRight size={18} />
             </a>
           </article>
           <article className="setup-card">
