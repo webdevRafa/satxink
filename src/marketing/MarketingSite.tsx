@@ -184,12 +184,8 @@ function HomePage() {
       <section className="section shell connection-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Start with your artists</p>
-            <h2>
-              A flash marketplace.
-              <br />
-              Just for your shop.
-            </h2>
+            <p className="eyebrow">Here’s how it works</p>
+            <h2>Bring your team’s flash online.</h2>
           </div>
           <p className="section-intro">
             SATX INK gives your shop a dedicated flash marketplace, exclusively
