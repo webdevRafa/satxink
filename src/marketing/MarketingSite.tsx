@@ -203,7 +203,7 @@ function HomePage() {
           </article>
           <article>
             <span className="feature-number">02 / PUBLISH</span>
-            <h3>Put their flash out there.</h3>
+            <h3>Drop the flash.</h3>
             <p>
               Artists upload their flash sheets and publish their designs
               to your shop’s live marketplace, where clients can browse the work.
