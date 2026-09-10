@@ -202,32 +202,121 @@ section[id] {
 }
 .hero {
   padding-top: 65px;
+  padding-bottom: 88px;
+}
+.hero-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.72fr);
+  gap: clamp(48px, 7vw, 104px);
+  align-items: center;
 }
 .hero-copy {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 6%;
-  align-items: end;
-  margin-bottom: 44px;
+  max-width: 760px;
 }
 .hero h1 {
-  font-size: clamp(2rem, 3.4vw, 3.25rem);
-  line-height: 1.12;
+  font-size: clamp(2.5rem, 5.2vw, 5.35rem);
+  line-height: 0.98;
   font-weight: 600;
-  margin: 0;
-  max-width: 850px;
+  letter-spacing: -0.055em;
+  margin: 0 0 30px;
+  max-width: 800px;
 }
 .hero h1 em {
   color: #e26659;
+  font-style: normal;
 }
-.hero-intro {
-  max-width: 440px;
-  padding-bottom: 5px;
-}
-.hero-intro > p {
+.hero-copy > p:not(.eyebrow):not(.hero-note) {
   color: #b7b7b7;
-  font-size: 1.06rem;
-  margin-bottom: 1.5rem;
+  font-size: 1.08rem;
+  max-width: 630px;
+  margin-bottom: 28px;
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+}
+.hero-actions .text-link {
+  margin-left: 0;
+}
+.hero-note {
+  color: #969696;
+  font-size: 0.8rem;
+  margin: 13px 0 0;
+}
+.product-demo {
+  position: relative;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #312b2a;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 20%, #3d201d 0, transparent 44%),
+    #141313;
+  box-shadow: 0 34px 80px #0000005c;
+  overflow: hidden;
+}
+.product-demo-topline,
+.product-demo figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9d9897;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+.product-demo-topline {
+  padding-inline: 2px;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.product-demo-topline span:nth-child(2) {
+  margin-right: auto;
+}
+.product-demo-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e26659;
+  box-shadow: 0 0 0 4px #e2665918;
+  flex: none;
+}
+.product-demo-frame {
+  display: grid;
+  place-items: center;
+  min-height: 540px;
+  padding: 14px;
+  border: 1px solid #37302f;
+  border-radius: 12px;
+  background: #090909;
+}
+.product-demo video {
+  display: block;
+  width: min(100%, 353px);
+  height: auto;
+  max-height: min(64vh, 650px);
+  aspect-ratio: 720 / 1326;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #0b0b0b;
+  box-shadow: 0 20px 48px #0009;
+}
+.product-demo figcaption {
+  padding: 15px 2px 1px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.product-demo figcaption a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #ef8e81;
+  white-space: nowrap;
+}
+.product-demo figcaption a:hover {
+  color: #fff;
 }
 .text-link {
   display: inline-flex;
@@ -240,9 +329,6 @@ section[id] {
 }
 .text-link:hover {
   color: #ed8a7e;
-}
-.hero-intro .text-link {
-  margin: 0;
 }
 .studio-stage {
   position: relative;
@@ -328,12 +414,12 @@ section[id] {
   .shell {
     width: calc(100% - 56px);
   }
-  .hero-copy {
-    grid-template-columns: 1.4fr 1fr;
-    gap: 4%;
+  .hero-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.62fr);
+    gap: 40px;
   }
   .hero h1 {
-    font-size: 2.4rem;
+    font-size: clamp(2.8rem, 5vw, 4.2rem);
   }
 }
 @media (max-width: 767px) {
@@ -355,21 +441,25 @@ section[id] {
   }
   .hero {
     padding-top: 40px;
+    padding-bottom: 70px;
   }
-  .hero-copy {
-    display: block;
-    margin-bottom: 28px;
+  .hero-layout {
+    grid-template-columns: 1fr;
+    gap: 44px;
   }
   .hero h1 {
-    font-size: clamp(1.8rem, 6.6vw, 2.5rem);
+    font-size: clamp(2.55rem, 11vw, 4.25rem);
     max-width: 620px;
   }
-  .hero-intro {
-    max-width: 600px;
-    margin-top: 24px;
-  }
-  .hero-intro > p {
+  .hero-copy > p:not(.eyebrow):not(.hero-note) {
     font-size: 1rem;
+  }
+  .product-demo {
+    width: min(100%, 480px);
+    margin-inline: auto;
+  }
+  .product-demo video {
+    max-height: min(68vh, 620px);
   }
   .eyebrow {
     margin-bottom: 1.15rem;
@@ -397,6 +487,21 @@ section[id] {
   }
   .section {
     padding-block: 64px;
+  }
+  .product-demo {
+    padding: 12px;
+    border-radius: 13px;
+  }
+  .product-demo-topline span:last-child {
+    display: none;
+  }
+  .product-demo-frame {
+    min-height: 0;
+    padding: 8px;
+  }
+  .product-demo figcaption {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import {
-  ArrowDown,
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
@@ -17,7 +16,6 @@ import {
   X,
 } from "lucide-react";
 import logo from "../assets/satx-short-sep.svg";
-import { StudioHero } from "./StudioHero";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
@@ -158,27 +156,69 @@ function HomePage() {
   return (
     <>
       <section className="hero shell" aria-labelledby="hero-title">
-        <div className="hero-copy">
-          <div>
+        <div className="hero-layout">
+          <div className="hero-copy">
             <p className="eyebrow">
               <span /> Software for tattoo shops
             </p>
             <h1 id="hero-title">
-              Your shop <em>+</em> its very own marketplace
+              Your artists. Your bookings. <em>One connected system.</em>
             </h1>
-          </div>
-          <div className="hero-intro">
             <p>
-              Level up your website with a dedicated flash marketplace,
-              including dashboards for shop owners and artists—all brought
-              together in one connected setup, installed independently for your shop.
+              Publish available flash, review requests, send booking offers,
+              and collect deposits—all under your shop’s brand. Start with a
+              new website or connect the system to the one you already have.
             </p>
-            <a className="text-link" href="#how-it-works">
-              See how it works <ArrowDown size={16} />
-            </a>
+            <div className="hero-actions">
+              <a
+                className="button"
+                href="https://demo.satxink.com/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Explore the demo <ArrowUpRight size={18} />
+              </a>
+              <a className="text-link" href="#contact">
+                Talk about your shop <ArrowRight size={16} />
+              </a>
+            </div>
+            <p className="hero-note">No account needed to browse the demo.</p>
           </div>
+
+          <figure className="product-demo">
+            <div className="product-demo-topline">
+              <span className="product-demo-dot" aria-hidden="true" />
+              <span>Real product walkthrough</span>
+              <span>00:42 · No sound</span>
+            </div>
+            <div className="product-demo-frame">
+              <video
+                controls
+                playsInline
+                preload="none"
+                poster="/media/flash-marketplace-demo-poster.jpg"
+                aria-label="Watch a 42-second mobile walkthrough of browsing flash designs, previewing a design, and opening a flash request."
+              >
+                <source
+                  src="/media/flash-marketplace-demo.mp4"
+                  type="video/mp4"
+                />
+                Your browser does not support embedded video. You can still
+                explore the live SATX INK demo using the link below.
+              </video>
+            </div>
+            <figcaption>
+              <span>Browse flash · Preview a design · Start a request</span>
+              <a
+                href="https://demo.satxink.com/flash"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Try it live <ArrowUpRight size={16} />
+              </a>
+            </figcaption>
+          </figure>
         </div>
-        <StudioHero />
       </section>
 
       <section className="section shell connection-section">

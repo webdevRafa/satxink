@@ -116,13 +116,18 @@ test('web posters have the expected format and all approved artwork is present',
   }
   for (let index = 1; index <= 3; index++) assert.match(readFileSync(new URL(`../public/studio/flash-0${index}.svg`, import.meta.url), 'utf8'), /<svg/);
 });
-test('production output keeps 3D lazy and the legacy backend out of the public bundle', () => {
+test('production output ships the lightweight product demo and keeps the legacy backend out of the public bundle', () => {
   const output = new URL('../dist/assets/', import.meta.url);
   const files = readdirSync(output);
-  assert.ok(files.some(file => file.startsWith('studioRenderer-') && file.endsWith('.js')));
+  assert.ok(!files.some(file => file.startsWith('studioRenderer-') && file.endsWith('.js')));
   const index = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
-  assert.ok(!/modulepreload[^>]+studioRenderer/.test(index));
   assert.ok(!index.includes('satx-ink-studio.glb'));
+  const video = readFileSync(new URL('../dist/media/flash-marketplace-demo.mp4', import.meta.url));
+  assert.equal(video.toString('ascii', 4, 8), 'ftyp');
+  assert.ok(video.length < 8_000_000);
+  const poster = readFileSync(new URL('../dist/media/flash-marketplace-demo-poster.jpg', import.meta.url));
+  assert.equal(poster[0], 0xff);
+  assert.equal(poster[1], 0xd8);
   for (const file of files.filter(file => file.endsWith('.js'))) {
     assert.doesNotMatch(readFileSync(new URL(file, output), 'utf8'), /identitytoolkit\.googleapis|firestore\.googleapis|firebaseapp\.com|cloudfunctions\.net/);
   }
