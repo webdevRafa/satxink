@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Copy,
   Globe2,
-  Layers3,
   Mail,
   Menu,
   MoveUpRight,
@@ -258,39 +257,20 @@ function HomePage() {
 
       <section id="for-artists" className="section artist-section">
         <div className="shell split-section">
-          <div className="flash-visual">
-            <div className="visual-topline">
-              <Layers3 size={17} />
-              <span>Your artists. Your next flash drop.</span>
-            </div>
-            <div className="flash-art">
-              <img
-                src="/studio/flash-01.svg"
-                alt="Illustrative ornamental dagger flash"
-                loading="lazy"
-                width="700"
-                height="1000"
-              />
-              <img
-                src="/studio/flash-02.svg"
-                alt="Illustrative swallow and flower flash"
-                loading="lazy"
-                width="700"
-                height="1000"
-              />
-              <img
-                src="/studio/flash-03.svg"
-                alt="Illustrative rose flash"
-                loading="lazy"
-                width="700"
-                height="1000"
-              />
-            </div>
-            <div className="visual-bottomline">
-              <span>Example flash artwork</span>
-              <span>Made to be shared.</span>
-            </div>
-          </div>
+          <figure className="artist-demo">
+            <video
+              controls
+              playsInline
+              preload="none"
+              width="720"
+              height="1306"
+              poster="/media/artist-flash-demo-poster.jpg"
+              aria-label="Artist walkthrough: crop individual flash designs from a sheet, add prices and details, and save drafts."
+            >
+              <source src="/media/artist-flash-demo.mp4" type="video/mp4" />
+              <a href="/media/artist-flash-demo.mp4">Watch the artist walkthrough</a>
+            </video>
+          </figure>
           <div>
             <p className="eyebrow">For the artists</p>
             <h2>Your team.</h2>

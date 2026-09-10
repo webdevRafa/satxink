@@ -627,6 +627,16 @@ section[id] {
   background: #181818;
   border-block: 1px solid var(--line);
 }
+.artist-demo {
+  width: min(100%, 353px);
+  margin: 0 auto;
+}
+.artist-demo video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 720 / 1306;
+}
 .split-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
