@@ -16,6 +16,7 @@ import {
 // Restore the previous modern logo with satx-ink-modern.svg, or the original with satx-short-sep.svg.
 import logo from "../assets/satx-ink-modern-optical.svg";
 import { ViewportVideo } from "./ViewportVideo";
+import { MarketplaceScreenshot } from "./MarketplaceScreenshot";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
@@ -379,16 +380,7 @@ function HomePage() {
             </div>
           </div>
           <figure className="owner-visual">
-            <a href="/media/flash-marketplace-desktop.webp" target="_blank" rel="noreferrer" aria-label="View the flash collection screenshot at full size (opens a new tab)">
-              <img
-                src="/media/flash-marketplace-desktop.webp"
-                alt="Graven House demo studio’s flash collection, with artist attribution, prices, and one-of-one designs"
-                width="1825"
-                height="906"
-                loading="lazy"
-                decoding="async"
-              />
-            </a>
+            <MarketplaceScreenshot />
             <figcaption>
               <span>Your shop’s flash, in one place. Shown in the demo studio.</span>
               <a href="https://demo.satxink.com/flash" target="_blank" rel="noreferrer">Explore the demo <ArrowUpRight size={16} /></a>
