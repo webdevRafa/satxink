@@ -10,7 +10,6 @@ import {
   Globe2,
   Mail,
   Menu,
-  MoveUpRight,
   Users,
   X,
 } from "lucide-react";
@@ -380,26 +379,19 @@ function HomePage() {
             </div>
           </div>
           <figure className="owner-visual">
-            <picture>
-              <source
-                media="(max-width: 760px)"
-                srcSet="/studio/cinematic/satx-ink-studio-detail.webp"
-              />
+            <a href="/media/flash-marketplace-desktop.webp" target="_blank" rel="noreferrer" aria-label="View the flash collection screenshot at full size (opens a new tab)">
               <img
-                src="/studio/cinematic/satx-ink-studio-owner.webp"
-                alt="Close-up of the SATX INK illustrative studio, showing the workstation and framed flash art"
-                width="1000"
-                height="1250"
+                src="/media/flash-marketplace-desktop.webp"
+                alt="Graven House demo studio’s flash collection, with artist attribution, prices, and one-of-one designs"
+                width="1825"
+                height="906"
                 loading="lazy"
+                decoding="async"
               />
-            </picture>
+            </a>
             <figcaption>
-              <span>
-                Your brand.
-                <br />
-                Your tools to grow.
-              </span>
-              <MoveUpRight size={32} />
+              <span>Your shop’s flash, in one place. Shown in the demo studio.</span>
+              <a href="https://demo.satxink.com/flash" target="_blank" rel="noreferrer">Explore the demo <ArrowUpRight size={16} /></a>
             </figcaption>
           </figure>
         </div>

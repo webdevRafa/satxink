@@ -861,33 +861,39 @@ section[id] {
 .owner-visual {
   position: relative;
   margin: 0;
-  aspect-ratio: 4/5;
+  align-self: center;
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
   background: #121212;
 }
-.owner-visual picture,
+.owner-visual > a,
 .owner-visual img {
   display: block;
-  height: 100%;
+  height: auto;
   width: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
 }
 .owner-visual figcaption {
-  position: absolute;
-  inset: auto 0 0;
-  padding: 50px 32px 30px;
+  padding: 16px 20px;
   display: flex;
-  align-items: end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
-  background: linear-gradient(transparent, #0a0a0aed);
-  font-size: 1.375rem;
+  background: #121212;
+  font-size: 0.875rem;
   line-height: 1.5;
   letter-spacing: -0.02em;
 }
 .owner-visual figcaption svg {
+  color: #df8073;
+}
+.owner-visual figcaption a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: #df8073;
 }
 .setup-grid {
@@ -1328,12 +1334,9 @@ section[id] {
   .workflow-note svg {
     margin-top: 4px;
   }
-  .owner-visual {
-    aspect-ratio: 4/3;
-  }
   .owner-visual figcaption {
-    font-size: 1.25rem;
-    padding: 40px 22px 20px;
+    font-size: 0.8125rem;
+    padding: 14px 16px;
   }
   .setup-grid {
     grid-template-columns: 1fr;
