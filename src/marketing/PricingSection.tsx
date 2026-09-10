@@ -11,25 +11,34 @@ export function PricingSection() {
         <div>
           <p className="eyebrow">Pricing & Support</p>
           <h2 id="pricing-title">
-            Your flash & booking tools.
+            More than a website.
             <br />
-            Set up for $500.
+            Your shop’s own system.
           </h2>
         </div>
-        <p className="section-intro">
-          $500 one-time setup, then $100/month for hosting, support, and requested
-          changes. Your shop pays database usage and email delivery costs separately.
-        </p>
+        <div>
+          <p className="section-intro">
+            Give every artist a profile, bring your flash collection online,
+            schedule drops, and turn client requests into booking offers and
+            deposits—all under your shop’s brand. <strong>We get it set up for $500.</strong>
+          </p>
+          <p>
+            Then $100/month includes hosting, direct developer support, and
+            requested changes. Database usage and email delivery cost extra.
+          </p>
+        </div>
       </div>
       <div className="setup-grid">
         <article className="setup-card pricing-card">
-          <h3>Setup & deployment</h3>
+          <h3>Your shop’s system, set up for you</h3>
           <p className="price-amount"><strong>$500</strong> <span>one time</span></p>
-          <p>Your website or portal, database, and integrations—connected for one setup fee.</p>
+          <p>A new shop website or branded portal, with the tools your artists and clients use together.</p>
           <ul className="check-list">
-            <li><Check aria-hidden="true" />Full website or branded portal deployment.</li>
-            <li><Check aria-hidden="true" />Your own database, powered by Google Firebase.</li>
-            <li><Check aria-hidden="true" />Stripe payment and email integrations configured.</li>
+            <li><Check aria-hidden="true" />Artist profiles with portfolios, available flash, and a link to share.</li>
+            <li><Check aria-hidden="true" />Upload flash sheets, crop designs, and offer one-of-one work.</li>
+            <li><Check aria-hidden="true" />Publish now or schedule a flash drop for later.</li>
+            <li><Check aria-hidden="true" />Review requests, offer appointment times, and collect deposits.</li>
+            <li><Check aria-hidden="true" />Grow your opt-in email list and share shop updates.</li>
           </ul>
         </article>
         <article className="setup-card pricing-card">
