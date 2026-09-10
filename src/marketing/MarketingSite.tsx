@@ -190,9 +190,9 @@ function HomePage() {
               <ViewportVideo
                 src="/media/flash-marketplace-demo.mp4"
                 width={720}
-                height={1312}
+                height={1298}
                 poster="/media/flash-marketplace-demo-poster.jpg"
-                label="Watch a 40-second mobile walkthrough of browsing flash sheets and designs and opening a flash request."
+                label="Client walkthrough: choose a flash design and send a flash request."
               />
             <figcaption>
               <a
@@ -252,9 +252,9 @@ function HomePage() {
             <ViewportVideo
               src="/media/artist-flash-demo.mp4"
               width={720}
-              height={1306}
+              height={1294}
               poster="/media/artist-flash-demo-poster.jpg"
-              label="Artist walkthrough: crop individual flash designs from a sheet, add prices and details, and save drafts."
+              label="Artist walkthrough: create and publish flash designs for clients to browse."
             />
           </figure>
           <div>
