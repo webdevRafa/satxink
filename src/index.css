@@ -240,6 +240,26 @@ section[id] {
 .hero-actions .text-link {
   margin-left: 0;
 }
+.hero-demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 48px;
+  padding-block: 10px;
+  border-bottom: 2px solid #e26659;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: color 0.2s, border-color 0.2s;
+}
+.hero-demo-link svg {
+  flex: none;
+  color: #e26659;
+}
+.hero-demo-link:is(:hover, :focus-visible) {
+  color: #f49b8f;
+  border-bottom-color: #f49b8f;
+}
 .hero-note {
   color: #969696;
   font-size: 0.8rem;

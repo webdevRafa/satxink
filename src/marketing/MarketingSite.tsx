@@ -171,7 +171,7 @@ function HomePage() {
             </p>
             <div className="hero-actions">
               <a
-                className="button"
+                className="hero-demo-link"
                 href="https://demo.satxink.com/"
                 target="_blank"
                 rel="noreferrer"
