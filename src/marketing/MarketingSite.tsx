@@ -14,7 +14,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import logo from "../assets/satx-short-sep.svg";
+// To restore the previous navbar/footer logo, use satx-short-sep.svg here.
+import logo from "../assets/satx-ink-modern.svg";
 import { ViewportVideo } from "./ViewportVideo";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
