@@ -258,11 +258,11 @@ function HomePage() {
           </figure>
           <div>
             <p className="eyebrow">For the artists</p>
-            <h2>Your team.</h2>
+            <h2>A storefront for every artist</h2>
             <p className="section-intro">
-              Every artist gets a public profile on your shop’s website,
-              with a unique link to share on Instagram. Their portfolio
-              and available flash are just one tap away.
+              Give every artist a place to showcase their portfolio, publish
+              available flash, and receive requests—all under your shop’s brand.
+              They manage their designs, set their prices, and share their own link.
             </p>
             <div className="profile-link-example">
               <p>One link for your Instagram bio.</p>
