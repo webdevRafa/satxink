@@ -236,7 +236,7 @@ function HomePage() {
           </article>
           <article>
             <span className="feature-number">03 / SHARE</span>
-            <h3>A profile they can share.</h3>
+            <h3>Share your links</h3>
             <p>
               Every artist gets their own public profile and a unique link
               they can share on Instagram or anywhere else they post their work.
