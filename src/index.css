@@ -263,6 +263,13 @@ section[id] {
   aspect-ratio: 720 / 1326;
   object-fit: contain;
 }
+.viewport-video > img,
+.viewport-video > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .product-demo figcaption {
   padding-top: 10px;
   text-transform: none;

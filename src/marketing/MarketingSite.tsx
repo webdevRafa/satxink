@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import logo from "../assets/satx-short-sep.svg";
+import { ViewportVideo } from "./ViewportVideo";
 import { InformationPage } from "./InformationPage";
 import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
@@ -185,24 +186,13 @@ function HomePage() {
           </div>
 
           <figure className="product-demo">
-              <video
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-                width="720"
-                height="1326"
+              <ViewportVideo
+                src="/media/flash-marketplace-demo.mp4"
+                width={720}
+                height={1326}
                 poster="/media/flash-marketplace-demo-poster.jpg"
-                aria-label="Watch a 42-second mobile walkthrough of browsing flash designs, previewing a design, and opening a flash request."
-              >
-                <source
-                  src="/media/flash-marketplace-demo.mp4"
-                  type="video/mp4"
-                />
-                Your browser does not support embedded video. You can still
-                explore the live SATX INK demo using the link below.
-              </video>
+                label="Watch a 42-second mobile walkthrough of browsing flash designs, previewing a design, and opening a flash request."
+              />
             <figcaption>
               <a
                 href="https://demo.satxink.com/flash"
@@ -258,18 +248,13 @@ function HomePage() {
       <section id="for-artists" className="section artist-section">
         <div className="shell split-section">
           <figure className="artist-demo">
-            <video
-              controls
-              playsInline
-              preload="none"
-              width="720"
-              height="1306"
+            <ViewportVideo
+              src="/media/artist-flash-demo.mp4"
+              width={720}
+              height={1306}
               poster="/media/artist-flash-demo-poster.jpg"
-              aria-label="Artist walkthrough: crop individual flash designs from a sheet, add prices and details, and save drafts."
-            >
-              <source src="/media/artist-flash-demo.mp4" type="video/mp4" />
-              <a href="/media/artist-flash-demo.mp4">Watch the artist walkthrough</a>
-            </video>
+              label="Artist walkthrough: crop individual flash designs from a sheet, add prices and details, and save drafts."
+            />
           </figure>
           <div>
             <p className="eyebrow">For the artists</p>

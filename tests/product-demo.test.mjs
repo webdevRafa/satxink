@@ -16,7 +16,8 @@ test('hero leads with the live demo and an explicit sales conversation action', 
 });
 
 test('product recording autoplays inline without controls and retains its poster', () => {
-  const video = source.match(/<video\b[^>]*>/)[0];
+  const component = readFileSync(new URL('../src/marketing/ViewportVideo.tsx', import.meta.url), 'utf8');
+  const video = component.match(/<video\b[^>]*>/)[0];
   for (const attribute of ['autoPlay', 'muted', 'loop', 'playsInline']) {
     assert.match(video, new RegExp(`\\b${attribute}\\b`));
   }
