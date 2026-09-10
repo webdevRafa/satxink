@@ -11,15 +11,14 @@ export function PricingSection() {
         <div>
           <p className="eyebrow">Pricing & Support</p>
           <h2 id="pricing-title">
-            Your marketplace & shop tools.
+            Your flash & booking tools.
             <br />
             Set up for $500.
           </h2>
         </div>
         <p className="section-intro">
-          Launch your own flash marketplace with booking tools, owner and artist
-          dashboards, and connected payments and email. Your one-time setup
-          covers the full deployment—then $100/month keeps you supported.
+          $500 one-time setup, then $100/month for hosting, support, and requested
+          changes. Your shop pays database usage and email delivery costs separately.
         </p>
       </div>
       <div className="setup-grid">
@@ -34,13 +33,13 @@ export function PricingSection() {
           </ul>
         </article>
         <article className="setup-card pricing-card">
-          <h3>Maintenance & developer support</h3>
+          <h3>Hosting & developer support</h3>
           <p className="price-amount"><strong>$100</strong> <span>per month</span></p>
-          <p>Ongoing care for your system, with a developer in your corner.</p>
+          <p>Includes hosting, direct support, and fixes or changes you request for your setup. Database usage and email delivery are additional costs paid by your shop.</p>
           <ul className="check-list">
-            <li><Check aria-hidden="true" />Service maintenance, fixes, and ongoing changes.</li>
+            <li><Check aria-hidden="true" />Hosting for your SATX INK website or portal.</li>
             <li><Check aria-hidden="true" />Direct support from the developer behind SATX INK.</li>
-            <li><Check aria-hidden="true" />Additional public-facing website customization at no extra cost.</li>
+            <li><Check aria-hidden="true" />Requested fixes and changes for your setup.</li>
           </ul>
         </article>
       </div>
@@ -52,14 +51,14 @@ export function PricingSection() {
         <div>
           <h3>You’re supported beyond launch.</h3>
           <p>
-            Need help or want to change how your public-facing website looks?
-            Work directly with the developer who built your setup. That support
-            and customization are included in your $100 monthly fee—not a
-            separate bill every time you want to make a change.
+            Need help or want a change to your setup? Work directly with the
+            developer behind SATX INK. Hosting, support, and requested fixes or
+            changes are included in your $100 monthly fee. Database usage and
+            email delivery costs are separate.
           </p>
         </div>
         <a className="button" href="#contact">
-          Let’s talk about your setup <ArrowUpRight size={18} aria-hidden="true" />
+          Request a walkthrough <ArrowUpRight size={18} aria-hidden="true" />
         </a>
       </div>
     </section>

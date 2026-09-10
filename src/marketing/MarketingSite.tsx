@@ -34,28 +34,20 @@ const navigation = [
 ];
 const steps = [
   [
-    "Show your work",
-    "Publish the designs you want to tattoo. Clients discover your available flash on your shop’s marketplace.",
+    "Publish available flash",
+    "Artists upload designs and set their details. Clients browse the shop’s available flash.",
   ],
   [
-    "Client sends a request",
-    "A client requests a published design and shares their preferred placement, size, and timing for you to review.",
+    "Review client requests",
+    "Clients share their preferred placement, size, and timing. The artist reviews each request before moving forward.",
   ],
   [
-    "You set the terms",
-    "Review the request and create your offer, including the deposit. If it’s not a fit, you can decline.",
+    "Send a booking offer",
+    "The artist sets the deposit and offers appointment options. If the request isn’t a fit, they can decline.",
   ],
   [
-    "You offer the times",
-    "Give the client a few appointment options that work for you. You decide what goes on your schedule.",
-  ],
-  [
-    "Client chooses a time",
-    "The client accepts one of the appointment options you offered—not any open slot on your calendar.",
-  ],
-  [
-    "Client pays the deposit",
-    "After accepting, the client pays your deposit through Stripe and sees the remaining balance to pay at the shop.",
+    "Client accepts and pays",
+    "The client chooses an offered time and pays the deposit through Stripe. The remaining tattoo balance is settled at the shop.",
   ],
 ];
 const faqs = [
@@ -69,15 +61,15 @@ const faqs = [
   ],
   [
     "Is there a limit on artists or locations?",
-    "There is no limit on the number of artists or studio locations in your shop’s installation. Invite your team and assign artists to locations. We’ll review your setup together so the configuration matches how your shop operates.",
+    "You can invite your team and assign artists to studio locations. We’ll review your team size, locations, and expected usage together so the configuration fits your shop.",
   ],
   [
     "Can artists upload an entire flash sheet?",
-    "Yes. Artists upload a sheet, crop out individual designs, add their details, and publish them as requestable flash in the shop’s marketplace. Clients can explore a complete sheet or browse its individual designs. The artist controls the cropping and publishing.",
+    "Yes. Artists upload a sheet, crop out individual designs, add their details, and publish available flash for clients to request. Clients can explore a complete sheet or browse its individual designs. Publish now or schedule a drop for later.",
   ],
   [
     "Can an artist share their own profile?",
-    "Yes. Each artist has a shareable profile under the shop’s domain, such as tattooshop.com/artistname. They can put that link in their Instagram bio or share it directly, bringing people to their portfolio and available flash.",
+    "Yes. Each artist has a shareable profile on your SATX INK website or portal. For example, yourshop.com/artistname for a full website, or portal.yourshop.com/artistname for a portal. Share it in an Instagram bio or a message to bring clients to their portfolio and available flash.",
   ],
   [
     "Can clients book any time they want?",
@@ -111,9 +103,7 @@ function ContactSection() {
         <div>
           <p className="eyebrow">Let’s talk about your shop</p>
           <h2>
-            Your next chapter
-            <br />
-            starts with a conversation.
+            See how SATX INK would work for your shop.
           </h2>
           <p className="section-intro">
             Walk through the client experience, the artist workspace, and the
@@ -122,7 +112,7 @@ function ContactSection() {
         </div>
         <div className="contact-actions">
           <a className="button" href={demoEmail}>
-            Request a demo <ArrowUpRight size={18} />
+            Request a walkthrough <ArrowUpRight size={18} />
           </a>
           <p className="email-note">
             Opens your email app with an inquiry draft.
@@ -163,12 +153,16 @@ function HomePage() {
               <span /> Software for tattoo shops
             </p>
             <h1 id="hero-title">
-              A dedicated system for <em>your tattoo shop.</em>
+              Flash, booking requests, and deposits. <em>Under your shop’s brand.</em>
             </h1>
             <p>
-              Publish available flash, review requests, send booking offers,
-              and collect deposits—all under your shop’s brand. Start with a
-              new website or connect the system to the one you already have.
+              Let clients browse your artists’ available designs and send a
+              request. Artists review each request, offer appointment times,
+              and collect a deposit—all in one place.
+            </p>
+            <p>
+              Get a new shop website, or keep your current site and link to a
+              branded booking portal.
             </p>
             <div className="hero-actions">
               <a
@@ -180,7 +174,7 @@ function HomePage() {
                 Explore the demo <ArrowUpRight size={18} />
               </a>
               <a className="text-link" href="#contact">
-                Talk about your shop <ArrowRight size={16} />
+                Request a walkthrough <ArrowRight size={16} />
               </a>
             </div>
             <p className="hero-note">No account needed to browse the demo.</p>
@@ -210,37 +204,37 @@ function HomePage() {
       <section className="section shell connection-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Here’s how it works</p>
+            <p className="eyebrow">Get your team set up</p>
             <h2>Bring your team’s flash online.</h2>
           </div>
           <p className="section-intro">
-            SATX INK gives your shop a dedicated flash marketplace, exclusively
-            for you and your artists. Getting your team’s work online is simple.
+            Bring your artists’ available flash together on your shop’s website
+            or branded portal. Invite your team, publish designs, and share links
+            with clients—not a shared directory of competing studios.
           </p>
         </div>
         <div className="feature-columns">
           <article>
             <span className="feature-number">01 / INVITE</span>
-            <h3>Bring your artists on board.</h3>
+            <h3>Invite your artists.</h3>
             <p>
-              Send your artists an invite. After a quick onboarding,
-              they’re ready to start adding their work.
+              Send each artist an invitation to set up their profile and add their work.
             </p>
           </article>
           <article>
             <span className="feature-number">02 / PUBLISH</span>
-            <h3>Drop the flash.</h3>
+            <h3>Publish available flash.</h3>
             <p>
-              Artists upload their flash sheets and publish their designs
-              to your shop’s live marketplace, where clients can browse the work.
+              Upload a flash sheet, crop individual designs, and add the details
+              clients need to send a request.
             </p>
           </article>
           <article>
             <span className="feature-number">03 / SHARE</span>
             <h3>Share your links</h3>
             <p>
-              Every artist gets their own public profile and a unique link
-              they can share on Instagram or anywhere else they post their work.
+              Share artist profiles and flash collections from your website,
+              Instagram bio, or messages.
             </p>
           </article>
         </div>
@@ -259,34 +253,35 @@ function HomePage() {
           </figure>
           <div>
             <p className="eyebrow">For the artists</p>
-            <h2>A storefront for every artist</h2>
+            <h2>Each artist’s work. One connected workspace.</h2>
             <p className="section-intro">
               Give every artist a place to showcase their portfolio, publish
               available flash, and receive requests—all under your shop’s brand.
-              They manage their designs, set their prices, and share their own link.
+              They manage their designs, set their prices, review requests,
+              and offer appointment times from their workspace.
             </p>
             <div className="profile-link-example">
               <p>One link for your Instagram bio.</p>
               <code>
                 tattooshop.com/<strong>artistname</strong>
               </code>
-              <span>Example profile address on your shop’s domain.</span>
+              <span>Example for a full website. Portal profiles use your portal’s domain.</span>
             </div>
             <div className="artist-highlights">
               <article>
                 <h3>Plan the drop. Share the link.</h3>
                 <p>
-                  Schedule a flash sheet to go live at a time you choose.
-                  Each sheet gets its own link, ready to promote on Instagram
-                  and bring clients straight to the drop.
+                  Publish now or schedule a flash drop. Clients can preview an
+                  upcoming drop; prices and requests open at launch. Share the
+                  sheet’s own link to bring clients straight to the collection.
                 </p>
               </article>
               <article>
                 <h3>Make one-of-one work stand out.</h3>
                 <p>
                   Offer non-repeatable designs meant to be tattooed only once.
-                  That exclusivity gives clients a reason to act when a
-                  design they love goes live.
+                  Keep these distinct from repeatable flash as clients browse
+                  your available designs.
                 </p>
               </article>
             </div>
@@ -299,9 +294,7 @@ function HomePage() {
           <div>
             <p className="eyebrow">Booking on your terms</p>
             <h2>
-              Your business.
-              <br />
-              You call the shots.
+              Artists approve requests and offer the times.
             </h2>
           </div>
           <p className="section-intro">
@@ -335,22 +328,21 @@ function HomePage() {
           <div>
             <p className="eyebrow">For the shop owners</p>
             <h2>
-              Run your shop.
-              <br />
-              Grow your audience.
+              Manage your team, content, and client updates.
             </h2>
             <p className="section-intro">
-              Your brand, backed by tools you can manage yourself. Update your
-              website, keep your shop’s details current, and build an audience
-              that wants to hear from you—all from your admin dashboard.
+              Update the branding and supported content on your SATX INK website
+              or portal. Manage your team, shop information, and client updates
+              from the owner dashboard.
             </p>
             <div className="owner-feature">
               <Globe2 />
               <div>
                 <h3>Keep your website yours.</h3>
                 <p>
-                  Change your logo, background image, and website text whenever
-                  you need to. Your public-facing website stays in your hands.
+                  Update supported text, images, and branding on your SATX INK
+                  website or portal. An existing external website stays with
+                  your current provider and editor.
                 </p>
               </div>
             </div>
@@ -417,7 +409,7 @@ function HomePage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Two ways to make it yours</p>
-            <h2>Options for every studio.</h2>
+            <h2>Need a website—or keeping your current one?</h2>
           </div>
           <p className="section-intro">
             Whether you’re starting fresh or keeping a website you already
@@ -433,8 +425,8 @@ function HomePage() {
             </div>
             <h3>A new shop website + SATX INK tools.</h3>
             <p>
-              Start fresh with a website for your shop, with your marketplace,
-              booking tools, and dashboards connected under your brand.
+              Get a shop-branded website with artist profiles, available flash,
+              booking tools, and owner, artist, and client dashboards.
             </p>
             <ul className="check-list">
               <li>
@@ -445,7 +437,7 @@ function HomePage() {
                 Owner, artist, and client dashboards included.
               </li>
               <li>
-                <Check />Manage website content and branding from your admin dashboard.
+                <Check />Edit supported website content and branding from the owner dashboard.
               </li>
             </ul>
             <a href="#contact">
@@ -457,14 +449,14 @@ function HomePage() {
               <span>02 / ALONGSIDE YOUR WEBSITE</span>
               <ArrowUpRight size={24} />
             </div>
-            <h3>Your existing website + a branded SATX INK portal.</h3>
+            <h3>Keep your website. Add the booking tools.</h3>
             <p>
-              Keep your current website. Add SATX INK tools through a separate
-              portal branded for your shop and linked from your site.
+              Your current website stays where it is. Add links such as “Browse
+              flash” or “Artist login” that open your shop-branded SATX INK portal.
             </p>
             <ul className="check-list">
               <li>
-                <Check />Your marketplace, booking tools, and dashboards in one portal.
+                <Check />Your artist profiles, available flash, and booking tools in one portal.
               </li>
               <li>
                 <Check />
@@ -478,7 +470,8 @@ function HomePage() {
               </li>
               <li>
                 <Check />
-                Keep your existing website’s design and content management.
+                Keep editing your existing website with your current provider.
+                SATX INK manages the profiles, flash, and booking tools in the portal.
               </li>
             </ul>
             <a href="#contact">
