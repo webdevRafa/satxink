@@ -162,7 +162,7 @@ function HomePage() {
               <span /> Software for tattoo shops
             </p>
             <h1 id="hero-title">
-              Your artists. Your bookings. <em>One connected system.</em>
+              A dedicated system for <em>your tattoo shop.</em>
             </h1>
             <p>
               Publish available flash, review requests, send booking offers,
@@ -186,16 +186,14 @@ function HomePage() {
           </div>
 
           <figure className="product-demo">
-            <div className="product-demo-topline">
-              <span className="product-demo-dot" aria-hidden="true" />
-              <span>Real product walkthrough</span>
-              <span>00:42 · No sound</span>
-            </div>
-            <div className="product-demo-frame">
               <video
-                controls
+                autoPlay
+                muted
+                loop
                 playsInline
-                preload="none"
+                preload="metadata"
+                width="720"
+                height="1326"
                 poster="/media/flash-marketplace-demo-poster.jpg"
                 aria-label="Watch a 42-second mobile walkthrough of browsing flash designs, previewing a design, and opening a flash request."
               >
@@ -206,9 +204,7 @@ function HomePage() {
                 Your browser does not support embedded video. You can still
                 explore the live SATX INK demo using the link below.
               </video>
-            </div>
             <figcaption>
-              <span>Browse flash · Preview a design · Start a request</span>
               <a
                 href="https://demo.satxink.com/flash"
                 target="_blank"
