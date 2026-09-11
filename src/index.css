@@ -280,7 +280,7 @@ section[id] {
   display: block;
   width: min(100%, 353px);
   height: auto;
-  aspect-ratio: 720 / 1312;
+  aspect-ratio: 720 / 1406;
   object-fit: contain;
 }
 .viewport-video > img,

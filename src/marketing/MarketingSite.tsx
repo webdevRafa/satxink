@@ -184,9 +184,9 @@ function HomePage() {
               <ViewportVideo
                 src="/media/flash-marketplace-demo.mp4"
                 width={720}
-                height={1298}
+                height={1406}
                 poster="/media/flash-marketplace-demo-poster.jpg"
-                label="Client walkthrough: choose a flash design and send a flash request."
+                label="Client walkthrough: browse an artist profile, explore flash sheets, and request a design."
               />
             <figcaption>
               <a
