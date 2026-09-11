@@ -378,7 +378,7 @@ section[id] {
   font-size: 1.06rem;
 }
 .contact-section {
-  background: rgb(182 56 45 / 8%);
+  background: #191919;
   border-block: 1px solid var(--line);
 }
 .contact-email {
