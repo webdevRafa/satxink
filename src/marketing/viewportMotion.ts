@@ -12,7 +12,7 @@ const pageSelector = [
   "main .button", "main .setup-card > a", "main .email-row",
   "main .faq-list details", ".site-footer > *",
 ].join(",");
-const excludedSelector = ".studio-viewer, .flash-story, .story-controls, [role='status'], [aria-live], .sr-only";
+const excludedSelector = ".studio-viewer, [role='status'], [aria-live], .sr-only";
 const groupSelector = [
   ".hero-copy", ".section-heading", ".feature-columns", ".artist-highlights",
   ".workflow", ".owner-feature", ".check-list", ".setup-card",
