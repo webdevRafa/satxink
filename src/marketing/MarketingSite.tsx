@@ -22,6 +22,8 @@ import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
 import { createViewportMotion, pageMotionTargets } from "./viewportMotion";
 import { MobileNavigation } from "./MobileNavigation";
+import { FlashStorySection } from "./story/FlashStorySection";
+import { useFlashStory } from "./story/useFlashStory";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
@@ -31,24 +33,6 @@ const navigation = [
   ["For artists", "for-artists"],
   ["Your setup", "your-setup"],
   ["Pricing & Support", "pricing-support"],
-];
-const steps = [
-  [
-    "Publish available flash",
-    "Artists upload designs and set their details. Clients browse the shop’s available flash.",
-  ],
-  [
-    "Review client requests",
-    "Clients share their preferred placement, size, and timing. The artist reviews each request before moving forward.",
-  ],
-  [
-    "Send a booking offer",
-    "The artist sets the deposit and offers appointment options. If the request isn’t a fit, they can decline.",
-  ],
-  [
-    "Client accepts and pays",
-    "The client chooses an offered time and pays the deposit through Stripe. The remaining tattoo balance is settled at the shop.",
-  ],
 ];
 const faqs = [
   [
@@ -144,8 +128,9 @@ function ContactSection() {
 }
 
 function HomePage() {
+  const { root, staticMode, toggleStory } = useFlashStory();
   return (
-    <>
+    <div ref={root}>
       <section className="hero shell" aria-labelledby="hero-title">
         <div className="hero-layout">
           <div className="hero-copy">
@@ -201,44 +186,13 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="section shell connection-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Get your team set up</p>
-            <h2>Bring your team’s flash online.</h2>
-          </div>
-          <p className="section-intro">
-            Bring your artists’ available flash together on your shop’s website
-            or branded portal. Invite your team, publish designs, and share links
-            with clients—not a shared directory of competing studios.
-          </p>
-        </div>
-        <div className="feature-columns">
-          <article>
-            <span className="feature-number">01 / INVITE</span>
-            <h3>Invite your artists.</h3>
-            <p>
-              Send each artist an invitation to set up their profile and add their work.
-            </p>
-          </article>
-          <article>
-            <span className="feature-number">02 / PUBLISH</span>
-            <h3>Publish available flash.</h3>
-            <p>
-              Upload a flash sheet, crop individual designs, and add the details
-              clients need to send a request.
-            </p>
-          </article>
-          <article>
-            <span className="feature-number">03 / SHARE</span>
-            <h3>Share your links</h3>
-            <p>
-              Share artist profiles and flash collections from your website,
-              Instagram bio, or messages.
-            </p>
-          </article>
-        </div>
-      </section>
+      <div className="shell story-controls">
+        <p>From your artists’ flash sheets to a client’s next appointment.</p>
+        <button type="button" onClick={toggleStory} aria-pressed={staticMode}>
+          {staticMode ? "Enable scroll animation" : "Read story without animation"}
+        </button>
+      </div>
+      <FlashStorySection chapter="collection" />
 
       <section id="for-artists" className="section artist-section">
         <div className="shell split-section">
@@ -289,39 +243,7 @@ function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="section shell workflow-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Booking on your terms</p>
-            <h2>
-              Artists approve requests and offer the times.
-            </h2>
-          </div>
-          <p className="section-intro">
-            Clients request the work. You control the schedule. Choose the
-            requests you take on, set your offer, and give clients appointment
-            options that work for you.
-          </p>
-        </div>
-        <ol className="workflow">
-          {steps.map(([title, description], index) => (
-            <li key={title}>
-              <div className="step-top">
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                {index < steps.length - 1 && (
-                  <ArrowRight size={18} aria-hidden="true" />
-                )}
-              </div>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </li>
-          ))}
-        </ol>
-        <p className="workflow-note">
-          <Check size={16} /> A request is not an automatic booking. Your
-          approval comes first; the client chooses a time, then pays the deposit.
-        </p>
-      </section>
+      <FlashStorySection chapter="booking" />
 
       <section id="for-owners" className="section owner-section">
         <div className="shell split-section owner-layout">
@@ -356,28 +278,6 @@ function HomePage() {
                 </p>
               </div>
             </div>
-            <div className="owner-feature">
-              <CalendarDays />
-              <div>
-                <h3>Give your news a place to land.</h3>
-                <p>
-                  Publish events and announcements on your website so clients
-                  know what’s coming up at your shop.
-                </p>
-              </div>
-            </div>
-            <div className="owner-feature">
-              <Mail />
-              <div>
-                <h3>Grow your list with every opt-in.</h3>
-                <p>
-                  Clients can sign up with Google and choose to receive your
-                  emails. Those who opt in are automatically added to your
-                  mailing list, ready for promotional campaigns you send from
-                  your dashboard. No manual list-building.
-                </p>
-              </div>
-            </div>
           </div>
           <figure className="owner-visual">
             <MarketplaceScreenshot />
@@ -386,6 +286,23 @@ function HomePage() {
               <a href="https://demo.satxink.com/flash" target="_blank" rel="noreferrer">Explore the demo <ArrowUpRight size={16} /></a>
             </figcaption>
           </figure>
+        </div>
+      </section>
+
+      <section className="audience-section">
+        <div className="shell audience-layout">
+          <div>
+            <p className="eyebrow">Beyond the appointment</p>
+            <h2>Keep your shop’s story going.</h2>
+          </div>
+          <div className="audience-features">
+            <article><CalendarDays /><div><h3>Give your news a place to land.</h3>
+              <p>Publish shop events and promotions with images, dates, and location details.</p>
+            </div></article>
+            <article><Mail /><div><h3>Reach the people who opted in.</h3>
+              <p>Clients can sign up with Google and choose to join your mailing list. Compose and preview branded promotional emails with images and links, then send to clients who have chosen to hear from you.</p>
+            </div></article>
+          </div>
         </div>
       </section>
 
@@ -408,6 +325,7 @@ function HomePage() {
               <Globe2 size={24} />
             </div>
             <h3>A new shop website + SATX INK tools.</h3>
+            <div className="setup-flow" aria-label="One connected website"><span>Your shop’s domain</span><b aria-hidden="true">→</b><span>Website + booking tools</span></div>
             <p>
               Get a shop-branded website with artist profiles, available flash,
               booking tools, and owner, artist, and client dashboards.
@@ -434,6 +352,7 @@ function HomePage() {
               <ArrowUpRight size={24} />
             </div>
             <h3>Keep your website. Add the booking tools.</h3>
+            <div className="setup-flow" aria-label="Two linked websites"><span>Your existing website</span><b aria-hidden="true">→</b><span>Your branded portal</span></div>
             <p>
               Your current website stays where it is. Add links such as “Browse
               flash” or “Artist login” that open your shop-branded SATX INK portal.
@@ -471,41 +390,6 @@ function HomePage() {
 
       <PricingSection />
 
-      <section className="audience-section">
-        <div className="shell audience-layout">
-          <div>
-            <p className="eyebrow">Beyond the appointment</p>
-            <h2>
-              Give people a reason
-              <br />
-              to come back.
-            </h2>
-          </div>
-          <div className="audience-features">
-            <article>
-              <CalendarDays />
-              <div>
-                <h3>Keep what’s happening visible.</h3>
-                <p>
-                  Publish shop events and promotions with images, dates, and
-                  location details.
-                </p>
-              </div>
-            </article>
-            <article>
-              <Mail />
-              <div>
-                <h3>Reach the people who opted in.</h3>
-                <p>
-                  Compose and preview branded promotional emails with images and
-                  links. Send to clients who have chosen to hear from you.
-                </p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
       <section id="faq" className="section shell faq-section">
         <div>
           <p className="eyebrow">A few good questions</p>
@@ -531,7 +415,7 @@ function HomePage() {
         </div>
       </section>
       <ContactSection />
-    </>
+    </div>
   );
 }
 

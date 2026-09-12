@@ -16,8 +16,8 @@ test('hero leads with the live demo and an explicit sales conversation action', 
 });
 
 test('copy explains approval-first booking and separate portal scope', () => {
-  const steps = source.split('const steps = [')[1].split('const faqs')[0];
-  assert.equal((steps.match(/^    "/gm) || []).length, 8);
+  const steps = readFileSync(new URL('../src/marketing/story/FlashStorySection.tsx', import.meta.url), 'utf8');
+  assert.match(steps, /not an automatic booking/);
   assert.match(steps, /offered time/);
   assert.match(steps, /remaining tattoo balance is settled at the shop/);
   assert.match(source, /not an embedded plugin or a shared-login integration/);

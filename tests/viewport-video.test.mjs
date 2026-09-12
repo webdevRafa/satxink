@@ -21,7 +21,7 @@ test('viewport videos mount only in view, release media on cleanup, and respect 
   let refTarget = element;
   const hooks = {
     useRef: () => ({ current: refTarget }),
-    useState: () => [active, value => { active = value; }],
+    useState: initial => typeof initial === 'function' ? [initial(), () => {}] : [active, value => { active = value; }],
     useEffect: effect => effects.push(effect),
   };
   const document = { hidden: false,

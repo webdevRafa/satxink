@@ -22,8 +22,12 @@ function ActiveVideo({ src, poster, width, height, label }: Props) {
 export function ViewportVideo(props: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
+  const [paused, setPaused] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   useEffect(() => {
     const element = host.current!;
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const changeMotion = () => setPaused(!!motion?.matches);
+    motion?.addEventListener("change", changeMotion);
     let inView = false;
     const update = () => setActive(inView && !document.hidden);
     const measure = () => {
@@ -49,10 +53,15 @@ export function ViewportVideo(props: Props) {
       window.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
       document.removeEventListener("visibilitychange", measure);
+      motion?.removeEventListener("change", changeMotion);
     };
   }, []);
   return <div ref={host} className="viewport-video" style={{ aspectRatio: `${props.width} / ${props.height}` }}>
-    {active ? <ActiveVideo {...props} /> :
+    {active && !paused ? <ActiveVideo {...props} /> :
       <img src={props.poster} width={props.width} height={props.height} alt={props.label} />}
+    <button type="button" className="video-motion-toggle" onClick={() => setPaused(value => !value)}
+      aria-label={`${paused ? "Play" : "Pause"} ${props.label}`}>
+      {paused ? "Play walkthrough" : "Pause walkthrough"}
+    </button>
   </div>;
 }
