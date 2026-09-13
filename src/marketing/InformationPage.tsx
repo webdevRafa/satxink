@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
   return (
     <article className="section shell information-page">
-      <p className="eyebrow">SATX INK · Updated September 5, 2026</p>
+      <p className="eyebrow">SATX INK · Updated September {kind === "terms" ? "13" : "5"}, 2026</p>
       {kind === "privacy" ? (
         <>
           <h1>Privacy on this website.</h1>
@@ -70,10 +70,9 @@ export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
           </p>
           <h2>Illustrative visuals</h2>
           <p>
-            The studio scene and example flash artwork illustrate the product’s
-            tattoo-shop context. They are not live customer records or
-            screenshots of the software. The 3D scene does not represent a
-            tattoo-placement, virtual try-on, or AI-artwork feature.
+            Product screenshots and recordings show the software in a demo
+            studio with example flash artwork and data. They illustrate how the
+            system works and do not show live customer records.
           </p>
         </>
       )}
