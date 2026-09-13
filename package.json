@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:marketing": "node --test tests/*.test.mjs"
+    "test:marketing": "node --test tests/*.test.mjs",
+    "test:seo": "node --test tests/seo.test.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",

@@ -22,6 +22,7 @@ import { PricingSection } from "./PricingSection";
 import { createHeaderCtaReveal } from "./headerCta";
 import { createViewportMotion, pageMotionTargets } from "./viewportMotion";
 import { MobileNavigation } from "./MobileNavigation";
+import { updateSeoHead } from "./seo";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
@@ -51,6 +52,14 @@ const steps = [
   ],
 ];
 const faqs = [
+  [
+    "Where is SATX INK launching?",
+    "Our initial launch is for tattoo shops in Texas, with an official launch date of September 20, 2026. Texas shop owners can explore the demo and request a walkthrough now. We’ll discuss your shop’s setup and installation timing with you.",
+  ],
+  [
+    "Can artists connect their own Stripe accounts?",
+    "Yes. Artists connect their own Stripe accounts to receive payments for accepted booking offers. Stripe handles payment processing and payouts; account onboarding is required, and payout timing depends on the artist’s Stripe account. Clients pay a deposit online and settle the remaining tattoo balance at the shop.",
+  ],
   [
     "Is this just a website?",
     "The website is the public-facing part of a connected system. Artists have tools for portfolios, flash, requests, offers, and appointments. Owners have a workspace for the shop’s content, team, locations, and records.",
@@ -150,7 +159,7 @@ function HomePage() {
         <div className="hero-layout">
           <div className="hero-copy">
             <p className="eyebrow">
-              <span /> Software for tattoo shops
+              <span /> Tattoo shop software · Texas
             </p>
             <h1 id="hero-title">
               Flash, booking requests, and deposits. <em>Under your shop’s brand.</em>
@@ -163,6 +172,10 @@ function HomePage() {
             <p>
               Get a new shop website, or keep your current site and link to a
               branded booking portal.
+            </p>
+            <p className="hero-note">
+              Texas launch: <time dateTime="2026-09-20">September 20, 2026</time>.
+              {" "}Explore the demo and request your shop’s walkthrough now.
             </p>
             <div className="hero-actions">
               <a
@@ -225,7 +238,7 @@ function HomePage() {
             <span className="feature-number">02 / PUBLISH</span>
             <h3>Publish available flash.</h3>
             <p>
-              Upload a flash sheet, crop individual designs, and add the details
+              Upload individual flash designs or a full flash sheet, crop designs, and add the details
               clients need to send a request.
             </p>
           </article>
@@ -268,6 +281,14 @@ function HomePage() {
               <span>Example for a full website. Portal profiles use your portal’s domain.</span>
             </div>
             <div className="artist-highlights">
+              <article>
+                <h3>Connect your Stripe account.</h3>
+                <p>
+                  Each artist connects their own Stripe account to receive
+                  payments for accepted booking offers. Stripe handles processing
+                  and payouts after account onboarding.
+                </p>
+              </article>
               <article>
                 <h3>Plan the drop. Share the link.</h3>
                 <p>
@@ -581,29 +602,7 @@ export function MarketingSite() {
     };
   }, []);
   useEffect(() => {
-    const path = location.pathname.toLowerCase().replace(/\/+$/, "") || "/";
-    const home = path === "/";
-    document.title = home
-      ? "SATX INK | Websites & Booking Software for Tattoo Shops"
-      : path === "/privacy"
-        ? "Privacy | SATX INK"
-        : path === "/terms"
-          ? "Website Information | SATX INK"
-          : "Page Unavailable | SATX INK";
-    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (!robots) {
-      robots = document.createElement("meta");
-      robots.name = "robots";
-      document.head.appendChild(robots);
-    }
-    robots.content =
-      home || ["/privacy", "/terms"].includes(path)
-        ? "index, follow"
-        : "noindex, follow";
-    const canonical = document.querySelector<HTMLLinkElement>(
-      'link[rel="canonical"]',
-    );
-    if (canonical) canonical.href = `https://www.satxink.com${path}`;
+    updateSeoHead(location.pathname);
   }, [location.pathname]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -722,7 +721,7 @@ export function MarketingSite() {
           <p>
             Tattoo studio software.
             <br />
-            Built around the work.
+            Texas launch · September 20, 2026.
           </p>
         </div>
         <nav aria-label="Footer navigation">
