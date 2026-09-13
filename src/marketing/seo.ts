@@ -21,8 +21,8 @@ export const publicPages: PageMetadata[] = [
   },
   {
     path: "/terms",
-    title: "Website Information & Terms | SATX INK",
-    description: "Information about the SATX INK software website, demo inquiries, shop installations, third-party services and illustrative product visuals.",
+    title: "About the System & Terms | SATX INK",
+    description: "Learn what SATX INK provides for tattoo studios, how demo inquiries and setup work, and what to know about payments and product visuals.",
     indexable: true,
   },
   ...contentPages.map(({ path, title, description }) => ({ path, title, description, indexable: true })),

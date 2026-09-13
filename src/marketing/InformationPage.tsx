@@ -45,11 +45,17 @@ export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
         </>
       ) : (
         <>
-          <h1>About this website.</h1>
+          <h1>About this system.</h1>
           <p>
-            SATX INK provides information about a branded website and
-            flash-booking system individually installed for tattoo shops. SATX
-            INK is a software provider, not a tattoo studio.
+            SATX INK provides tattoo studios with tools to manage their artists,
+            publish flash, handle booking requests, and collect deposits through
+            Stripe.
+          </p>
+          <p>
+            Shop owners can invite their team and update shop hours and events.
+            Artists can upload individual designs or full flash sheets, review
+            requests, offer appointment times, and connect their own Stripe
+            accounts to receive payments.
           </p>
           <h2>A conversation, not a booking</h2>
           <p>
@@ -61,8 +67,8 @@ export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
           <h2>Your installation</h2>
           <p>
             SATX INK setup and support fees are published in our{" "}
-            <a className="inline-link" href="/#pricing-support">Pricing & Support</a>
-            {" "}section. Installation details and third-party services are
+            <a className="inline-link" href="/pricing">Pricing & Support</a>
+            {" "}page. Installation details and third-party services are
             confirmed before setup. Payment and email
             features require the relevant providers to be configured for the
             shop. A companion portal is a configured website connected by links,
