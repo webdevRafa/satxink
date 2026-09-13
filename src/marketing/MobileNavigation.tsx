@@ -17,8 +17,8 @@ export function MobileNavigation({ items, onNavigate }: {
 
   return (
     <nav ref={menu} id="mobile-navigation" className="mobile-nav" aria-label="Mobile navigation">
-      {items.map(([label, id]) => (
-        <a key={id} href={`/#${id}`} onClick={onNavigate}>
+      {items.map(([label, href]) => (
+        <a key={href} href={href} onClick={onNavigate}>
           {label}<ArrowUpRight size={16} aria-hidden="true" />
         </a>
       ))}

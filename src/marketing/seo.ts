@@ -1,3 +1,5 @@
+import { contentPages } from "./pageContent";
+
 export const SITE_URL = "https://www.satxink.com";
 export const SOCIAL_IMAGE = `${SITE_URL}/media/satx-ink-social-card.png`;
 
@@ -23,6 +25,7 @@ export const publicPages: PageMetadata[] = [
     description: "Information about the SATX INK software website, demo inquiries, shop installations, third-party services and illustrative product visuals.",
     indexable: true,
   },
+  ...contentPages.map(({ path, title, description }) => ({ path, title, description, indexable: true })),
 ];
 
 export function getPageMetadata(pathname: string): PageMetadata {
@@ -35,7 +38,19 @@ export function getPageMetadata(pathname: string): PageMetadata {
 }
 
 export function getStructuredData(page: PageMetadata) {
-  if (!page.indexable || page.path !== "/") return null;
+  if (!page.indexable) return null;
+  if (page.path !== "/") {
+    const contentPage = contentPages.find(item => item.path === page.path);
+    if (!contentPage) return null;
+    return {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+        { "@type": "ListItem", position: 2, name: contentPage.label, item: `${SITE_URL}${page.path}` },
+      ],
+    };
+  }
   return {
     "@context": "https://schema.org",
     "@graph": [

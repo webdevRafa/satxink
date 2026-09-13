@@ -66,7 +66,7 @@ export function PricingSection() {
             email delivery costs are separate.
           </p>
         </div>
-        <a className="button" href="#contact">
+        <a className="button" href="/#contact">
           Request a walkthrough <ArrowUpRight size={18} aria-hidden="true" />
         </a>
       </div>

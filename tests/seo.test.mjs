@@ -8,6 +8,13 @@ const pages = [
   ['index.html', '/', 'Tattoo Shop Software', 'Flash, booking requests, and deposits'],
   ['privacy.html', '/privacy', 'Privacy Policy', 'When you get in touch'],
   ['terms.html', '/terms', 'Website Information', 'Your installation'],
+  ['tattoo-shop-management-software.html', '/tattoo-shop-management-software', 'Tattoo Shop Management Software', 'Keep hours, events and shop information current.'],
+  ['tattoo-flash-booking-software.html', '/tattoo-flash-booking-software', 'Tattoo Flash Booking Software', 'Upload a single design or a complete flash sheet.'],
+  ['tattoo-shop-websites.html', '/tattoo-shop-websites', 'Tattoo Shop Websites', 'Choose where the experience lives.'],
+  ['pricing.html', '/pricing', 'Tattoo Shop Software Pricing', 'Allow for the services your shop uses.'],
+  ['texas.html', '/texas', 'Tattoo Shop Software in Texas', 'Starting with tattoo shops in Texas.'],
+  ['about.html', '/about', 'About SATX INK', 'Artists make the booking decisions.'],
+  ['guides/launch-a-tattoo-flash-drop.html', '/guides/launch-a-tattoo-flash-drop', 'How to Launch a Tattoo Flash Drop', 'Prepare the sheet and individual designs.'],
 ];
 
 for (const [file, path, title, body] of pages) {
@@ -29,6 +36,51 @@ for (const [file, path, title, body] of pages) {
     }
   });
 }
+
+test('all public page links and section anchors resolve to emitted content', () => {
+  const documents = new Map(pages.map(([file, path]) => [path, read(file)]));
+  const titles = new Set();
+  const descriptions = new Set();
+  for (const [path, html] of documents) {
+    titles.add(html.match(/<title>([^<]+)<\/title>/)[1]);
+    descriptions.add(html.match(/name="description" content="([^"]+)"/)[1]);
+    for (const [, href] of html.matchAll(/<a\b[^>]*href="([^"]+)"/g)) {
+      const url = new URL(href.replaceAll('&amp;', '&'), `https://www.satxink.com${path}`);
+      if (url.origin !== 'https://www.satxink.com') continue;
+      const target = documents.get(url.pathname);
+      assert.ok(target, `${path} links to missing page ${url.pathname}`);
+      if (url.hash) assert.ok(target.includes(`id="${decodeURIComponent(url.hash.slice(1))}"`), `${path} has a broken anchor ${href}`);
+    }
+  }
+  assert.equal(titles.size, pages.length, 'Each public page needs a distinct title');
+  assert.equal(descriptions.size, pages.length, 'Each public page needs a distinct description');
+});
+
+test('new pages are linked from home and have breadcrumb schema matching their visible identity', () => {
+  const home = read('index.html');
+  for (const [file, path] of pages.slice(3)) {
+    assert.ok(home.includes(`href="${path}"`), `${path} is orphaned from the homepage`);
+    const html = read(file);
+    const json = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>(.*?)<\/script>/s)[1];
+    const schema = JSON.parse(json);
+    assert.equal(schema['@type'], 'BreadcrumbList');
+    assert.equal(schema.itemListElement[1].item, `https://www.satxink.com${path}`);
+    assert.ok(html.includes(`aria-current="page">${schema.itemListElement[1].name.replaceAll('&', '&amp;')}</span>`));
+  }
+  const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.ok(!config.redirects.some(redirect => redirect.source === '/about'));
+});
+
+test('pricing is consistent and the portal comparison preserves the existing website distinction', () => {
+  const pricing = read('pricing.html');
+  assert.match(pricing, /\$500/);
+  assert.match(pricing, /\$100/);
+  assert.match(pricing, /Database usage and email delivery are additional costs paid by your shop/);
+  assert.match(pricing, /href="\/#contact"/);
+  const websites = read('tattoo-shop-websites.html');
+  assert.match(websites, /<table>/);
+  assert.match(websites, /not an embedded plugin or a shared-login integration/);
+});
 
 test('homepage states the Texas launch and artist Stripe connection with valid brand schema', () => {
   const html = read('index.html');

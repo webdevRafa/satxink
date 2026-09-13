@@ -23,15 +23,17 @@ import { createHeaderCtaReveal } from "./headerCta";
 import { createViewportMotion, pageMotionTargets } from "./viewportMotion";
 import { MobileNavigation } from "./MobileNavigation";
 import { updateSeoHead } from "./seo";
+import { contentPages } from "./pageContent";
+import { ProductPage } from "./ProductPage";
 
 const demoEmail =
   "mailto:support@satxink.com?subject=SATX%20INK%20demo%20inquiry&body=Hi%20SATX%20INK%2C%0A%0AI%27d%20like%20to%20see%20how%20the%20system%20could%20work%20for%20my%20shop.%0A%0AShop%20name%3A%20%0ACurrent%20website%20(if%20any)%3A%20%0ANumber%20of%20artists%20and%20locations%3A%20%0AInterested%20in%20a%20full%20website%20or%20companion%20portal%3A%20%0A%0AThanks!";
 const navigation = [
-  ["How it works", "how-it-works"],
-  ["For owners", "for-owners"],
-  ["For artists", "for-artists"],
-  ["Your setup", "your-setup"],
-  ["Pricing & Support", "pricing-support"],
+  ["For owners", "/tattoo-shop-management-software"],
+  ["Flash booking", "/tattoo-flash-booking-software"],
+  ["Websites", "/tattoo-shop-websites"],
+  ["Pricing", "/pricing"],
+  ["Texas launch", "/texas"],
 ];
 const steps = [
   [
@@ -280,6 +282,7 @@ function HomePage() {
               </code>
               <span>Example for a full website. Portal profiles use your portal’s domain.</span>
             </div>
+            <Link className="inline-link" to="/tattoo-flash-booking-software">Explore the flash booking workflow <ArrowRight size={16} /></Link>
             <div className="artist-highlights">
               <article>
                 <h3>Connect your Stripe account.</h3>
@@ -367,6 +370,7 @@ function HomePage() {
                 </p>
               </div>
             </div>
+            <Link className="inline-link" to="/tattoo-shop-management-software">See the shop management tools <ArrowRight size={16} /></Link>
             <div className="owner-feature">
               <Users />
               <div>
@@ -487,6 +491,7 @@ function HomePage() {
         <p className="setup-note">
           Each setup is individually installed and configured. We’ll review your
           domain, payment setup, and installation requirements together.
+          {" "}<Link className="inline-link" to="/tattoo-shop-websites">Compare websites and portals.</Link>
         </p>
       </section>
 
@@ -657,8 +662,8 @@ export function MarketingSite() {
             />
           </Link>
           <nav className="desktop-nav" aria-label="Main navigation">
-            {navigation.map(([label, id]) => (
-              <a key={id} href={`/#${id}`}>
+            {navigation.map(([label, href]) => (
+              <a key={href} href={href}>
                 {label}
               </a>
             ))}
@@ -695,10 +700,7 @@ export function MarketingSite() {
           <Route path="/" element={<HomePage />} />
           <Route path="/privacy" element={<InformationPage kind="privacy" />} />
           <Route path="/terms" element={<InformationPage kind="terms" />} />
-          <Route
-            path="/about"
-            element={<Navigate to="/#how-it-works" replace />}
-          />
+          {contentPages.map(contentPage => <Route key={contentPage.path} path={contentPage.path} element={<ProductPage page={contentPage} />} />)}
           <Route
             path="/contact"
             element={<Navigate to="/#contact" replace />}
@@ -724,11 +726,23 @@ export function MarketingSite() {
             Texas launch · September 20, 2026.
           </p>
         </div>
-        <nav aria-label="Footer navigation">
-          <a href="/#pricing-support">Pricing & Support</a>
-          <a href="/#contact">Contact</a>
-          <Link to="/privacy">Privacy</Link>
-          <Link to="/terms">Website information</Link>
+        <nav className="footer-nav" aria-label="Footer navigation">
+          <div><p>Explore the system</p>
+            <Link to="/tattoo-shop-management-software">Shop management</Link>
+            <Link to="/tattoo-flash-booking-software">Flash booking</Link>
+            <Link to="/tattoo-shop-websites">Websites & portals</Link>
+            <Link to="/pricing">Pricing & support</Link>
+          </div>
+          <div><p>Get to know SATX INK</p>
+            <Link to="/texas">Texas launch</Link>
+            <Link to="/about">About SATX INK</Link>
+            <Link to="/guides/launch-a-tattoo-flash-drop">Flash drop guide</Link>
+            <a href="/#contact">Contact</a>
+          </div>
+          <div><p>Website information</p>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms & information</Link>
+          </div>
         </nav>
         <span className="copyright">© {new Date().getFullYear()} SATX INK</span>
       </footer>
