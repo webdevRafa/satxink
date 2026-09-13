@@ -534,8 +534,8 @@ function HomePage() {
 
       <section id="faq" className="section shell faq-section">
         <div>
-          <p className="eyebrow">A few good questions</p>
-          <h2>Before we talk.</h2>
+          <p className="eyebrow">FAQs</p>
+          <h2>Questions you might have.</h2>
           <p>
             Want to discuss your shop’s setup?
             <br />
@@ -725,6 +725,14 @@ export function MarketingSite() {
             <br />
             Texas launch · September 20, 2026.
           </p>
+          <a
+            className="footer-social"
+            href="https://www.instagram.com/satxink/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Follow us on Instagram <ArrowUpRight size={16} aria-hidden="true" />
+          </a>
         </div>
         <nav className="footer-nav" aria-label="Footer navigation">
           <div><p>Explore the system</p>

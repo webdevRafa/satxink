@@ -156,24 +156,33 @@ section[id] {
   align-items: center;
   justify-content: center;
   gap: 1.2rem;
-  background: var(--color-primary);
+  background: transparent;
   color: #fff;
-  padding: 1rem 1.4rem;
+  padding: 0.75rem 0;
+  width: fit-content;
+  max-width: 100%;
   min-height: 52px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  border: 0;
+  border-bottom: 2px solid var(--color-primary);
+  border-radius: 0;
   font-weight: 600;
   font-size: 0.9375rem;
   transition:
-    background 0.2s,
-    transform 0.2s;
+    color 0.2s,
+    border-color 0.2s;
 }
-.button:hover {
-  background: var(--color-primary);
+.button svg {
+  flex: none;
+  color: var(--color-primary);
+}
+.button:is(:hover, :focus-visible) {
+  background: transparent;
+  color: #e07d73;
+  border-bottom-color: #e07d73;
 }
 .button-small {
-  min-height: 42px;
-  padding: 0.65rem 1rem;
+  min-height: 44px;
+  padding: 0.65rem 0;
   font-size: 0.875rem;
 }
 .button-secondary {
@@ -502,7 +511,7 @@ section[id] {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s ease, background 0.2s;
+  transition: opacity 0.35s ease, color 0.2s, border-color 0.2s;
 }
 .header-cta[data-visible="true"] {
   visibility: visible;
@@ -1193,7 +1202,7 @@ section[id] {
   justify-self: end;
 }
 .contact-actions > .button {
-  width: 100%;
+  width: fit-content;
 }
 .email-note {
   font-size: 0.8125rem;
@@ -1326,7 +1335,7 @@ section[id] {
   }
   .header-cta {
     font-size: 0.8125rem;
-    padding: 9px 12px;
+    padding: 9px 0;
   }
   .section-heading,
   .split-section,
