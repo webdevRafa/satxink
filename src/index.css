@@ -299,6 +299,22 @@ section[id] {
   height: 100%;
   object-fit: contain;
 }
+/* Keep the recordings behind the copy, including their unloaded posters. */
+.hero .viewport-video,
+.artist-section .viewport-video {
+  position: relative;
+  isolation: isolate;
+}
+.hero .viewport-video::after,
+.artist-section .viewport-video::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--media-surface, var(--color-bg-base));
+  opacity: 0.28;
+  pointer-events: none;
+}
 .product-demo figcaption {
   padding-top: 10px;
   text-transform: none;
@@ -660,7 +676,8 @@ section[id] {
   margin-bottom: 12px;
 }
 .artist-section {
-  background: #181818;
+  --media-surface: #181818;
+  background: var(--media-surface);
   border-block: 1px solid var(--line);
 }
 .artist-demo {
@@ -841,7 +858,8 @@ section[id] {
   color: var(--color-primary);
 }
 .owner-section {
-  background: #191919;
+  --media-surface: #191919;
+  background: var(--media-surface);
   border-block: 1px solid var(--line);
 }
 .owner-feature {
@@ -889,6 +907,34 @@ section[id] {
   padding: 0;
   background: transparent;
   cursor: zoom-in;
+}
+/* Scope the scrim to this thumbnail: captions and the portal lightbox stay clear. */
+.owner-section .marketplace-image-trigger {
+  position: relative;
+  isolation: isolate;
+}
+.owner-section .marketplace-image-trigger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--media-surface);
+  opacity: 0.3;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+.owner-section .marketplace-image-trigger:focus-visible::after {
+  opacity: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .owner-section .marketplace-image-trigger:hover::after {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .owner-section .marketplace-image-trigger::after {
+    transition: none;
+  }
 }
 .marketplace-lightbox {
   position: fixed;
