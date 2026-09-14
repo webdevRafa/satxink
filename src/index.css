@@ -312,7 +312,7 @@ section[id] {
   inset: 0;
   z-index: 1;
   background: var(--media-surface, var(--color-bg-base));
-  opacity: 0.28;
+  opacity: 0.6;
   pointer-events: none;
 }
 .product-demo figcaption {
@@ -919,7 +919,7 @@ section[id] {
   inset: 0;
   z-index: 1;
   background: var(--media-surface);
-  opacity: 0.3;
+  opacity: 0.6;
   pointer-events: none;
   transition: opacity 280ms ease;
 }
