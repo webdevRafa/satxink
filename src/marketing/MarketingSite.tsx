@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Copy,
   Globe2,
+  Instagram,
   Mail,
   Menu,
   Users,
@@ -731,7 +732,7 @@ export function MarketingSite() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Follow us on Instagram <ArrowUpRight size={16} aria-hidden="true" />
+            Follow us on Instagram <Instagram size={16} aria-hidden="true" />
           </a>
         </div>
         <nav className="footer-nav" aria-label="Footer navigation">

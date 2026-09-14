@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
   return (
     <article className="section shell information-page">
-      <p className="eyebrow">SATX INK · Updated September {kind === "terms" ? "13" : "5"}, 2026</p>
+      <p className="eyebrow">SATX INK · Updated September 13, 2026</p>
       {kind === "privacy" ? (
         <>
           <h1>Privacy on this website.</h1>
@@ -22,17 +22,25 @@ export function InformationPage({ kind }: { kind: "privacy" | "terms" }) {
           </p>
           <h2>While you browse</h2>
           <p>
-            The optional 3D studio is displayed in your browser. This website
-            does not request camera, microphone, or location access. It does not
-            include advertising trackers, analytics scripts, or account cookies.
-            The website host may process normal request information to deliver
-            the site.
+            We use Vercel Web Analytics to understand visits and improve this
+            website. It collects aggregate statistics such as page views,
+            referring websites, browser and device types, and approximate
+            location. It does not use third-party cookies or track you across
+            other websites. Learn more about{" "}
+            <a className="inline-link" href="https://vercel.com/docs/analytics/privacy-policy">
+              Vercel Web Analytics privacy
+            </a>.
+          </p>
+          <p>
+            This website does not request camera, microphone, or location
+            permission. The website host may process normal request information
+            to deliver the site.
           </p>
           <p>
             Fonts are requested from Google Fonts and Adobe Fonts, whose
             services receive the network information needed to serve those
-            resources. The studio model and artwork are served with this
-            website.
+            resources. Product screenshots, recordings, and example artwork
+            are served with this website.
           </p>
           <h2>Shop installations and earlier accounts</h2>
           <p>
