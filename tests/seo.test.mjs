@@ -5,7 +5,7 @@ import test from 'node:test';
 const dist = new URL('../dist/', import.meta.url);
 const read = file => readFileSync(new URL(file, dist), 'utf8');
 const pages = [
-  ['index.html', '/', 'Tattoo Shop Software', 'Flash, booking requests, and deposits'],
+  ['index.html', '/', 'Tattoo Studio Software', 'Flash, booking requests, and deposits'],
   ['privacy.html', '/privacy', 'Privacy Policy', 'When you get in touch'],
   ['terms.html', '/terms', 'About the System', 'About this system.'],
   ['tattoo-shop-management-software.html', '/tattoo-shop-management-software', 'Tattoo Shop Management Software', 'Keep hours, events and shop information current.'],

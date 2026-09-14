@@ -161,7 +161,7 @@ function HomePage() {
         <div className="hero-layout">
           <div className="hero-copy">
             <p className="eyebrow">
-              <span /> Tattoo shop software · Texas
+              <span /> Tattoo studio software · Texas
             </p>
             <h1 id="hero-title">
               Flash, booking requests, and deposits. <em>Under your shop’s brand.</em>

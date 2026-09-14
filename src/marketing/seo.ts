@@ -9,8 +9,8 @@ type PageMetadata = { title: string; description: string; path: string; indexabl
 export const publicPages: PageMetadata[] = [
   {
     path: "/",
-    title: "Tattoo Shop Software & Booking Websites in Texas | SATX INK",
-    description: "Tattoo shop software for artist invitations, flash sheets, booking requests and Stripe deposits. Branded websites or portals. Texas launch: September 20, 2026.",
+    title: "SATX INK | Tattoo Studio Software",
+    description: "Tattoo studio software to manage artists, publish flash sheets, handle booking requests, collect deposits through Stripe, and update shop hours and events.",
     indexable: true,
   },
   {
@@ -58,11 +58,11 @@ export function getStructuredData(page: PageMetadata) {
         "@type": "Organization", "@id": `${SITE_URL}/#organization`,
         name: "SATX INK", url: `${SITE_URL}/`,
         logo: `${SITE_URL}/apple-touch-icon-modern.png`, email: "support@satxink.com",
-        description: "Tattoo shop software with branded websites, artist workspaces, flash publishing and booking tools. Initial service area: Texas.",
+        description: "Tattoo studio software for artist management, flash publishing, booking requests, Stripe deposits, shop hours and events. Initial service area: Texas.",
       },
       {
         "@type": "WebSite", "@id": `${SITE_URL}/#website`,
-        name: "SATX INK", alternateName: "SATX Ink", url: `${SITE_URL}/`,
+        name: "SATX INK", alternateName: ["SATX Ink", "satxink.com"], url: `${SITE_URL}/`,
         publisher: { "@id": `${SITE_URL}/#organization` }, inLanguage: "en-US",
       },
     ],
